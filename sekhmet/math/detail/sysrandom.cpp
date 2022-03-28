@@ -22,23 +22,20 @@ ssize_t sek::math::sys_random(void *dst, std::size_t len) noexcept { return sysc
 
 #elif defined(SEK_OS_WIN)
 
-#include <wincrypt.h>
+#include <bcrypt.h>
 
-static bool acquire_context(HCRYPTPROV *ctx) noexcept
-{
-	if (!CryptAcquireContext(ctx, nullptr, nullptr, PROV_RSA_FULL, 0)) [[unlikely]]
-		return CryptAcquireContext(ctx, nullptr, nullptr, PROV_RSA_FULL, CRYPT_NEWKEYSET);
-	return true;
-}
 ssize_t sek::math::sys_random(void *dst, std::size_t len) noexcept
 {
-	HCRYPTPROV ctx;
-	if (!acquire_context(&ctx)) [[unlikely]]
+	BCRYPT_ALG_HANDLE rng_alg;
+	if (BCryptOpenAlgorithmProvider(&handle, BCRYPT_RNG_ALGORITHM, nullptr, 0) != STATUS_SUCCESS) [[unlikely]]
 		return -1;
-	if (!CryptGenRandom(ctx, len, static_cast<BYTE *>(dst))) [[unlikely]]
-		return -1;
-	if (!CryptReleaseContext(ctx, 0)) [[unlikely]]
-		return -1;
+
+	ssize_t result = static_cast<ssize_t>(len);
+	if (BCryptGenRandom(rng_alg, static_cast<PUCHAR>(dst), len, 0) != STATUS_SUCCESS) [[unlikely]]
+		result = -1;
+	if (BCryptCloseAlgorithmProvider(rng_alg, 0) != STATUS_SUCCESS) [[unlikely]]
+		result = -1;
+	return result;
 }
 
 #elif defined(__OpenBSD__)
