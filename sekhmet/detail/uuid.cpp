@@ -20,7 +20,11 @@ namespace sek
 		constexpr void generate(Iter out, Iter) noexcept
 		{
 			result_type seeds[4] = {0};
-			math::sys_random(&seeds, sizeof(seeds));
+			if (math::sys_random(&seeds, sizeof(seeds)) != sizeof(seeds)) [[unlikely]]
+			{
+				/* If sys_random failed, try to generate using rand. */
+				for (auto i = SEK_ARRAY_SIZE(seeds); i > 0;) seeds[--i] = static_cast<result_type>(rand());
+			}
 			std::copy_n(std::begin(seeds), 4, out);
 		}
 	};

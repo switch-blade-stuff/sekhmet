@@ -85,3 +85,17 @@
 #ifdef _POSIX_VERSION
 #define SEK_OS_POSIX
 #endif
+
+#ifdef SEK_OS_POSIX
+#include <sys/types.h>
+#endif
+
+#ifndef SSIZE_MAX
+#if SIZE_MAX > INT32_MAX
+typedef int64_t ssize_t;
+#define SSIZE_MAX INT64_MAX
+#else
+typedef int32_t ssize_t;
+#define SSIZE_MAX INT32_MAX
+#endif
+#endif
