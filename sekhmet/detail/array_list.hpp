@@ -421,7 +421,15 @@ namespace sek
 		[[nodiscard]] constexpr const_reference back() const noexcept { return at(size() - 1); }
 
 		/** Removes all elements from the list. Does not resize the internal array. */
-		constexpr void clear() { erase(begin(), end()); }
+		constexpr void clear()
+		{
+			for (auto node = data_begin; node != data_end; ++node)
+			{
+				std::destroy_at(*node);
+				get_allocator().deallocate(*node, 1);
+			}
+			data_end = data_begin;
+		}
 		/** Removes all elements from the list and destroys the internal node array. */
 		constexpr void purge()
 		{
@@ -740,19 +748,23 @@ namespace sek
 				alloc_copy_assign(get_node_allocator(), other.get_node_allocator());
 			}
 
-			auto new_size = other.size();
-			auto old_size = size();
-			reserve(new_size);
-
-			if (new_size < old_size)
-			{
-				std::copy_n(other.begin(), new_size, begin());
-				erase_impl(data_begin + new_size, data_end);
-			}
+			if (auto new_size = other.size(); !new_size)
+				clear();
 			else
 			{
-				std::copy_n(other.begin(), old_size, begin());
-				push_back(const_iterator{data_begin + old_size}, other.cend());
+				auto old_size = size();
+				reserve(new_size);
+
+				if (new_size < old_size)
+				{
+					std::copy_n(other.begin(), new_size, begin());
+					erase_impl(data_begin + new_size, data_end);
+				}
+				else
+				{
+					std::copy_n(other.begin(), old_size, begin());
+					push_back(const_iterator{data_begin + old_size}, other.cend());
+				}
 			}
 		}
 
