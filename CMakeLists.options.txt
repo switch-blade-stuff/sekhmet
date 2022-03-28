@@ -1,0 +1,11 @@
+
+# Project build toggles
+option(BUILD_EDITOR "Build editor project" OFF)
+option(BUILD_MODULES "Build module projects" ON)
+option(EXPORT_BUILD "Project is built for export" OFF)
+
+option(ENABLE_TESTS "Build unit tests" OFF)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    set(ENABLE_TESTS ON)
+endif ()
+

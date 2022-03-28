@@ -1,0 +1,9 @@
+
+option(ENABLE_WIN_ROOT "Enables non-Windows platforms to treat Windows-like drive designators as root directory" OFF)
+if (NOT ENABLE_WIN_ROOT AND NOT WIN32)
+    add_compile_definitions(SEK_NO_WIN_ROOT)
+endif ()
+option(USE_UNC_ROOT "Enables UNC format root directory detection" ON)
+if (USE_UNC_ROOT)
+    add_compile_definitions(SEK_USE_UNC_ROOT)
+endif ()

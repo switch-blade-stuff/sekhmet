@@ -1,0 +1,83 @@
+---
+Language: 'Cpp'
+Standard: 'c++20'
+TabWidth: 4
+UseTab: 'Always'
+ColumnLimit: 120
+
+PenaltyBreakAssignment: 6
+PenaltyExcessCharacter: 2
+
+AccessModifierOffset: '-4'
+AlignAfterOpenBracket: 'Align'
+AlignConsecutiveMacros: 'false'
+AlignConsecutiveAssignments: 'false'
+AlignConsecutiveDeclarations: 'false'
+AlignEscapedNewlines: 'Right'
+AlignOperands: 'Align'
+AlignTrailingComments: 'true'
+AllowAllArgumentsOnNextLine: 'true'
+AllowAllConstructorInitializersOnNextLine: 'true'
+AllowAllParametersOfDeclarationOnNextLine: 'true'
+AllowShortBlocksOnASingleLine: 'true'
+AllowShortCaseLabelsOnASingleLine: 'true'
+AllowShortFunctionsOnASingleLine: 'All'
+AllowShortIfStatementsOnASingleLine: 'WithoutElse'
+AllowShortLambdasOnASingleLine: 'All'
+AllowShortLoopsOnASingleLine: 'true'
+AlwaysBreakAfterReturnType: 'None'
+AlwaysBreakBeforeMultilineStrings: 'false'
+AlwaysBreakTemplateDeclarations: 'Yes'
+BinPackArguments: 'false'
+BinPackParameters: 'false'
+
+BreakBeforeTernaryOperators: 'false'
+BreakConstructorInitializers: 'BeforeColon'
+BreakInheritanceList: 'BeforeColon'
+CompactNamespaces: 'true'
+
+ConstructorInitializerAllOnOneLineOrOnePerLine: 'true'
+#PackConstructorInitializers: 'CurrentLine'
+
+Cpp11BracedListStyle: 'true'
+BitFieldColonSpacing: 'Both'
+BreakBeforeBraces: 'Allman'
+
+IncludeBlocks: 'Regroup'
+IncludeCategories:
+  - Regex: '^([<"](gtest|gmock)/)'
+    Priority: 1
+  - Regex: '<[[:alnum:].]+>'
+    Priority: 2
+  - Regex: '^([<"](core)/)'
+    Priority: 3
+  - Regex: '.*'
+    Priority: 4
+
+IncludeIsMainRegex: '(_impl)?$'
+IndentCaseLabels: 'true'
+IndentPPDirectives: 'None'
+IndentWidth: '4'
+IndentWrappedFunctionNames: 'true'
+MaxEmptyLinesToKeep: '1'
+NamespaceIndentation: 'All'
+ReflowComments: 'true'
+SortIncludes: 'true'
+SortUsingDeclarations: 'true'
+SpaceAfterCStyleCast: 'true'
+SpaceAfterLogicalNot: 'false'
+SpaceAfterTemplateKeyword: 'false'
+SpaceBeforeAssignmentOperators: 'true'
+SpaceBeforeCpp11BracedList: 'false'
+SpaceBeforeCtorInitializerColon: 'true'
+SpaceBeforeInheritanceColon: 'true'
+SpaceBeforeParens: 'ControlStatements'
+SpaceBeforeRangeBasedForLoopColon: 'true'
+SpaceInEmptyParentheses: 'false'
+SpacesBeforeTrailingComments: '4'
+SpacesInAngles: 'false'
+SpacesInCStyleCastParentheses: 'false'
+SpacesInContainerLiterals: 'false'
+SpacesInParentheses: 'false'
+SpacesInSquareBrackets: 'false'
+BreakStringLiterals: 'true'
