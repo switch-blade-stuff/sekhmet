@@ -17,6 +17,6 @@ namespace sek::detail
 
 		return format_type_name<Name, 0, offset_start, offset_end, trimmed_length>();
 	}
-}	 // namespace sek::detail
+}	 // namespace sek
 
 #endif

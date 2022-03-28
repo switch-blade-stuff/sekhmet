@@ -9,19 +9,6 @@
 
 namespace sek::math
 {
-	using detail::vector;
-
-	using detail::abs;
-	using detail::dot;
-	using detail::hash;
-	using detail::magn;
-	using detail::max;
-	using detail::min;
-	using detail::norm;
-	using detail::rsqrt;
-	using detail::sqrt;
-	using detail::swap;
-
 	typedef vector<double, 4> vector4d;
 	typedef vector<double, 3> vector3d;
 	typedef vector<double, 2> vector2d;

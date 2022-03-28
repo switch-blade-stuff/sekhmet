@@ -11,9 +11,6 @@
 
 namespace sek::detail
 {
-	/* `str_length_slow` is the constexpr loop implementation.
-	 * `str_length` makes call to the C string length functions for char, char8_t & wchar_t contiguous iterators.
-	 * Otherwise, defaults to `str_length_slow`. */
 	template<std::forward_iterator I>
 	[[nodiscard]] constexpr std::size_t str_length_slow(I str) noexcept
 	{

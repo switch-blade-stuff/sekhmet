@@ -48,7 +48,7 @@ namespace sek::detail
 	{
 		return format_type_name<Src, J, I, Last, N>([](std::size_t) -> std::size_t { return 0; });
 	}
-}	 // namespace sek::detail
+}	 // namespace sek
 
 #if defined(__clang__) || defined(__GNUC__)
 
@@ -64,7 +64,7 @@ namespace sek::detail
 
 #endif
 
-namespace sek::detail
+namespace sek
 {
 	/** Returns name of the specified type.
 	 * @note If the type was not declared using `SEK_DECLARE_TYPE`, type name will be generated using compiler-specific method.
@@ -72,7 +72,7 @@ namespace sek::detail
 	template<typename T>
 	[[nodiscard]] constexpr std::string_view type_name() noexcept
 	{
-		constexpr auto &name = auto_constant<generate_type_name<T>()>::value;
+		constexpr auto &name = auto_constant<detail::generate_type_name<T>()>::value;
 		return std::string_view{name.begin(), name.end()};
 	}
 	/** Returns hash of the specified type's name. */
@@ -102,7 +102,7 @@ namespace sek::detail
 		type_id() = delete;
 		/** Initializes a type id from a type name.
 		 * @param sv String view containing the type name. */
-		constexpr type_id(std::string_view sv) noexcept : type_id(sv, detail::fnv1a(sv.data(), sv.size())) {}
+		constexpr type_id(std::string_view sv) noexcept : type_id(sv, fnv1a(sv.data(), sv.size())) {}
 
 		/** Returns name of the type. */
 		[[nodiscard]] constexpr std::string_view name() const noexcept { return name_value; }
@@ -124,13 +124,13 @@ namespace sek::detail
 	};
 
 	[[nodiscard]] constexpr hash_t hash(const type_id &tid) noexcept { return tid.hash(); }
-}	 // namespace sek::detail
+}	 // namespace sek
 
 template<>
-struct std::hash<sek::detail::type_id>
+struct std::hash<sek::type_id>
 {
-	[[nodiscard]] constexpr sek::detail::hash_t operator()(const sek::detail::type_id &tid) const noexcept
+	[[nodiscard]] constexpr sek::hash_t operator()(const sek::type_id &tid) const noexcept
 	{
-		return sek::detail::hash(tid);
+		return sek::hash(tid);
 	}
 };

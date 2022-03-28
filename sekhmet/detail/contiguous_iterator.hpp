@@ -9,8 +9,9 @@
 #include "define.h"
 #include <type_traits>
 
-namespace sek::detail
+namespace sek
 {
+	/** @brief Generic contiguous iterator. */
 	template<typename T, bool IsConst>
 	class contiguous_iterator
 	{
@@ -103,4 +104,4 @@ namespace sek::detail
 		/** Pointer into the target sequence. */
 		pointer ptr;
 	};
-}	 // namespace sek::detail
+}	 // namespace sek

@@ -10,61 +10,64 @@
 #include "define.h"
 #include "hash.hpp"
 
-namespace sek::detail
+namespace sek
 {
-	template<std::size_t I, std::integral...>
-	struct basic_version_base;
-
-	template<std::size_t I, typename T, typename... Ts>
-	constexpr T &extract_component(basic_version_base<I, T, Ts...> &) noexcept;
-	template<std::size_t I, typename T, typename... Ts>
-	constexpr const T &extract_component(const basic_version_base<I, T, Ts...> &) noexcept;
-
-	template<std::size_t I, std::integral T>
-	struct basic_version_base<I, T>
+	namespace detail
 	{
-		friend constexpr T &extract_component<>(basic_version_base<I, T> &) noexcept;
-		friend constexpr const T &extract_component<>(const basic_version_base<I, T> &) noexcept;
+		template<std::size_t I, std::integral...>
+		struct basic_version_base;
 
-	public:
-		constexpr basic_version_base() noexcept = default;
-		constexpr explicit basic_version_base(T component) noexcept : component(component) {}
+		template<std::size_t I, typename T, typename... Ts>
+		constexpr T &extract_component(basic_version_base<I, T, Ts...> &) noexcept;
+		template<std::size_t I, typename T, typename... Ts>
+		constexpr const T &extract_component(const basic_version_base<I, T, Ts...> &) noexcept;
 
-	private:
-		T component = {};
-	};
-
-	template<std::size_t I, std::integral T, std::integral... Ts>
-	struct basic_version_base<I, T, Ts...> : basic_version_base<I + 1, Ts...>
-	{
-		friend constexpr T &extract_component<>(basic_version_base<I, T, Ts...> &) noexcept;
-		friend constexpr const T &extract_component<>(const basic_version_base<I, T, Ts...> &) noexcept;
-
-	public:
-		constexpr basic_version_base() noexcept = default;
-		template<std::integral... Args>
-		constexpr explicit basic_version_base(T component, Args... args) noexcept
-			: basic_version_base<I + 1, Ts...>(args...), component(component)
+		template<std::size_t I, std::integral T>
+		struct basic_version_base<I, T>
 		{
+			friend constexpr T &extract_component<>(basic_version_base<I, T> &) noexcept;
+			friend constexpr const T &extract_component<>(const basic_version_base<I, T> &) noexcept;
+
+		public:
+			constexpr basic_version_base() noexcept = default;
+			constexpr explicit basic_version_base(T component) noexcept : component(component) {}
+
+		private:
+			T component = {};
+		};
+
+		template<std::size_t I, std::integral T, std::integral... Ts>
+		struct basic_version_base<I, T, Ts...> : basic_version_base<I + 1, Ts...>
+		{
+			friend constexpr T &extract_component<>(basic_version_base<I, T, Ts...> &) noexcept;
+			friend constexpr const T &extract_component<>(const basic_version_base<I, T, Ts...> &) noexcept;
+
+		public:
+			constexpr basic_version_base() noexcept = default;
+			template<std::integral... Args>
+			constexpr explicit basic_version_base(T component, Args... args) noexcept
+				: basic_version_base<I + 1, Ts...>(args...), component(component)
+			{
+			}
+
+		private:
+			T component = {};
+		};
+
+		template<std::size_t I, typename T, typename... Ts>
+		constexpr T &extract_component(basic_version_base<I, T, Ts...> &v) noexcept
+		{
+			return v.component;
 		}
-
-	private:
-		T component = {};
-	};
-
-	template<std::size_t I, typename T, typename... Ts>
-	constexpr T &extract_component(basic_version_base<I, T, Ts...> &v) noexcept
-	{
-		return v.component;
-	}
-	template<std::size_t I, typename T, typename... Ts>
-	constexpr const T &extract_component(const basic_version_base<I, T, Ts...> &v) noexcept
-	{
-		return v.component;
-	}
+		template<std::size_t I, typename T, typename... Ts>
+		constexpr const T &extract_component(const basic_version_base<I, T, Ts...> &v) noexcept
+		{
+			return v.component;
+		}
+	}	 // namespace detail
 
 	template<std::integral... Components>
-	requires(sizeof...(Components) != 0) struct basic_version : basic_version_base<0, Components...>
+	requires(sizeof...(Components) != 0) struct basic_version : detail::basic_version_base<0, Components...>
 	{
 		template<std::integral... Ts>
 		friend constexpr hash_t hash(const basic_version<Ts...> &) noexcept;
@@ -72,7 +75,7 @@ namespace sek::detail
 		constexpr basic_version() noexcept = default;
 		template<std::integral... Args>
 		constexpr basic_version(Args... args) noexcept requires std::conjunction_v<std::is_constructible<Components, Args>...>
-			: basic_version_base<0, Components...>(args...)
+			: detail::basic_version_base<0, Components...>(args...)
 		{
 		}
 
@@ -248,22 +251,22 @@ namespace sek::detail
 	{
 		return v.template hash_impl<0>();
 	}
-	[[nodiscard]] constexpr hash_t hash(const version &v) noexcept { return hash(static_cast<const version_base_t &>(v)); }
-}	 // namespace sek::detail
+	[[nodiscard]] constexpr hash_t hash(const version &v) noexcept
+	{
+		return hash(static_cast<const version_base_t &>(v));
+	}
+}	 // namespace sek
 
 template<std::integral... Ts>
-struct std::hash<sek::detail::basic_version<Ts...>>
+struct std::hash<sek::basic_version<Ts...>>
 {
-	[[nodiscard]] constexpr sek::detail::hash_t operator()(const sek::detail::basic_version<Ts...> &v) const noexcept
+	[[nodiscard]] constexpr sek::hash_t operator()(const sek::basic_version<Ts...> &v) const noexcept
 	{
-		return sek::detail::hash(v);
+		return sek::hash(v);
 	}
 };
 template<>
-struct std::hash<sek::detail::version>
+struct std::hash<sek::version>
 {
-	[[nodiscard]] constexpr sek::detail::hash_t operator()(const sek::detail::version &v) const noexcept
-	{
-		return sek::detail::hash(v);
-	}
+	[[nodiscard]] constexpr sek::hash_t operator()(const sek::version &v) const noexcept { return sek::hash(v); }
 };

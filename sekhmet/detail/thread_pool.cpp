@@ -7,7 +7,7 @@
 #include "../math/detail/util.hpp"
 #include "assert.hpp"
 
-namespace sek::detail
+namespace sek
 {
 	thread_pool::thread_pool(std::size_t worker_count)
 	{
@@ -88,4 +88,4 @@ namespace sek::detail
 			if (parent->work_queue) parent->worker_cv.notify_all();
 		}
 	}
-}	 // namespace sek::detail
+}	 // namespace sek

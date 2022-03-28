@@ -7,7 +7,7 @@
 #include "hmap.hpp"
 #include <shared_mutex>
 
-namespace sek::detail
+namespace sek
 {
 	bad_type_exception::bad_type_exception(const char *src) noexcept : bad_type_exception()
 	{
@@ -59,7 +59,7 @@ namespace sek::detail
 		}
 
 		std::shared_mutex type_mtx;
-		hmap<type_id, const type_data *> type_table;
+		hmap<type_id, const detail::type_data *> type_table;
 	};
 
 	bool type_info::register_type(type_info type)
@@ -88,7 +88,7 @@ namespace sek::detail
 		auto &db = type_db::get();
 		db.type_mtx.lock_shared();
 
-		const type_data *data = nullptr;
+		const detail::type_data *data = nullptr;
 		if (auto data_iterator = db.type_table.find(tid); data_iterator != db.type_table.end()) [[likely]]
 			data = data_iterator->second;
 
@@ -107,4 +107,4 @@ namespace sek::detail
 		db.type_mtx.unlock_shared();
 		return result;
 	}
-}	 // namespace sek::detail
+}	 // namespace sek

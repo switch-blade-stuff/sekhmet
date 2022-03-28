@@ -8,22 +8,25 @@
 
 #include "meta_util.hpp"
 
-namespace sek::detail
+namespace sek
 {
-	template<typename T, std::size_t N>
-	struct static_array_t
+	namespace detail
 	{
-		constexpr const T *begin() const noexcept { return data; }
-		constexpr const T *end() const noexcept { return data + N; }
+		template<typename T, std::size_t N>
+		struct static_array_t
+		{
+			constexpr const T *begin() const noexcept { return data; }
+			constexpr const T *end() const noexcept { return data + N; }
 
-		T data[N];
-	};
-	template<typename T>
-	struct static_array_t<T, 0>
-	{
-		constexpr const T *begin() const noexcept { return nullptr; }
-		constexpr const T *end() const noexcept { return nullptr; }
-	};
+			T data[N];
+		};
+		template<typename T>
+		struct static_array_t<T, 0>
+		{
+			constexpr const T *begin() const noexcept { return nullptr; }
+			constexpr const T *end() const noexcept { return nullptr; }
+		};
+	}	 // namespace detail
 
 	/** @brief Structure used to store compile-time array made from NTTP object pack.
 	 * @tparam T Type of objects stored in the array.
@@ -32,7 +35,7 @@ namespace sek::detail
 	class array_constant
 	{
 	private:
-		using array_t = static_array_t<T, sizeof...(Vals)>;
+		using array_t = detail::static_array_t<T, sizeof...(Vals)>;
 
 	public:
 		constexpr static array_t value = {Vals...};
@@ -53,7 +56,7 @@ namespace sek::detail
 
 		constexpr static auto filter = []<typename U>(type_selector_t<U>) { return std::is_convertible_v<U, T>; };
 		using idx_t = filter_index_sequence<filter, decltype(Vals)...>;
-		using array_t = static_array_t<T, count_idx(idx_t{})>;
+		using array_t = detail::static_array_t<T, count_idx(idx_t{})>;
 
 		template<std::size_t I, std::size_t J, auto Arg, auto... Args>
 		constexpr static auto extract_arg() noexcept
@@ -125,5 +128,4 @@ namespace sek::detail
 		const T *data_ptr = nullptr;
 		size_type data_size = 0;
 	};
-
-}	 // namespace sek::detail
+}	 // namespace sek

@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <limits>
 
-namespace sek::detail
+namespace sek
 {
 	/** @brief Helper structure used to store a pointer and a flag in it's bottom bit.
 	 * @note Type must have alignment greater than 1. */
@@ -59,4 +59,4 @@ namespace sek::detail
 	flagged_ptr_t(T *) -> flagged_ptr_t<T>;
 	template<typename T>
 	flagged_ptr_t(T *, bool) -> flagged_ptr_t<T>;
-}	 // namespace sek::detail
+}	 // namespace sek

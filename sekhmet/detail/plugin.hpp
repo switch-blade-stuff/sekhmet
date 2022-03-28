@@ -7,30 +7,33 @@
 #include <atomic>
 
 #include "meta_containers.hpp"
-#include "type_id.hpp"
 #include "static_string.hpp"
+#include "type_id.hpp"
 
-namespace sek::detail
+namespace sek
 {
-	struct plugin_db;
-
-	template<basic_static_string Name>
-	struct plugin_name_instance
+	namespace detail
 	{
-		constexpr static auto convert_name() noexcept
-		{
-			constexpr auto N = Name.size() + 1;
-			basic_static_string<char, N> result;
-			for (auto i = N; i-- > 0;) result[i] = static_cast<char>(Name[i]);
-			return result;
-		}
+		struct plugin_db;
 
-		constexpr static auto value = convert_name();
-	};
+		template<basic_static_string Name>
+		struct plugin_name_instance
+		{
+			constexpr static auto convert_name() noexcept
+			{
+				constexpr auto N = Name.size() + 1;
+				basic_static_string<char, N> result;
+				for (auto i = N; i-- > 0;) result[i] = static_cast<char>(Name[i]);
+				return result;
+			}
+
+			constexpr static auto value = convert_name();
+		};
+	}	 // namespace detail
 
 	class SEK_API plugin
 	{
-		friend struct plugin_db;
+		friend struct detail::plugin_db;
 
 	public:
 		enum class status_t : std::uint64_t
@@ -48,8 +51,8 @@ namespace sek::detail
 			constexpr static metadata_t get() noexcept
 			{
 				return {
-					&sek::detail::auto_constant<V>::value,
-					sek::detail::type_name<T>(),
+					&sek::auto_constant<V>::value,
+					sek::type_name<T>(),
 				};
 			}
 
@@ -162,14 +165,14 @@ namespace sek::detail
 		meta_view<metadata_t> metadata_view = {};
 		std::string_view name = {};
 	};
-}	 // namespace sek::detail
+}	 // namespace sek
 
 namespace sek_impl
 {
-	template<sek::detail::basic_static_string Name>
-	struct plugin_instance : sek::detail::plugin
+	template<sek::basic_static_string Name>
+	struct plugin_instance : sek::plugin
 	{
-		template<std::size_t Queue, sek::detail::basic_static_string, std::size_t>
+		template<std::size_t Queue, sek::basic_static_string, std::size_t>
 		struct exec_node final : plugin::exec_t
 		{
 			static const exec_node node_instance;
@@ -192,7 +195,7 @@ namespace sek_impl
 		template<metadata_t... Args>
 		constexpr static plugin_instance instantiate() noexcept
 		{
-			constexpr const auto &meta_array = sek::detail::array_constant<metadata_t, Args...>::value;
+			constexpr const auto &meta_array = sek::array_constant<metadata_t, Args...>::value;
 			constexpr const auto &name = sek::detail::plugin_name_instance<Name>::value;
 
 			return plugin_instance{{meta_array}, {name.begin(), name.end()}};

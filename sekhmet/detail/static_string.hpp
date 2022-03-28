@@ -12,7 +12,7 @@
 #include "meta_util.hpp"
 #include "string_util.hpp"
 
-namespace sek::detail
+namespace sek
 {
 	/** @brief Fixed-size string that can be used for NTTP. */
 	template<typename C, std::size_t N, typename Traits = std::char_traits<C>>
@@ -96,7 +96,7 @@ namespace sek::detail
 		[[nodiscard]] constexpr const_reference back() const noexcept { return value[size() - 1]; }
 
 		/** Returns size of the string (amount of value_type units). */
-		[[nodiscard]] constexpr size_type size() const noexcept { return str_length(value, N); }
+		[[nodiscard]] constexpr size_type size() const noexcept { return detail::str_length(value, N); }
 		/** @copydoc size */
 		[[nodiscard]] constexpr size_type length() const noexcept { return size(); }
 		/** Returns maximum value for size. */
@@ -370,13 +370,13 @@ namespace sek::detail
 	{
 		return fnv1a(s.value, s.size());
 	}
-}	 // namespace sek::detail
+}	 // namespace sek
 
 template<typename C, std::size_t N, typename T>
-struct std::hash<sek::detail::basic_static_string<C, N, T>>
+struct std::hash<sek::basic_static_string<C, N, T>>
 {
-	[[nodiscard]] constexpr sek::detail::hash_t operator()(const sek::detail::basic_static_string<C, N, T> &s) const noexcept
+	[[nodiscard]] constexpr sek::hash_t operator()(const sek::basic_static_string<C, N, T> &s) const noexcept
 	{
-		return sek::detail::hash(s);
+		return sek::hash(s);
 	}
 };

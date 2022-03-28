@@ -29,7 +29,7 @@ namespace sek::math::detail
 			swap(data, other.data);
 		}
 
-		[[nodiscard]] constexpr sek::detail::hash_t hash() const noexcept { return sek::detail::fnv1a(data); }
+		[[nodiscard]] constexpr sek::hash_t hash() const noexcept { return sek::fnv1a(data); }
 
 		T data[N] = {};
 	};
@@ -51,7 +51,7 @@ namespace sek::math::detail
 
 		constexpr void swap(vector_data &other) noexcept { array.swap(other.array); }
 
-		[[nodiscard]] constexpr sek::detail::hash_t hash() const noexcept { return array.hash(); }
+		[[nodiscard]] constexpr sek::hash_t hash() const noexcept { return array.hash(); }
 
 		union
 		{

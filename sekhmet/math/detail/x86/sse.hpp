@@ -494,6 +494,6 @@ namespace sek::math::detail
 	}
 #endif
 #endif
-}	 // namespace sek::math::detail
+}	 // namespace sek::math
 
 #endif

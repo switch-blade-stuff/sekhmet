@@ -13,7 +13,7 @@
 #include "meta_containers.hpp"
 #include "type_id.hpp"
 
-namespace sek::detail
+namespace sek
 {
 	class any;
 	class any_ref;
@@ -34,260 +34,268 @@ namespace sek::detail
 		const char *msg = nullptr;
 	};
 
-	struct SEK_API type_data
+	namespace detail
 	{
-		enum flags_t
+		struct SEK_API type_data
 		{
-			FLAG_NONE = 0,
-			FLAG_CONST = 0b1,
-			FLAG_VOLATILE = 0b10,
-			FLAG_CV = FLAG_CONST | FLAG_VOLATILE,
+			enum flags_t
+			{
+				FLAG_NONE = 0,
+				FLAG_CONST = 0b1,
+				FLAG_VOLATILE = 0b10,
+				FLAG_CV = FLAG_CONST | FLAG_VOLATILE,
+			};
+
+			template<typename T>
+			struct instance
+			{
+				constexpr type_data operator()() const noexcept;
+
+				constinit static type_data value;
+			};
+
+			template<typename Child>
+			struct node_base
+			{
+				constexpr void link(const Child *&next_ptr) noexcept
+				{
+					next = next_ptr;
+					next_ptr = static_cast<const Child *>(this);
+				}
+				const Child *next;
+			};
+			struct type_node : node_base<type_node>
+			{
+				constexpr explicit type_node(const type_data *type) noexcept : node_base(), type(type) {}
+
+				template<typename T>
+				struct instance
+				{
+					constexpr type_node operator()() const noexcept
+					{
+						return type_node{&type_data::instance<T>::value};
+					}
+
+					constinit static type_node value;
+				};
+
+				const type_data *type;
+			};
+			struct data_node : node_base<data_node>
+			{
+				template<typename T>
+				constexpr explicit data_node(const T &value) noexcept
+					: node_base(), data(&value), type(&type_data::instance<T>::value)
+				{
+				}
+
+				template<auto V>
+				struct instance
+				{
+					constexpr data_node operator()() const noexcept { return data_node{auto_constant<V>::value}; }
+
+					constinit static data_node value;
+				};
+
+				template<typename T>
+				[[nodiscard]] constexpr const T *as() const noexcept
+				{
+					return static_cast<const T *>(data);
+				}
+
+				const void *data;
+				const type_data *type;
+			};
+			struct ctor_node : node_base<ctor_node>
+			{
+				typedef void (*ctor_proxy)(void *, std::va_list);
+
+				constexpr explicit ctor_node(ctor_proxy proxy, meta_view<const type_data *> args) noexcept
+					: node_base(), proxy(proxy), arg_types(args)
+				{
+				}
+
+				template<typename T, typename... Args>
+				struct instance
+				{
+					template<typename U>
+					constexpr static decltype(auto) expand_args(std::va_list args)
+					{
+						return va_arg(args, U);
+					}
+					constexpr static meta_view<const type_data *> get_arg_array()
+					{
+						constexpr auto &arg_array =
+							array_constant<const type_data *, &type_data::instance<Args>::value...>::value;
+						return meta_view<const type_data *>{arg_array};
+					}
+
+					constexpr ctor_node operator()() const noexcept
+					{
+						constexpr auto proxy_func = [](void *obj, [[maybe_unused]] std::va_list args)
+						{
+							auto ptr = static_cast<T *>(obj);
+							std::construct_at(ptr, expand_args<Args>(args)...);
+						};
+						return ctor_node{proxy_func, get_arg_array()};
+					}
+
+					constinit static ctor_node value;
+				};
+
+				void invoke(void *ptr, ...) const
+				{
+					std::va_list args_list;
+					va_start(args_list, ptr);
+
+					proxy(ptr, args_list);
+
+					va_end(args_list);
+				}
+
+				const ctor_proxy proxy;
+				meta_view<const type_data *> arg_types;
+			};
+
+			type_id tid;
+			std::size_t size;
+			std::size_t alignment;
+
+			flags_t flags;
+			const type_data *variants[3];
+
+			const type_node *parents;
+			const data_node *attributes;
+			void (*destructor)(void *);
+			const ctor_node *constructors;
 		};
+		template<typename T>
+		constinit type_data::type_node type_data::type_node::instance<T>::value = instance<T>{}();
+		template<auto V>
+		constinit type_data::data_node type_data::data_node::instance<V>::value = instance<V>{}();
+		template<typename T, typename... Args>
+		constinit type_data::ctor_node type_data::ctor_node::instance<T, Args...>::value = instance<T, Args...>{}();
+		template<typename T>
+		constexpr type_data type_data::instance<T>::operator()() const noexcept
+		{
+			type_data data = {
+				.tid = type_id::identify<T>(),
+				.size = sizeof(T),
+				.alignment = alignof(T),
+				.flags = FLAG_NONE,
+				.variants = {nullptr},
+				.parents = nullptr,
+				.attributes = nullptr,
+				.destructor = nullptr,
+				.constructors = nullptr,
+			};
+
+			/* If the type is default constructible & destructible, set constructor & destructor. */
+			if constexpr (std::is_object_v<T> && std::is_destructible_v<T>)
+			{
+				data.destructor = +[](void *obj) { std::destroy_at(static_cast<T *>(obj)); };
+				if constexpr (std::is_default_constructible_v<T>) data.constructors = &ctor_node::instance<T>::value;
+			}
+
+			/* Set flags & add variants. */
+			if constexpr (std::is_const_v<T>)
+				data.flags = static_cast<flags_t>(data.flags | FLAG_CONST);
+			else
+				data.variants[0] = &instance<std::add_const_t<T>>::value;
+			if constexpr (std::is_volatile_v<T>)
+				data.flags = static_cast<flags_t>(data.flags | FLAG_VOLATILE);
+			else
+				data.variants[1] = &instance<std::add_volatile_t<T>>::value;
+
+			if constexpr (!std::is_const_v<T> && !std::is_volatile_v<T>)
+				data.variants[2] = &instance<std::add_cv_t<T>>::value;
+
+			return data;
+		}
+		template<typename T>
+		constinit type_data type_data::instance<T>::value = instance<T>{}();
 
 		template<typename T>
-		struct instance
+		class type_factory_base
 		{
-			constexpr type_data operator()() const noexcept;
+		private:
+			constexpr static type_data &data() noexcept { return type_data::instance<T>::value; }
 
-			constinit static type_data value;
-		};
-
-		template<typename Child>
-		struct node_base
-		{
-			constexpr void link(const Child *&next_ptr) noexcept
+			template<typename U>
+			[[nodiscard]] static bool has_parent() noexcept
 			{
-				next = next_ptr;
-				next_ptr = static_cast<const Child *>(this);
+				for (auto parent = data().parents; parent != nullptr; parent = parent->next)
+					if (parent->type->tid == type_id::identify<U>()) return true;
+				return false;
 			}
-			const Child *next;
-		};
-		struct type_node : node_base<type_node>
-		{
-			constexpr explicit type_node(const type_data *type) noexcept : node_base(), type(type) {}
-
-			template<typename T>
-			struct instance
+			template<typename U, typename... Us>
+			static void parents_impl() noexcept requires std::is_base_of_v<U, T>
 			{
-				constexpr type_node operator()() const noexcept { return type_node{&type_data::instance<T>::value}; }
-
-				constinit static type_node value;
-			};
-
-			const type_data *type;
-		};
-		struct data_node : node_base<data_node>
-		{
-			template<typename T>
-			constexpr explicit data_node(const T &value) noexcept
-				: node_base(), data(&value), type(&type_data::instance<T>::value)
-			{
-			}
-
-			template<auto V>
-			struct instance
-			{
-				constexpr data_node operator()() const noexcept { return data_node{auto_constant<V>::value}; }
-
-				constinit static data_node value;
-			};
-
-			template<typename T>
-			[[nodiscard]] constexpr const T *as() const noexcept
-			{
-				return static_cast<const T *>(data);
-			}
-
-			const void *data;
-			const type_data *type;
-		};
-		struct ctor_node : node_base<ctor_node>
-		{
-			typedef void (*ctor_proxy)(void *, std::va_list);
-
-			constexpr explicit ctor_node(ctor_proxy proxy, meta_view<const type_data *> args) noexcept
-				: node_base(), proxy(proxy), arg_types(args)
-			{
-			}
-
-			template<typename T, typename... Args>
-			struct instance
-			{
-				template<typename U>
-				constexpr static decltype(auto) expand_args(std::va_list args)
+				if (!has_parent<U>()) [[likely]]
 				{
-					return va_arg(args, U);
-				}
-				constexpr static meta_view<const type_data *> get_arg_array()
-				{
-					constexpr auto &arg_array = array_constant<const type_data *, &type_data::instance<Args>::value...>::value;
-					return meta_view<const type_data *>{arg_array};
+					constexpr auto &parent = type_data::type_node::instance<U>::value;
+					parent.link(data().parents);
 				}
 
-				constexpr ctor_node operator()() const noexcept
+				if constexpr (sizeof...(Us) != 0) parents_impl<Us...>();
+			}
+
+			template<auto V, auto... Vals>
+			static void attributes_impl() noexcept
+			{
+				constexpr auto &attribute = type_data::data_node::instance<V>::value;
+				attribute.link(data().attributes);
+
+				if constexpr (sizeof...(Vals) != 0) attributes_impl<Vals...>();
+			}
+
+			template<typename... Args>
+			[[nodiscard]] static bool has_ctor() noexcept
+			{
+				auto args = type_data::ctor_node::instance<T, Args...>::get_arg_array();
+				for (auto ctor = data().constructors; ctor != nullptr; ctor = ctor->next)
+					if (std::equal(args.begin(), args.end(), ctor->arg_types.begin(), ctor->arg_types.end()))
+						return true;
+				return false;
+			}
+			template<typename... Args>
+			static void constructor_impl() noexcept
+			{
+				if (!has_ctor<Args...>()) [[likely]]
 				{
-					constexpr auto proxy_func = [](void *obj, [[maybe_unused]] std::va_list args)
-					{
-						auto ptr = static_cast<T *>(obj);
-						std::construct_at(ptr, expand_args<Args>(args)...);
-					};
-					return ctor_node{proxy_func, get_arg_array()};
+					constexpr auto &ctor = type_data::ctor_node::instance<T, Args...>::value;
+					ctor.link(data().constructors);
 				}
-
-				constinit static ctor_node value;
-			};
-
-			void invoke(void *ptr, ...) const
-			{
-				std::va_list args_list;
-				va_start(args_list, ptr);
-
-				proxy(ptr, args_list);
-
-				va_end(args_list);
 			}
 
-			const ctor_proxy proxy;
-			meta_view<const type_data *> arg_types;
+		protected:
+			/** Adds the specified parents to the type.
+			 * @tparam Ts Types to add as parents.
+			 * @note Parent can only be added once. */
+			template<typename... Ts>
+			static void parents() noexcept
+			{
+				parents_impl<Ts...>();
+			}
+			/** Adds the specified attributes to the type.
+			 * @tparam Vals Values to add as attributes. */
+			template<auto... Vals>
+			static void attributes() noexcept
+			{
+				attributes_impl<Vals...>();
+			}
+
+			/** Adds a constructor to the type.
+			 * @tparam Args Arguments of the constructor.
+			 * @note If the type is default-constructible, the default constructor will be implicitly added.
+			 * @note In order to pass arguments by reference, use a pointer or a reference wrapper type (ex. `sek::std::reference_wrapper`). */
+			template<typename... Args>
+			static void constructor() noexcept requires std::constructible_from<T, Args...> && std::is_destructible_v<T>
+			{
+				constructor_impl<Args...>();
+			}
 		};
-
-		type_id tid;
-		std::size_t size;
-		std::size_t alignment;
-
-		flags_t flags;
-		const type_data *variants[3];
-
-		const type_node *parents;
-		const data_node *attributes;
-		void (*destructor)(void *);
-		const ctor_node *constructors;
-	};
-	template<typename T>
-	constinit type_data::type_node type_data::type_node::instance<T>::value = instance<T>{}();
-	template<auto V>
-	constinit type_data::data_node type_data::data_node::instance<V>::value = instance<V>{}();
-	template<typename T, typename... Args>
-	constinit type_data::ctor_node type_data::ctor_node::instance<T, Args...>::value = instance<T, Args...>{}();
-	template<typename T>
-	constexpr type_data type_data::instance<T>::operator()() const noexcept
-	{
-		type_data data = {
-			.tid = type_id::identify<T>(),
-			.size = sizeof(T),
-			.alignment = alignof(T),
-			.flags = FLAG_NONE,
-			.variants = {nullptr},
-			.parents = nullptr,
-			.attributes = nullptr,
-			.destructor = nullptr,
-			.constructors = nullptr,
-		};
-
-		/* If the type is default constructible & destructible, set constructor & destructor. */
-		if constexpr (std::is_object_v<T> && std::is_destructible_v<T>)
-		{
-			data.destructor = +[](void *obj) { std::destroy_at(static_cast<T *>(obj)); };
-			if constexpr (std::is_default_constructible_v<T>) data.constructors = &ctor_node::instance<T>::value;
-		}
-
-		/* Set flags & add variants. */
-		if constexpr (std::is_const_v<T>)
-			data.flags = static_cast<flags_t>(data.flags | FLAG_CONST);
-		else
-			data.variants[0] = &instance<std::add_const_t<T>>::value;
-		if constexpr (std::is_volatile_v<T>)
-			data.flags = static_cast<flags_t>(data.flags | FLAG_VOLATILE);
-		else
-			data.variants[1] = &instance<std::add_volatile_t<T>>::value;
-
-		if constexpr (!std::is_const_v<T> && !std::is_volatile_v<T>)
-			data.variants[2] = &instance<std::add_cv_t<T>>::value;
-
-		return data;
-	}
-	template<typename T>
-	constinit type_data type_data::instance<T>::value = instance<T>{}();
-
-	template<typename T>
-	class type_factory_base
-	{
-	private:
-		constexpr static type_data &data() noexcept { return type_data::instance<T>::value; }
-
-		template<typename U>
-		[[nodiscard]] static bool has_parent() noexcept
-		{
-			for (auto parent = data().parents; parent != nullptr; parent = parent->next)
-				if (parent->type->tid == type_id::identify<U>()) return true;
-			return false;
-		}
-		template<typename U, typename... Us>
-		static void parents_impl() noexcept requires std::is_base_of_v<U, T>
-		{
-			if (!has_parent<U>()) [[likely]]
-			{
-				constexpr auto &parent = type_data::type_node::instance<U>::value;
-				parent.link(data().parents);
-			}
-
-			if constexpr (sizeof...(Us) != 0) parents_impl<Us...>();
-		}
-
-		template<auto V, auto... Vals>
-		static void attributes_impl() noexcept
-		{
-			constexpr auto &attribute = type_data::data_node::instance<V>::value;
-			attribute.link(data().attributes);
-
-			if constexpr (sizeof...(Vals) != 0) attributes_impl<Vals...>();
-		}
-
-		template<typename... Args>
-		[[nodiscard]] static bool has_ctor() noexcept
-		{
-			auto args = type_data::ctor_node::instance<T, Args...>::get_arg_array();
-			for (auto ctor = data().constructors; ctor != nullptr; ctor = ctor->next)
-				if (std::equal(args.begin(), args.end(), ctor->arg_types.begin(), ctor->arg_types.end())) return true;
-			return false;
-		}
-		template<typename... Args>
-		static void constructor_impl() noexcept
-		{
-			if (!has_ctor<Args...>()) [[likely]]
-			{
-				constexpr auto &ctor = type_data::ctor_node::instance<T, Args...>::value;
-				ctor.link(data().constructors);
-			}
-		}
-
-	protected:
-		/** Adds the specified parents to the type.
-		 * @tparam Ts Types to add as parents.
-		 * @note Parent can only be added once. */
-		template<typename... Ts>
-		static void parents() noexcept
-		{
-			parents_impl<Ts...>();
-		}
-		/** Adds the specified attributes to the type.
-		 * @tparam Vals Values to add as attributes. */
-		template<auto... Vals>
-		static void attributes() noexcept
-		{
-			attributes_impl<Vals...>();
-		}
-
-		/** Adds a constructor to the type.
-		 * @tparam Args Arguments of the constructor.
-		 * @note If the type is default-constructible, the default constructor will be implicitly added.
-		 * @note In order to pass arguments by reference, use a pointer or a reference wrapper type (ex. `sek::std::reference_wrapper`). */
-		template<typename... Args>
-		static void constructor() noexcept requires std::constructible_from<T, Args...> && std::is_destructible_v<T>
-		{
-			constructor_impl<Args...>();
-		}
-	};
+	}	 // namespace detail
 
 	/** @brief Structure used to represent information about a type. */
 	class SEK_API type_info
@@ -341,7 +349,7 @@ namespace sek::detail
 		template<typename T>
 		[[nodiscard]] constexpr static type_info get() noexcept
 		{
-			return type_info{&type_data::instance<T>::value};
+			return type_info{&detail::type_data::instance<T>::value};
 		}
 		/** Looks up a type within the runtime lookup database.
 		 * @tparam tid Id of the type to search for.
@@ -372,7 +380,7 @@ namespace sek::detail
 				typedef std::bidirectional_iterator_tag iterator_category;
 
 			private:
-				constexpr explicit variant_iterator(const type_data *const *ptr) noexcept : type_ptr(ptr) {}
+				constexpr explicit variant_iterator(const detail::type_data *const *ptr) noexcept : type_ptr(ptr) {}
 
 			public:
 				constexpr variant_iterator() noexcept = default;
@@ -412,7 +420,7 @@ namespace sek::detail
 				friend constexpr void swap(variant_iterator &a, variant_iterator &b) noexcept { a.swap(b); }
 
 			private:
-				const type_data *const *type_ptr = nullptr;
+				const detail::type_data *const *type_ptr = nullptr;
 			};
 
 		public:
@@ -423,7 +431,7 @@ namespace sek::detail
 			typedef std::ptrdiff_t difference_type;
 
 		private:
-			constexpr explicit variant_view(const type_data *const *data) noexcept : data(data) {}
+			constexpr explicit variant_view(const detail::type_data *const *data) noexcept : data(data) {}
 
 		public:
 			variant_view() = delete;
@@ -432,7 +440,7 @@ namespace sek::detail
 			[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
 			[[nodiscard]] constexpr iterator end() const noexcept
 			{
-				return iterator{data + SEK_ARRAY_SIZE(type_data::variants)};
+				return iterator{data + SEK_ARRAY_SIZE(detail::type_data::variants)};
 			}
 			[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
 
@@ -446,7 +454,7 @@ namespace sek::detail
 			}
 
 		private:
-			const type_data *const *data;
+			const detail::type_data *const *data;
 		};
 
 		template<typename NodeT>
@@ -517,9 +525,9 @@ namespace sek::detail
 		};
 
 		/** @brief Iterator used to iterate over a type's parent list. */
-		class parent_iterator : public type_data_iterator<type_data::type_node>
+		class parent_iterator : public type_data_iterator<detail::type_data::type_node>
 		{
-			using base = type_data_iterator<type_data::type_node>;
+			using base = type_data_iterator<detail::type_data::type_node>;
 
 			template<typename>
 			friend class type_data_view;
@@ -527,10 +535,10 @@ namespace sek::detail
 		public:
 			typedef type_info value_type;
 
-			using type_data_iterator<type_data::type_node>::swap;
+			using type_data_iterator<detail::type_data::type_node>::swap;
 
 		private:
-			constexpr explicit parent_iterator(const type_data::type_node *ptr) noexcept : base(ptr) {}
+			constexpr explicit parent_iterator(const detail::type_data::type_node *ptr) noexcept : base(ptr) {}
 
 		public:
 			constexpr parent_iterator() noexcept = default;
@@ -552,9 +560,9 @@ namespace sek::detail
 			friend constexpr void swap(parent_iterator &a, parent_iterator &b) noexcept { a.swap(b); }
 		};
 		/** @brief Iterator used to iterate over a type's attribute list. */
-		class attribute_iterator : public type_data_iterator<type_data::data_node>
+		class attribute_iterator : public type_data_iterator<detail::type_data::data_node>
 		{
-			using base = type_data_iterator<type_data::data_node>;
+			using base = type_data_iterator<detail::type_data::data_node>;
 
 			template<typename>
 			friend class type_data_view;
@@ -562,10 +570,10 @@ namespace sek::detail
 		public:
 			typedef any_ref value_type;
 
-			using type_data_iterator<type_data::data_node>::swap;
+			using type_data_iterator<detail::type_data::data_node>::swap;
 
 		private:
-			constexpr explicit attribute_iterator(const type_data::data_node *ptr) noexcept : base(ptr) {}
+			constexpr explicit attribute_iterator(const detail::type_data::data_node *ptr) noexcept : base(ptr) {}
 
 		public:
 			constexpr attribute_iterator() noexcept = default;
@@ -601,11 +609,11 @@ namespace sek::detail
 		[[nodiscard]] std::size_t hash() const noexcept { return data->tid.hash(); }
 
 		/** Checks if the type is const-qualified. */
-		[[nodiscard]] bool is_const() const noexcept { return data->flags & type_data::FLAG_CONST; }
+		[[nodiscard]] bool is_const() const noexcept { return data->flags & detail::type_data::FLAG_CONST; }
 		/** Checks if the type is volatile-qualified. */
-		[[nodiscard]] bool is_volatile() const noexcept { return data->flags & type_data::FLAG_VOLATILE; }
+		[[nodiscard]] bool is_volatile() const noexcept { return data->flags & detail::type_data::FLAG_VOLATILE; }
 		/** Checks if the type is cv-qualified. */
-		[[nodiscard]] bool is_cv() const noexcept { return data->flags == type_data::FLAG_CV; }
+		[[nodiscard]] bool is_cv() const noexcept { return data->flags == detail::type_data::FLAG_CV; }
 
 		/** Returns the type's size. */
 		[[nodiscard]] std::size_t size() const noexcept { return data->size; }
@@ -772,7 +780,7 @@ namespace sek::detail
 		{
 			SEK_ASSERT(ptr != nullptr);
 
-			const type_data::ctor_node *node = get_constructor_impl<Args...>();
+			const detail::type_data::ctor_node *node = get_constructor_impl<Args...>();
 			if (!node) [[unlikely]]
 				throw bad_type_exception("Failed to find a matching constructor");
 			node->invoke(ptr, std::forward<Args>(args)...);
@@ -792,22 +800,22 @@ namespace sek::detail
 
 	private:
 		template<typename... Args>
-		[[nodiscard]] const type_data::ctor_node *get_constructor_impl() const noexcept
+		[[nodiscard]] const detail::type_data::ctor_node *get_constructor_impl() const noexcept
 		{
 			if constexpr (sizeof...(Args))
 			{
-				constexpr type_info arg_types[] = {type_info{&type_data::instance<Args>::value}...};
+				constexpr type_info arg_types[] = {type_info{&detail::type_data::instance<Args>::value}...};
 				return get_constructor_impl(std::begin(arg_types), std::end(arg_types));
 			}
 			else
 				return get_constructor_impl<const type_info *>(nullptr, nullptr);
 		}
 		template<typename I>
-		[[nodiscard]] const type_data::ctor_node *get_constructor_impl(I args_first, I args_last) const
+		[[nodiscard]] const detail::type_data::ctor_node *get_constructor_impl(I args_first, I args_last) const
 		{
 			for (auto ctor = data->constructors; ctor != nullptr; ctor = ctor->next)
 			{
-				constexpr auto pred = [](type_info info, const type_data *d) { return info.tid() == d->tid; };
+				constexpr auto pred = [](type_info info, const detail::type_data *d) { return info.tid() == d->tid; };
 				if (std::equal(args_first, args_last, ctor->arg_types.begin(), ctor->arg_types.end(), pred))
 					return ctor;
 			}
@@ -816,7 +824,7 @@ namespace sek::detail
 
 		const detail::type_data *data = nullptr;
 	};
-}	 // namespace sek::detail
+}	 // namespace sek
 
 namespace sek_impl
 {
@@ -837,7 +845,7 @@ namespace sek_impl
 		template<>                                                                                                     \
 		constexpr auto generate_type_name<T>() noexcept                                                                \
 		{                                                                                                              \
-			return detail::basic_static_string{(name)};                                                                \
+			return basic_static_string{(name)};                                                                        \
 		}                                                                                                              \
 	}                                                                                                                  \
 	template<>                                                                                                         \

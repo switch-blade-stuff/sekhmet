@@ -8,59 +8,61 @@
 
 #include "../math/detail/util.hpp"
 #include "aligned_storage.hpp"
-#include "alloc_util.hpp"
 #include "type_info.hpp"
 
-namespace sek::detail
+namespace sek
 {
-	class any_base
+	namespace detail
 	{
-	protected:
-		constexpr explicit any_base(type_info info) noexcept : info(info) {}
-		template<typename T>
-		constexpr explicit any_base(type_selector_t<T>) noexcept : any_base(type_info::get<T>())
+		class any_base
 		{
-		}
+		protected:
+			constexpr explicit any_base(type_info info) noexcept : info(info) {}
+			template<typename T>
+			constexpr explicit any_base(type_selector_t<T>) noexcept : any_base(type_info::get<T>())
+			{
+			}
 
-	public:
-		constexpr any_base() noexcept = default;
+		public:
+			constexpr any_base() noexcept = default;
 
-		/** Returns type info of the underlying type. */
-		[[nodiscard]] constexpr type_info type() const noexcept { return info; }
-		/** Checks if the underlying object is present. */
-		[[nodiscard]] constexpr bool empty() const noexcept { return !type().valid(); }
+			/** Returns type info of the underlying type. */
+			[[nodiscard]] constexpr type_info type() const noexcept { return info; }
+			/** Checks if the underlying object is present. */
+			[[nodiscard]] constexpr bool empty() const noexcept { return !type().valid(); }
 
-		/** Checks if the underlying object is of type T. */
-		template<typename T>
-		[[nodiscard]] bool contains() const noexcept
-		{
-			constexpr auto id = type_id::identify<T>();
-			return !empty() && info.tid() == id;
-		}
-		/** Returns type id of the underlying type. */
-		[[nodiscard]] type_id tid() const noexcept { return info.tid(); }
+			/** Checks if the underlying object is of type T. */
+			template<typename T>
+			[[nodiscard]] bool contains() const noexcept
+			{
+				constexpr auto id = type_id::identify<T>();
+				return !empty() && info.tid() == id;
+			}
+			/** Returns type id of the underlying type. */
+			[[nodiscard]] type_id tid() const noexcept { return info.tid(); }
 
-	protected:
-		template<typename T>
-		constexpr void assert_valid_cast() const
-		{
-			if (empty()) [[unlikely]]
-				throw bad_type_exception("Unable to cast empty any instance");
-			else if (!info.template is_compatible<T>()) [[unlikely]]
-				throw bad_type_exception(tid(), type_id::identify<T>());
-		}
+		protected:
+			template<typename T>
+			constexpr void assert_valid_cast() const
+			{
+				if (empty()) [[unlikely]]
+					throw bad_type_exception("Unable to cast empty any instance");
+				else if (!info.template is_compatible<T>()) [[unlikely]]
+					throw bad_type_exception(tid(), type_id::identify<T>());
+			}
 
-		constexpr void swap(any_base &other) noexcept { std::swap(info, other.info); }
+			constexpr void swap(any_base &other) noexcept { std::swap(info, other.info); }
 
-		/** Type info of the stored object. */
-		type_info info = {};
-	};
+			/** Type info of the stored object. */
+			type_info info = {};
+		};
+	}	 // namespace detail
 
 	/** @brief Structure used to store type-checked value of any type.
 	 *
 	 * @note Trivially-copyable types with size less than size of a pointer and alignment less than alignment of a
 	 * pointer will be stored in-place. Other types require dynamic memory allocation. */
-	class any : public any_base
+	class any : public detail::any_base
 	{
 	private:
 		struct vtable_t
@@ -75,16 +77,11 @@ namespace sek::detail
 						+[](void *&dest, const void *src) -> void
 						{
 							if constexpr (std::is_copy_constructible_v<T>)
-								dest = std::construct_at(allocator<T>{}.allocate(1), *static_cast<const T *>(src));
+								dest = new T(*static_cast<const T *>(src));
 							else
 								throw bad_type_exception("Stored type is not copy-constructible");
 						},
-						+[](void *ptr) -> void
-						{
-							auto *value = static_cast<T *>(ptr);
-							std::destroy_at(value);
-							allocator<T>{}.deallocate(value, 1);
-						},
+						+[](void *ptr) -> void { delete static_cast<T *>(ptr); },
 					};
 			}
 
@@ -158,12 +155,10 @@ namespace sek::detail
 		template<typename T, typename... Args, typename U = std::decay_t<T>>
 		explicit any(std::in_place_type_t<T>, Args &&...args) : any(type_selector<U>)
 		{
-			U *dest;
 			if constexpr (local_storage<U>)
-				dest = local_data.get<U>();
+				std::construct_at(local_data.get<U>(), std::forward<Args>(args)...);
 			else
-				external_data = dest = allocator<U>{}.allocate(1);
-			std::construct_at(dest, std::forward<Args>(args)...);
+				external_data = new U{std::forward<Args>(args)...};
 		}
 		/** Copy-constructs an instance of underlying type.
 		 * @param value Value to copy. */
@@ -232,7 +227,7 @@ namespace sek::detail
 	};
 
 	/** @brief Type-checked reference of any type. */
-	class any_ref : public any_base
+	class any_ref : public detail::any_base
 	{
 	public:
 		/** Constructs an empty `any_ref` instance. */
@@ -307,4 +302,4 @@ namespace sek::detail
 			if (attr->type->tid == id) return {type_info{attr->type}, attr->data};
 		return {};
 	}
-}	 // namespace sek::detail
+}	 // namespace sek

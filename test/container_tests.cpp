@@ -9,6 +9,8 @@
 
 #include "sekhmet/array_list.hpp"
 
+template class sek::array_list<int>;
+
 TEST(container_tests, array_list_test)
 {
 	sek::array_list<int> l1;
@@ -46,6 +48,8 @@ TEST(container_tests, array_list_test)
 }
 
 #include "sekhmet/hmap.hpp"
+
+template class sek::hmap<std::string, float>;
 
 TEST(container_tests, hmap_test)
 {
@@ -95,6 +99,8 @@ TEST(container_tests, hmap_test)
 
 #include "sekhmet/hset.hpp"
 
+template class sek::hset<std::string>;
+
 TEST(container_tests, hset_test)
 {
 	sek::hset<std::string> s1 = {"1", "2", "3", "4"};
@@ -112,10 +118,12 @@ TEST(container_tests, hset_test)
 
 #include "sekhmet/detail/basic_dynarray.hpp"
 
+template class sek::basic_dynarray<int>;
+
 TEST(container_tests, basic_dynarray_test)
 {
 	std::vector<int> v = {0, 1, 2, 3, 4};
-	sek::detail::basic_dynarray<int> da = {0, 1, 2, 3, 4};
+	sek::basic_dynarray<int> da = {0, 1, 2, 3, 4};
 
 	EXPECT_FALSE(da.empty());
 	EXPECT_EQ(da.size(), v.size());

@@ -11,22 +11,25 @@
 #include "assert.hpp"
 #include "ebo_base_helper.hpp"
 
-namespace sek::detail
+namespace sek
 {
-	template<typename T, typename Alloc>
-	using list_node_allocator_type = rebind_alloc_t<Alloc, T *>;
-	template<typename T, typename Alloc>
-	using list_node_allocator_base = ebo_base_helper<list_node_allocator_type<T, Alloc>>;
+	namespace detail
+	{
+		template<typename T, typename Alloc>
+		using list_node_allocator_type = rebind_alloc_t<Alloc, T *>;
+		template<typename T, typename Alloc>
+		using list_node_allocator_base = ebo_base_helper<list_node_allocator_type<T, Alloc>>;
+	}	 // namespace detail
 
 	/** Dynamic array of pointers to objects.
 	 * @tparam T Type of objects stored in the list.
 	 * @tparam Alloc Allocator used for the list. */
-	template<typename T, typename Alloc = allocator<T>>
-	class array_list : ebo_base_helper<Alloc>, list_node_allocator_base<T, Alloc>
+	template<typename T, typename Alloc = std::allocator<T>>
+	class array_list : ebo_base_helper<Alloc>, detail::list_node_allocator_base<T, Alloc>
 	{
 	public:
 		typedef Alloc allocator_type;
-		typedef list_node_allocator_type<T, Alloc> node_allocator_type;
+		typedef detail::list_node_allocator_type<T, Alloc> node_allocator_type;
 
 		typedef T value_type;
 		typedef T *pointer;
@@ -37,7 +40,7 @@ namespace sek::detail
 		typedef std::ptrdiff_t difference_type;
 
 	private:
-		using node_ebo_base = list_node_allocator_base<T, Alloc>;
+		using node_ebo_base = detail::list_node_allocator_base<T, Alloc>;
 		using node_alloc_traits = std::allocator_traits<node_allocator_type>;
 		using value_ebo_base = ebo_base_helper<Alloc>;
 		using value_alloc_traits = std::allocator_traits<Alloc>;
@@ -214,13 +217,13 @@ namespace sek::detail
 		};
 
 	public:
-		constexpr array_list() noexcept(nothrow_alloc_default_construct<allocator_type, node_allocator_type>) = default;
+		constexpr array_list() noexcept(detail::nothrow_alloc_default_construct<allocator_type, node_allocator_type>) = default;
 
 		/** Constructs the list with the specified allocators.
 		 * @param value_alloc Allocator used to allocate list's elements.
 		 * @param node_alloc Allocator used to allocate list's internal node array. */
 		constexpr explicit array_list(const allocator_type &value_alloc, const node_allocator_type &node_alloc) noexcept(
-			nothrow_alloc_copy_construct<allocator_type, node_allocator_type>)
+			detail::nothrow_alloc_copy_construct<allocator_type, node_allocator_type>)
 			: value_ebo_base(value_alloc), node_ebo_base(node_alloc)
 		{
 		}
@@ -278,14 +281,16 @@ namespace sek::detail
 		/** Copy-constructs the list. Both allocators are copied via `select_on_container_copy_construction`.
 		 * @param other List to copy elements and allocators from. */
 		constexpr array_list(const array_list &other)
-			: array_list(other, make_alloc_copy(other.get_allocator()), make_alloc_copy(other.get_node_allocator()))
+			: array_list(other,
+						 detail::make_alloc_copy(other.get_allocator()),
+						 detail::make_alloc_copy(other.get_node_allocator()))
 		{
 		}
 		/** Copy-constructs the list. Node allocator is copied via `select_on_container_copy_construction`.
 		 * @param other List to copy elements and node allocator from.
 		 * @param value_alloc Allocator used to allocate list's elements. */
 		constexpr array_list(const array_list &other, const allocator_type &value_alloc)
-			: array_list(other, value_alloc, make_alloc_copy(other.get_node_allocator()))
+			: array_list(other, value_alloc, detail::make_alloc_copy(other.get_node_allocator()))
 		{
 		}
 		/** Copy-constructs the list.
@@ -300,7 +305,7 @@ namespace sek::detail
 
 		/** Move-constructs the list. Both allocators are move-constructed.
 		 * @param other List to move elements and allocators from. */
-		constexpr array_list(array_list &&other) noexcept(nothrow_alloc_move_construct<allocator_type, node_allocator_type>)
+		constexpr array_list(array_list &&other) noexcept(detail::nothrow_alloc_move_construct<allocator_type, node_allocator_type>)
 			: value_ebo_base(std::move(other.get_allocator())), node_ebo_base(std::move(other.get_node_allocator()))
 		{
 			take_data(std::move(other));
@@ -309,10 +314,10 @@ namespace sek::detail
 		 * @param other List to move elements and node allocator from.
 		 * @param value_alloc Allocator used to allocate list's elements. */
 		constexpr array_list(array_list &&other, const allocator_type &value_alloc) noexcept(
-			nothrow_alloc_copy_move_transfer<allocator_type, node_allocator_type>)
+			detail::nothrow_alloc_copy_move_transfer<allocator_type, node_allocator_type>)
 			: value_ebo_base(value_alloc), node_ebo_base(std::move(other.get_node_allocator()))
 		{
-			if (alloc_eq(get_allocator(), other.get_allocator()))
+			if (detail::alloc_eq(get_allocator(), other.get_allocator()))
 				take_data(std::move(other));
 			else
 				move_values(std::move(other));
@@ -322,10 +327,11 @@ namespace sek::detail
 		 * @param value_alloc Allocator used to allocate list's elements.
 		 * @param node_alloc Allocator used to allocate list's internal node array. */
 		constexpr array_list(array_list &&other, const allocator_type &value_alloc, const node_allocator_type &node_alloc) noexcept(
-			nothrow_alloc_copy_transfer<allocator_type, node_allocator_type>)
+			detail::nothrow_alloc_copy_transfer<allocator_type, node_allocator_type>)
 			: array_list(value_alloc, node_alloc)
 		{
-			if (alloc_eq(get_allocator(), other.get_allocator()) && alloc_eq(get_node_allocator(), other.get_node_allocator()))
+			if (detail::alloc_eq(get_allocator(), other.get_allocator()) &&
+				detail::alloc_eq(get_node_allocator(), other.get_node_allocator()))
 				take_data(std::move(other));
 			else
 				move_values(std::move(other));
@@ -340,7 +346,8 @@ namespace sek::detail
 		}
 		/** Move-assigns the list.
 		 * @param other List to move elements from. */
-		constexpr array_list &operator=(array_list &&other) noexcept(nothrow_alloc_move_assign<allocator_type, node_allocator_type>)
+		constexpr array_list &
+			operator=(array_list &&other) noexcept(detail::nothrow_alloc_move_assign<allocator_type, node_allocator_type>)
 		{
 			move_assign_impl(std::move(other));
 			return *this;
@@ -659,12 +666,12 @@ namespace sek::detail
 
 		constexpr void swap(array_list &other) noexcept
 		{
-			alloc_assert_swap(get_allocator(), other.get_allocator());
-			alloc_assert_swap(get_node_allocator(), other.get_node_allocator());
+			detail::alloc_assert_swap(get_allocator(), other.get_allocator());
+			detail::alloc_assert_swap(get_node_allocator(), other.get_node_allocator());
 
 			swap_data(other);
-			alloc_swap(get_allocator(), other.get_allocator());
-			alloc_swap(get_node_allocator(), other.get_node_allocator());
+			detail::alloc_swap(get_allocator(), other.get_allocator());
+			detail::alloc_swap(get_node_allocator(), other.get_node_allocator());
 		}
 
 		friend constexpr void swap(array_list &a, array_list &b) noexcept { a.swap(b); }
@@ -707,15 +714,15 @@ namespace sek::detail
 		constexpr void move_assign_impl(array_list &&other)
 		{
 			if ((value_alloc_traits::propagate_on_container_move_assignment::value ||
-				 alloc_eq(get_allocator(), other.get_allocator())) &&
+				 detail::alloc_eq(get_allocator(), other.get_allocator())) &&
 				(node_alloc_traits::propagate_on_container_move_assignment::value ||
-				 alloc_eq(get_node_allocator(), other.get_node_allocator())))
+				 detail::alloc_eq(get_node_allocator(), other.get_node_allocator())))
 			{
 				array_list tmp{get_allocator(), get_node_allocator()};
 				swap_data(other);
 				tmp.swap_data(other);
-				alloc_move_assign(get_allocator(), other.get_allocator());
-				alloc_move_assign(get_node_allocator(), other.get_node_allocator());
+				detail::alloc_move_assign(get_allocator(), other.get_allocator());
+				detail::alloc_move_assign(get_node_allocator(), other.get_node_allocator());
 			}
 			else
 				move_values(std::move(other));
@@ -855,4 +862,4 @@ namespace sek::detail
 	array_list(std::initializer_list<T>, const A0 &) -> array_list<T, A0>;
 	template<typename T, typename A0, typename A1>
 	array_list(std::initializer_list<T>, const A0 &, const A1 &) -> array_list<T, A0>;
-}	 // namespace sek::detail
+}	 // namespace sek

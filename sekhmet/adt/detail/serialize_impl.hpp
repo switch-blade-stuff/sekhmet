@@ -8,47 +8,50 @@
 
 #include "node.hpp"
 
-namespace sek::adt::detail
+namespace sek::adt
 {
-	template<typename T>
-	concept serializable_type = std::constructible_from<node, T> || requires(node &n, const T &v)
+	namespace detail
 	{
-		n.set(v);
-	};
-	template<typename T>
-	concept deserializable_type = requires(const node &n, T &v)
-	{
-		n.get(v);
-	};
-
-	template<typename T>
-	concept array_like_serializable = requires
-	{
-		std::ranges::forward_range<T>;
-		serializable_type<std::ranges::range_value_t<T>>;
-	};
-	template<typename T>
-	concept pair_like_serializable = requires(T t)
-	{
-		t.first;
-		serializable_type<decltype(t.first)>;
-		t.second;
-		serializable_type<decltype(t.second)>;
-	};
-	template<typename T>
-	concept table_like_serializable = requires(T t)
-	{
-		typename T::key_type;
-		typename T::mapped_type;
+		template<typename T>
+		concept serializable_type = std::constructible_from<node, T> || requires(node &n, const T &v)
 		{
-			t[std::declval<typename T::key_type>()]
-			} -> std::same_as<typename T::mapped_type &>;
-		std::ranges::forward_range<T>;
-		pair_like_serializable<std::ranges::range_value_t<T>>;
-		std::constructible_from<typename node::string_type, const typename T::key_type &>;
-	};
+			n.set(v);
+		};
+		template<typename T>
+		concept deserializable_type = requires(const node &n, T &v)
+		{
+			n.get(v);
+		};
 
-	template<array_like_serializable R>
+		template<typename T>
+		concept array_like_serializable = requires
+		{
+			std::ranges::forward_range<T>;
+			serializable_type<std::ranges::range_value_t<T>>;
+		};
+		template<typename T>
+		concept pair_like_serializable = requires(T t)
+		{
+			t.first;
+			serializable_type<decltype(t.first)>;
+			t.second;
+			serializable_type<decltype(t.second)>;
+		};
+		template<typename T>
+		concept table_like_serializable = requires(T t)
+		{
+			typename T::key_type;
+			typename T::mapped_type;
+			{
+				t[std::declval<typename T::key_type>()]
+				} -> std::same_as<typename T::mapped_type &>;
+			std::ranges::forward_range<T>;
+			pair_like_serializable<std::ranges::range_value_t<T>>;
+			std::constructible_from<typename node::string_type, const typename T::key_type &>;
+		};
+	}	 // namespace detail
+
+	template<detail::array_like_serializable R>
 	constexpr void serialize(node &n, const R &value)
 	{
 		n = node{std::in_place_type<typename node::sequence_type>};
@@ -63,7 +66,7 @@ namespace sek::adt::detail
 				node_array.back().set(item);
 			}
 	}
-	template<array_like_serializable R>
+	template<detail::array_like_serializable R>
 	constexpr void deserialize(const node &n, R &value)
 	{
 		if (n.is_sequence()) [[likely]]
@@ -73,7 +76,7 @@ namespace sek::adt::detail
 		}
 	}
 
-	template<pair_like_serializable P>
+	template<detail::pair_like_serializable P>
 	constexpr void serialize(node &n, const P &value)
 	{
 		n = node{std::in_place_type<typename node::table_type>, 2u};
@@ -89,7 +92,7 @@ namespace sek::adt::detail
 		else
 			node_table["second"].set(value.second);
 	}
-	template<pair_like_serializable P>
+	template<detail::pair_like_serializable P>
 	constexpr void deserialize(const node &n, P &value)
 	{
 		if (n.is_table()) [[likely]]
@@ -102,7 +105,7 @@ namespace sek::adt::detail
 		}
 	}
 
-	template<table_like_serializable T>
+	template<detail::table_like_serializable T>
 	constexpr void serialize(node &n, const T &value)
 	{
 		n = node{std::in_place_type<typename node::table_type>, value.size()};
@@ -114,10 +117,10 @@ namespace sek::adt::detail
 				node_table[pair.first].set(pair.second);
 		}
 	}
-	template<table_like_serializable T>
+	template<detail::table_like_serializable T>
 	constexpr void deserialize(const node &n, T &value)
 	{
 		if (n.is_table()) [[likely]]
 			for (auto &pair : n.as_table()) pair.second.get(value[pair.first]);
 	}
-}	 // namespace sek::adt::detail
+}	 // namespace sek::adt

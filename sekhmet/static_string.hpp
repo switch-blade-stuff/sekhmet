@@ -8,8 +8,6 @@
 
 namespace sek
 {
-	using detail::basic_static_string;
-
 	template<size_t N>
 	using static_string = basic_static_string<char, N>;
 	template<size_t N>

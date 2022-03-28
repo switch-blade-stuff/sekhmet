@@ -9,9 +9,6 @@
 
 namespace sek::math
 {
-	using detail::sys_random;
-	using detail::xoroshiro;
-
 	/** 256-bit version of xoroshiro. */
 	template<typename T>
 	using xoroshiro256 = xoroshiro<T, 256>;

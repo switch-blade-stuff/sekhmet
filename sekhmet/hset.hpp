@@ -5,8 +5,3 @@
 #pragma once
 
 #include "detail/hset.hpp"
-
-namespace sek
-{
-	using detail::hset;
-}

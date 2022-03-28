@@ -6,8 +6,8 @@
 
 #include "util.hpp"
 
-namespace sek::math::detail
+namespace sek::math
 {
 	template<typename T, std::size_t N>
 	requires(N != 0 && arithmetic<T>) union vector;
-}	 // namespace sek::math::detail
+}	 // namespace sek::math

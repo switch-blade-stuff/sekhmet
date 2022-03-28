@@ -26,9 +26,9 @@
 /* Use a macro to avoid duplicating common definitions for vector specializations. */
 #define SEK_MATH_VECTOR_COMMON(T, N)                                                                                   \
 private:                                                                                                               \
-	vector_data_t<T, N> data = {};                                                                                     \
+	detail::vector_data_t<T, N> data = {};                                                                             \
                                                                                                                        \
-	friend constexpr sek::detail::hash_t hash<>(const vector<T, N> &) noexcept;                                        \
+	friend constexpr sek::hash_t hash<>(const vector<T, N> &) noexcept;                                                \
 	friend constexpr void swap<>(vector<T, N> &, vector<T, N> &) noexcept;                                             \
 	friend constexpr auto operator<=><>(vector<T, N>, vector<T, N>) noexcept;                                          \
 	friend constexpr bool operator==<>(vector<T, N>, vector<T, N>) noexcept;                                           \
@@ -92,13 +92,13 @@ public:                                                                         
 	}                                                                                                                  \
 	constexpr void swap(vector &other) noexcept { data.swap(other.data); }
 
-namespace sek::math::detail
+namespace sek::math
 {
 	template<std::size_t N, std::size_t M, typename T>
 	[[nodiscard]] constexpr vector<T, N> vector_cast(const vector<T, M> &) noexcept;
 
 	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr sek::detail::hash_t hash(const vector<T, N> &) noexcept;
+	[[nodiscard]] constexpr sek::hash_t hash(const vector<T, N> &) noexcept;
 	template<typename T, std::size_t N>
 	constexpr void swap(vector<T, N> &a, vector<T, N> &) noexcept;
 
@@ -283,7 +283,7 @@ namespace sek::math::detail
 	}
 
 	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr sek::detail::hash_t hash(const vector<T, N> &v) noexcept
+	[[nodiscard]] constexpr sek::hash_t hash(const vector<T, N> &v) noexcept
 	{
 		return v.data.hash();
 	}
@@ -309,14 +309,14 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> operator+(vector<T, N> lhs, vector<T, N> rhs) noexcept
 	{
 		vector<T, N> result;
-		vector_add(result.data, lhs.data, rhs.data);
+		detail::vector_add(result.data, lhs.data, rhs.data);
 		return result;
 	}
 	/** Adds a vector to a vector. */
 	template<typename T, std::size_t N>
 	constexpr vector<T, N> &operator+=(vector<T, N> &lhs, vector<T, N> rhs) noexcept
 	{
-		vector_add(lhs.data, lhs.data, rhs.data);
+		detail::vector_add(lhs.data, lhs.data, rhs.data);
 		return lhs;
 	}
 	/** Returns a vector which is the result of subtraction of two vectors. */
@@ -324,14 +324,14 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> operator-(vector<T, N> lhs, vector<T, N> rhs) noexcept
 	{
 		vector<T, N> result;
-		vector_sub(result.data, lhs.data, rhs.data);
+		detail::vector_sub(result.data, lhs.data, rhs.data);
 		return result;
 	}
 	/** Subtracts a vector from a vector. */
 	template<typename T, std::size_t N>
 	constexpr vector<T, N> &operator-=(vector<T, N> &lhs, vector<T, N> rhs) noexcept
 	{
-		vector_sub(lhs.data, lhs.data, rhs.data);
+		detail::vector_sub(lhs.data, lhs.data, rhs.data);
 		return lhs;
 	}
 
@@ -346,7 +346,7 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> operator-(vector<T, N> v) noexcept requires std::is_signed_v<T>
 	{
 		vector<T, N> result;
-		vector_mul(result.data, v.data);
+		detail::vector_mul(result.data, v.data);
 		return result;
 	}
 
@@ -355,14 +355,14 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> operator*(vector<T, N> lhs, T rhs) noexcept
 	{
 		vector<T, N> result;
-		vector_mul(result.data, lhs.data, rhs);
+		detail::vector_mul(result.data, lhs.data, rhs);
 		return result;
 	}
 	/** Multiplies vector by a scalar. */
 	template<typename T, std::size_t N>
 	constexpr vector<T, N> &operator*=(vector<T, N> &lhs, T rhs) noexcept
 	{
-		vector_mul(lhs.data, lhs.data, rhs);
+		detail::vector_mul(lhs.data, lhs.data, rhs);
 		return lhs;
 	}
 	/** Returns a copy of the vector divided by a scalar. */
@@ -370,14 +370,14 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> operator/(vector<T, N> lhs, T rhs) noexcept
 	{
 		vector<T, N> result;
-		vector_div(result.data, lhs.data, rhs);
+		detail::vector_div(result.data, lhs.data, rhs);
 		return result;
 	}
 	/** Divides vector by a scalar. */
 	template<typename T, std::size_t N>
 	constexpr vector<T, N> &operator/=(vector<T, N> &lhs, T rhs) noexcept
 	{
-		vector_div(lhs.data, lhs.data, rhs);
+		detail::vector_div(lhs.data, lhs.data, rhs);
 		return lhs;
 	}
 
@@ -385,7 +385,7 @@ namespace sek::math::detail
 	template<std::integral T, std::size_t N>
 	constexpr vector<T, N> &operator&=(vector<T, N> &lhs, vector<T, N> rhs) noexcept
 	{
-		vector_and(lhs.data, lhs.data, rhs.data);
+		detail::vector_and(lhs.data, lhs.data, rhs.data);
 		return lhs;
 	}
 	/** Returns a vector which is the result of bitwise AND of two vectors. */
@@ -393,14 +393,14 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> operator&(vector<T, N> lhs, vector<T, N> rhs) noexcept
 	{
 		vector<T, N> result;
-		vector_and(result.data, lhs.data, rhs.data);
+		detail::vector_and(result.data, lhs.data, rhs.data);
 		return result;
 	}
 	/** Preforms a bitwise OR on two vectors. */
 	template<std::integral T, std::size_t N>
 	constexpr vector<T, N> &operator|=(vector<T, N> &lhs, vector<T, N> rhs) noexcept
 	{
-		vector_or(lhs.data, lhs.data, rhs.data);
+		detail::vector_or(lhs.data, lhs.data, rhs.data);
 		return lhs;
 	}
 	/** Returns a vector which is the result of bitwise OR of two vectors. */
@@ -408,7 +408,7 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> operator|(vector<T, N> lhs, vector<T, N> rhs) noexcept
 	{
 		vector<T, N> result;
-		vector_or(result.data, lhs.data, rhs.data);
+		detail::vector_or(result.data, lhs.data, rhs.data);
 		return result;
 	}
 	/** Returns a vector which is the result of bitwise XOR of two vectors. */
@@ -416,14 +416,14 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> operator^(vector<T, N> lhs, vector<T, N> rhs) noexcept
 	{
 		vector<T, N> result;
-		vector_xor(result.data, lhs.data, rhs.data);
+		detail::vector_xor(result.data, lhs.data, rhs.data);
 		return result;
 	}
 	/** Preforms a bitwise XOR on two vectors. */
 	template<std::integral T, std::size_t N>
 	constexpr vector<T, N> &operator^=(vector<T, N> &lhs, vector<T, N> rhs) noexcept
 	{
-		vector_xor(lhs.data, lhs.data, rhs.data);
+		detail::vector_xor(lhs.data, lhs.data, rhs.data);
 		return lhs;
 	}
 	/** Returns a bitwise inverted copy of a vector. */
@@ -431,7 +431,7 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> operator~(vector<T, N> v) noexcept
 	{
 		vector<T, N> result;
-		vector_inv(result.data, v.data);
+		detail::vector_inv(result.data, v.data);
 		return result;
 	}
 
@@ -441,7 +441,7 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> abs(vector<T, N> v) noexcept requires std::is_signed_v<T>
 	{
 		vector<T, N> result;
-		vector_abs(result.data, v.data);
+		detail::vector_abs(result.data, v.data);
 		return result;
 	}
 	/** Returns a vector consisting of maximum data of a and b.
@@ -450,7 +450,7 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> max(vector<T, N> a, vector<T, N> b) noexcept
 	{
 		vector<T, N> result;
-		vector_max(result.data, a.data, b.data);
+		detail::vector_max(result.data, a.data, b.data);
 		return result;
 	}
 	/** Returns a vector consisting of minimum data of a and b.
@@ -459,7 +459,7 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> min(vector<T, N> a, vector<T, N> b) noexcept
 	{
 		vector<T, N> result;
-		vector_min(result.data, a.data, b.data);
+		detail::vector_min(result.data, a.data, b.data);
 		return result;
 	}
 
@@ -467,7 +467,7 @@ namespace sek::math::detail
 	template<typename T, std::size_t N>
 	[[nodiscard]] constexpr T dot(vector<T, N> lhs, vector<T, N> rhs) noexcept
 	{
-		return vector_dot(lhs.data, rhs.data);
+		return detail::vector_dot(lhs.data, rhs.data);
 	}
 
 	/** Calculates square root of a vector. */
@@ -475,7 +475,7 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> sqrt(vector<T, N> v) noexcept
 	{
 		vector<T, N> result;
-		vector_sqrt(result.data, v.data);
+		detail::vector_sqrt(result.data, v.data);
 		return result;
 	}
 	/** Calculates reciprocal square root of a vector. */
@@ -483,7 +483,7 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> rsqrt(vector<T, N> v) noexcept
 	{
 		vector<T, N> result;
-		vector_rsqrt(result.data, v.data);
+		detail::vector_rsqrt(result.data, v.data);
 		return result;
 	}
 
@@ -499,7 +499,7 @@ namespace sek::math::detail
 	[[nodiscard]] constexpr vector<T, N> norm(vector<T, N> v) noexcept
 	{
 		vector<T, N> result = {};
-		vector_norm(result.data, v.data);
+		detail::vector_norm(result.data, v.data);
 		return result;
 	}
-}	 // namespace sek::math::detail
+}	 // namespace sek::math

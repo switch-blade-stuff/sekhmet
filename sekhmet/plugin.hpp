@@ -5,8 +5,3 @@
 #pragma once
 
 #include "detail/plugin.hpp"
-
-namespace sek
-{
-	using detail::plugin;
-}

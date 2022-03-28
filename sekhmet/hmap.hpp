@@ -5,8 +5,3 @@
 #pragma once
 
 #include "detail/hmap.hpp"
-
-namespace sek
-{
-	using detail::hmap;
-}

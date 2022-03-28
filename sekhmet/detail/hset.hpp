@@ -8,7 +8,7 @@
 
 #include "basic_hash_table.hpp"
 
-namespace sek::detail
+namespace sek
 {
 	/** Hashtable-based set structure.
 	 * @tparam T Type of objects stored in the set.
@@ -16,7 +16,7 @@ namespace sek::detail
 	 * non-member `hash` function via ADL if available, otherwise invokes `std::hash`.
 	 * @tparam KeyComp Predicate used to compare keys.
 	 * @tparam Alloc Allocator used for the set. */
-	template<typename T, typename KeyHash = default_hash, typename KeyComp = std::equal_to<T>, typename Alloc = allocator<T>>
+	template<typename T, typename KeyHash = default_hash, typename KeyComp = std::equal_to<T>, typename Alloc = std::allocator<T>>
 	class hset
 	{
 	public:
@@ -32,7 +32,7 @@ namespace sek::detail
 				return std::forward<U>(val);
 			}
 		};
-		using table_type = basic_hash_table<T, value_type, KeyHash, KeyComp, ret_identity, Alloc>;
+		using table_type = detail::basic_hash_table<T, value_type, KeyHash, KeyComp, ret_identity, Alloc>;
 
 	public:
 		typedef typename table_type::pointer pointer;
@@ -152,8 +152,7 @@ namespace sek::detail
 		}
 		/** Move-constructs the set. Bucket allocator is move-constructed.
 		 * @param other Map to move elements and bucket allocator from.
-		 * @param value_alloc Allocator used to allocate set's elements.
-		 * @note If the value allocator does not compare equal to the other set's allocator, set elements are copied instead. */
+		 * @param value_alloc Allocator used to allocate set's elements. */
 		constexpr hset(hset &&other, const allocator_type &value_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &>)
 			: data_table(std::move(other.data_table), value_alloc)
@@ -162,8 +161,7 @@ namespace sek::detail
 		/** Move-constructs the set.
 		 * @param other Map to move elements from.
 		 * @param value_alloc Allocator used to allocate set's elements.
-		 * @param bucket_alloc Allocator used to allocate set's internal bucket array.
-		 * @note If either of the specified allocators do not compare equal to the other set's allocators, set elements are copied instead. */
+		 * @param bucket_alloc Allocator used to allocate set's internal bucket array. */
 		constexpr hset(hset &&other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &, const bucket_allocator_type &>)
 			: data_table(std::move(other.data_table), value_alloc, bucket_alloc)
@@ -178,9 +176,7 @@ namespace sek::detail
 			return *this;
 		}
 		/** Move-assigns the set.
-		 * @param other Map to move elements from.
-		 * @note If this set's allocators do not compare equal to the other set's allocators,
-		 * and the other set's allocators cannot be moved, elements are relocated instead.*/
+		 * @param other Map to move elements from. */
 		constexpr hset &operator=(hset &&other) noexcept(std::is_nothrow_move_assignable_v<table_type>)
 		{
 			data_table = std::move(other.data_table);
@@ -388,4 +384,4 @@ namespace sek::detail
 		/** Hash table used to implement the set. */
 		table_type data_table;
 	};
-}	 // namespace sek::detail
+}	 // namespace sek

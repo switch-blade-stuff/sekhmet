@@ -17,7 +17,7 @@
 #include <malloc.h>
 #endif
 
-namespace sek::detail
+namespace sek
 {
 	/** @brief Internal utility structure used to wrap malloc/free/realloc to manage dynamic arrays of trivially copyable types.
 	 * This *may* be preferable over `std::vector` since vector always does copy on resize,
@@ -217,7 +217,7 @@ namespace sek::detail
 			auto amount = last - first;
 			auto first_pos = first - begin(), last_pos = last - begin();
 			std::move(data_begin + last_pos, data_begin + data_size, data_begin + first_pos);
-			data_size -= amount;
+			data_size -= static_cast<size_type>(amount);
 
 			return iterator{data_begin + first_pos};
 		}
@@ -303,4 +303,4 @@ namespace sek::detail
 		size_type data_size = 0;
 		size_type data_capacity = 0;
 	};
-}	 // namespace sek::detail
+}	 // namespace sek

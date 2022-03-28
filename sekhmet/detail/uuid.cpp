@@ -10,7 +10,7 @@
 #include "../math/detail/sysrandom.hpp"
 #include "../math/detail/xoroshiro.hpp"
 
-namespace sek::detail
+namespace sek
 {
 	struct sysrandom_seq
 	{
@@ -20,12 +20,12 @@ namespace sek::detail
 		constexpr void generate(Iter out, Iter) noexcept
 		{
 			result_type seeds[4] = {0};
-			math::detail::sys_random(&seeds, sizeof(seeds));
+			math::sys_random(&seeds, sizeof(seeds));
 			std::copy_n(std::begin(seeds), 4, out);
 		}
 	};
 
-	static auto uuid_rng = math::detail::xoroshiro<std::uint64_t, 256>{sysrandom_seq{}};
+	static auto uuid_rng = math::xoroshiro<std::uint64_t, 256>{sysrandom_seq{}};
 
 	void uuid::version4_t::operator()(uuid &id) const noexcept
 	{
@@ -42,4 +42,4 @@ namespace sek::detail
 		id.bytes[6] = static_cast<std::byte>((static_cast<std::uint8_t>(id.bytes[6]) & version_mask) | version_bits);
 		id.bytes[8] = static_cast<std::byte>((static_cast<std::uint8_t>(id.bytes[8]) & variant_mask) | variant_bits);
 	}
-}	 // namespace sek::detail
+}	 // namespace sek

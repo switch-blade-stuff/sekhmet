@@ -51,4 +51,4 @@ namespace sek::math::detail
 	{
 		for (auto i = M; i-- > 0;) f(out[i].value, l[i].value);
 	}
-}	 // namespace sek::math::detail
+}	 // namespace sek::math

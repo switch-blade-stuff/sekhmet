@@ -18,7 +18,7 @@
 #include <linux/random.h>
 #include <sys/syscall.h>
 
-std::size_t sek::math::detail::sys_random(void *dst, std::size_t len) noexcept
+std::size_t sek::math::sys_random(void *dst, std::size_t len) noexcept
 {
 	return syscall(SYS_getrandom, dst, len, 0);
 }
@@ -33,7 +33,7 @@ static bool acquire_context(HCRYPTPROV *ctx) noexcept
 		return CryptAcquireContext(ctx, nullptr, nullptr, PROV_RSA_FULL, CRYPT_NEWKEYSET);
 	return true;
 }
-std::size_t sek::math::detail::sys_random(void *dst, std::size_t len) noexcept
+std::size_t sek::math::sys_random(void *dst, std::size_t len) noexcept
 {
 	HCRYPTPROV ctx;
 	if (!acquire_context(&ctx)) [[unlikely]]
@@ -47,7 +47,7 @@ std::size_t sek::math::detail::sys_random(void *dst, std::size_t len) noexcept
 #elif defined(__OpenBSD__)
 #include <unistd.h>
 
-std::size_t sek::math::detail::sys_random(void *dst, std::size_t len) noexcept
+std::size_t sek::math::sys_random(void *dst, std::size_t len) noexcept
 {
 	return getentropy(dst, len);
 }
@@ -56,7 +56,7 @@ std::size_t sek::math::detail::sys_random(void *dst, std::size_t len) noexcept
 
 #include <cstdio>
 
-std::size_t sek::math::detail::sys_random(void *dest, std::size_t len) noexcept
+std::size_t sek::math::sys_random(void *dest, std::size_t len) noexcept
 {
 	if (auto urandom = fopen("/dev/urandom", "rb"); urandom) [[likely]]
 	{
@@ -71,7 +71,7 @@ std::size_t sek::math::detail::sys_random(void *dest, std::size_t len) noexcept
 
 #include <cstdlib>
 
-std::size_t sek::math::detail::sys_random(void *dest, std::size_t len) noexcept
+std::size_t sek::math::sys_random(void *dest, std::size_t len) noexcept
 {
 	auto bytes = static_cast<std::uint8_t *>(dest);
 	while (len-- > 0) bytes[len] = static_cast<std::uint8_t>(rand());

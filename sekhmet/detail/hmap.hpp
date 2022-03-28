@@ -8,9 +8,8 @@
 #include <stdexcept>
 
 #include "basic_hash_table.hpp"
-#include "util_func.hpp"
 
-namespace sek::detail
+namespace sek
 {
 	/** One-to-one hashtable-based associative container providing fast insertion & deletion, but higher memory overhead than tree-based map.
 	 * @tparam K Type of objects used as keys.
@@ -19,7 +18,7 @@ namespace sek::detail
 	 * `hash` function via ADL if available, otherwise invokes `std::hash`.
 	 * @tparam KeyComp Predicate used to compare keys.
 	 * @tparam Alloc Allocator used for the map. */
-	template<typename K, typename M, typename KeyHash = default_hash, typename KeyComp = std::equal_to<K>, typename Alloc = allocator<std::pair<const K, M>>>
+	template<typename K, typename M, typename KeyHash = default_hash, typename KeyComp = std::equal_to<K>, typename Alloc = std::allocator<std::pair<const K, M>>>
 	class hmap
 	{
 	public:
@@ -28,7 +27,7 @@ namespace sek::detail
 		typedef std::pair<const key_type, mapped_type> value_type;
 
 	private:
-		using table_type = basic_hash_table<K, value_type, KeyHash, KeyComp, pair_first, Alloc>;
+		using table_type = detail::basic_hash_table<K, value_type, KeyHash, KeyComp, pair_first, Alloc>;
 
 	public:
 		typedef typename table_type::pointer pointer;
@@ -148,8 +147,7 @@ namespace sek::detail
 		}
 		/** Move-constructs the map. Bucket allocator is move-constructed.
 		 * @param other Map to move elements and bucket allocator from.
-		 * @param value_alloc Allocator used to allocate map's elements.
-		 * @note If the value allocator does not compare equal to the other map's allocator, map elements are copied instead. */
+		 * @param value_alloc Allocator used to allocate map's elements. */
 		constexpr hmap(hmap &&other, const allocator_type &value_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &>)
 			: data_table(std::move(other.data_table), value_alloc)
@@ -158,8 +156,7 @@ namespace sek::detail
 		/** Move-constructs the map.
 		 * @param other Map to move elements from.
 		 * @param value_alloc Allocator used to allocate map's elements.
-		 * @param bucket_alloc Allocator used to allocate map's internal bucket array.
-		 * @note If either of the specified allocators do not compare equal to the other map's allocators, map elements are copied instead. */
+		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
 		constexpr hmap(hmap &&other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &, const bucket_allocator_type &>)
 			: data_table(std::move(other.data_table), value_alloc, bucket_alloc)
@@ -174,9 +171,7 @@ namespace sek::detail
 			return *this;
 		}
 		/** Move-assigns the map.
-		 * @param other Map to move elements from.
-		 * @note If this map's allocators do not compare equal to the other map's allocators,
-		 * and the other map's allocators cannot be moved, elements are relocated instead.*/
+		 * @param other Map to move elements from. */
 		constexpr hmap &operator=(hmap &&other) noexcept(std::is_nothrow_move_assignable_v<table_type>)
 		{
 			data_table = std::move(other.data_table);
@@ -442,4 +437,4 @@ namespace sek::detail
 		/** Hash table used to implement the map. */
 		table_type data_table;
 	};
-}	 // namespace sek::detail
+}	 // namespace sek

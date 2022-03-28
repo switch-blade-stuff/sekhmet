@@ -6,7 +6,7 @@
 
 #include <cstddef>
 
-namespace sek::detail
+namespace sek
 {
 	template<std::size_t Size, std::size_t Align>
 	class alignas(Align) aligned_storage
@@ -32,4 +32,4 @@ namespace sek::detail
 
 	template<typename T>
 	using type_storage = aligned_storage<sizeof(T), alignof(T)>;
-}	 // namespace sek::detail
+}	 // namespace sek

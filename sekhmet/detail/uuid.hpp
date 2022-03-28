@@ -11,7 +11,7 @@
 #include "define.h"
 #include "hash.hpp"
 
-namespace sek::detail
+namespace sek
 {
 	/** @brief UUID Version 4 Variant 1. */
 	class SEK_API uuid
@@ -134,13 +134,13 @@ namespace sek::detail
 	};
 
 	[[nodiscard]] constexpr hash_t hash(uuid id) noexcept { return fnv1a(id.bytes, SEK_ARRAY_SIZE(id.bytes)); }
-}	 // namespace sek::detail
+}	 // namespace sek
 
 template<>
-struct std::hash<sek::detail::uuid>
+struct std::hash<sek::uuid>
 {
-	[[nodiscard]] constexpr sek::detail::hash_t operator()(sek::detail::uuid id) const noexcept
+	[[nodiscard]] constexpr sek::hash_t operator()(sek::uuid id) const noexcept
 	{
-		return sek::detail::hash(id);
+		return sek::hash(id);
 	}
 };

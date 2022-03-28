@@ -24,5 +24,5 @@ namespace sek::math::detail
 		__m256d value;
 	};
 
-}	 // namespace sek::math::detail
+}	 // namespace sek::math
 #endif

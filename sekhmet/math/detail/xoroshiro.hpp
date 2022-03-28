@@ -10,7 +10,7 @@
 
 #include "../../detail/define.h"
 
-namespace sek::math::detail
+namespace sek::math
 {
 	template<typename T, typename I>
 	concept is_seed_generator = requires(const I (&state)[4], T &gen)
@@ -18,16 +18,6 @@ namespace sek::math::detail
 		typename T::result_type;
 		std::same_as<typename T::result_type, I>;
 		gen.generate(std::begin(state), std::end(state));
-	};
-	template<typename T, typename I>
-	concept is_output_stream = requires(T &s, I val)
-	{
-		s << val;
-	};
-	template<typename T, typename I>
-	concept is_input_stream = requires(T &s, I &val)
-	{
-		s >> val;
 	};
 
 	constexpr static auto mix_seed_xor(auto &seed) noexcept { return std::rotl(seed, 19) ^ seed; }
@@ -316,12 +306,6 @@ namespace sek::math::detail
 		constexpr static result_type min() { return std::numeric_limits<result_type>::min(); }
 		constexpr static result_type max() { return std::numeric_limits<result_type>::max(); }
 
-	private:
-		template<typename U, std::size_t W, is_input_stream<typename xoroshiro<U, W>::result_type> S>
-		friend constexpr S &operator<<(S &, const xoroshiro<U, W> &);
-		template<typename U, std::size_t W, is_output_stream<typename xoroshiro<U, W>::result_type> S>
-		friend constexpr S &operator>>(S &, xoroshiro<U, W> &);
-
 	public:
 		/** Initializes the generator to a default state. */
 		constexpr xoroshiro() noexcept { seed(); }
@@ -372,16 +356,5 @@ namespace sek::math::detail
 		[[nodiscard]] constexpr bool operator==(const xoroshiro &) const noexcept = default;
 	};
 
-	template<typename T, std::size_t W, is_input_stream<typename xoroshiro<T, W>::result_type> S>
-	constexpr S &operator<<(S &s, const xoroshiro<T, W> &g)
-	{
-		for (auto i : g.state) s << i;
-		return s;
-	}
-	template<typename T, std::size_t W, is_output_stream<typename xoroshiro<T, W>::result_type> S>
-	constexpr S &operator>>(S &s, xoroshiro<T, W> &g)
-	{
-		for (auto &i : g.state) s >> i;
-		return s;
-	}
-}	 // namespace sek::math::detail
+	/* TODO: implement stream input & output. */
+}	 // namespace sek::math

@@ -9,7 +9,7 @@
 #include "engine_exception.hpp"
 #include "meta_util.hpp"
 
-namespace sek::detail
+namespace sek
 {
 	class adapter_exception : public engine_exception
 	{
@@ -29,78 +29,85 @@ namespace sek::detail
 	template<typename...>
 	class adapter_proxy;
 
-	struct adapter_instance
+	namespace detail
 	{
-		constexpr adapter_instance() noexcept = default;
-
-		template<typename T>
-		constexpr explicit adapter_instance(T &ptr) noexcept : mutable_data(&ptr)
+		struct adapter_instance
 		{
-		}
-		template<typename T>
-		constexpr explicit adapter_instance(const T &ptr) noexcept : const_data(&ptr)
-		{
-		}
+			constexpr adapter_instance() noexcept = default;
 
-		template<typename T>
-		[[nodiscard]] constexpr T &get() const noexcept
-		{
-			if constexpr (std::is_const_v<T>)
-				return *static_cast<T *>(const_data);
-			else
-				return *static_cast<T *>(mutable_data);
-		}
+			template<typename T>
+			constexpr explicit adapter_instance(T &ptr) noexcept : mutable_data(&ptr)
+			{
+			}
+			template<typename T>
+			constexpr explicit adapter_instance(const T &ptr) noexcept : const_data(&ptr)
+			{
+			}
 
-		[[nodiscard]] constexpr bool empty() const noexcept { return sentinel == 0; }
+			template<typename T>
+			[[nodiscard]] constexpr T &get() const noexcept
+			{
+				if constexpr (std::is_const_v<T>)
+					return *static_cast<T *>(const_data);
+				else
+					return *static_cast<T *>(mutable_data);
+			}
 
-		union
-		{
-			std::uintptr_t sentinel = 0;
-			void *mutable_data;
-			const void *const_data;
+			[[nodiscard]] constexpr bool empty() const noexcept { return sentinel == 0; }
+
+			union
+			{
+				std::uintptr_t sentinel = 0;
+				void *mutable_data;
+				const void *const_data;
+			};
 		};
-	};
 
-	template<typename...>
-	class adapter_vtable;
+		template<typename...>
+		class adapter_vtable;
 
-	template<>
-	class adapter_vtable<>
-	{
-	};
-
-	template<typename FuncT, typename... FuncTs>
-	class adapter_vtable<FuncT, FuncTs...> : adapter_vtable<FuncTs...>
-	{
-	public:
-		constexpr explicit adapter_vtable(FuncT f, FuncTs... fs) noexcept : adapter_vtable<FuncTs...>(fs...), func(f) {}
-
-		template<typename F>
-		constexpr auto get() const noexcept requires is_in_v<F, FuncTs...>
+		template<>
+		class adapter_vtable<>
 		{
-			return adapter_vtable<FuncTs...>::template get<F>();
-		}
-		template<typename F>
-		constexpr FuncT get() const noexcept requires std::same_as<F, FuncT>
+		};
+
+		template<typename FuncT, typename... FuncTs>
+		class adapter_vtable<FuncT, FuncTs...> : adapter_vtable<FuncTs...>
 		{
-			return func;
-		}
+		public:
+			constexpr explicit adapter_vtable(FuncT f, FuncTs... fs) noexcept
+				: adapter_vtable<FuncTs...>(fs...), func(f)
+			{
+			}
 
-	private :
-		/** Actual function pointer stored by the vtable type. */
-		const FuncT func;
-	};
+			template<typename F>
+			constexpr auto get() const noexcept requires is_in_v<F, FuncTs...>
+			{
+				return adapter_vtable<FuncTs...>::template get<F>();
+			}
+			template<typename F>
+			constexpr FuncT get() const noexcept requires std::same_as<F, FuncT>
+			{
+				return func;
+			}
 
-	template<typename... Ts>
-	constexpr adapter_proxy<Ts...> adapter_proxy_parent(adapter_proxy<Ts...>) noexcept;
+		private :
+			/** Actual function pointer stored by the vtable type. */
+			const FuncT func;
+		};
 
-	template<typename P>
-	using adapter_proxy_parent_t = decltype(adapter_proxy_parent(std::declval<P>()));
+		template<typename... Ts>
+		constexpr adapter_proxy<Ts...> adapter_proxy_parent(adapter_proxy<Ts...>) noexcept;
 
-	template<typename P>
-	concept valid_adapter_proxy = (std::is_base_of_v<adapter_proxy<>, P> && template_extent<adapter_proxy_parent_t<P>> != 0);
+		template<typename P>
+		using adapter_proxy_parent_t = decltype(adapter_proxy_parent(std::declval<P>()));
 
-	template<valid_adapter_proxy...>
+		template<typename P>
+		concept valid_adapter_proxy = (std::is_base_of_v<adapter_proxy<>, P> &&
+									   template_extent<adapter_proxy_parent_t<P>> != 0);
+	}	 // namespace detail
+
+	template<detail::valid_adapter_proxy...>
 	class adapter;
 
 	template<>
@@ -112,15 +119,15 @@ namespace sek::detail
 	template<typename R, typename... Args>
 	class adapter_proxy<R(Args...)> : adapter_proxy<>
 	{
-		template<valid_adapter_proxy...>
+		template<detail::valid_adapter_proxy...>
 		friend class adapter;
 
-		using proxy_func_type = R (*)(adapter_instance, Args &&...);
+		using proxy_func_type = R (*)(detail::adapter_instance, Args &&...);
 
 		template<typename T, typename Proxy>
 		constexpr static proxy_func_type bind_proxy() noexcept
 		{
-			return +[](adapter_instance i, Args &&...args) -> R
+			return +[](detail::adapter_instance i, Args &&...args) -> R
 			{ return Proxy{}(i.get<T>(), std::forward<Args>(args)...); };
 		}
 	};
@@ -154,18 +161,18 @@ namespace sek::detail
 	 * necessarily need to be virtual, to add virtual inheritance
 	 * functionality to types that do not support it or to create "fake" virtual
 	 * inheritance between unrelated types. */
-	template<valid_adapter_proxy... ProxyTs>
+	template<detail::valid_adapter_proxy... ProxyTs>
 	class adapter
 	{
 	private:
 		template<typename Proxy>
-		using proxy_func_type = typename adapter_proxy_parent_t<Proxy>::proxy_func_type;
-		using vtable_type = adapter_vtable<proxy_func_type<ProxyTs>...>;
+		using proxy_func_type = typename detail::adapter_proxy_parent_t<Proxy>::proxy_func_type;
+		using vtable_type = detail::adapter_vtable<proxy_func_type<ProxyTs>...>;
 
 		template<typename T, typename Proxy>
 		constexpr static proxy_func_type<Proxy> bind_proxy_func() noexcept
 		{
-			return adapter_proxy_parent_t<Proxy>::template bind_proxy<T, Proxy>();
+			return detail::adapter_proxy_parent_t<Proxy>::template bind_proxy<T, Proxy>();
 		}
 
 		template<typename T>
@@ -202,7 +209,7 @@ namespace sek::detail
 		template<typename T>
 		constexpr adapter &rebind(T &new_instance)
 		{
-			instance = adapter_instance{new_instance};
+			instance = detail::adapter_instance{new_instance};
 			vtable = generate_vtable<T>();
 
 			return *this;
@@ -237,7 +244,7 @@ namespace sek::detail
 		friend constexpr void swap(adapter &a, adapter &b) noexcept { a.swap(b); }
 
 	private:
-		adapter_instance instance = {};
+		detail::adapter_instance instance = {};
 		const vtable_type *vtable = nullptr;
 	};
-}	 // namespace sek::detail
+}	 // namespace sek

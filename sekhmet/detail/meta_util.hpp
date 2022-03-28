@@ -10,7 +10,7 @@
 #include "define.h"
 #include <type_traits>
 
-namespace sek::detail
+namespace sek
 {
 	template<std::size_t I>
 	struct index_selector_t : index_selector_t<I - 1>
@@ -54,46 +54,53 @@ namespace sek::detail
 	template<typename Seq1, typename Seq2>
 	using concat_type_seq_t = typename concat_type_seq<Seq1, Seq2>::type;
 
-	template<std::size_t, std::size_t, typename...>
-	struct trim_type_seq_impl;
-	template<std::size_t N, std::size_t I>
-	struct trim_type_seq_impl<N, I>
+	namespace detail
 	{
-		using type = type_seq_t<>;
-	};
-	template<std::size_t N, std::size_t I, typename T0, typename... Ts>
-	struct trim_type_seq_impl<N, I, T0, Ts...>
-	{
-		using next = typename trim_type_seq_impl<N, I + 1, Ts...>::type;
-		using type = std::conditional_t < I<N, concat_type_seq_t<type_seq_t<T0>, next>, type_seq_t<>>;
-	};
+		template<std::size_t, std::size_t, typename...>
+		struct trim_type_seq_impl;
+		template<std::size_t N, std::size_t I>
+		struct trim_type_seq_impl<N, I>
+		{
+			using type = type_seq_t<>;
+		};
+		template<std::size_t N, std::size_t I, typename T0, typename... Ts>
+		struct trim_type_seq_impl<N, I, T0, Ts...>
+		{
+			using next = typename trim_type_seq_impl<N, I + 1, Ts...>::type;
+			using type = std::conditional_t < I<N, concat_type_seq_t<type_seq_t<T0>, next>, type_seq_t<>>;
+		};
+	}	 // namespace detail
 
 	template<std::size_t, typename>
 	struct trim_type_seq;
 	template<std::size_t N, typename... Ts>
 	struct trim_type_seq<N, type_seq_t<Ts...>>
 	{
-		using type = typename trim_type_seq_impl<N, 0, Ts...>::type;
+		using type = typename detail::trim_type_seq_impl<N, 0, Ts...>::type;
 	};
 	template<std::size_t N, typename Seq>
 	using trim_type_seq_t = typename trim_type_seq<N, Seq>::type;
 
-	template<typename...>
-	struct is_in_impl;
-	template<typename T>
-	struct is_in_impl<T> : std::false_type
+	namespace detail
 	{
-	};
-	template<typename T0, typename... Ts>
-	struct is_in_impl<T0, T0, Ts...> : std::true_type
-	{
-	};
-	template<typename T0, typename T1, typename... Ts>
-	struct is_in_impl<T0, T1, Ts...> : is_in_impl<T0, Ts...>
-	{
-	};
+		template<typename...>
+		struct is_in_impl;
+		template<typename T>
+		struct is_in_impl<T> : std::false_type
+		{
+		};
+		template<typename T0, typename... Ts>
+		struct is_in_impl<T0, T0, Ts...> : std::true_type
+		{
+		};
+		template<typename T0, typename T1, typename... Ts>
+		struct is_in_impl<T0, T1, Ts...> : is_in_impl<T0, Ts...>
+		{
+		};
+	}	 // namespace detail
+
 	template<typename T, typename... Ts>
-	struct is_in : is_in_impl<T, Ts...>
+	struct is_in : detail::is_in_impl<T, Ts...>
 	{
 	};
 	template<typename T, typename... Ts>
@@ -122,98 +129,109 @@ namespace sek::detail
 	template<typename Seq1, typename Seq2>
 	using remove_from_seq_t = typename remove_from_seq<Seq1, Seq2>::type;
 
-	template<std::size_t N, std::size_t I, typename T, typename... Ts>
-	struct make_type_seq_impl
+	namespace detail
 	{
-		using type = typename make_type_seq_impl<N, I + 1, T, T, Ts...>::type;
-	};
-	template<std::size_t N, typename T, typename... Ts>
-	struct make_type_seq_impl<N, N, T, Ts...>
-	{
-		using type = type_seq_t<Ts...>;
-	};
+		template<std::size_t N, std::size_t I, typename T, typename... Ts>
+		struct make_type_seq_impl
+		{
+			using type = typename make_type_seq_impl<N, I + 1, T, T, Ts...>::type;
+		};
+		template<std::size_t N, typename T, typename... Ts>
+		struct make_type_seq_impl<N, N, T, Ts...>
+		{
+			using type = type_seq_t<Ts...>;
+		};
+	}	 // namespace detail
 
 	template<std::size_t N, typename T>
 	struct make_type_seq
 	{
-		using type = typename make_type_seq_impl<N, 0, T>::type;
+		using type = typename detail::make_type_seq_impl<N, 0, T>::type;
 	};
 	template<std::size_t N, typename T>
 	using make_type_seq_t = typename make_type_seq<N, T>::type;
 
-	template<std::size_t, std::size_t, typename...>
-	struct type_seq_element_impl;
-	template<std::size_t I>
-	struct type_seq_element_impl<I, I>
+	namespace detail
 	{
-		typedef void type;
-	};
-	template<std::size_t I, typename T0, typename... Ts>
-	struct type_seq_element_impl<I, I, T0, Ts...>
-	{
-		typedef T0 type;
-	};
-	template<std::size_t J, std::size_t I, typename T0, typename... Ts>
-	struct type_seq_element_impl<J, I, T0, Ts...> : public type_seq_element_impl<J, I + 1, Ts...>
-	{
-	};
+		template<std::size_t, std::size_t, typename...>
+		struct type_seq_element_impl;
+		template<std::size_t I>
+		struct type_seq_element_impl<I, I>
+		{
+			typedef void type;
+		};
+		template<std::size_t I, typename T0, typename... Ts>
+		struct type_seq_element_impl<I, I, T0, Ts...>
+		{
+			typedef T0 type;
+		};
+		template<std::size_t J, std::size_t I, typename T0, typename... Ts>
+		struct type_seq_element_impl<J, I, T0, Ts...> : public type_seq_element_impl<J, I + 1, Ts...>
+		{
+		};
+	}	 // namespace detail
+
 	template<std::size_t, typename...>
 	struct type_seq_element;
 	template<std::size_t I, typename... Ts>
-	struct type_seq_element<I, type_seq_t<Ts...>> : type_seq_element_impl<I, 0, Ts...>
+	struct type_seq_element<I, type_seq_t<Ts...>> : detail::type_seq_element_impl<I, 0, Ts...>
 	{
 	};
 	template<std::size_t I, typename Seq>
 	using type_seq_element_t = typename type_seq_element<I, Seq>::type;
 
-	template<std::size_t, typename...>
-	struct type_seq_index_impl;
-	template<std::size_t I, typename T, typename... Ts>
-	struct type_seq_index_impl<I, T, T, Ts...> : std::integral_constant<std::size_t, I>
+	namespace detail
 	{
-		typedef T type;
-	};
-	template<std::size_t I, typename T, typename T0, typename... Ts>
-	struct type_seq_index_impl<I, T, T0, Ts...> : type_seq_index_impl<I + 1, T, Ts...>
-	{
-	};
+		template<std::size_t, typename...>
+		struct type_seq_index_impl;
+		template<std::size_t I, typename T, typename... Ts>
+		struct type_seq_index_impl<I, T, T, Ts...> : std::integral_constant<std::size_t, I>
+		{
+			typedef T type;
+		};
+		template<std::size_t I, typename T, typename T0, typename... Ts>
+		struct type_seq_index_impl<I, T, T0, Ts...> : type_seq_index_impl<I + 1, T, Ts...>
+		{
+		};
+	}	 // namespace detail
+
 	template<typename, typename...>
 	struct type_seq_index;
 	template<typename T, typename... Ts>
-	struct type_seq_index<T, type_seq_t<Ts...>> : type_seq_index_impl<0, T, Ts...>
+	struct type_seq_index<T, type_seq_t<Ts...>> : detail::type_seq_index_impl<0, T, Ts...>
 	{
 	};
 	template<typename T, typename Seq>
 	constexpr auto type_seq_index_v = type_seq_index<T, Seq>::value;
 
-	template<typename, std::size_t, std::size_t, typename...>
-	struct get_type_seq_impl;
-
-	template<std::size_t I, typename T0, typename... Ts>
-	struct get_type_seq_impl<T0, I, I, T0, Ts...>
+	namespace detail
 	{
-		constexpr static decltype(auto) dispatch(T0 &&target_val, Ts &&...) { return std::forward<T0>(target_val); }
-	};
-
-	template<typename Target, std::size_t I, std::size_t J, typename T0, typename... Ts>
-	struct get_type_seq_impl<Target, I, J, T0, Ts...>
-	{
-		constexpr static decltype(auto) dispatch(T0 &&, Ts &&...seq)
+		template<typename, std::size_t, std::size_t, typename...>
+		struct get_type_seq_impl;
+		template<std::size_t I, typename T0, typename... Ts>
+		struct get_type_seq_impl<T0, I, I, T0, Ts...>
 		{
-			using next = get_type_seq_impl<Target, I, J + 1, Ts...>;
-			return next::dispatch(std::forward<Ts>(seq)...);
-		}
-	};
+			constexpr static decltype(auto) dispatch(T0 &&target_val, Ts &&...) { return std::forward<T0>(target_val); }
+		};
+		template<typename Target, std::size_t I, std::size_t J, typename T0, typename... Ts>
+		struct get_type_seq_impl<Target, I, J, T0, Ts...>
+		{
+			constexpr static decltype(auto) dispatch(T0 &&, Ts &&...seq)
+			{
+				using next = get_type_seq_impl<Target, I, J + 1, Ts...>;
+				return next::dispatch(std::forward<Ts>(seq)...);
+			}
+		};
+	}	 // namespace detail
 
 	/** Forwards Nth argument. */
 	template<std::size_t N, typename... Args>
 	[[nodiscard]] constexpr decltype(auto) get(type_seq_t<Args...>, Args &&...args)
 	{
-		using impl_type = get_type_seq_impl<type_seq_element_t<N, type_seq_t<Args...>>, N, 0, Args...>;
+		using impl_type = detail::get_type_seq_impl<type_seq_element_t<N, type_seq_t<Args...>>, N, 0, Args...>;
 		return impl_type::dispatch(std::forward<Args>(args)...);
 	}
 
-	/** Type used to select global functions via ADL. */
 	template<typename T>
 	struct type_selector_t
 	{
@@ -222,103 +240,91 @@ namespace sek::detail
 	template<typename T>
 	constexpr type_selector_t<T> type_selector;
 
-	template<typename T>
-	concept trivial_type = std::is_trivial_v<T>;
+	namespace detail
+	{
+		template<typename...>
+		struct is_template_impl : std::false_type
+		{
+		};
+		template<template<typename...> typename T>
+		struct is_template_impl<T<>> : std::true_type
+		{
+			constexpr static std::size_t count = 0;
+		};
+		template<template<typename...> typename T, typename... Ts>
+		struct is_template_impl<T<Ts...>> : std::true_type
+		{
+			constexpr static std::size_t count = sizeof...(Ts);
+		};
+	}	 // namespace detail
 
-	template<typename...>
-	struct is_template_impl : std::false_type
-	{
-	};
-	template<template<typename...> typename T>
-	struct is_template_impl<T<>> : std::true_type
-	{
-		constexpr static std::size_t count = 0;
-	};
-	template<template<typename...> typename T, typename... Ts>
-	struct is_template_impl<T<Ts...>> : std::true_type
-	{
-		constexpr static std::size_t count = sizeof...(Ts);
-	};
-	/** @brief Helper type used to determine if a type is a template. */
 	template<typename T>
-	struct is_template : is_template_impl<T>
+	struct is_template : detail::is_template_impl<T>
 	{
 	};
-	/** Helper variable that evaluates to true only if F is a type. */
 	template<typename T>
 	constexpr auto is_template_v = is_template<T>::value;
 	template<typename T>
 	concept template_type = is_template_v<T>;
 
-	template<template<typename...> typename, typename>
-	struct is_template_instance_impl : std::false_type
+	namespace detail
 	{
-	};
-	template<template<typename...> typename T, typename... Ts>
-	struct is_template_instance_impl<T, T<Ts...>> : std::true_type
-	{
-	};
-	/** @brief Helper type used to determine if a type is an instance of a template. */
+		template<template<typename...> typename, typename>
+		struct is_template_instance_impl : std::false_type
+		{
+		};
+		template<template<typename...> typename T, typename... Ts>
+		struct is_template_instance_impl<T, T<Ts...>> : std::true_type
+		{
+		};
+	}	 // namespace detail
+
 	template<template_type U, template<typename...> typename T>
-	struct is_template_instance : is_template_instance_impl<T, U>
+	struct is_template_instance : detail::is_template_instance_impl<T, U>
 	{
 	};
-	/** Helper variable that evaluates to true only if F is an instance of a type. */
 	template<template_type U, template<typename...> typename T>
 	constexpr auto is_template_instance_v = is_template_instance<U, T>::value;
 	template<typename U, template<typename...> typename T>
 	concept template_type_instance = is_template_instance_v<U, T>;
 
 	template<template_type T>
-	constexpr std::size_t template_extent = is_template_impl<T>::count;
-
-	template<typename...>
-	struct rebind;
-	/** Helper type used to modify an instance of `F<U, Us...>` into `F<V, Us...>`. */
-	template<template<typename...> typename T, typename U, typename... Us, typename V>
-	struct rebind<T<U, Us...>, V>
-	{
-		typedef T<V, Us...> type;
-	};
-
-	template<template_type T, typename V>
-	using rebind_t = typename rebind<T, V>::type;
+	constexpr std::size_t template_extent = detail::is_template_impl<T>::count;
 
 	template<typename, std::size_t I>
 	struct pack_member;
 	template<template<typename...> typename T, typename... Ts, std::size_t I>
-	struct pack_member<T<Ts...>, I> : type_seq_element_impl<I, 0, Ts...>
+	struct pack_member<T<Ts...>, I> : detail::type_seq_element_impl<I, 0, Ts...>
 	{
 	};
 
 	template<template_type T, std::size_t I = 0>
 	using pack_member_t = typename pack_member<T, I>::type;
 
-	template<typename T>
-	concept not_void = !std::is_void_v<T>;
+	namespace detail
+	{
+		template<std::size_t I, auto Pred, std::size_t... Is>
+		constexpr static auto type_index_sequence_impl(type_seq_t<>, std::index_sequence<Is...>) noexcept
+		{
+			return std::index_sequence<Is...>{};
+		}
+		template<std::size_t I, auto Pred, typename T, typename... Ts, std::size_t... Is>
+		constexpr static auto type_index_sequence_impl(std::index_sequence<Is...>) noexcept
+		{
+			if constexpr (Pred(type_selector<T>))
+				return type_index_sequence_impl<I + 1, Pred, Ts...>(std::index_sequence<I, Is...>{});
+			else
+				return type_index_sequence_impl<I + 1, Pred, Ts...>(std::index_sequence<Is...>{});
+		}
+		template<auto Pred, typename... Ts>
+		constexpr static auto type_index_sequence_impl() noexcept
+		{
+			return type_index_sequence_impl<0, Pred, Ts...>(std::index_sequence<>{});
+		}
+	}	 // namespace detail
 
-	template<std::size_t I, auto Pred, std::size_t... Is>
-	constexpr static auto type_index_sequence_impl(type_seq_t<>, std::index_sequence<Is...>) noexcept
-	{
-		return std::index_sequence<Is...>{};
-	}
-	template<std::size_t I, auto Pred, typename T, typename... Ts, std::size_t... Is>
-	constexpr static auto type_index_sequence_impl(std::index_sequence<Is...>) noexcept
-	{
-		if constexpr (Pred(type_selector<T>))
-			return type_index_sequence_impl<I + 1, Pred, Ts...>(std::index_sequence<I, Is...>{});
-		else
-			return type_index_sequence_impl<I + 1, Pred, Ts...>(std::index_sequence<Is...>{});
-	}
 	template<auto Pred, typename... Ts>
-	constexpr static auto type_index_sequence_impl() noexcept
-	{
-		return type_index_sequence_impl<0, Pred, Ts...>(std::index_sequence<>{});
-	}
-	/** Extracts indices of a pack based on a predicate.
-	 * The predicate must be compile-time invocable with an instance of `type_selector_t` */
-	template<auto Pred, typename... Ts>
-	using filter_index_sequence = decltype(type_index_sequence_impl<Pred, Ts...>());
+	using filter_index_sequence = decltype(detail::type_index_sequence_impl<Pred, Ts...>());
 
 	/** @brief Structure used to define a compile-time constant instance of an NTTP variable.
 	 * @tparam Value NTTP object to create constant of. */
@@ -385,4 +391,9 @@ namespace sek::detail
 	constexpr bool is_pointer_like_v = false;
 	template<pointer_like T>
 	constexpr bool is_pointer_like_v<T> = true;
-}	 // namespace sek::detail
+
+	template<typename T>
+	concept trivial_type = std::is_trivial_v<T>;
+	template<typename T>
+	concept not_void = !std::is_void_v<T>;
+}	 // namespace sek

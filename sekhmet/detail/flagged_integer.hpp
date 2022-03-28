@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <limits>
 
-namespace sek::detail
+namespace sek
 {
 	/** @brief Helper structure used to store an integer and a flag in one of it's bits. */
 	template<std::integral IntType>
@@ -48,4 +48,4 @@ namespace sek::detail
 	flagged_integer_t(I) -> flagged_integer_t<I>;
 	template<std::unsigned_integral I>
 	flagged_integer_t(I, bool) -> flagged_integer_t<I>;
-}	 // namespace sek::detail
+}	 // namespace sek

@@ -29,7 +29,7 @@
 #define SEK_ADT_NODE_CONSTEXPR
 #endif
 
-namespace sek::adt::detail
+namespace sek::adt
 {
 	class node;
 
@@ -56,33 +56,36 @@ namespace sek::adt::detail
 		NUMBER = INT | FLOAT,
 	};
 
-	template<typename T>
-	struct node_getter;
+	namespace detail
+	{
+		template<typename T>
+		struct node_getter;
 
-	template<typename, typename = void>
-	struct has_node_getter_impl : std::false_type
-	{
-	};
-	template<typename T>
-	struct has_node_getter_impl<T, std::void_t<decltype(sizeof(node_getter<T>))>> : std::true_type
-	{
-	};
-	template<typename T>
-	concept has_node_getter = has_node_getter_impl<T>::value;
+		template<typename, typename = void>
+		struct has_node_getter_impl : std::false_type
+		{
+		};
+		template<typename T>
+		struct has_node_getter_impl<T, std::void_t<decltype(sizeof(node_getter<T>))>> : std::true_type
+		{
+		};
+		template<typename T>
+		concept has_node_getter = has_node_getter_impl<T>::value;
 
-	template<typename T>
-	struct node_setter;
+		template<typename T>
+		struct node_setter;
 
-	template<typename, typename = void>
-	struct has_node_setter_impl : std::false_type
-	{
-	};
-	template<typename T>
-	struct has_node_setter_impl<T, std::void_t<decltype(sizeof(node_setter<T>))>> : std::true_type
-	{
-	};
-	template<typename T>
-	concept has_node_setter = has_node_setter_impl<T>::value;
+		template<typename, typename = void>
+		struct has_node_setter_impl : std::false_type
+		{
+		};
+		template<typename T>
+		struct has_node_setter_impl<T, std::void_t<decltype(sizeof(node_setter<T>))>> : std::true_type
+		{
+		};
+		template<typename T>
+		concept has_node_setter = has_node_setter_impl<T>::value;
+	}	 // namespace detail
 
 	/** @brief Helper structure used to store temporary node sequence for node initialization. */
 	template<std::size_t N>
@@ -169,9 +172,9 @@ namespace sek::adt::detail
 	class node
 	{
 		template<typename>
-		friend struct node_getter;
+		friend struct detail::node_getter;
 		template<typename>
-		friend struct node_setter;
+		friend struct detail::node_setter;
 
 	public:
 		typedef bool bool_type;
@@ -188,7 +191,7 @@ namespace sek::adt::detail
 		typedef std::string string_type;
 		typedef std::vector<std::byte> binary_type;
 		typedef std::vector<node> sequence_type;
-		typedef sek::detail::hmap<string_type, node> table_type;
+		typedef sek::hmap<string_type, node> table_type;
 
 		typedef node_state_t state_type;
 
@@ -196,7 +199,7 @@ namespace sek::adt::detail
 		constexpr static auto literal_value_size = max(sizeof(int64_type), sizeof(float64_type), sizeof(pointer_type));
 		constexpr static auto literal_value_align = max(alignof(int64_type), alignof(float64_type), alignof(pointer_type));
 
-		using literal_value_storage_t = sek::detail::aligned_storage<literal_value_size, literal_value_align>;
+		using literal_value_storage_t = sek::aligned_storage<literal_value_size, literal_value_align>;
 
 	public:
 		/** Initializes an empty node. */
@@ -259,7 +262,7 @@ namespace sek::adt::detail
 
 		/** Initializes the node an object by calling `set`.
 		 * @param value Value to store in the node. */
-		template<has_node_setter T>
+		template<detail::has_node_setter T>
 		constexpr node(const T &value) : node()
 		{
 			set(value);
@@ -319,13 +322,13 @@ namespace sek::adt::detail
 		/** Initializes the node from a character sequence.
 		 * @param first Iterator to the start of the character sequence.
 		 * @param last Iterator to the end of the character sequence. */
-		template<sek::detail::forward_iterator_for<typename string_type::value_type> I>
+		template<sek::forward_iterator_for<typename string_type::value_type> I>
 		SEK_ADT_NODE_CONSTEXPR_STRING node(I first, I last) : node(std::in_place_type<string_type>, first, last)
 		{
 		}
 		/** Initializes the node from a character range.
 		 * @param range Range containing string characters. */
-		template<sek::detail::forward_range_for<typename string_type::value_type> R>
+		template<sek::forward_range_for<typename string_type::value_type> R>
 		SEK_ADT_NODE_CONSTEXPR_STRING node(const R &range) : node(std::in_place_type<string_type>, range)
 		{
 		}
@@ -434,24 +437,24 @@ namespace sek::adt::detail
 
 		/** Deserializes the stored value as the specified type.
 		 * @param value Reference to an instance of T to be deserialized. */
-		template<has_node_getter T>
+		template<detail::has_node_getter T>
 		constexpr void get(T &value) const
 		{
-			node_getter<T>{}(*this, value);
+			detail::node_getter<T>{}(*this, value);
 		}
 		/** Deserializes the stored value as the specified type.
 		 * @param value Reference to an instance of T to be deserialized.
 		 * @return true if deserialized successfully. false otherwise.
 		 * @note If `node_type_exception` (serialization failure) is thrown, returns false.
 		 * Any other exception will be passed through and should be handled by the user. */
-		template<has_node_getter T>
+		template<detail::has_node_getter T>
 		constexpr bool get(T &value, std::nothrow_t) const
 		{
-			return node_getter<T>{}(*this, value, std::nothrow);
+			return detail::node_getter<T>{}(*this, value, std::nothrow);
 		}
 		/** Deserializes the stored value as the specified type.
 		 * @return Deserialized instance of T. */
-		template<has_node_getter T>
+		template<detail::has_node_getter T>
 		[[nodiscard]] constexpr T get() const requires std::is_default_constructible_v<T>
 		{
 			T value = {};
@@ -461,22 +464,22 @@ namespace sek::adt::detail
 		/** Deserializes an instance of an object using it's `serializable_as_attribute` attribute.
 		 * @param value `any_ref` referencing the object to be deserialized.
 		 * @throw bad_type_exception If the referenced type does not have `serializable_as_attribute` attribute. */
-		void get(sek::detail::any_ref value) const;
+		void get(sek::any_ref value) const;
 
 		/** Serializes an instance of specified type into the node.
 		 * @param value Reference to the value to be serialized.
 		 * @return Reference to this node. */
-		template<has_node_setter T>
+		template<detail::has_node_setter T>
 		constexpr node &set(const T &value)
 		{
-			node_setter<T>{}(*this, value);
+			detail::node_setter<T>{}(*this, value);
 			return *this;
 		}
 		/** Serializes an instance of an object using it's `serializable_as_attribute` attribute.
 		 * @param value `any_ref` referencing the object to be serialized.
 		 * @return Reference to this node.
 		 * @throw bad_type_exception If the referenced type does not have `serializable_as_attribute` attribute. */
-		node &set(sek::detail::any_ref value);
+		node &set(sek::any_ref value);
 
 		/** Checks if the node contains a bool. */
 		[[nodiscard]] constexpr bool is_bool() const noexcept { return state() == state_type::BOOL; }
@@ -847,538 +850,520 @@ namespace sek::adt::detail
 		};
 	};
 
-	template<typename T>
-	concept has_adl_serialize = requires(node &node, const T &value)
+	namespace detail
 	{
-		serialize(node, value);
-	};
-	template<typename T>
-	concept has_adl_deserialize = requires(const node &node, T &value)
-	{
-		deserialize(node, value);
-	};
+		template<typename T>
+		concept has_adl_serialize = requires(node &node, const T &value)
+		{
+			serialize(node, value);
+		};
+		template<typename T>
+		concept has_adl_deserialize = requires(const node &node, T &value)
+		{
+			deserialize(node, value);
+		};
 
-	template<has_adl_deserialize T>
-	struct node_getter<T>
-	{
-		constexpr void operator()(const node &n, T &value) const { deserialize(n, value); }
-		constexpr bool operator()(const node &n, T &value, std::nothrow_t) const
+		template<has_adl_deserialize T>
+		struct node_getter<T>
 		{
-			try
+			constexpr void operator()(const node &n, T &value) const { deserialize(n, value); }
+			constexpr bool operator()(const node &n, T &value, std::nothrow_t) const
 			{
-				operator()(n, value);
-				return true;
+				try
+				{
+					operator()(n, value);
+					return true;
+				}
+				catch (node_type_exception &)
+				{
+					/* Only catch `node_type_exception` exceptions since they indicate deserialization failure. */
+					/* TODO: Log exception message. */
+					return false;
+				}
 			}
-			catch (node_type_exception &)
-			{
-				/* Only catch `node_type_exception` exceptions since they indicate deserialization failure. */
-				/* TODO: Log exception message. */
-				return false;
-			}
-		}
-	};
-	template<has_adl_serialize T>
-	struct node_setter<T>
-	{
-		SEK_ADT_NODE_CONSTEXPR void operator()(node &n, const T &value) const
+		};
+		template<has_adl_serialize T>
+		struct node_setter<T>
 		{
-			n.destroy();
-			serialize(n, value);
-		}
-	};
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, const T &value) const
+			{
+				n.destroy();
+				serialize(n, value);
+			}
+		};
 
-	template<>
-	struct node_getter<typename node::bool_type>
-	{
-		constexpr void operator()(const node &n, typename node::bool_type &value) const
+		template<>
+		struct node_getter<typename node::bool_type>
 		{
-			value = n.as_bool();
-		}
-		constexpr bool operator()(const node &n, typename node::bool_type &value, std::nothrow_t) const noexcept
-		{
-			if (n.is_bool()) [[likely]]
+			constexpr void operator()(const node &n, typename node::bool_type &value) const { value = n.as_bool(); }
+			constexpr bool operator()(const node &n, typename node::bool_type &value, std::nothrow_t) const noexcept
 			{
-				value = n.bool_value;
-				return true;
+				if (n.is_bool()) [[likely]]
+				{
+					value = n.bool_value;
+					return true;
+				}
+				else
+					return false;
 			}
-			else
-				return false;
-		}
-	};
-	template<>
-	struct node_setter<typename node::bool_type>
-	{
-		SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::bool_type value) const noexcept
+		};
+		template<>
+		struct node_setter<typename node::bool_type>
 		{
-			n.destroy();
-			n.node_state = node_state_t::BOOL;
-			n.bool_value = value;
-		}
-	};
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::bool_type value) const noexcept
+			{
+				n.destroy();
+				n.node_state = node_state_t::BOOL;
+				n.bool_value = value;
+			}
+		};
 
-	template<>
-	struct node_getter<typename node::char_type>
-	{
-		constexpr void operator()(const node &n, typename node::char_type &value) const
+		template<>
+		struct node_getter<typename node::char_type>
 		{
-			value = n.as_char();
-		}
-		constexpr bool operator()(const node &n, typename node::char_type &value, std::nothrow_t) const noexcept
-		{
-			if (n.is_char()) [[likely]]
+			constexpr void operator()(const node &n, typename node::char_type &value) const { value = n.as_char(); }
+			constexpr bool operator()(const node &n, typename node::char_type &value, std::nothrow_t) const noexcept
 			{
-				value = n.char_value;
-				return true;
+				if (n.is_char()) [[likely]]
+				{
+					value = n.char_value;
+					return true;
+				}
+				else
+					return false;
 			}
-			else
-				return false;
-		}
-	};
-	template<>
-	struct node_setter<typename node::char_type>
-	{
-		SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::char_type value) const noexcept
+		};
+		template<>
+		struct node_setter<typename node::char_type>
 		{
-			n.destroy();
-			n.node_state = node_state_t::CHAR;
-			n.char_value = value;
-		}
-	};
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::char_type value) const noexcept
+			{
+				n.destroy();
+				n.node_state = node_state_t::CHAR;
+				n.char_value = value;
+			}
+		};
 
-	template<>
-	struct node_getter<typename node::uint8_type>
-	{
-		constexpr void operator()(const node &n, typename node::uint8_type &value) const
+		template<>
+		struct node_getter<typename node::uint8_type>
 		{
-			value = n.as_uint8();
-		}
-		constexpr bool operator()(const node &n, typename node::uint8_type &value, std::nothrow_t) const noexcept
-		{
-			if (n.is_uint8()) [[likely]]
+			constexpr void operator()(const node &n, typename node::uint8_type &value) const { value = n.as_uint8(); }
+			constexpr bool operator()(const node &n, typename node::uint8_type &value, std::nothrow_t) const noexcept
 			{
-				value = n.uint8_value;
-				return true;
+				if (n.is_uint8()) [[likely]]
+				{
+					value = n.uint8_value;
+					return true;
+				}
+				else
+					return false;
 			}
-			else
-				return false;
-		}
-	};
-	template<>
-	struct node_setter<typename node::uint8_type>
-	{
-		SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::uint8_type value) const noexcept
+		};
+		template<>
+		struct node_setter<typename node::uint8_type>
 		{
-			n.destroy();
-			n.node_state = node_state_t::UINT8;
-			n.uint8_value = value;
-		}
-	};
-	template<>
-	struct node_getter<typename node::int8_type>
-	{
-		constexpr void operator()(const node &n, typename node::int8_type &value) const
-		{
-			value = n.as_int8();
-		}
-		constexpr bool operator()(const node &n, typename node::int8_type &value, std::nothrow_t) const noexcept
-		{
-			if (n.is_int8()) [[likely]]
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::uint8_type value) const noexcept
 			{
-				value = n.int8_value;
-				return true;
-			}
-			else
-				return false;
-		}
-	};
-	template<>
-	struct node_setter<typename node::int8_type>
-	{
-		SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::int8_type value) const noexcept
-		{
-			n.destroy();
-			n.node_state = node_state_t::INT8;
-			n.int8_value = value;
-		}
-	};
-	template<>
-	struct node_getter<typename node::int16_type>
-	{
-		constexpr void operator()(const node &n, typename node::int16_type &value) const
-		{
-			value = n.as_int16();
-		}
-		constexpr bool operator()(const node &n, typename node::int16_type &value, std::nothrow_t) const noexcept
-		{
-			if (n.is_int16()) [[likely]]
-			{
-				value = n.int16_value;
-				return true;
-			}
-			else
-				return false;
-		}
-	};
-	template<>
-	struct node_setter<typename node::int16_type>
-	{
-		SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::int16_type value) const noexcept
-		{
-			n.destroy();
-			n.node_state = node_state_t::INT16;
-			n.int16_value = value;
-		}
-	};
-	template<>
-	struct node_getter<typename node::int32_type>
-	{
-		constexpr void operator()(const node &n, typename node::int32_type &value) const
-		{
-			value = n.as_int32();
-		}
-		constexpr bool operator()(const node &n, typename node::int32_type &value, std::nothrow_t) const noexcept
-		{
-			if (n.is_int32()) [[likely]]
-			{
-				value = n.int32_value;
-				return true;
-			}
-			else
-				return false;
-		}
-	};
-	template<>
-	struct node_setter<typename node::int32_type>
-	{
-		SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::int32_type value) const noexcept
-		{
-			n.destroy();
-			n.node_state = node_state_t::INT32;
-			n.int32_value = value;
-		}
-	};
-	template<>
-	struct node_getter<typename node::int64_type>
-	{
-		constexpr void operator()(const node &n, typename node::int64_type &value) const
-		{
-			value = n.as_int64();
-		}
-		constexpr bool operator()(const node &n, typename node::int64_type &value, std::nothrow_t) const noexcept
-		{
-			if (n.is_int64()) [[likely]]
-			{
-				value = n.int64_value;
-				return true;
-			}
-			else
-				return false;
-		}
-	};
-	template<>
-	struct node_setter<typename node::int64_type>
-	{
-		SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::int64_type value) const noexcept
-		{
-			n.destroy();
-			n.node_state = node_state_t::INT64;
-			n.int64_value = value;
-		}
-	};
-	template<std::integral T>
-	struct node_getter<T>
-	{
-		constexpr void operator()(const node &n, T &value) const { value = n.as_int<T>(); }
-		constexpr bool operator()(const node &n, T &value, std::nothrow_t) const noexcept
-		{
-			if (n.is_int()) [[likely]]
-			{
-				value = n.as_int<T>();
-				return true;
-			}
-			else
-				return false;
-		}
-	};
-	template<std::integral T>
-	struct node_setter<T>
-	{
-		SEK_ADT_NODE_CONSTEXPR void operator()(node &n, T value) const noexcept
-		{
-			n.destroy();
-			if constexpr (sizeof(T) > sizeof(typename node::int32_type))
-			{
-				n.node_state = node_state_t::INT64;
-				n.int64_value = static_cast<typename node::int64_type>(value);
-			}
-			else if (sizeof(T) > sizeof(typename node::int16_type))
-			{
-				n.node_state = node_state_t::INT32;
-				n.int32_value = static_cast<typename node::int32_type>(value);
-			}
-			else if (sizeof(T) > sizeof(typename node::int8_type))
-			{
-				n.node_state = node_state_t::INT16;
-				n.int16_value = static_cast<typename node::int16_type>(value);
-			}
-			else if (std::is_signed_v<T>)
-			{
-				n.node_state = node_state_t::INT8;
-				n.int8_value = static_cast<typename node::int8_type>(value);
-			}
-			else
-			{
+				n.destroy();
 				n.node_state = node_state_t::UINT8;
-				n.uint8_value = static_cast<typename node::uint8_type>(value);
+				n.uint8_value = value;
 			}
-		}
-	};
+		};
+		template<>
+		struct node_getter<typename node::int8_type>
+		{
+			constexpr void operator()(const node &n, typename node::int8_type &value) const { value = n.as_int8(); }
+			constexpr bool operator()(const node &n, typename node::int8_type &value, std::nothrow_t) const noexcept
+			{
+				if (n.is_int8()) [[likely]]
+				{
+					value = n.int8_value;
+					return true;
+				}
+				else
+					return false;
+			}
+		};
+		template<>
+		struct node_setter<typename node::int8_type>
+		{
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::int8_type value) const noexcept
+			{
+				n.destroy();
+				n.node_state = node_state_t::INT8;
+				n.int8_value = value;
+			}
+		};
+		template<>
+		struct node_getter<typename node::int16_type>
+		{
+			constexpr void operator()(const node &n, typename node::int16_type &value) const { value = n.as_int16(); }
+			constexpr bool operator()(const node &n, typename node::int16_type &value, std::nothrow_t) const noexcept
+			{
+				if (n.is_int16()) [[likely]]
+				{
+					value = n.int16_value;
+					return true;
+				}
+				else
+					return false;
+			}
+		};
+		template<>
+		struct node_setter<typename node::int16_type>
+		{
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::int16_type value) const noexcept
+			{
+				n.destroy();
+				n.node_state = node_state_t::INT16;
+				n.int16_value = value;
+			}
+		};
+		template<>
+		struct node_getter<typename node::int32_type>
+		{
+			constexpr void operator()(const node &n, typename node::int32_type &value) const { value = n.as_int32(); }
+			constexpr bool operator()(const node &n, typename node::int32_type &value, std::nothrow_t) const noexcept
+			{
+				if (n.is_int32()) [[likely]]
+				{
+					value = n.int32_value;
+					return true;
+				}
+				else
+					return false;
+			}
+		};
+		template<>
+		struct node_setter<typename node::int32_type>
+		{
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::int32_type value) const noexcept
+			{
+				n.destroy();
+				n.node_state = node_state_t::INT32;
+				n.int32_value = value;
+			}
+		};
+		template<>
+		struct node_getter<typename node::int64_type>
+		{
+			constexpr void operator()(const node &n, typename node::int64_type &value) const { value = n.as_int64(); }
+			constexpr bool operator()(const node &n, typename node::int64_type &value, std::nothrow_t) const noexcept
+			{
+				if (n.is_int64()) [[likely]]
+				{
+					value = n.int64_value;
+					return true;
+				}
+				else
+					return false;
+			}
+		};
+		template<>
+		struct node_setter<typename node::int64_type>
+		{
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::int64_type value) const noexcept
+			{
+				n.destroy();
+				n.node_state = node_state_t::INT64;
+				n.int64_value = value;
+			}
+		};
+		template<std::integral T>
+		struct node_getter<T>
+		{
+			constexpr void operator()(const node &n, T &value) const { value = n.as_int<T>(); }
+			constexpr bool operator()(const node &n, T &value, std::nothrow_t) const noexcept
+			{
+				if (n.is_int()) [[likely]]
+				{
+					value = n.as_int<T>();
+					return true;
+				}
+				else
+					return false;
+			}
+		};
+		template<std::integral T>
+		struct node_setter<T>
+		{
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, T value) const noexcept
+			{
+				n.destroy();
+				if constexpr (sizeof(T) > sizeof(typename node::int32_type))
+				{
+					n.node_state = node_state_t::INT64;
+					n.int64_value = static_cast<typename node::int64_type>(value);
+				}
+				else if (sizeof(T) > sizeof(typename node::int16_type))
+				{
+					n.node_state = node_state_t::INT32;
+					n.int32_value = static_cast<typename node::int32_type>(value);
+				}
+				else if (sizeof(T) > sizeof(typename node::int8_type))
+				{
+					n.node_state = node_state_t::INT16;
+					n.int16_value = static_cast<typename node::int16_type>(value);
+				}
+				else if (std::is_signed_v<T>)
+				{
+					n.node_state = node_state_t::INT8;
+					n.int8_value = static_cast<typename node::int8_type>(value);
+				}
+				else
+				{
+					n.node_state = node_state_t::UINT8;
+					n.uint8_value = static_cast<typename node::uint8_type>(value);
+				}
+			}
+		};
 
-	template<>
-	struct node_getter<float>
-	{
-		constexpr void operator()(const node &n, float &value) const { value = n.as_float32(); }
-		constexpr bool operator()(const node &n, float &value, std::nothrow_t) const noexcept
+		template<>
+		struct node_getter<float>
 		{
-			if (n.is_float32()) [[likely]]
+			constexpr void operator()(const node &n, float &value) const { value = n.as_float32(); }
+			constexpr bool operator()(const node &n, float &value, std::nothrow_t) const noexcept
 			{
-				value = n.float32_value;
-				return true;
+				if (n.is_float32()) [[likely]]
+				{
+					value = n.float32_value;
+					return true;
+				}
+				else
+					return false;
 			}
-			else
-				return false;
-		}
-	};
-	template<>
-	struct node_setter<float>
-	{
-		SEK_ADT_NODE_CONSTEXPR void operator()(node &n, float value) const noexcept
+		};
+		template<>
+		struct node_setter<float>
 		{
-			n.destroy();
-			n.node_state = node_state_t::FLOAT32;
-			n.float32_value = value;
-		}
-	};
-	template<>
-	struct node_getter<double>
-	{
-		constexpr void operator()(const node &n, double &value) const { value = n.as_float64(); }
-		constexpr bool operator()(const node &n, double &value, std::nothrow_t) const noexcept
-		{
-			if (n.is_float64()) [[likely]]
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, float value) const noexcept
 			{
-				value = n.float64_value;
-				return true;
-			}
-			else
-				return false;
-		}
-	};
-	template<>
-	struct node_setter<double>
-	{
-		SEK_ADT_NODE_CONSTEXPR void operator()(node &n, double value) const noexcept
-		{
-			n.destroy();
-			n.node_state = node_state_t::FLOAT64;
-			n.float64_value = value;
-		}
-	};
-	template<std::floating_point T>
-	struct node_getter<T>
-	{
-		constexpr void operator()(const node &n, T &value) const { value = n.as_float<T>(); }
-		constexpr bool operator()(const node &n, T &value, std::nothrow_t) const noexcept
-		{
-			if (n.is_float()) [[likely]]
-			{
-				value = n.as_float<T>();
-				return true;
-			}
-			else
-				return false;
-		}
-	};
-	template<std::floating_point T>
-	struct node_setter<T>
-	{
-		SEK_ADT_NODE_CONSTEXPR void operator()(node &n, T value) const noexcept
-		{
-			n.destroy();
-			if constexpr (sizeof(T) > sizeof(typename node::float32_type))
-			{
-				n.node_state = node_state_t::FLOAT64;
-				n.float64_value = static_cast<typename node::float64_type>(value);
-			}
-			else
-			{
+				n.destroy();
 				n.node_state = node_state_t::FLOAT32;
-				n.float32_value = static_cast<typename node::float32_type>(value);
+				n.float32_value = value;
 			}
-		}
-	};
-
-	template<>
-	struct node_getter<const node *>
-	{
-		constexpr void operator()(const node &n, typename node::pointer_type &value) const
+		};
+		template<>
+		struct node_getter<double>
 		{
-			value = n.as_pointer();
-		}
-		constexpr bool operator()(const node &n, typename node::pointer_type &value, std::nothrow_t) const noexcept
-		{
-			if (n.is_bool()) [[likely]]
+			constexpr void operator()(const node &n, double &value) const { value = n.as_float64(); }
+			constexpr bool operator()(const node &n, double &value, std::nothrow_t) const noexcept
 			{
-				value = n.pointer_value;
-				return true;
+				if (n.is_float64()) [[likely]]
+				{
+					value = n.float64_value;
+					return true;
+				}
+				else
+					return false;
 			}
-			else
-				return false;
-		}
-	};
-	template<typename T>
-	requires(std::same_as<T, node *> || std::same_as<T, const node *>) struct node_setter<T>
-	{
-		SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::pointer_type value) const noexcept
+		};
+		template<>
+		struct node_setter<double>
 		{
-			n.destroy();
-			n.node_state = node_state_t::POINTER;
-			n.pointer_value = value;
-		}
-	};
-
-	template<>
-	struct node_getter<typename node::string_type>
-	{
-		SEK_ADT_NODE_CONSTEXPR_STRING void operator()(const node &n, typename node::string_type &value) const
-		{
-			value = n.as_string();
-		}
-		SEK_ADT_NODE_CONSTEXPR_STRING bool operator()(const node &n, typename node::string_type &value, std::nothrow_t) const
-		{
-			if (n.is_string()) [[likely]]
-			{
-				value = n.string_value;
-				return true;
-			}
-			else
-				return false;
-		}
-	};
-	template<>
-	struct node_setter<typename node::string_type>
-	{
-		SEK_ADT_NODE_CONSTEXPR_STRING void operator()(node &n, const typename node::string_type &value) const
-		{
-			if (n.is_string()) [[unlikely]]
-				n.string_value = value;
-			else
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, double value) const noexcept
 			{
 				n.destroy();
-				std::construct_at(&n.string_value, value);
-				n.node_state = node_state_t::STRING;
+				n.node_state = node_state_t::FLOAT64;
+				n.float64_value = value;
 			}
-		}
-	};
-
-	template<>
-	struct node_getter<typename node::binary_type>
-	{
-		SEK_ADT_NODE_CONSTEXPR_VECTOR void operator()(const node &n, typename node::binary_type &value) const
+		};
+		template<std::floating_point T>
+		struct node_getter<T>
 		{
-			value = n.as_binary();
-		}
-		SEK_ADT_NODE_CONSTEXPR_VECTOR bool operator()(const node &n, typename node::binary_type &value, std::nothrow_t) const
-		{
-			if (n.is_binary()) [[likely]]
+			constexpr void operator()(const node &n, T &value) const { value = n.as_float<T>(); }
+			constexpr bool operator()(const node &n, T &value, std::nothrow_t) const noexcept
 			{
-				value = n.binary_value;
-				return true;
+				if (n.is_float()) [[likely]]
+				{
+					value = n.as_float<T>();
+					return true;
+				}
+				else
+					return false;
 			}
-			else
-				return false;
-		}
-	};
-	template<>
-	struct node_setter<typename node::binary_type>
-	{
-		SEK_ADT_NODE_CONSTEXPR_VECTOR void operator()(node &n, const typename node::binary_type &value) const
+		};
+		template<std::floating_point T>
+		struct node_setter<T>
 		{
-			if (n.is_binary()) [[unlikely]]
-				n.binary_value = value;
-			else
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, T value) const noexcept
 			{
 				n.destroy();
-				std::construct_at(&n.binary_value, value);
-				n.node_state = node_state_t::BINARY;
+				if constexpr (sizeof(T) > sizeof(typename node::float32_type))
+				{
+					n.node_state = node_state_t::FLOAT64;
+					n.float64_value = static_cast<typename node::float64_type>(value);
+				}
+				else
+				{
+					n.node_state = node_state_t::FLOAT32;
+					n.float32_value = static_cast<typename node::float32_type>(value);
+				}
 			}
-		}
-	};
+		};
 
-	template<>
-	struct node_getter<typename node::sequence_type>
-	{
-		SEK_ADT_NODE_CONSTEXPR_VECTOR void operator()(const node &n, typename node::sequence_type &value) const
+		template<>
+		struct node_getter<const node *>
 		{
-			value = n.as_sequence();
-		}
-		SEK_ADT_NODE_CONSTEXPR_VECTOR bool operator()(const node &n, typename node::sequence_type &value, std::nothrow_t) const
-		{
-			if (n.is_sequence()) [[likely]]
+			constexpr void operator()(const node &n, typename node::pointer_type &value) const
 			{
-				value = n.sequence_value;
-				return true;
+				value = n.as_pointer();
 			}
-			else
-				return false;
-		}
-	};
-	template<>
-	struct node_setter<typename node::sequence_type>
-	{
-		SEK_ADT_NODE_CONSTEXPR_VECTOR void operator()(node &n, const typename node::sequence_type &value) const
+			constexpr bool operator()(const node &n, typename node::pointer_type &value, std::nothrow_t) const noexcept
+			{
+				if (n.is_bool()) [[likely]]
+				{
+					value = n.pointer_value;
+					return true;
+				}
+				else
+					return false;
+			}
+		};
+		template<typename T>
+		requires(std::same_as<T, node *> || std::same_as<T, const node *>) struct node_setter<T>
 		{
-			if (n.is_sequence()) [[unlikely]]
-				n.sequence_value = value;
-			else
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::pointer_type value) const noexcept
 			{
 				n.destroy();
-				std::construct_at(&n.sequence_value, value);
-				n.node_state = node_state_t::ARRAY;
+				n.node_state = node_state_t::POINTER;
+				n.pointer_value = value;
 			}
-		}
-	};
+		};
 
-	template<>
-	struct node_getter<typename node::table_type>
-	{
-		constexpr void operator()(const node &n, typename node::table_type &value) const { value = n.as_table(); }
-		constexpr bool operator()(const node &n, typename node::table_type &value, std::nothrow_t) const
+		template<>
+		struct node_getter<typename node::string_type>
 		{
-			if (n.is_table()) [[likely]]
+			SEK_ADT_NODE_CONSTEXPR_STRING void operator()(const node &n, typename node::string_type &value) const
 			{
-				value = n.table_value;
-				return true;
+				value = n.as_string();
 			}
-			else
-				return false;
-		}
-	};
-	template<>
-	struct node_setter<typename node::table_type>
-	{
-		SEK_ADT_NODE_CONSTEXPR void operator()(node &n, const typename node::table_type &value) const
+			SEK_ADT_NODE_CONSTEXPR_STRING bool operator()(const node &n, typename node::string_type &value, std::nothrow_t) const
+			{
+				if (n.is_string()) [[likely]]
+				{
+					value = n.string_value;
+					return true;
+				}
+				else
+					return false;
+			}
+		};
+		template<>
+		struct node_setter<typename node::string_type>
 		{
-			if (n.is_table()) [[unlikely]]
-				n.table_value = value;
-			else
+			SEK_ADT_NODE_CONSTEXPR_STRING void operator()(node &n, const typename node::string_type &value) const
 			{
-				n.destroy();
-				std::construct_at(&n.table_value, value);
-				n.node_state = node_state_t::TABLE;
+				if (n.is_string()) [[unlikely]]
+					n.string_value = value;
+				else
+				{
+					n.destroy();
+					std::construct_at(&n.string_value, value);
+					n.node_state = node_state_t::STRING;
+				}
 			}
-		}
-	};
+		};
+
+		template<>
+		struct node_getter<typename node::binary_type>
+		{
+			SEK_ADT_NODE_CONSTEXPR_VECTOR void operator()(const node &n, typename node::binary_type &value) const
+			{
+				value = n.as_binary();
+			}
+			SEK_ADT_NODE_CONSTEXPR_VECTOR bool operator()(const node &n, typename node::binary_type &value, std::nothrow_t) const
+			{
+				if (n.is_binary()) [[likely]]
+				{
+					value = n.binary_value;
+					return true;
+				}
+				else
+					return false;
+			}
+		};
+		template<>
+		struct node_setter<typename node::binary_type>
+		{
+			SEK_ADT_NODE_CONSTEXPR_VECTOR void operator()(node &n, const typename node::binary_type &value) const
+			{
+				if (n.is_binary()) [[unlikely]]
+					n.binary_value = value;
+				else
+				{
+					n.destroy();
+					std::construct_at(&n.binary_value, value);
+					n.node_state = node_state_t::BINARY;
+				}
+			}
+		};
+
+		template<>
+		struct node_getter<typename node::sequence_type>
+		{
+			SEK_ADT_NODE_CONSTEXPR_VECTOR void operator()(const node &n, typename node::sequence_type &value) const
+			{
+				value = n.as_sequence();
+			}
+			SEK_ADT_NODE_CONSTEXPR_VECTOR bool operator()(const node &n, typename node::sequence_type &value, std::nothrow_t) const
+			{
+				if (n.is_sequence()) [[likely]]
+				{
+					value = n.sequence_value;
+					return true;
+				}
+				else
+					return false;
+			}
+		};
+		template<>
+		struct node_setter<typename node::sequence_type>
+		{
+			SEK_ADT_NODE_CONSTEXPR_VECTOR void operator()(node &n, const typename node::sequence_type &value) const
+			{
+				if (n.is_sequence()) [[unlikely]]
+					n.sequence_value = value;
+				else
+				{
+					n.destroy();
+					std::construct_at(&n.sequence_value, value);
+					n.node_state = node_state_t::ARRAY;
+				}
+			}
+		};
+
+		template<>
+		struct node_getter<typename node::table_type>
+		{
+			constexpr void operator()(const node &n, typename node::table_type &value) const { value = n.as_table(); }
+			constexpr bool operator()(const node &n, typename node::table_type &value, std::nothrow_t) const
+			{
+				if (n.is_table()) [[likely]]
+				{
+					value = n.table_value;
+					return true;
+				}
+				else
+					return false;
+			}
+		};
+		template<>
+		struct node_setter<typename node::table_type>
+		{
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, const typename node::table_type &value) const
+			{
+				if (n.is_table()) [[unlikely]]
+					n.table_value = value;
+				else
+				{
+					n.destroy();
+					std::construct_at(&n.table_value, value);
+					n.node_state = node_state_t::TABLE;
+				}
+			}
+		};
+	}	 // namespace detail
 
 	template<std::size_t N>
 	struct bytes
@@ -1427,4 +1412,4 @@ namespace sek::adt::detail
 		std::initializer_list<typename node::table_type::value_type> data;
 	};
 	constexpr node::node(table table_init) noexcept : node(std::in_place_type<table_type>, table_init.data) {}
-}	 // namespace sek::adt::detail
+}	 // namespace sek::adt

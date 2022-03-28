@@ -5,8 +5,3 @@
 #pragma once
 
 #include "detail/thread_pool.hpp"
-
-namespace sek
-{
-	using detail::thread_pool;
-}

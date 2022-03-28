@@ -9,19 +9,22 @@
 
 #include "hmap.hpp"
 
-namespace sek::detail
+namespace sek
 {
-	struct plugin_db
+	namespace detail
 	{
-		static plugin_db &get() noexcept
+		struct plugin_db
 		{
-			constinit static plugin_db instance = {};
-			return instance;
-		}
+			static plugin_db &get() noexcept
+			{
+				constinit static plugin_db instance = {};
+				return instance;
+			}
 
-		std::mutex table_mtx;
-		hmap<std::string_view, plugin::plugin_db_entry> plugin_table;
-	};
+			std::mutex table_mtx;
+			hmap<std::string_view, plugin::plugin_db_entry> plugin_table;
+		};
+	}	 // namespace detail
 
 	void plugin::register_plugin(const plugin *p) noexcept
 	{
@@ -101,4 +104,4 @@ namespace sek::detail
 		disable(result);
 		return result;
 	}
-}	 // namespace sek::detail
+}	 // namespace sek
