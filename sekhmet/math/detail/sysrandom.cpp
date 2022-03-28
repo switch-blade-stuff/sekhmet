@@ -59,13 +59,6 @@ ssize_t sek::math::sys_random(void *dest, std::size_t len) noexcept
 
 #else
 
-#include <cstdlib>
-
-ssize_t sek::math::sys_random(void *dest, std::size_t len) noexcept
-{
-	auto bytes = static_cast<std::uint8_t *>(dest);
-	while (len-- > 0) bytes[len] = static_cast<std::uint8_t>(rand());
-	return static_cast<ssize_t>(len);
-}
+ssize_t sek::math::sys_random(void *, std::size_t) noexcept { return -1; }
 
 #endif

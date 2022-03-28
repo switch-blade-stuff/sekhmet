@@ -8,7 +8,8 @@
 
 namespace sek::math
 {
-	/** Fills a buffer with random bytes using OS-specific method.
+	/** Fills a buffer with random bytes using OS-specific method, preferring a cryptographic source.
+	 * In case no cryptographic source is available for this system this function will always fail.
 	 * @param dest Destination buffer.
 	 * @param len Length of the destination buffer.
 	 * @return Amount of bytes filled, or -1 if a failure occurred. */
