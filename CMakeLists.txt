@@ -1,19 +1,15 @@
 cmake_minimum_required(VERSION 3.21)
-set(CMAKE_CXX_STANDARD 20)
-
 project(sekhmet)
 
-macro(set_maybe_parent)
-    if (PROJECT_IS_TOP_LEVEL)
-        set(${ARGV0} ${ARGV1})
-    else ()
-        set(${ARGV0} ${ARGV1} PARENT_SCOPE)
-    endif ()
-endmacro()
-
+include(${CMAKE_CURRENT_LIST_DIR}/CMakeLists.macros.txt)
 include(${CMAKE_CURRENT_LIST_DIR}/CMakeLists.options.txt)
 include(${CMAKE_CURRENT_LIST_DIR}/CMakeLists.flags.txt)
 
+set_cxx_version_20()
+
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out CACHE STRING "")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out CACHE STRING "")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out CACHE STRING "")
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 
 if (PROJECT_IS_TOP_LEVEL OR EXPORT_BUILD)
@@ -21,13 +17,13 @@ if (PROJECT_IS_TOP_LEVEL OR EXPORT_BUILD)
 
     # Set project-related variables & properties
     set_maybe_parent(SEKHMET_PROJECT ${PROJECT_NAME})
-    set_maybe_parent(SEKHMET_LIBRARY $<TARGET_FILE:${PROJECT_NAME}>)
+    set_maybe_parent(SEKHMET_LIBRARY_PATH $<TARGET_FILE:${PROJECT_NAME}>)
     set_maybe_parent(SEKHMET_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/sekhmet)
     set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "lib")
 
-    # Set compilation variables & defenitions
+    # Set compilation variables & definitions
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE SEK_API_EXPORT)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SEK_EXPORT_LIBRARY)
 
     # Find & link thread library
     set(THREADS_PREFER_PTHREAD_FLAG ON)

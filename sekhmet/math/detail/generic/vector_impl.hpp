@@ -96,6 +96,6 @@ namespace sek::math::detail
 	template<typename T, std::size_t N>
 	constexpr void vector_norm(vector_data_t<T, N> &out, vector_data_t<T, N> data) noexcept
 	{
-		vector_div(out, std::sqrt(vector_dot(data, data)));
+		vector_div(out, data, std::sqrt(vector_dot(data, data)));
 	}
 }	 // namespace sek::math::detail

@@ -65,7 +65,7 @@
 #define SEK_API_IMPORT __attribute__(dllimport)
 #endif
 
-#ifdef SEK_IMPORT_LIBRARY
+#ifndef SEK_EXPORT_LIBRARY
 #define SEK_API SEK_API_IMPORT
 #else
 #define SEK_API SEK_API_EXPORT

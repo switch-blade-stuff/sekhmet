@@ -22,11 +22,11 @@ namespace sek
 	class bad_type_exception : engine_exception
 	{
 	public:
-		bad_type_exception() noexcept = default;
-		explicit bad_type_exception(const char *msg) noexcept;
-		explicit bad_type_exception(type_id type) noexcept;
-		bad_type_exception(type_id from, type_id to) noexcept;
-		~bad_type_exception() override;
+		SEK_API bad_type_exception() noexcept = default;
+		SEK_API explicit bad_type_exception(const char *msg) noexcept;
+		SEK_API explicit bad_type_exception(type_id type) noexcept;
+		SEK_API bad_type_exception(type_id from, type_id to) noexcept;
+		SEK_API ~bad_type_exception() override;
 
 		[[nodiscard]] const char *what() const noexcept override { return msg; }
 
@@ -36,7 +36,7 @@ namespace sek
 
 	namespace detail
 	{
-		struct SEK_API type_data
+		struct type_data
 		{
 			enum flags_t
 			{
@@ -46,12 +46,21 @@ namespace sek
 				FLAG_CV = FLAG_CONST | FLAG_VOLATILE,
 			};
 
-			template<typename T>
-			struct instance
+			struct handle_t
 			{
-				constexpr type_data operator()() const noexcept;
+				template<typename T>
+				static type_data *get_instance() noexcept;
+				template<typename T>
+				[[nodiscard]] constexpr static handle_t make_handle() noexcept
+				{
+					return {.get = get_instance<T>};
+				}
 
-				constinit static type_data value;
+				[[nodiscard]] const type_data *operator->() const noexcept { return get(); }
+				[[nodiscard]] const type_data &operator*() const noexcept { return *get(); }
+				[[nodiscard]] constexpr operator bool() const noexcept { return get != nullptr; }
+
+				type_data *(*get)() noexcept = nullptr;
 			};
 
 			template<typename Child>
@@ -66,26 +75,23 @@ namespace sek
 			};
 			struct type_node : node_base<type_node>
 			{
-				constexpr explicit type_node(const type_data *type) noexcept : node_base(), type(type) {}
+				constexpr explicit type_node(handle_t type) noexcept : node_base(), type(type) {}
 
 				template<typename T>
 				struct instance
 				{
-					constexpr type_node operator()() const noexcept
-					{
-						return type_node{&type_data::instance<T>::value};
-					}
+					constexpr type_node operator()() const noexcept { return type_node{handle_t::make_handle<T>()}; }
 
 					constinit static type_node value;
 				};
 
-				const type_data *type;
+				handle_t type;
 			};
 			struct data_node : node_base<data_node>
 			{
 				template<typename T>
 				constexpr explicit data_node(const T &value) noexcept
-					: node_base(), data(&value), type(&type_data::instance<T>::value)
+					: node_base(), data(&value), type(handle_t::make_handle<T>())
 				{
 				}
 
@@ -104,13 +110,13 @@ namespace sek
 				}
 
 				const void *data;
-				const type_data *type;
+				handle_t type;
 			};
 			struct ctor_node : node_base<ctor_node>
 			{
 				typedef void (*ctor_proxy)(void *, std::va_list);
 
-				constexpr explicit ctor_node(ctor_proxy proxy, meta_view<const type_data *> args) noexcept
+				constexpr explicit ctor_node(ctor_proxy proxy, meta_view<handle_t> args) noexcept
 					: node_base(), proxy(proxy), arg_types(args)
 				{
 				}
@@ -123,11 +129,10 @@ namespace sek
 					{
 						return va_arg(args, U);
 					}
-					constexpr static meta_view<const type_data *> get_arg_array()
+					constexpr static meta_view<handle_t> get_arg_array()
 					{
-						constexpr auto &arg_array =
-							array_constant<const type_data *, &type_data::instance<Args>::value...>::value;
-						return meta_view<const type_data *>{arg_array};
+						constexpr auto &arg_array = array_constant<handle_t, handle_t::make_handle<Args>()...>::value;
+						return meta_view<handle_t>{arg_array};
 					}
 
 					constexpr ctor_node operator()() const noexcept
@@ -154,7 +159,7 @@ namespace sek
 				}
 
 				const ctor_proxy proxy;
-				meta_view<const type_data *> arg_types;
+				meta_view<handle_t> arg_types;
 			};
 
 			type_id tid;
@@ -162,64 +167,70 @@ namespace sek
 			std::size_t alignment;
 
 			flags_t flags;
-			const type_data *variants[3];
+			handle_t variants[3];
 
 			const type_node *parents;
 			const data_node *attributes;
 			void (*destructor)(void *);
 			const ctor_node *constructors;
 		};
+
 		template<typename T>
 		constinit type_data::type_node type_data::type_node::instance<T>::value = instance<T>{}();
 		template<auto V>
 		constinit type_data::data_node type_data::data_node::instance<V>::value = instance<V>{}();
 		template<typename T, typename... Args>
 		constinit type_data::ctor_node type_data::ctor_node::instance<T, Args...>::value = instance<T, Args...>{}();
+
 		template<typename T>
-		constexpr type_data type_data::instance<T>::operator()() const noexcept
+		type_data *type_data::handle_t::get_instance() noexcept
 		{
-			type_data data = {
-				.tid = type_id::identify<T>(),
-				.size = sizeof(T),
-				.alignment = alignof(T),
-				.flags = FLAG_NONE,
-				.variants = {nullptr},
-				.parents = nullptr,
-				.attributes = nullptr,
-				.destructor = nullptr,
-				.constructors = nullptr,
-			};
-
-			/* If the type is default constructible & destructible, set constructor & destructor. */
-			if constexpr (std::is_object_v<T> && std::is_destructible_v<T>)
+			static constinit type_data value = []() noexcept -> type_data
 			{
-				data.destructor = +[](void *obj) { std::destroy_at(static_cast<T *>(obj)); };
-				if constexpr (std::is_default_constructible_v<T>) data.constructors = &ctor_node::instance<T>::value;
-			}
+				type_data data = {
+					.tid = type_id::identify<T>(),
+					.size = sizeof(T),
+					.alignment = alignof(T),
+					.flags = FLAG_NONE,
+					.variants = {},
+					.parents = nullptr,
+					.attributes = nullptr,
+					.destructor = nullptr,
+					.constructors = nullptr,
+				};
 
-			/* Set flags & add variants. */
-			if constexpr (std::is_const_v<T>)
-				data.flags = static_cast<flags_t>(data.flags | FLAG_CONST);
-			else
-				data.variants[0] = &instance<std::add_const_t<T>>::value;
-			if constexpr (std::is_volatile_v<T>)
-				data.flags = static_cast<flags_t>(data.flags | FLAG_VOLATILE);
-			else
-				data.variants[1] = &instance<std::add_volatile_t<T>>::value;
+				/* If the type is default constructible & destructible, set constructor & destructor. */
+				if constexpr (std::is_object_v<T> && std::is_destructible_v<T>)
+				{
+					data.destructor = +[](void *obj) { std::destroy_at(static_cast<T *>(obj)); };
+					if constexpr (std::is_default_constructible_v<T>)
+						data.constructors = &ctor_node::instance<T>::value;
+				}
 
-			if constexpr (!std::is_const_v<T> && !std::is_volatile_v<T>)
-				data.variants[2] = &instance<std::add_cv_t<T>>::value;
+				/* Set flags & add variants. */
+				if constexpr (std::is_const_v<T>)
+					data.flags = static_cast<flags_t>(data.flags | FLAG_CONST);
+				else
+					data.variants[0] = handle_t::make_handle<std::add_const_t<T>>();
+				if constexpr (std::is_volatile_v<T>)
+					data.flags = static_cast<flags_t>(data.flags | FLAG_VOLATILE);
+				else
+					data.variants[1] = handle_t::make_handle<std::add_volatile_t<T>>();
 
-			return data;
+				if constexpr (!std::is_const_v<T> && !std::is_volatile_v<T>)
+					data.variants[2] = handle_t::make_handle<std::add_cv_t<T>>();
+
+				return data;
+			}();
+
+			return &value;
 		}
-		template<typename T>
-		constinit type_data type_data::instance<T>::value = instance<T>{}();
 
 		template<typename T>
 		class type_factory_base
 		{
 		private:
-			constexpr static type_data &data() noexcept { return type_data::instance<T>::value; }
+			constexpr static type_data &data() noexcept { return *type_data::handle_t::get_instance<T>(); }
 
 			template<typename U>
 			[[nodiscard]] static bool has_parent() noexcept
@@ -254,7 +265,12 @@ namespace sek
 			{
 				auto args = type_data::ctor_node::instance<T, Args...>::get_arg_array();
 				for (auto ctor = data().constructors; ctor != nullptr; ctor = ctor->next)
-					if (std::equal(args.begin(), args.end(), ctor->arg_types.begin(), ctor->arg_types.end()))
+					if (std::equal(args.begin(),
+								   args.end(),
+								   ctor->arg_types.begin(),
+								   ctor->arg_types.end(),
+								   [](type_data::handle_t a, type_data::handle_t b)
+								   { return a.get()->tid == b.get()->tid; }))
 						return true;
 				return false;
 			}
@@ -298,14 +314,14 @@ namespace sek
 	}	 // namespace detail
 
 	/** @brief Structure used to represent information about a type. */
-	class SEK_API type_info
+	class type_info
 	{
 	public:
 		/** Adds a type to runtime lookup database.
 		 * @param type Type info of the type to add to runtime database.
 		 * @return true if a type was added successfully, false otherwise.
 		 * @note This function will fail if a type with the same id was already registered. */
-		static bool register_type(type_info type);
+		static SEK_API bool register_type(type_info type);
 		/** Invokes type factory for the type and adds it to runtime lookup database.
 		 * @return true if a type was added successfully, false otherwise.
 		 * @note This function will fail if a type with the same id was already registered. */
@@ -317,7 +333,7 @@ namespace sek
 		/** Removes a type from runtime lookup database.
 		 * @param type Type info of the type to remove.
 		 * @return true if a type was removed successfully, false otherwise. */
-		static bool deregister_type(type_info type);
+		static SEK_API bool deregister_type(type_info type);
 		/** Removes a type from runtime lookup database.
 		 * @return true if a type was removed successfully, false otherwise. */
 		template<typename T>
@@ -349,18 +365,18 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] constexpr static type_info get() noexcept
 		{
-			return type_info{&detail::type_data::instance<T>::value};
+			return type_info{detail::type_data::handle_t::make_handle<T>()};
 		}
 		/** Looks up a type within the runtime lookup database.
 		 * @tparam tid Id of the type to search for.
 		 * @return `type_info` instance for the requested type. If an invalid tid was specified, returns an invalid type info.
 		 * @note Type must be registered for it to be available. */
-		[[nodiscard]] static type_info get(type_id tid) noexcept;
+		[[nodiscard]] static SEK_API type_info get(type_id tid) noexcept;
 		/** Returns vector containing all currently registered types. */
-		[[nodiscard]] static std::vector<type_info> all();
+		[[nodiscard]] static SEK_API std::vector<type_info> all();
 
 	private:
-		constexpr explicit type_info(const detail::type_data *data) noexcept : data(data) {}
+		constexpr explicit type_info(detail::type_data::handle_t data) noexcept : data(data) {}
 
 		/** @brief Container view used to read type's variant array. */
 		class variant_view
@@ -380,7 +396,7 @@ namespace sek
 				typedef std::bidirectional_iterator_tag iterator_category;
 
 			private:
-				constexpr explicit variant_iterator(const detail::type_data *const *ptr) noexcept : type_ptr(ptr) {}
+				constexpr explicit variant_iterator(const detail::type_data::handle_t *ptr) noexcept : type_ptr(ptr) {}
 
 			public:
 				constexpr variant_iterator() noexcept = default;
@@ -420,7 +436,7 @@ namespace sek
 				friend constexpr void swap(variant_iterator &a, variant_iterator &b) noexcept { a.swap(b); }
 
 			private:
-				const detail::type_data *const *type_ptr = nullptr;
+				const detail::type_data::handle_t *type_ptr = nullptr;
 			};
 
 		public:
@@ -431,7 +447,7 @@ namespace sek
 			typedef std::ptrdiff_t difference_type;
 
 		private:
-			constexpr explicit variant_view(const detail::type_data *const *data) noexcept : data(data) {}
+			constexpr explicit variant_view(const detail::type_data::handle_t *data) noexcept : data(data) {}
 
 		public:
 			variant_view() = delete;
@@ -454,7 +470,7 @@ namespace sek
 			}
 
 		private:
-			const detail::type_data *const *data;
+			const detail::type_data::handle_t *data;
 		};
 
 		template<typename NodeT>
@@ -599,7 +615,7 @@ namespace sek
 		constexpr type_info() noexcept = default;
 
 		/** Checks if the type info is valid. */
-		[[nodiscard]] constexpr bool valid() const noexcept { return data != nullptr; }
+		[[nodiscard]] constexpr bool valid() const noexcept { return data; }
 
 		/** Returns id of the type. */
 		[[nodiscard]] type_id tid() const noexcept { return data->tid; }
@@ -644,7 +660,7 @@ namespace sek
 		/** Checks if the type has a const-qualified variant.
 		 * @return true if the type has a const-qualified variant, false otherwise.
 		 * @note If the type itself is const-qualified, it does not have a const-qualified variant. */
-		[[nodiscard]] bool has_const_variant() const noexcept { return data->variants[0] != nullptr; }
+		[[nodiscard]] bool has_const_variant() const noexcept { return data->variants[0]; }
 		/** Returns type info of the const-qualified variant of the type.
 		 * @return Type info of the const-qualified variant if such variant is present, empty type info otherwise.
 		 * @note If the type itself is const-qualified, it does not have a const-qualified variant. */
@@ -653,7 +669,7 @@ namespace sek
 		/** Checks if the type has a volatile-qualified variant.
 		 * @return true if the type has a volatile-qualified variant, false otherwise.
 		 * @note If the type itself is volatile-qualified, it does not have a volatile-qualified variant. */
-		[[nodiscard]] bool has_volatile_variant() const noexcept { return data->variants[1] != nullptr; }
+		[[nodiscard]] bool has_volatile_variant() const noexcept { return data->variants[1]; }
 		/** Returns type info of the volatile-qualified variant of the type.
 		 * @return Type info of the volatile-qualified variant if such variant is present, empty type info otherwise.
 		 * @note If the type itself is volatile-qualified, it does not have a volatile-qualified variant. */
@@ -662,7 +678,7 @@ namespace sek
 		/** Checks if the type has a cv-qualified variant.
 		 * @return true if the type has a cv-qualified variant, false otherwise.
 		 * @note If the type itself is either const or volatile-qualified, it does not have a cv-qualified variant. */
-		[[nodiscard]] bool has_cv_variant() const noexcept { return data->variants[2] != nullptr; }
+		[[nodiscard]] bool has_cv_variant() const noexcept { return data->variants[2]; }
 		/** Returns type info of the cv-qualified variant of the type.
 		 * @return Type info of the cv-qualified variant if such variant is present, empty type info otherwise.
 		 * @note If the type itself is either const or volatile-qualified, it does not have a cv-qualified variant. */
@@ -804,7 +820,7 @@ namespace sek
 		{
 			if constexpr (sizeof...(Args))
 			{
-				constexpr type_info arg_types[] = {type_info{&detail::type_data::instance<Args>::value}...};
+				constexpr type_info arg_types[] = {type_info{detail::type_data::handle_t::make_handle<Args>()}...};
 				return get_constructor_impl(std::begin(arg_types), std::end(arg_types));
 			}
 			else
@@ -815,21 +831,21 @@ namespace sek
 		{
 			for (auto ctor = data->constructors; ctor != nullptr; ctor = ctor->next)
 			{
-				constexpr auto pred = [](type_info info, const detail::type_data *d) { return info.tid() == d->tid; };
+				constexpr auto pred = [](type_info info, detail::type_data::handle_t d) { return info.tid() == d->tid; };
 				if (std::equal(args_first, args_last, ctor->arg_types.begin(), ctor->arg_types.end(), pred))
 					return ctor;
 			}
 			return nullptr;
 		}
 
-		const detail::type_data *data = nullptr;
+		detail::type_data::handle_t data = {};
 	};
 }	 // namespace sek
 
 namespace sek_impl
 {
 	template<typename T>
-	struct SEK_API type_factory : sek::detail::type_factory_base<T>
+	struct type_factory : sek::detail::type_factory_base<T>
 	{
 		static void invoke() noexcept;
 
@@ -837,45 +853,34 @@ namespace sek_impl
 
 		type_factory() noexcept { invoke(); }
 	};
+	template<typename T>
+	const type_factory<T> type_factory<T>::factory_instance = {};
 }	 // namespace sek_impl
 
-#define SEK_DECLARE_TYPE_2(T, name)                                                                                    \
-	namespace sek::detail                                                                                              \
+/** Declares a type with a specific id. It is recommended to declare types that are used at runtime,
+ * since their ids will be guaranteed and factories will be properly linked.
+ *
+ * @example
+ * ```cpp
+ * SEK_DECLARE_TYPE(my_type, "my_type_name") // Type id will be "my_type_name"
+ * ``` */
+#define SEK_DECLARE_TYPE(T, name)                                                                                      \
+	template<>                                                                                                         \
+	constexpr auto sek::detail::generate_type_name<T>() noexcept                                                       \
 	{                                                                                                                  \
-		template<>                                                                                                     \
-		constexpr auto generate_type_name<T>() noexcept                                                                \
-		{                                                                                                              \
-			return basic_static_string{(name)};                                                                        \
-		}                                                                                                              \
+		return basic_static_string{(name)};                                                                            \
 	}                                                                                                                  \
 	template<>                                                                                                         \
-	const sek_impl::type_factory<T> sek_impl::type_factory<T>::factory_instance = {};                                  \
+	void sek_impl::type_factory<T>::invoke() noexcept;                                                                 \
+	extern template sek::detail::type_data *sek::detail::type_data::handle_t::get_instance<T>() noexcept;              \
+	extern template struct sek_impl::type_factory<T>;
+
+/* Creates a type factory for the specific type. Type factories are invoked on static initialization.
+ *
+ * @note Types used with `SEK_TYPE_FACTORY` must be declared via `SEK_DECLARE_TYPE`. Failing to do so may result in compilation/linking errors.
+ * @note It is recommended to not use `SEK_TYPE_FACTORY` in headers in order to avoid multiple definition errors. */
+#define SEK_TYPE_FACTORY(T)                                                                                            \
+	template SEK_API_EXPORT sek::detail::type_data *sek::detail::type_data::handle_t::get_instance<T>() noexcept;      \
+	template struct SEK_API_EXPORT sek_impl::type_factory<T>;                                                          \
 	template<>                                                                                                         \
-	void sek_impl::type_factory<T>::invoke() noexcept
-
-#define SEK_DECLARE_TYPE_1(T) SEK_DECLARE_TYPE_2(T, #T)
-#define SEK_DISPATCH_DECLARE_TYPE(...)
-
-/** Declares a type and creates a type factory for it.
- * It is recommended to declare types that are used at runtime, since their ids will be guaranteed.
- *
- * Accepts an optional string name, if a string name is not specified, the first argument would be
- * converted to a string and used instead.
- *
- * @note Type factory is invoked on static construction.
- *
- * @example
- * ```cpp
- * // Type id will be "my_type_name"
- * SEK_DECLARE_TYPE(my_type, "my_type_name")
- * {
- *     parent<my_type_base>();
- * }
- * ```
- * @example
- * ```cpp
- * // Type id will be "other_type"
- * SEK_DECLARE_TYPE(other_type) {}
- * ``` */
-#define SEK_DECLARE_TYPE(T, ...)                                                                                       \
-	SEK_GET_MACRO_2(T, ##__VA_ARGS__, SEK_DECLARE_TYPE_2, SEK_DECLARE_TYPE_1)(T, ##__VA_ARGS__)
+	SEK_API_EXPORT void sek_impl::type_factory<T>::invoke() noexcept

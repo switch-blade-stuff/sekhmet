@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <algorithm>
+
 #include "../math/detail/util.hpp"
 #include "alloc_util.hpp"
 #include "assert.hpp"

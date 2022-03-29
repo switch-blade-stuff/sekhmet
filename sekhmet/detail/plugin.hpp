@@ -5,6 +5,7 @@
 #pragma once
 
 #include <atomic>
+#include <vector>
 
 #include "meta_containers.hpp"
 #include "static_string.hpp"
@@ -31,7 +32,7 @@ namespace sek
 		};
 	}	 // namespace detail
 
-	class SEK_API plugin
+	class plugin
 	{
 		friend struct detail::plugin_db;
 
@@ -108,28 +109,28 @@ namespace sek
 		};
 
 		/** Returns vector of handles to all currently loaded plugins. */
-		static std::vector<handle> all();
+		static SEK_API std::vector<handle> all();
 
 		/** Returns handle for the corresponding plugin.
 		 * @param name Name of the plugin to get handle for.
 		 * @return Handle to the plugin entry. If an invalid plugin was specified, returns an empty handle. */
-		static handle get(std::string_view name);
+		static SEK_API handle get(std::string_view name);
 
 		/** Enables the corresponding plugin.
 		 * @param name Name of the plugin to enable.
 		 * @return Handle to the plugin entry. If an invalid plugin was specified, returns an empty handle. */
-		static handle enable(std::string_view name);
+		static SEK_API handle enable(std::string_view name);
 		/** Enables the corresponding plugin.
 		 * @param h Handle to the plugin. */
-		static void enable(handle h) noexcept;
+		static SEK_API void enable(handle h) noexcept;
 
 		/** Disables the corresponding plugin.
 		 * @param name Name of the plugin to enable.
 		 * @return Handle to the plugin entry. If an invalid plugin was specified, returns an empty handle. */
-		static handle disable(std::string_view name);
+		static SEK_API handle disable(std::string_view name);
 		/** Disables the corresponding plugin.
 		 * @param h Handle to the plugin. */
-		static void disable(handle h) noexcept;
+		static SEK_API void disable(handle h) noexcept;
 
 	protected:
 		constexpr static std::size_t queue_count = 2;
@@ -149,8 +150,8 @@ namespace sek
 		{
 		}
 
-		static void register_plugin(const plugin *p) noexcept;
-		static void drop_plugin(const plugin *p) noexcept;
+		static SEK_API void register_plugin(const plugin *p) noexcept;
+		static SEK_API void drop_plugin(const plugin *p) noexcept;
 
 		const exec_t *exec_queues[queue_count] = {nullptr};
 
@@ -172,7 +173,7 @@ namespace sek_impl
 	template<sek::basic_static_string Name>
 	struct plugin_instance : sek::plugin
 	{
-		template<std::size_t Queue, sek::basic_static_string, std::size_t>
+		template<std::size_t Queue, sek::basic_static_string File, std::size_t Line>
 		struct exec_node final : plugin::exec_t
 		{
 			static const exec_node node_instance;
@@ -180,7 +181,7 @@ namespace sek_impl
 			constexpr exec_node() noexcept : exec_t(std::exchange(instance.exec_queues[Queue], this)) {}
 			constexpr ~exec_node() noexcept final = default;
 
-			void operator()() const noexcept final;
+			SEK_API_IMPORT void operator()() const noexcept final;
 		};
 
 		struct registrar_t
@@ -190,7 +191,7 @@ namespace sek_impl
 		};
 
 		template<auto Value>
-		constexpr static auto metadata = metadata_t::get<Value>();
+		constexpr static metadata_t metadata = metadata_t::get<Value>();
 
 		template<metadata_t... Args>
 		constexpr static plugin_instance instantiate() noexcept
@@ -219,14 +220,12 @@ namespace sek_impl
  * 						metadata<my_other_type>
  * 					 )
  * ``` */
-#define SEK_DECLARE_PLUGIN(name, ...)                                                                                        \
-	namespace sek_impl                                                                                                       \
-	{                                                                                                                        \
-		template<>                                                                                                           \
-		constinit plugin_instance<name> plugin_instance<name>::instance = plugin_instance<name>::instantiate<__VA_ARGS__>(); \
-		template<>                                                                                                           \
-		const typename plugin_instance<name>::registrar_t plugin_instance<name>::registrar = {};                             \
-	}
+#define SEK_DECLARE_PLUGIN(name, ...)                                                                                  \
+	template<>                                                                                                         \
+	constinit sek_impl::plugin_instance<name> sek_impl::plugin_instance<name>::instance =                              \
+		plugin_instance<name>::instantiate<(__VA_ARGS__)>();                                                           \
+	template<>                                                                                                         \
+	const typename sek_impl::plugin_instance<name>::registrar_t sek_impl::plugin_instance<name>::registrar = {};
 
 /** Executes the following code when the corresponding execution queue is invoked. */
 #define SEK_ON_PLUGIN_QUEUE(name, queue)                                                                               \
@@ -239,7 +238,7 @@ namespace sek_impl
 	}                                                                                                                  \
 	template<>                                                                                                         \
 	template<>                                                                                                         \
-	void sek_impl::plugin_instance<name>::exec_node<queue, __FILE__, __LINE__>::operator()() const noexcept
+	SEK_API_EXPORT void sek_impl::plugin_instance<name>::exec_node<queue, __FILE__, __LINE__>::operator()() const noexcept
 
 /** Executes the following code when a plugin is enabled. */
 #define SEK_ON_PLUGIN_ENABLE(name) SEK_ON_PLUGIN_QUEUE(name, 0)

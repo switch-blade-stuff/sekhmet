@@ -20,17 +20,25 @@
 
 ssize_t sek::math::sys_random(void *dst, std::size_t len) noexcept { return syscall(SYS_getrandom, dst, len, 0); }
 
-#elif defined(SEK_OS_WIN)
+#elif defined(SEK_OS_WIN) && defined(_MSC_VER)
 
+// clang-format off
+#define WIN32_NO_STATUS
+#include <windows.h>
+#undef WIN32_NO_STATUS
+#include <ntstatus.h>
 #include <bcrypt.h>
+// clang-format on
+
+#pragma comment(lib, "bcrypt.lib")
 
 ssize_t sek::math::sys_random(void *dst, std::size_t len) noexcept
 {
 	BCRYPT_ALG_HANDLE rng_alg;
-	if (BCryptOpenAlgorithmProvider(&handle, BCRYPT_RNG_ALGORITHM, nullptr, 0) != STATUS_SUCCESS) [[unlikely]]
+	if (BCryptOpenAlgorithmProvider(&rng_alg, BCRYPT_RNG_ALGORITHM, nullptr, 0) != STATUS_SUCCESS) [[unlikely]]
 		return -1;
 
-	ssize_t result = static_cast<ssize_t>(len);
+	auto result = static_cast<ssize_t>(len);
 	if (BCryptGenRandom(rng_alg, static_cast<PUCHAR>(dst), len, 0) != STATUS_SUCCESS) [[unlikely]]
 		result = -1;
 	if (BCryptCloseAlgorithmProvider(rng_alg, 0) != STATUS_SUCCESS) [[unlikely]]

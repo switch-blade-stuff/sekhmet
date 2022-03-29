@@ -2,13 +2,14 @@
 // Created by switchblade on 2022-02-12.
 //
 
+#include <gtest/gtest.h>
+
+#include <numbers>
 
 #include "sekhmet/adt.hpp"
 #include "sekhmet/reflection.hpp"
 
 using namespace sek::literals;
-
-#include <gtest/gtest.h>
 
 TEST(adt_tests, node_test)
 {
@@ -117,7 +118,8 @@ namespace
 	};
 }	 // namespace
 
-SEK_DECLARE_TYPE(test_serializable_struct) { attributes<sek::adt::serializable_as<test_serializable_struct>>(); }
+SEK_DECLARE_TYPE(test_serializable_struct, "test_serializable_struct")
+SEK_TYPE_FACTORY(test_serializable_struct) { attributes<sek::adt::serializable_as<test_serializable_struct>>(); }
 
 TEST(adt_tests, serializable_as_test)
 {

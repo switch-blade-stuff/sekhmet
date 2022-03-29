@@ -71,6 +71,8 @@ namespace sek::math
 			std::copy_n(temp, SEK_ARRAY_SIZE(state), state);
 		}
 
+		[[nodiscard]] constexpr bool operator==(const xoroshiro_base &) const noexcept = default;
+
 		state_type state;
 	};
 	template<>
@@ -111,6 +113,8 @@ namespace sek::math
 
 			std::copy_n(temp, SEK_ARRAY_SIZE(state), state);
 		}
+
+		[[nodiscard]] constexpr bool operator==(const xoroshiro_base &) const noexcept = default;
 
 		state_type state;
 	};
@@ -158,6 +162,8 @@ namespace sek::math
 			std::copy_n(temp, SEK_ARRAY_SIZE(state), state);
 		}
 
+		[[nodiscard]] constexpr bool operator==(const xoroshiro_base &) const noexcept = default;
+
 		state_type state;
 	};
 	template<>
@@ -198,6 +204,8 @@ namespace sek::math
 
 			std::copy_n(temp, SEK_ARRAY_SIZE(state), state);
 		}
+
+		[[nodiscard]] constexpr bool operator==(const xoroshiro_base &) const noexcept = default;
 
 		state_type state;
 	};
@@ -244,6 +252,8 @@ namespace sek::math
 			std::copy_n(temp, SEK_ARRAY_SIZE(state), state);
 		}
 
+		[[nodiscard]] constexpr bool operator==(const xoroshiro_base &) const noexcept = default;
+
 		state_type state;
 	};
 	template<>
@@ -287,6 +297,8 @@ namespace sek::math
 
 			std::copy_n(temp, SEK_ARRAY_SIZE(state), state);
 		}
+
+		[[nodiscard]] constexpr bool operator==(const xoroshiro_base &) const noexcept = default;
 
 		state_type state;
 	};

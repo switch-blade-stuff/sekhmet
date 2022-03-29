@@ -14,7 +14,7 @@
 namespace sek
 {
 	/** @brief UUID Version 4 Variant 1. */
-	class SEK_API uuid
+	class uuid
 	{
 		friend constexpr hash_t hash(uuid) noexcept;
 
@@ -37,7 +37,7 @@ namespace sek
 		 * @note Seed is based on OS-provided entropy. */
 		struct version4_t final : public generator
 		{
-			void operator()(uuid &) const noexcept final;
+			SEK_API void operator()(uuid &) const noexcept final;
 		};
 
 		constexpr static version4_t version4 = {};
@@ -95,7 +95,7 @@ namespace sek
 		template<typename Iter>
 		constexpr void parse_string(Iter first, Iter last) noexcept
 		{
-			for ([[maybe_unused]] std::size_t i = 0; first != last; ++first)
+			for (std::size_t i = 0; first != last; ++first)
 			{
 				auto digit = 0;
 				if (auto c = *first; c >= '0' && c <= '9')
@@ -139,8 +139,5 @@ namespace sek
 template<>
 struct std::hash<sek::uuid>
 {
-	[[nodiscard]] constexpr sek::hash_t operator()(sek::uuid id) const noexcept
-	{
-		return sek::hash(id);
-	}
+	[[nodiscard]] constexpr sek::hash_t operator()(sek::uuid id) const noexcept { return sek::hash(id); }
 };

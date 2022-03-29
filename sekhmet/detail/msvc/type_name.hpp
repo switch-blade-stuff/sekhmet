@@ -9,7 +9,7 @@
 namespace sek::detail
 {
 	template<basic_static_string Name>
-	consteval std::string_view generate_type_name() noexcept
+	consteval auto generate_type_name_impl() noexcept
 	{
 		constexpr auto offset_start = Name.find_first('<') + 1;
 		constexpr auto offset_end = Name.find_last('>');

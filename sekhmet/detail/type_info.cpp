@@ -2,6 +2,10 @@
 // Created by switchblade on 2022-02-04.
 //
 
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include "type_info.hpp"
 
 #include "hmap.hpp"
@@ -59,7 +63,7 @@ namespace sek
 		}
 
 		std::shared_mutex type_mtx;
-		hmap<type_id, const detail::type_data *> type_table;
+		hmap<type_id, detail::type_data::handle_t> type_table;
 	};
 
 	bool type_info::register_type(type_info type)
@@ -88,12 +92,12 @@ namespace sek
 		auto &db = type_db::get();
 		db.type_mtx.lock_shared();
 
-		const detail::type_data *data = nullptr;
+		detail::type_data::handle_t handle = {};
 		if (auto data_iterator = db.type_table.find(tid); data_iterator != db.type_table.end()) [[likely]]
-			data = data_iterator->second;
+			handle = data_iterator->second;
 
 		db.type_mtx.unlock_shared();
-		return type_info{data};
+		return type_info{handle};
 	}
 	std::vector<type_info> type_info::all()
 	{

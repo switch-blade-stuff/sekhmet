@@ -17,7 +17,11 @@ namespace sek
 		{
 			static plugin_db &get() noexcept
 			{
+#ifdef SEK_OS_WIN /* No constexpr mutex constructor for MSVC :( */
+				static plugin_db instance = {};
+#else
 				constinit static plugin_db instance = {};
+#endif
 				return instance;
 			}
 

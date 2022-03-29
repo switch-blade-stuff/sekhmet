@@ -21,7 +21,7 @@ namespace sek
 	 * Thread pools provide high-level way to schedule & execute asynchronous work.
 	 * Thread pools manage a set of threads which wait for some work to become available.
 	 * Worker threads exist as long as the pool exists. */
-	class SEK_API thread_pool
+	class thread_pool
 	{
 	private:
 		enum class pool_state
@@ -36,7 +36,7 @@ namespace sek
 
 		struct worker
 		{
-			void operator()() const;
+			SEK_API void operator()() const;
 
 			thread_pool *parent;
 		};
@@ -95,8 +95,8 @@ namespace sek
 		/** Creates a new pool with the specified worker count & dispatch policy.
 		 * @param worker_count Amount of worker threads within this pool. Minimum is 1.
 		 * @param policy Dispatch policy used by the pool. Default value is first in, last out. */
-		explicit thread_pool(std::size_t worker_count);
-		~thread_pool();
+		SEK_API explicit thread_pool(std::size_t worker_count);
+		SEK_API ~thread_pool();
 
 		/** Queues the provided functor to be dispatched by one of the worker threads. */
 		template<typename F, typename... Args>
@@ -138,8 +138,8 @@ namespace sek
 			return node;
 		}
 
-		void set_state(pool_state new_state);
-		const work_node *wait_for_work_or_exit();
+		SEK_API void set_state(pool_state new_state);
+		SEK_API const work_node *wait_for_work_or_exit();
 
 		/** Mutex used to synchronise thread operations. */
 		mutable std::mutex pool_mtx;

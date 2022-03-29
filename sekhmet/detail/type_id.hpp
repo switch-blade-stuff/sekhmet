@@ -13,42 +13,29 @@
 
 namespace sek::detail
 {
-	template<basic_static_string NameString>
-	consteval auto generate_type_name() noexcept;
+	template<basic_static_string>
+	consteval auto generate_type_name_impl() noexcept;
 
-	template<typename T>
-	[[nodiscard]] constexpr auto generate_type_name() noexcept
-	{
-		return generate_type_name<SEK_PRETTY_FUNC>();
-	}
-
-	template<basic_static_string Src, std::size_t J, std::size_t I, std::size_t Last, std::size_t N, typename Fmt>
-	consteval auto format_type_name(Fmt f, basic_static_string<char, N> result) noexcept
+	template<basic_static_string Src, std::size_t J, std::size_t I, std::size_t Last, std::size_t N>
+	consteval auto format_type_name(basic_static_string<char, N> result) noexcept
 	{
 		if constexpr (I == Last)
 		{
 			result[J] = '\0';
 			return result;
 		}
-		else if constexpr (constexpr auto Skip = f(I); Skip != 0)
-			return format_type_name<Src, J, I + Skip, Last>(f, result);
 		else
 		{
-			result[J] = static_cast<typename basic_static_string<char, N>::value_type>(Src[I]);
-			return format_type_name<Src, J + 1, I + 1, Last>(f, result);
+			result[J] = static_cast<typename decltype(result)::value_type>(Src[I]);
+			return format_type_name<Src, J + 1, I + 1, Last>(result);
 		}
-	}
-	template<basic_static_string Src, std::size_t J, std::size_t I, std::size_t Last, std::size_t N, typename Fmt>
-	consteval auto format_type_name(Fmt f) noexcept
-	{
-		return format_type_name<Src, J, I, Last, N>(f, {});
 	}
 	template<basic_static_string Src, std::size_t J, std::size_t I, std::size_t Last, std::size_t N>
 	consteval auto format_type_name() noexcept
 	{
-		return format_type_name<Src, J, I, Last, N>([](std::size_t) -> std::size_t { return 0; });
+		return format_type_name<Src, J, I, Last, N>({});
 	}
-}	 // namespace sek
+}	 // namespace sek::detail
 
 #if defined(__clang__) || defined(__GNUC__)
 
@@ -66,6 +53,15 @@ namespace sek::detail
 
 namespace sek
 {
+	namespace detail
+	{
+		template<typename T>
+		[[nodiscard]] constexpr auto generate_type_name() noexcept
+		{
+			return generate_type_name_impl<SEK_PRETTY_FUNC>();
+		}
+	}	 // namespace detail
+
 	/** Returns name of the specified type.
 	 * @note If the type was not declared using `SEK_DECLARE_TYPE`, type name will be generated using compiler-specific method.
 	 * @warning Consistency of generated type names across different compilers is not guaranteed. */
@@ -129,8 +125,5 @@ namespace sek
 template<>
 struct std::hash<sek::type_id>
 {
-	[[nodiscard]] constexpr sek::hash_t operator()(const sek::type_id &tid) const noexcept
-	{
-		return sek::hash(tid);
-	}
+	[[nodiscard]] constexpr sek::hash_t operator()(const sek::type_id &tid) const noexcept { return sek::hash(tid); }
 };

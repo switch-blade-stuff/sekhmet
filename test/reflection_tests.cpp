@@ -5,49 +5,20 @@
 #include <gtest/gtest.h>
 
 #include "sekhmet/reflection.hpp"
-#include "sekhmet/utility.hpp"
+#include "test_plugin.hpp"
 
-namespace
-{
-	struct test_parent_A
-	{
-	};
-	struct test_parent_B : test_parent_A
-	{
-	};
-	struct test_child : test_parent_B
-	{
-		static bool factory_invoked;
-
-		constexpr test_child() noexcept = default;
-		constexpr explicit test_child(double d) noexcept : d(d) {}
-
-		double d = 0;
-	};
-
-	bool test_child::factory_invoked = false;
-
-	struct test_attribute
-	{
-		int i;
-	};
-}	 // namespace
-
-SEK_DECLARE_TYPE(test_child)
-{
-	parents<test_parent_A, test_parent_B>();
-	parents<test_parent_A>();
-
-	attributes<test_attribute{9}>();
-
-	constructor<std::reference_wrapper<const test_child>>();
-	constructor<double>();
-
-	test_child::factory_invoked = true;
-}
+using namespace sek::test;
+using namespace sek::literals;
 
 TEST(reflection_tests, factory_test)
 {
+	sek::type_info::type_guard<test_child> g{};
+
+	auto runtime_get_name = sek::type_info::get("test_child"_tid).tid().name().data();
+	auto templated_get_name = sek::type_info::get<test_child>().tid().name().data();
+
+	EXPECT_EQ(runtime_get_name, templated_get_name);
+	EXPECT_NE(runtime_get_name, sek::type_name<test_child>().data());
 	EXPECT_TRUE(test_child::factory_invoked);
 
 	auto type = sek::type_info::get<test_child>();
@@ -58,8 +29,6 @@ TEST(reflection_tests, factory_test)
 	EXPECT_TRUE(type.has_attribute<test_attribute>());
 	EXPECT_EQ(type.get_attribute<test_attribute>()->i, 9);
 }
-
-using namespace sek::literals;
 
 TEST(reflection_tests, type_info_test)
 {

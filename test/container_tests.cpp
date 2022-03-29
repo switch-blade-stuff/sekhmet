@@ -4,10 +4,11 @@
 
 #include <gtest/gtest.h>
 
+#include "sekhmet/array_list.hpp"
+
 #include <string>
 #include <vector>
-
-#include "sekhmet/array_list.hpp"
+#include <numbers>
 
 template class sek::array_list<int>;
 
