@@ -75,7 +75,8 @@
 
 #define SEK_PATH_SEPARATOR '/'
 #define SEK_API
-
+#define SEK_API_EXPORT
+#define SEK_API_IMPORT
 #endif
 
 #ifdef SEK_OS_UNIX

@@ -127,3 +127,19 @@ struct std::hash<sek::type_id>
 {
 	[[nodiscard]] constexpr sek::hash_t operator()(const sek::type_id &tid) const noexcept { return sek::hash(tid); }
 };
+
+/** Sets a custom type id for the specified type, making the type identifiable by using the selected name.
+ *
+ * @note If a custom type id is not set, type ids will be generated using implementation-specific method,
+ * which ***will*** result in incompatibility across different compilers & compiler versions.
+ *
+ * @example
+ * ```cpp
+ * SEK_SET_TYPE_ID(my_type, "my_type_name") // Type name will be "my_type_name"
+ * ``` */
+#define SEK_SET_TYPE_ID(T, name)                                                                                       \
+	template<>                                                                                                         \
+	constexpr auto sek::detail::generate_type_name<T>() noexcept                                                       \
+	{                                                                                                                  \
+		return basic_static_string{(name)};                                                                            \
+	}

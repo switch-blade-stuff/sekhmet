@@ -118,7 +118,7 @@ namespace
 	};
 }	 // namespace
 
-SEK_DECLARE_TYPE(test_serializable_struct, "test_serializable_struct")
+SEK_EXPORT_TYPE(test_serializable_struct, "test_serializable_struct")
 SEK_TYPE_FACTORY(test_serializable_struct) { attributes<sek::adt::serializable_as<test_serializable_struct>>(); }
 
 TEST(adt_tests, serializable_as_test)

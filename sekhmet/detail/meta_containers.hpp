@@ -103,7 +103,7 @@ namespace sek
 		{
 		}
 		template<std::ranges::contiguous_range R>
-		constexpr meta_view(const R &r) noexcept : meta_view(std::begin(r), std::end(r))
+		constexpr meta_view(const R &r) noexcept : meta_view(std::ranges::begin(r), std::ranges::end(r))
 		{
 		}
 		constexpr meta_view(const_pointer data, size_type size) noexcept : meta_view(data, data + size) {}

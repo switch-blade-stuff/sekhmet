@@ -63,7 +63,7 @@ namespace sek
 		}
 
 		std::shared_mutex type_mtx;
-		hmap<type_id, detail::type_data::handle_t> type_table;
+		hmap<type_id, detail::type_data::handle> type_table;
 	};
 
 	bool type_info::register_type(type_info type)
@@ -92,12 +92,12 @@ namespace sek
 		auto &db = type_db::get();
 		db.type_mtx.lock_shared();
 
-		detail::type_data::handle_t handle = {};
+		type_info result = {};
 		if (auto data_iterator = db.type_table.find(tid); data_iterator != db.type_table.end()) [[likely]]
-			handle = data_iterator->second;
+			result.data = data_iterator->second;
 
 		db.type_mtx.unlock_shared();
-		return type_info{handle};
+		return result;
 	}
 	std::vector<type_info> type_info::all()
 	{
