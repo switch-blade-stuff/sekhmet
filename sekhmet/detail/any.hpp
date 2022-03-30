@@ -14,6 +14,39 @@ namespace sek
 {
 	class any
 	{
+	private:
+		enum flags_t
+		{
+			IS_EXTERNAL = 0b1,
+			IS_CONST = 0b10,
+		};
+
+		struct private_storage
+		{
+			[[nodiscard]] constexpr void *heap_ptr() noexcept { return data.get<void *>(); }
+			[[nodiscard]] constexpr const void *heap_ptr() const noexcept { return data.get<void *>(); }
+
+			template<typename T>
+			[[nodiscard]] constexpr T *get_local() noexcept { return ; }
+			template<typename T>
+			[[nodiscard]] constexpr const T *get_local() const noexcept { return data.get<void *>(); }
+
+			type_storage<void *> data;
+		};
+		union external_storage
+		{
+			void *mutable_data;
+			const void *const_data;
+		};
+
+	public:
+	private:
+		flags_t flags;
+		union
+		{
+			private_storage private_data;
+			external_storage external_data;
+		};
 	};
 
 	template<forward_iterator_for<any> Iter>

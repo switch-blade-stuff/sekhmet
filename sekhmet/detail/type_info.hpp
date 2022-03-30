@@ -42,7 +42,7 @@ namespace sek
 		 * @param type Type info of the type to add to runtime database.
 		 * @return true if a type was added successfully, false otherwise.
 		 * @note This function will fail if a type with the same id was already registered. */
-		static bool register_type(type_info type);
+		static SEK_API bool register_type(type_info type);
 		/** Invokes type factory for the type and adds it to runtime lookup database.
 		 * @return true if a type was added successfully, false otherwise.
 		 * @note This function will fail if a type with the same id was already registered. */
@@ -54,7 +54,7 @@ namespace sek
 		/** Removes a type from runtime lookup database.
 		 * @param type Type info of the type to remove.
 		 * @return true if a type was removed successfully, false otherwise. */
-		static bool deregister_type(type_info type);
+		static SEK_API bool deregister_type(type_info type);
 		/** Removes a type from runtime lookup database.
 		 * @return true if a type was removed successfully, false otherwise. */
 		template<typename T>
@@ -92,9 +92,9 @@ namespace sek
 		 * @tparam tid Id of the type to search for.
 		 * @return `type_info` instance for the requested type. If an invalid tid was specified, returns an invalid type info.
 		 * @note Type must be registered for it to be available. */
-		[[nodiscard]] static type_info get(type_id tid) noexcept;
+		[[nodiscard]] static SEK_API type_info get(type_id tid) noexcept;
 		/** Returns vector containing all currently registered types. */
-		[[nodiscard]] static std::vector<type_info> all();
+		[[nodiscard]] static SEK_API std::vector<type_info> all();
 
 	private:
 		template<std::forward_iterator Iter>
