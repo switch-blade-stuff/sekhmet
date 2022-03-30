@@ -106,7 +106,7 @@ namespace sek
 
 		/** Finds left-most location of a sequence of character within the string. */
 		template<forward_iterator_for<value_type> Iterator>
-		[[nodiscard]] constexpr size_type find_first(Iterator first, Iterator last) const noexcept
+		[[nodiscard]] constexpr size_type find_first(Iterator first, Iterator last) const
 		{
 			return detail::find_first<npos>(begin(), end(), first, last);
 		}
@@ -122,7 +122,7 @@ namespace sek
 		}
 		/** Finds left-most location of a character range within the string. */
 		template<forward_range_for<value_type> R>
-		[[nodiscard]] constexpr size_type find_first(const R &r) const noexcept
+		[[nodiscard]] constexpr size_type find_first(const R &r) const
 		{
 			return find_first(std::ranges::begin(r), std::ranges::end(r));
 		}
@@ -136,7 +136,7 @@ namespace sek
 
 		/** Finds right-most location of a sequence of character within the string. */
 		template<forward_iterator_for<value_type> Iterator>
-		[[nodiscard]] constexpr size_type find_last(Iterator first, Iterator last) const noexcept
+		[[nodiscard]] constexpr size_type find_last(Iterator first, Iterator last) const
 		{
 			return detail::find_last<npos>(begin(), end(), first, last);
 		}
@@ -152,7 +152,7 @@ namespace sek
 		}
 		/** Finds right-most location of a character range within the string. */
 		template<forward_range_for<value_type> R>
-		[[nodiscard]] constexpr size_type find_last(const R &r) const noexcept
+		[[nodiscard]] constexpr size_type find_last(const R &r) const
 		{
 			return find_last(std::ranges::begin(r), std::ranges::end(r));
 		}
@@ -166,7 +166,7 @@ namespace sek
 
 		/** Finds left-most location of a character from a sequence within the string. */
 		template<forward_iterator_for<value_type> Iterator>
-		[[nodiscard]] constexpr size_type find_first_of(Iterator first, Iterator last) const noexcept
+		[[nodiscard]] constexpr size_type find_first_of(Iterator first, Iterator last) const
 		{
 			return detail::find_first_of<npos>(begin(), end(), first, last);
 		}
@@ -187,14 +187,14 @@ namespace sek
 		}
 		/** Finds left-most location of a character from a range within the string. */
 		template<forward_range_for<value_type> R>
-		[[nodiscard]] constexpr size_type find_first_of(const R &r) const noexcept
+		[[nodiscard]] constexpr size_type find_first_of(const R &r) const
 		{
 			return find_first_of(std::ranges::begin(r), std::ranges::end(r));
 		}
 
 		/** Finds right-most location of a character from a sequence within the string. */
 		template<forward_iterator_for<value_type> Iterator>
-		[[nodiscard]] constexpr size_type find_last_of(Iterator first, Iterator last) const noexcept
+		[[nodiscard]] constexpr size_type find_last_of(Iterator first, Iterator last) const
 		{
 			return detail::find_last_of<npos>(begin(), end(), first, last);
 		}
@@ -215,14 +215,14 @@ namespace sek
 		}
 		/** Finds right-most location of a character from a range within the string. */
 		template<forward_range_for<value_type> R>
-		[[nodiscard]] constexpr size_type find_last_of(const R &r) const noexcept
+		[[nodiscard]] constexpr size_type find_last_of(const R &r) const
 		{
 			return find_last_of(std::ranges::begin(r), std::ranges::end(r));
 		}
 
 		/** Finds left-most location of a character not from a sequence within the string. */
 		template<forward_iterator_for<value_type> Iterator>
-		[[nodiscard]] constexpr size_type find_first_not_of(Iterator first, Iterator last) const noexcept
+		[[nodiscard]] constexpr size_type find_first_not_of(Iterator first, Iterator last) const
 		{
 			return detail::find_first_not_of<npos>(begin(), end(), first, last);
 		}
@@ -243,14 +243,14 @@ namespace sek
 		}
 		/** Finds left-most location of a character not from a range within the string. */
 		template<forward_range_for<value_type> R>
-		[[nodiscard]] constexpr size_type find_first_not_of(const R &r) const noexcept
+		[[nodiscard]] constexpr size_type find_first_not_of(const R &r) const
 		{
 			return find_first_not_of(std::ranges::begin(r), std::ranges::end(r));
 		}
 
 		/** Finds right-most location of a character not from a sequence within the string. */
 		template<forward_iterator_for<value_type> Iterator>
-		[[nodiscard]] constexpr size_type find_last_not_of(Iterator first, Iterator last) const noexcept
+		[[nodiscard]] constexpr size_type find_last_not_of(Iterator first, Iterator last) const
 		{
 			return detail::find_last_not_of<npos>(begin(), end(), first, last);
 		}
@@ -271,14 +271,14 @@ namespace sek
 		}
 		/** Finds right-most location of a character not from a range within the string. */
 		template<forward_range_for<value_type> R>
-		[[nodiscard]] constexpr size_type find_last_not_of(const R &r) const noexcept
+		[[nodiscard]] constexpr size_type find_last_not_of(const R &r) const
 		{
 			return find_last_not_of(std::ranges::begin(r), std::ranges::end(r));
 		}
 
 		/** Checks if a substring is present within the string. */
 		template<forward_iterator_for<value_type> Iterator>
-		[[nodiscard]] constexpr bool contains(Iterator first, Iterator last) const noexcept
+		[[nodiscard]] constexpr bool contains(Iterator first, Iterator last) const
 		{
 			return find_first(first, last) != npos;
 		}
@@ -294,7 +294,7 @@ namespace sek
 		}
 		/** Checks if a range of characters is present within the string. */
 		template<forward_range_for<value_type> R>
-		[[nodiscard]] constexpr bool contains(const R &r) const noexcept
+		[[nodiscard]] constexpr bool contains(const R &r) const
 		{
 			return contains(std::ranges::begin(r), std::ranges::end(r));
 		}
@@ -303,7 +303,7 @@ namespace sek
 
 		/** Checks if a substring is located at the start of the string. */
 		template<forward_iterator_for<value_type> Iterator>
-		[[nodiscard]] constexpr bool has_prefix(Iterator first, Iterator last) const noexcept
+		[[nodiscard]] constexpr bool has_prefix(Iterator first, Iterator last) const
 		{
 			return detail::has_prefix(begin(), end(), first, last);
 		}
@@ -319,7 +319,7 @@ namespace sek
 		}
 		/** Checks if a range of characters is located at the start of the string. */
 		template<forward_range_for<value_type> R>
-		[[nodiscard]] constexpr bool has_prefix(const R &r) const noexcept
+		[[nodiscard]] constexpr bool has_prefix(const R &r) const
 		{
 			return has_prefix(std::ranges::begin(r), std::ranges::end(r));
 		}
@@ -328,7 +328,7 @@ namespace sek
 
 		/** Checks if a substring is located at the end of the string. */
 		template<forward_iterator_for<value_type> Iterator>
-		[[nodiscard]] constexpr bool has_postfix(Iterator first, Iterator last) const noexcept
+		[[nodiscard]] constexpr bool has_postfix(Iterator first, Iterator last) const
 		{
 			return detail::has_postfix(begin(), end(), first, last);
 		}
@@ -344,7 +344,7 @@ namespace sek
 		}
 		/** Checks if a range of characters is located at the end of the string. */
 		template<forward_range_for<value_type> R>
-		[[nodiscard]] constexpr bool has_postfix(const R &r) const noexcept
+		[[nodiscard]] constexpr bool has_postfix(const R &r) const
 		{
 			return has_postfix(std::ranges::begin(r), std::ranges::end(r));
 		}

@@ -4,8 +4,6 @@
 
 #pragma once
 
-#include <cstdarg>
-
 #include "meta_containers.hpp"
 #include "type_id.hpp"
 
@@ -179,9 +177,23 @@ namespace sek::detail
 
 		struct type_ctor : type_node_base<type_ctor>
 		{
-			template<typename, typename...>
+			template<typename T, typename... Args>
 			struct instance
 			{
+				template<std::size_t I, typename U>
+				constexpr static U extract_arg(void *const *args) noexcept
+				{
+					return *static_cast<U *>(args);
+				}
+				constexpr static void proxy_impl(void *ptr, void *const *args)
+				{
+					[]<std::size_t... Is>(std::index_sequence<Is...>, void *p, [[maybe_unused]] void *const *a)
+					{
+						std::construct_at(static_cast<T *>(p), extract_arg<Is, Args>(a)...);
+					}
+					(std::make_index_sequence<sizeof...(Args)>{}, ptr, args);
+				}
+
 				constinit static type_ctor value;
 			};
 
@@ -189,41 +201,14 @@ namespace sek::detail
 
 			template<typename T, typename... Args>
 			constexpr explicit type_ctor(type_selector_t<T>, type_seq_t<Args...>) noexcept
-				: type_node_base<type_ctor>(),
-				  arg_types(make_handle_array<Args...>()),
-				  proxy(
-					  [](void *obj, [[maybe_unused]] std::va_list args)
-					  {
-						  [[maybe_unused]] constexpr auto expand_args =
-							  []<typename U>(type_selector_t<U>, std::va_list args_list) -> decltype(auto)
-						  { return va_arg(args_list, U); };
-
-						  std::construct_at(static_cast<T *>(obj), expand_args(type_selector<Args>, args)...);
-					  })
+				: type_node_base<type_ctor>(), arg_types(make_handle_array<Args...>()), proxy(instance<T, Args...>::proxy_impl)
 			{
 			}
 
-			void invoke(void *ptr, ...) const
-			{
-				std::va_list args_list;
-				va_start(args_list, ptr);
-
-				proxy(ptr, args_list);
-
-				va_end(args_list);
-			}
-			void operator()(void *ptr, ...) const
-			{
-				std::va_list args_list;
-				va_start(args_list, ptr);
-
-				proxy(ptr, args_list);
-
-				va_end(args_list);
-			}
+			constexpr void invoke(void *ptr, void *const *args) const { proxy(ptr, args); }
 
 			meta_view<handle> arg_types;
-			void (*proxy)(void *, std::va_list);
+			void (*proxy)(void *, void *const *);
 		};
 
 		template<typename T, typename... Args>

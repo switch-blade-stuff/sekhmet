@@ -51,13 +51,13 @@ namespace sek
 
 		/** Initializes a UUID from a character range. */
 		template<std::forward_iterator Iter>
-		constexpr explicit uuid(Iter first, Iter last) noexcept
+		constexpr explicit uuid(Iter first, Iter last)
 		{
 			parse_string(first, last);
 		}
 		/** Initializes a UUID from a character range. */
 		template<std::ranges::forward_range R>
-		constexpr explicit uuid(R str) noexcept : uuid(std::ranges::begin(str), std::ranges::end(str))
+		constexpr explicit uuid(const R &str) : uuid(std::ranges::begin(str), std::ranges::end(str))
 		{
 		}
 		/** Initializes a UUID from a character array. */

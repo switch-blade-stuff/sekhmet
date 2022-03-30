@@ -118,12 +118,13 @@ namespace sek
 		};
 
 		class parent_iterator;
+		class constructor_iterator;
 		class attribute_iterator;
 
 	public:
 		class constructor_info;
 
-		/** @brief Structure containing type information of a function's signature. */
+		/** @brief Structure containing information about a function's signature (stores the return type & acts as a view for argument types). */
 		class signature_info
 		{
 			friend class constructor_info;
@@ -281,7 +282,8 @@ namespace sek
 		/** @brief Structure containing information about a type's constructor. */
 		class constructor_info
 		{
-			friend class attribute_iterator;
+			friend class type_info;
+			friend class constructor_iterator;
 
 			constexpr explicit constructor_info(const data_t::type_ctor *ptr) noexcept : ctor(ptr) {}
 
@@ -295,16 +297,49 @@ namespace sek
 				return signature_info{data_t::handle{}, ctor->arg_types.data(), ctor->arg_types.size()};
 			}
 
-			/* TODO: Implement constructor invocation. */
-
+			/** Invokes constructor for the passed object & argument array.
+			 *
+			 * @param ptr Pointer to the object's memory.
+			 * @param args Array of pointers to the arguments passed to the constructor.
+			 *
+			 * @warning Passed argument array must contain all arguments required by the constructor.
+			 * Passing an invalid argument array will result in undefined behavior. */
+			constexpr void invoke(void *ptr, void *const args[]) const { ctor->invoke(ptr, args); }
 			/** Invokes constructor for the passed object & arguments.
 			 *
-			 * @warning Passed object's type must be constructible using this constructor,
-			 * passing an invalid object will result in undefined behavior. */
-			template<typename T, typename... Args>
-			void invoke(T *ptr, Args &&...args) const
+			 * @param ptr Pointer to the object's memory.
+			 * @param args Arguments passed to the constructor. */
+			template<typename... Args>
+			constexpr void invoke(void *ptr, Args &&...args) const
 			{
-				ctor->invoke(static_cast<void *>(ptr), std::forward<Args>(args)...);
+				if constexpr (sizeof...(args) != 0)
+				{
+					/* Make an array of pointers to args. */
+					void *args_array[sizeof...(args)] = {std::addressof(args)...};
+					invoke(ptr, args_array);
+				}
+				else
+					invoke(ptr, nullptr);
+			}
+			/** Invokes constructor for the passed object & arguments.
+			 *
+			 * @param ptr Pointer to the object's memory.
+			 * @param args_begin Iterator to the first element of the `any` sequence containing arguments passed to the constructor.
+			 * @param args_end Iterator one past the last `any` object of the argument sequence.
+			 *
+			 * @throw bad_type_exception If the argument sequence does not contain all arguments required by the constructor. */
+			template<forward_iterator_for<any> Iter>
+			constexpr void invoke(void *ptr, Iter args_begin, Iter args_end) const;
+			/** Invokes constructor for the passed object & arguments.
+			 *
+			 * @param ptr Pointer to the object's memory.
+			 * @param args Range of `any` objects containing arguments passed to the constructor.
+			 *
+			 * @throw bad_type_exception If the args range does not contain all arguments required by the constructor. */
+			template<forward_range_for<any> R>
+			constexpr void invoke(void *ptr, const R &args) const
+			{
+				invoke(ptr, std::ranges::begin(args), std::ranges::end(args));
 			}
 
 		private:
@@ -313,6 +348,7 @@ namespace sek
 		/** @brief Structure containing information about a type's attribute. */
 		class attribute_info
 		{
+			friend class type_info;
 			friend class attribute_iterator;
 
 			constexpr explicit attribute_info(const data_t::type_attribute *ptr) noexcept : attribute(ptr) {}
@@ -380,38 +416,6 @@ namespace sek
 			view_data_t data;
 		};
 
-		class attribute_iterator : data_t::type_node_iterator<data_t::type_attribute>
-		{
-			using base_t = data_t::type_node_iterator<data_t::type_attribute>;
-
-		public:
-			typedef attribute_info value_type;
-			typedef attribute_info reference;
-			typedef std::ptrdiff_t difference_type;
-			typedef std::forward_iterator_tag iterator_category;
-
-		private:
-			constexpr explicit attribute_iterator(base_t value) noexcept : base_t(value) {}
-
-		public:
-			constexpr attribute_iterator() noexcept = default;
-
-			constexpr attribute_iterator operator++(int) noexcept
-			{
-				auto result = *this;
-				base_t::move_next();
-				return result;
-			}
-			constexpr attribute_iterator &operator++() noexcept
-			{
-				base_t::move_next();
-				return *this;
-			}
-
-			[[nodiscard]] constexpr auto operator*() const noexcept { return attribute_info{base_t::node}; }
-
-			[[nodiscard]] constexpr bool operator==(const attribute_iterator &) const noexcept = default;
-		};
 		class parent_iterator : data_t::type_node_iterator<data_t::type_parent>
 		{
 			using base_t = data_t::type_node_iterator<data_t::type_parent>;
@@ -444,9 +448,74 @@ namespace sek
 
 			[[nodiscard]] constexpr bool operator==(const parent_iterator &) const noexcept = default;
 		};
+		class constructor_iterator : data_t::type_node_iterator<data_t::type_ctor>
+		{
+			using base_t = data_t::type_node_iterator<data_t::type_ctor>;
 
-		using attribute_view = type_data_view<data_t::type_attribute, attribute_iterator, attribute_info>;
+		public:
+			typedef constructor_info value_type;
+			typedef constructor_info reference;
+			typedef std::ptrdiff_t difference_type;
+			typedef std::forward_iterator_tag iterator_category;
+
+		private:
+			constexpr explicit constructor_iterator(base_t value) noexcept : base_t(value) {}
+
+		public:
+			constexpr constructor_iterator() noexcept = default;
+
+			constexpr constructor_iterator operator++(int) noexcept
+			{
+				auto result = *this;
+				base_t::move_next();
+				return result;
+			}
+			constexpr constructor_iterator &operator++() noexcept
+			{
+				base_t::move_next();
+				return *this;
+			}
+
+			[[nodiscard]] constexpr auto operator*() const noexcept { return constructor_info{base_t::node}; }
+
+			[[nodiscard]] constexpr bool operator==(const constructor_iterator &) const noexcept = default;
+		};
+		class attribute_iterator : data_t::type_node_iterator<data_t::type_attribute>
+		{
+			using base_t = data_t::type_node_iterator<data_t::type_attribute>;
+
+		public:
+			typedef attribute_info value_type;
+			typedef attribute_info reference;
+			typedef std::ptrdiff_t difference_type;
+			typedef std::forward_iterator_tag iterator_category;
+
+		private:
+			constexpr explicit attribute_iterator(base_t value) noexcept : base_t(value) {}
+
+		public:
+			constexpr attribute_iterator() noexcept = default;
+
+			constexpr attribute_iterator operator++(int) noexcept
+			{
+				auto result = *this;
+				base_t::move_next();
+				return result;
+			}
+			constexpr attribute_iterator &operator++() noexcept
+			{
+				base_t::move_next();
+				return *this;
+			}
+
+			[[nodiscard]] constexpr auto operator*() const noexcept { return attribute_info{base_t::node}; }
+
+			[[nodiscard]] constexpr bool operator==(const attribute_iterator &) const noexcept = default;
+		};
+
 		using parent_view = type_data_view<data_t::type_parent, parent_iterator, type_info>;
+		using constructor_view = type_data_view<data_t::type_ctor, constructor_iterator, constructor_info>;
+		using attribute_view = type_data_view<data_t::type_attribute, attribute_iterator, attribute_info>;
 
 	private:
 		constexpr explicit type_info(data_t::handle data) noexcept : data(data) {}
@@ -458,80 +527,87 @@ namespace sek
 		[[nodiscard]] constexpr bool empty() const noexcept { return data.empty(); }
 
 		/** Returns id of the type. */
-		[[nodiscard]] type_id tid() const noexcept { return data->tid; }
+		[[nodiscard]] constexpr type_id tid() const noexcept { return data->tid; }
 		/** Returns name of the type. */
-		[[nodiscard]] std::string_view name() const noexcept { return data->tid.name(); }
+		[[nodiscard]] constexpr std::string_view name() const noexcept { return data->tid.name(); }
 		/** Returns hash of the type. */
-		[[nodiscard]] std::size_t hash() const noexcept { return data->tid.hash(); }
+		[[nodiscard]] constexpr std::size_t hash() const noexcept { return data->tid.hash(); }
 
 		/** Returns the type's size. */
-		[[nodiscard]] std::size_t size() const noexcept { return data->size; }
+		[[nodiscard]] constexpr std::size_t size() const noexcept { return data->size; }
 		/** Returns the type's alignment. */
-		[[nodiscard]] std::size_t alignment() const noexcept { return data->alignment; }
+		[[nodiscard]] constexpr std::size_t alignment() const noexcept { return data->alignment; }
 
 		/** Checks if the type is const-qualified. */
-		[[nodiscard]] bool is_const() const noexcept { return data->variant_type & data_t::VARIANT_CONST; }
+		[[nodiscard]] constexpr bool is_const() const noexcept { return data->variant_type & data_t::VARIANT_CONST; }
 		/** Checks if the type is volatile-qualified. */
-		[[nodiscard]] bool is_volatile() const noexcept { return data->variant_type & data_t::VARIANT_VOLATILE; }
+		[[nodiscard]] constexpr bool is_volatile() const noexcept
+		{
+			return data->variant_type & data_t::VARIANT_VOLATILE;
+		}
 		/** Checks if the type is cv-qualified. */
-		[[nodiscard]] bool is_cv() const noexcept { return data->variant_type == data_t::VARIANT_CONST_VOLATILE; }
-
+		[[nodiscard]] constexpr bool is_cv() const noexcept
+		{
+			return data->variant_type == data_t::VARIANT_CONST_VOLATILE;
+		}
 		/** Checks if the type is a qualified variant of another type.
 		 * @return true if the type is a qualified variant, false otherwise. */
-		[[nodiscard]] bool is_variant() const noexcept { return !data->variants[data_t::VARIANT_PARENT].empty(); }
+		[[nodiscard]] constexpr bool is_variant() const noexcept
+		{
+			return !data->variants[data_t::VARIANT_PARENT].empty();
+		}
 		/** If the type is a qualified variant, returns the unqualified "parent" type.
 		 * Otherwise, returns an empty type info. */
-		[[nodiscard]] type_info get_variant_parent() const noexcept
+		[[nodiscard]] constexpr type_info get_variant_parent() const noexcept
 		{
 			return type_info{data->variants[data_t::VARIANT_PARENT]};
 		}
-
 		/** Checks if the type has a const-qualified variant.
 		 * @return true if the type has a const-qualified variant, false otherwise.
 		 * @note If the type itself is const-qualified, it does not have a const-qualified variant. */
-		[[nodiscard]] bool has_const_variant() const noexcept { return !data->variants[data_t::VARIANT_CONST].empty(); }
+		[[nodiscard]] constexpr bool has_const_variant() const noexcept
+		{
+			return !data->variants[data_t::VARIANT_CONST].empty();
+		}
 		/** Returns type info of the const-qualified variant of the type.
 		 * @return Type info of the const-qualified variant if such variant is present, empty type info otherwise.
 		 * @note If the type itself is const-qualified, it does not have a const-qualified variant. */
-		[[nodiscard]] type_info get_const_variant() const noexcept
+		[[nodiscard]] constexpr type_info get_const_variant() const noexcept
 		{
 			return type_info{data->variants[data_t::VARIANT_CONST]};
 		}
-
 		/** Checks if the type has a volatile-qualified variant.
 		 * @return true if the type has a volatile-qualified variant, false otherwise.
 		 * @note If the type itself is volatile-qualified, it does not have a volatile-qualified variant. */
-		[[nodiscard]] bool has_volatile_variant() const noexcept
+		[[nodiscard]] constexpr bool has_volatile_variant() const noexcept
 		{
 			return !data->variants[data_t::VARIANT_VOLATILE].empty();
 		}
 		/** Returns type info of the volatile-qualified variant of the type.
 		 * @return Type info of the volatile-qualified variant if such variant is present, empty type info otherwise.
 		 * @note If the type itself is volatile-qualified, it does not have a volatile-qualified variant. */
-		[[nodiscard]] type_info get_volatile_variant() const noexcept
+		[[nodiscard]] constexpr type_info get_volatile_variant() const noexcept
 		{
 			return type_info{data->variants[data_t::VARIANT_VOLATILE]};
 		}
-
 		/** Checks if the type has a cv-qualified variant.
 		 * @return true if the type has a cv-qualified variant, false otherwise.
 		 * @note If the type itself is either const or volatile-qualified, it does not have a cv-qualified variant. */
-		[[nodiscard]] bool has_cv_variant() const noexcept
+		[[nodiscard]] constexpr bool has_cv_variant() const noexcept
 		{
 			return !data->variants[data_t::VARIANT_CONST_VOLATILE].empty();
 		}
 		/** Returns type info of the cv-qualified variant of the type.
 		 * @return Type info of the cv-qualified variant if such variant is present, empty type info otherwise.
 		 * @note If the type itself is either const or volatile-qualified, it does not have a cv-qualified variant. */
-		[[nodiscard]] type_info get_cv_variant() const noexcept
+		[[nodiscard]] constexpr type_info get_cv_variant() const noexcept
 		{
 			return type_info{data->variants[data_t::VARIANT_CONST_VOLATILE]};
 		}
-
 		/** Checks if the type has a variant of a specific type.
 		 * @param id Id of the variant type.
 		 * @return true if the type has a variant of `id` type, false otherwise. */
-		[[nodiscard]] bool has_variant(type_id id) const noexcept
+		[[nodiscard]] constexpr bool has_variant(type_id id) const noexcept
 		{
 			return (has_const_variant() && get_const_variant().tid() == id) ||
 				   (has_volatile_variant() && get_volatile_variant().tid() == id) ||
@@ -541,23 +617,26 @@ namespace sek
 		 * @tparam T Variant type.
 		 * @return true if the type has a variant of `T`, false otherwise. */
 		template<typename T>
-		[[nodiscard]] bool has_variant() const noexcept
+		[[nodiscard]] constexpr bool has_variant() const noexcept
 		{
 			constexpr auto id = type_id::identify<T>();
 			return has_variant(id);
 		}
 
 		/** Returns a view containing parents of the type. */
-		[[nodiscard]] parent_view get_parents() const noexcept { return parent_view{data->get_parent_view()}; }
+		[[nodiscard]] constexpr parent_view get_parents() const noexcept
+		{
+			return parent_view{data->get_parent_view()};
+		}
 		/** Checks if the type has a parent of a specific type.
 		 * @param id Id of the parent type.
 		 * @return true if the type has a parent of `id` type, false otherwise. */
-		[[nodiscard]] bool has_parent(type_id id) const noexcept { return data->has_parent(id); }
+		[[nodiscard]] constexpr bool has_parent(type_id id) const noexcept { return data->has_parent(id); }
 		/** Checks if the type has a parent of a specific type.
 		 * @tparam T Parent type.
 		 * @return true if the type has a parent of `T`, false otherwise. */
 		template<typename T>
-		[[nodiscard]] bool has_parent() const noexcept
+		[[nodiscard]] constexpr bool has_parent() const noexcept
 		{
 			return data->template has_parent<T>();
 		}
@@ -570,7 +649,7 @@ namespace sek
 		 *
 		 * @param id Id of the type to check for compatibility with.
 		 * @return true if the type is compatible with `id` type, false otherwise. */
-		[[nodiscard]] bool compatible_with(type_id id) const noexcept
+		[[nodiscard]] constexpr bool compatible_with(type_id id) const noexcept
 		{
 			return tid() == id || has_variant(id) || has_parent(id);
 		}
@@ -583,38 +662,38 @@ namespace sek
 		 * @tparam T Type to check for compatibility with.
 		 * @return true if the type is compatible with `T`, false otherwise. */
 		template<typename T>
-		[[nodiscard]] bool is_compatible() const noexcept
+		[[nodiscard]] constexpr bool compatible_with() const noexcept
 		{
 			constexpr auto id = type_id::identify<T>();
 			return compatible_with(id);
 		}
 
 		/** Returns a view containing attributes of the type. */
-		[[nodiscard]] attribute_view get_attributes() const noexcept
+		[[nodiscard]] constexpr attribute_view get_attributes() const noexcept
 		{
 			return attribute_view{data->get_attribute_view()};
 		}
 		/** Checks if the type has an attribute of a specific type.
 		 * @param id Id of the attribute's type.
 		 * @return true if the type has an attribute of `id` type, false otherwise. */
-		[[nodiscard]] bool has_attribute(type_id id) const noexcept { return data->has_attribute(id); }
+		[[nodiscard]] constexpr bool has_attribute(type_id id) const noexcept { return data->has_attribute(id); }
 		/** Checks if the type has an attribute of a specific type.
 		 * @tparam T Attribute's type.
 		 * @return true if the type has an attribute of `T`, false otherwise. */
 		template<typename T>
-		[[nodiscard]] bool has_attribute() const noexcept
+		[[nodiscard]] constexpr bool has_attribute() const noexcept
 		{
 			return data->template has_attribute<T>();
 		}
 		/** Returns attribute of a specific type.
 		 * @param id Id of the attribute's type.
 		 * @return `any` instance referencing the attribute if such attribute is present. Otherwise, and empty `any` instance. */
-		[[nodiscard]] any get_attribute(type_id id) const noexcept;
+		[[nodiscard]] constexpr any get_attribute(type_id id) const noexcept;
 		/** Returns attribute of a specific type.
 		 * @tparam T Attribute's type.
 		 * @return Pointer to attribute's data if such attribute is present, nullptr otherwise. */
 		template<typename T>
-		[[nodiscard]] const T *get_attribute() const noexcept
+		[[nodiscard]] constexpr const T *get_attribute() const noexcept
 		{
 			constexpr auto id = type_id::identify<T>();
 			if (auto node = data->get_attribute(id); node != nullptr) [[likely]]
@@ -623,20 +702,25 @@ namespace sek
 				return nullptr;
 		}
 
+		/** Returns a view containing constructors of the type. */
+		[[nodiscard]] constexpr constructor_view get_constructors() const noexcept
+		{
+			return constructor_view{data->get_ctor_view()};
+		}
 		/** Checks if the type has a constructor invocable with the specified argument types.
 		 * @param args_first Iterator to the start of the argument type sequence.
 		 * @param args_first Iterator to the end of the argument type sequence.
 		 * @return true if the type is constructible, false otherwise. */
-		template<std::forward_iterator I>
-		[[nodiscard]] bool constructible_with(I args_first, I args_last) const requires std::same_as<std::iter_value_t<I>, type_info>
+		template<forward_iterator_for<type_info> I>
+		[[nodiscard]] constexpr bool constructible_with(I args_first, I args_last) const
 		{
 			return data->has_ctor(type_info_iterator{args_first}, type_info_iterator{args_last});
 		}
 		/** Checks if the type has a constructor invocable with the specified argument types.
 		 * @param args Range containing argument types.
 		 * @return true if the type is constructible, false otherwise. */
-		template<std::ranges::forward_range R>
-		[[nodiscard]] bool constructible_with(const R &args) const
+		template<forward_range_for<type_info> R>
+		[[nodiscard]] constexpr bool constructible_with(const R &args) const
 		{
 			return constructible_with(std::ranges::begin(args), std::ranges::end(args));
 		}
@@ -644,7 +728,7 @@ namespace sek
 		 * @tparam Args Arguments of the constructor.
 		 * @return true if the type is constructible, false otherwise. */
 		template<typename... Args>
-		[[nodiscard]] bool constructible_with() const noexcept
+		[[nodiscard]] constexpr bool constructible_with() const noexcept
 		{
 			return data->template has_ctor<Args...>();
 		}
