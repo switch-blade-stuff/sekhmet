@@ -118,7 +118,7 @@ namespace
 	};
 }	 // namespace
 
-SEK_EXPORT_TYPE(test_serializable_struct, "test_serializable_struct")
+SEK_DECLARE_TYPE(test_serializable_struct, "test_serializable_struct")
 SEK_TYPE_FACTORY(test_serializable_struct) { attributes<sek::adt::serializable_as<test_serializable_struct>>(); }
 
 TEST(adt_tests, serializable_as_test)
@@ -131,13 +131,14 @@ TEST(adt_tests, serializable_as_test)
 	};
 	test_serializable_struct value = {};
 
-	EXPECT_NO_THROW(n1.get(sek::any_ref{value}));
+	auto ref = sek::any::make_ref(value);
+	EXPECT_NO_THROW(n1.get(ref));
 	EXPECT_EQ(value.i, 1000);
 	EXPECT_TRUE(value.b);
 
 	n1.reset();
 
-	EXPECT_NO_THROW(n1.set(sek::any_ref{value}));
+	EXPECT_NO_THROW(n1.set(sek::any::make_ref(value)));
 	EXPECT_TRUE(n1.is_table());
 	EXPECT_TRUE(n1.as_table()["i"].is_int32());
 	EXPECT_EQ(n1.as_table()["i"].as_int32(), 1000);

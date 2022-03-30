@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <utility>
+
 #include "../../detail/any.hpp"
 #include "node.hpp"
 
@@ -14,17 +16,17 @@ namespace sek::adt
 	{
 		struct proxy_t
 		{
-			typedef void (*serialize_func_t)(node &, sek::any_ref);
-			typedef void (*deserialize_func_t)(const node &, sek::any_ref);
+			typedef void (*serialize_func_t)(node &, sek::any);
+			typedef void (*deserialize_func_t)(const node &, sek::any);
 
 			serialize_func_t serialize_func = nullptr;
 			deserialize_func_t deserialize_func = nullptr;
 		};
 
 		/** Invokes the serialize proxy function. */
-		constexpr void serialize(node &n, sek::any_ref r) const { proxy.serialize_func(n, r); }
+		constexpr void serialize(node &n, sek::any r) const { proxy.serialize_func(n, std::move(r)); }
 		/** Invokes the deserialize proxy function. */
-		constexpr void deserialize(const node &n, sek::any_ref r) const { proxy.deserialize_func(n, r); }
+		constexpr void deserialize(const node &n, sek::any r) const { proxy.deserialize_func(n, std::move(r)); }
 
 		/** Proxy used to store serialization functions. */
 		const proxy_t &proxy;
@@ -37,14 +39,14 @@ namespace sek::adt
 		{
 			constexpr static serializable_as_attribute::proxy_t bind() noexcept
 			{
-				constexpr auto serialize = [](node &n, sek::any_ref r)
+				constexpr auto serialize = [](node &n, sek::any r)
 				{
-					auto &value = r.template as<const T>();
+					auto &value = *r.template as<const T>();
 					n.template set<T>(value);
 				};
-				constexpr auto deserialize = [](const node &n, sek::any_ref r)
+				constexpr auto deserialize = [](const node &n, sek::any r)
 				{
-					auto &value = r.template as<T>();
+					auto &value = *r.template as<T>();
 					n.template get<T>(value);
 				};
 
@@ -63,19 +65,19 @@ namespace sek::adt
 	template<typename T>
 	constexpr inline serializable_as_attribute serializable_as = {detail::serialize_as_proxy<T>::instance};
 
-	inline void node::get(sek::any_ref value) const
+	inline void node::get(sek::any &value) const
 	{
 		if (auto attr = value.type().get_attribute<serializable_as_attribute>(); attr == nullptr) [[unlikely]]
 			throw sek::bad_type_exception("Missing `serializable_as_attribute` attribute");
 		else
-			attr->deserialize(*this, value);
+			attr->deserialize(*this, value.to_ref());
 	}
-	inline node &node::set(sek::any_ref value)
+	inline node &node::set(const sek::any &value)
 	{
 		if (auto attr = value.type().get_attribute<serializable_as_attribute>(); attr == nullptr) [[unlikely]]
 			throw sek::bad_type_exception("Missing `serializable_as_attribute` attribute");
 		else
-			attr->serialize(*this, value);
+			attr->serialize(*this, value.to_ref());
 		return *this;
 	}
 }	 // namespace sek::adt

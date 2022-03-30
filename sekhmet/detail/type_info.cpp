@@ -26,25 +26,8 @@ namespace sek
 		if (!tmp_msg) [[unlikely]]
 			return;
 
-		strcpy(tmp_msg, "Bad type \"");
+		strcpy(tmp_msg, "Bad or unexpected type \"");
 		strncpy(tmp_msg, reinterpret_cast<const char *>(name.data()), static_cast<std::size_t>(name.size()));
-		strcpy(tmp_msg, "\"");
-
-		msg = tmp_msg;
-	}
-	bad_type_exception::bad_type_exception(type_id from, type_id to) noexcept : bad_type_exception()
-	{
-		auto from_name = from.name();
-		auto to_name = to.name();
-		auto msg_len = static_cast<unsigned long>(39 + from_name.size() + to_name.size());
-		auto tmp_msg = static_cast<char *>(malloc(sizeof(char) * msg_len));
-		if (!tmp_msg) [[unlikely]]
-			return;
-
-		strcpy(tmp_msg, "Type \"");
-		strncpy(tmp_msg, reinterpret_cast<const char *>(from_name.data()), static_cast<std::size_t>(from_name.size()));
-		strcpy(tmp_msg, "\" is not compatible with type \"");
-		strncpy(tmp_msg, reinterpret_cast<const char *>(to_name.data()), static_cast<std::size_t>(to_name.size()));
 		strcpy(tmp_msg, "\"");
 
 		msg = tmp_msg;

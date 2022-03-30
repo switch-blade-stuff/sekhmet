@@ -9,6 +9,9 @@
 
 namespace sek::detail
 {
+	template<typename>
+	constexpr bool is_exported_type = false;
+
 	struct type_data
 	{
 		type_data() = delete;
@@ -69,7 +72,6 @@ namespace sek::detail
 		template<typename>
 		struct instance
 		{
-			constexpr static bool is_exported = false;
 			constinit static type_data value;
 		};
 
@@ -117,7 +119,7 @@ namespace sek::detail
 		[[nodiscard]] constexpr static handle get_variant_parent() noexcept
 		{
 			if constexpr (std::is_const_v<T> || std::is_volatile_v<T>)
-				return make_handle<std::remove_cv_t<T>>();
+				return handle{&instance<T>::value};
 			else
 				return {};
 		}
@@ -181,13 +183,13 @@ namespace sek::detail
 			struct instance
 			{
 				template<std::size_t I, typename U>
-				constexpr static U extract_arg(void *const *args) noexcept
+				constexpr static U extract_arg(const void *const args[]) noexcept
 				{
-					return *static_cast<U *>(args);
+					return *static_cast<const U *>(args[I]);
 				}
-				constexpr static void proxy_impl(void *ptr, void *const *args)
+				constexpr static void proxy_impl(void *ptr, const void *const args[])
 				{
-					[]<std::size_t... Is>(std::index_sequence<Is...>, void *p, [[maybe_unused]] void *const *a)
+					[]<std::size_t... Is>(std::index_sequence<Is...>, void *p, [[maybe_unused]] const void *const a[])
 					{
 						std::construct_at(static_cast<T *>(p), extract_arg<Is, Args>(a)...);
 					}
@@ -205,10 +207,10 @@ namespace sek::detail
 			{
 			}
 
-			constexpr void invoke(void *ptr, void *const *args) const { proxy(ptr, args); }
+			constexpr void invoke(void *ptr, const void *const args[]) const { proxy(ptr, args); }
 
 			meta_view<handle> arg_types;
-			void (*proxy)(void *, void *const *);
+			void (*proxy)(void *, const void *const[]);
 		};
 
 		template<typename T, typename... Args>

@@ -396,4 +396,6 @@ namespace sek
 	concept trivial_type = std::is_trivial_v<T>;
 	template<typename T>
 	concept not_void = !std::is_void_v<T>;
+	template<typename T0, typename T1>
+	concept not_same = !std::is_same_v<T0, T1>;
 }	 // namespace sek

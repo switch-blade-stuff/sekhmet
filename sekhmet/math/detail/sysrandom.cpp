@@ -18,7 +18,7 @@
 #include <linux/random.h>
 #include <sys/syscall.h>
 
-sstd::size_t sek::math::sys_random(void *dst, std::size_t len) noexcept { return syscall(SYS_getrandom, dst, len, 0); }
+ssize_t sek::math::sys_random(void *dst, std::size_t len) noexcept { return syscall(SYS_getrandom, dst, len, 0); }
 
 #elif defined(SEK_OS_WIN) && defined(_MSC_VER)
 
@@ -32,13 +32,13 @@ sstd::size_t sek::math::sys_random(void *dst, std::size_t len) noexcept { return
 
 #pragma comment(lib, "bcrypt.lib")
 
-sstd::size_t sek::math::sys_random(void *dst, std::size_t len) noexcept
+ssize_t sek::math::sys_random(void *dst, std::size_t len) noexcept
 {
 	BCRYPT_ALG_HANDLE rng_alg;
 	if (BCryptOpenAlgorithmProvider(&rng_alg, BCRYPT_RNG_ALGORITHM, nullptr, 0) != STATUS_SUCCESS) [[unlikely]]
 		return -1;
 
-	auto result = static_cast<sstd::size_t>(len);
+	auto result = static_cast<ssize_t>(len);
 	if (BCryptGenRandom(rng_alg, static_cast<PUCHAR>(dst), len, 0) != STATUS_SUCCESS) [[unlikely]]
 		result = -1;
 	if (BCryptCloseAlgorithmProvider(rng_alg, 0) != STATUS_SUCCESS) [[unlikely]]
@@ -49,24 +49,24 @@ sstd::size_t sek::math::sys_random(void *dst, std::size_t len) noexcept
 #elif defined(__OpenBSD__)
 #include <unistd.h>
 
-sstd::size_t sek::math::sys_random(void *dst, std::size_t len) noexcept { return getentropy(dst, len); }
+ssize_t sek::math::sys_random(void *dst, std::size_t len) noexcept { return getentropy(dst, len); }
 
 #elif defined(SEK_OS_UNIX)
 
 #include <cstdio>
 
-sstd::size_t sek::math::sys_random(void *dest, std::size_t len) noexcept
+ssize_t sek::math::sys_random(void *dest, std::size_t len) noexcept
 {
 	if (auto urandom = fopen("/dev/urandom", "rb"); urandom) [[likely]]
 	{
 		if (fread(dst, len, 1, urandom) == len) [[likely]]
-			return static_cast<sstd::size_t>(len);
+			return static_cast<ssize_t>(len);
 	}
 	return -1;
 }
 
 #else
 
-sstd::size_t sek::math::sys_random(void *, std::size_t) noexcept { return -1; }
+ssize_t sek::math::sys_random(void *, std::size_t) noexcept { return -1; }
 
 #endif

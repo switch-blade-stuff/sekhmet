@@ -23,7 +23,6 @@ namespace sek
 		SEK_API bad_type_exception() noexcept = default;
 		SEK_API explicit bad_type_exception(const char *msg) noexcept;
 		SEK_API explicit bad_type_exception(type_id type) noexcept;
-		SEK_API bad_type_exception(type_id from, type_id to) noexcept;
 		SEK_API ~bad_type_exception() override;
 
 		[[nodiscard]] const char *what() const noexcept override { return msg; }
@@ -86,7 +85,7 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] constexpr static type_info get() noexcept
 		{
-			return type_info{&data_t::instance<T>::value};
+			return type_info{data_t::make_handle<T>()};
 		}
 		/** Looks up a type within the runtime lookup database.
 		 * @tparam tid Id of the type to search for.
@@ -304,7 +303,7 @@ namespace sek
 			 *
 			 * @warning Passed argument array must contain all arguments required by the constructor.
 			 * Passing an invalid argument array will result in undefined behavior. */
-			constexpr void invoke(void *ptr, void *const args[]) const { ctor->invoke(ptr, args); }
+			constexpr void invoke(void *ptr, const void *const args[]) const { ctor->invoke(ptr, args); }
 			/** Invokes constructor for the passed object & arguments.
 			 *
 			 * @param ptr Pointer to the object's memory.
@@ -315,7 +314,7 @@ namespace sek
 				if constexpr (sizeof...(args) != 0)
 				{
 					/* Make an array of pointers to args. */
-					void *args_array[sizeof...(args)] = {std::addressof(args)...};
+					const void *args_array[sizeof...(args)] = {std::addressof(args)...};
 					invoke(ptr, args_array);
 				}
 				else
@@ -644,8 +643,8 @@ namespace sek
 		/** Checks if the type is compatible with another type.
 		 *
 		 * Type `A` is considered compatible with type `B` if `A` == `B`, if `B` is a variant of `A`,
-		 * or if `B` is a parent of `A`. If `A` is compatible with `B`,
-		 * reference of type `A` can be implicitly cast to a reference of type `B`.
+		 * or if `B` is a parent of `A`. If `A` is compatible with `B`.
+		 * Reference of type `A` can be safely cast to a reference of type `B`.
 		 *
 		 * @param id Id of the type to check for compatibility with.
 		 * @return true if the type is compatible with `id` type, false otherwise. */
@@ -656,8 +655,8 @@ namespace sek
 		/** Checks if the type is compatible with a specific type.
 		 *
 		 * Type `A` is considered compatible with type `B` if `A` == `B`, if `B` is a variant of `A`,
-		 * or if `B` is a parent of `A`. If `A` is compatible with `B`,
-		 * reference of type `A` can be implicitly cast to a reference of type `B`.
+		 * or if `B` is a parent of `A`. If `A` is compatible with `B`.
+		 * Reference of type `A` can be safely cast to a reference of type `B`.
 		 *
 		 * @tparam T Type to check for compatibility with.
 		 * @return true if the type is compatible with `T`, false otherwise. */
@@ -686,10 +685,6 @@ namespace sek
 			return data->template has_attribute<T>();
 		}
 		/** Returns attribute of a specific type.
-		 * @param id Id of the attribute's type.
-		 * @return `any` instance referencing the attribute if such attribute is present. Otherwise, and empty `any` instance. */
-		[[nodiscard]] constexpr any get_attribute(type_id id) const noexcept;
-		/** Returns attribute of a specific type.
 		 * @tparam T Attribute's type.
 		 * @return Pointer to attribute's data if such attribute is present, nullptr otherwise. */
 		template<typename T>
@@ -697,7 +692,7 @@ namespace sek
 		{
 			constexpr auto id = type_id::identify<T>();
 			if (auto node = data->get_attribute(id); node != nullptr) [[likely]]
-				return static_cast<T *>(node->data);
+				return static_cast<const T *>(node->data);
 			else
 				return nullptr;
 		}
@@ -709,7 +704,7 @@ namespace sek
 		}
 		/** Checks if the type has a constructor invocable with the specified argument types.
 		 * @param args_first Iterator to the start of the argument type sequence.
-		 * @param args_first Iterator to the end of the argument type sequence.
+		 * @param args_last Iterator to the end of the argument type sequence.
 		 * @return true if the type is constructible, false otherwise. */
 		template<forward_iterator_for<type_info> I>
 		[[nodiscard]] constexpr bool constructible_with(I args_first, I args_last) const
@@ -762,8 +757,8 @@ namespace sek
  * ``` */
 #define SEK_EXPORT_TYPE(T)                                                                                             \
 	template<>                                                                                                         \
-	constexpr bool sek::data_t::instance<T>::is_exported = true;                                                       \
-	extern template struct SEK_API_IMPORT sek::data_t::instance<T>;
+	constexpr bool sek::detail::is_exported_type<T> = true;                                                            \
+	extern template struct SEK_API_IMPORT sek::detail::type_data::instance<T>;
 
 #define SEK_DECLARE_TYPE_2(T, name)                                                                                    \
 	SEK_SET_TYPE_ID(T, name)                                                                                           \
@@ -794,27 +789,26 @@ namespace sek
  *
  * @warning Types that have a factory must be exported via `SEK_EXPORT_TYPE`,
  * failing to do so may result in compilation/linking errors. */
-#define SEK_TYPE_FACTORY(T)                                                                                            \
-	static_assert(sek::data_t::instance<T>::is_exported,                                                               \
-				  "Type must be exported for type factory to work & be linked correctly");                             \
-	template struct SEK_API_EXPORT sek::data_t::instance<T>;                                                           \
-	namespace                                                                                                          \
-	{                                                                                                                  \
-		template<typename U>                                                                                           \
-		struct sek_type_factory : sek::detail::type_factory_base<U>                                                    \
-		{                                                                                                              \
-			static void invoke() noexcept;                                                                             \
-                                                                                                                       \
-			static const sek_type_factory instance;                                                                    \
-                                                                                                                       \
-			sek_type_factory() noexcept { invoke(); }                                                                  \
-		};                                                                                                             \
-		template<typename U>                                                                                           \
-		const sek_type_factory<U> sek_type_factory<U>::instance = {};                                                  \
-                                                                                                                       \
-		template<>                                                                                                     \
-		void sek_type_factory<T>::invoke() noexcept;                                                                   \
-		template struct sek_type_factory<T>;                                                                           \
-	}                                                                                                                  \
-	template<>                                                                                                         \
+#define SEK_TYPE_FACTORY(T)                                                                                                  \
+	static_assert(sek::detail::is_exported_type<T>, "Type must be exported for type factory to work & be linked correctly"); \
+	template struct SEK_API_EXPORT sek::detail::type_data::instance<T>;                                                      \
+	namespace                                                                                                                \
+	{                                                                                                                        \
+		template<typename U>                                                                                                 \
+		struct sek_type_factory : sek::detail::type_factory_base<U>                                                          \
+		{                                                                                                                    \
+			static void invoke() noexcept;                                                                                   \
+                                                                                                                             \
+			static const sek_type_factory instance;                                                                          \
+                                                                                                                             \
+			sek_type_factory() noexcept { invoke(); }                                                                        \
+		};                                                                                                                   \
+		template<typename U>                                                                                                 \
+		const sek_type_factory<U> sek_type_factory<U>::instance = {};                                                        \
+                                                                                                                             \
+		template<>                                                                                                           \
+		void sek_type_factory<T>::invoke() noexcept;                                                                         \
+		template struct sek_type_factory<T>;                                                                                 \
+	}                                                                                                                        \
+	template<>                                                                                                               \
 	void sek_type_factory<T>::invoke() noexcept

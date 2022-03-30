@@ -462,9 +462,9 @@ namespace sek::adt
 			return value;
 		}
 		/** Deserializes an instance of an object using it's `serializable_as_attribute` attribute.
-		 * @param value `any_ref` referencing the object to be deserialized.
+		 * @param value Reference to the `any` instance storing the object to be deserialized.
 		 * @throw bad_type_exception If the referenced type does not have `serializable_as_attribute` attribute. */
-		void get(sek::any_ref value) const;
+		void get(sek::any &value) const;
 
 		/** Serializes an instance of specified type into the node.
 		 * @param value Reference to the value to be serialized.
@@ -476,10 +476,10 @@ namespace sek::adt
 			return *this;
 		}
 		/** Serializes an instance of an object using it's `serializable_as_attribute` attribute.
-		 * @param value `any_ref` referencing the object to be serialized.
+		 * @param value Reference to the `any` instance storing the object to be serialized.
 		 * @return Reference to this node.
 		 * @throw bad_type_exception If the referenced type does not have `serializable_as_attribute` attribute. */
-		node &set(sek::any_ref value);
+		node &set(const sek::any &value);
 
 		/** Checks if the node contains a bool. */
 		[[nodiscard]] constexpr bool is_bool() const noexcept { return state() == state_type::BOOL; }
