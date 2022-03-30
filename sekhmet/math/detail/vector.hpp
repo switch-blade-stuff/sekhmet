@@ -267,7 +267,7 @@ namespace sek::math
 	template<std::size_t N, std::size_t M, typename T>
 	[[nodiscard]] constexpr vector<T, N> vector_cast(const vector<T, M> &src) noexcept
 	{
-		constexpr auto make_vector = []<size_t... Is>(std::index_sequence<Is...>, const vector<T, M> &src)
+		constexpr auto make_vector = []<std::size_t... Is>(std::index_sequence<Is...>, const vector<T, M> &src)
 		{
 			constexpr auto extract = []<std::size_t I>(const vector<T, M> &src)
 			{

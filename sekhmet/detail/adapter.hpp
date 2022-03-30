@@ -147,7 +147,7 @@ namespace sek
 	 *
 	 * Ex:
 	 * ```cpp
-	 * 		struct size_proxy : adapter_proxy<size_t()>
+	 * 		struct size_proxy : adapter_proxy<std::size_t()>
 	 * 		{
 	 * 			template<typename T>
 	 * 			std::size_t operator()(const T &ptr) const noexcept { return ptr.size(); }

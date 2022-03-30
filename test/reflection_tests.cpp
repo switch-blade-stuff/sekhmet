@@ -35,7 +35,7 @@ TEST(reflection_tests, type_info_test)
 	sek::type_info::type_guard<test_child> g{};
 
 	auto type = sek::type_info::get("test_child"_tid);
-	EXPECT_TRUE(type.valid());
+	EXPECT_TRUE(type.empty());
 	EXPECT_FALSE(type.is_const());
 	EXPECT_FALSE(type.is_volatile());
 	EXPECT_FALSE(type.is_cv());

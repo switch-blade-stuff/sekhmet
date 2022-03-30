@@ -55,7 +55,7 @@ namespace sek
 		 * And only if the hashes compare equal a key comparison (and thus an indirection) would be needed (since there could be hash contention).
 		 * This way bucket search operations would take advantage of the cached array without storing values in-place.nn
 		 *
-		 * Storing an in-place hash would only have overhead of sizeof(size_t) and no runtime calculation overhead,
+		 * Storing an in-place hash would only have overhead of sizeof(std::size_t) and no runtime calculation overhead,
 		 * since hash calculation is already required for bucket lookup.nn
 		 *
 		 * A disadvantage to using a single open addressed array over a linked list and array of buckets is that you loose

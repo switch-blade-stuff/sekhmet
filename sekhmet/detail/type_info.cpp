@@ -68,7 +68,7 @@ namespace sek
 
 	bool type_info::register_type(type_info type)
 	{
-		if (!type.valid()) [[unlikely]]
+		if (type.empty()) [[unlikely]]
 			return false;
 
 		auto &db = type_db::get();
@@ -78,7 +78,7 @@ namespace sek
 	}
 	bool type_info::deregister_type(type_info type)
 	{
-		if (!type.valid()) [[unlikely]]
+		if (type.empty()) [[unlikely]]
 			return false;
 
 		auto &db = type_db::get();

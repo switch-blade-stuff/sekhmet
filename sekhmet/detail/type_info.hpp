@@ -15,7 +15,6 @@
 namespace sek
 {
 	class any;
-	class any_ref;
 
 	/** @brief Exception thrown when a type is invalid or incompatible with another. */
 	class bad_type_exception : engine_exception
@@ -36,6 +35,8 @@ namespace sek
 	/** @brief Structure used to represent information about a type. */
 	class type_info
 	{
+		using data_t = detail::type_data;
+
 	public:
 		/** Adds a type to runtime lookup database.
 		 * @param type Type info of the type to add to runtime database.
@@ -85,7 +86,7 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] constexpr static type_info get() noexcept
 		{
-			return type_info{&detail::type_data::instance<T>::value};
+			return type_info{&data_t::instance<T>::value};
 		}
 		/** Looks up a type within the runtime lookup database.
 		 * @tparam tid Id of the type to search for.
@@ -96,37 +97,365 @@ namespace sek
 		[[nodiscard]] static std::vector<type_info> all();
 
 	private:
-		constexpr explicit type_info(detail::type_data::handle data) noexcept : data(data) {}
-
 		template<std::forward_iterator Iter>
-		requires std::same_as<std::iter_value_t<Iter>, detail::type_data>
-		struct type_info_extractor
+		requires std::same_as<std::iter_value_t<Iter>, data_t>
+		struct type_info_iterator
 		{
-			typedef typename std::iterator_traits<Iter>::difference_type difference_type;
-			typedef type_info value_type;
-			typedef type_info reference;
-			typedef std::forward_iterator_tag iterator_category;
+			type_info_iterator() = delete;
+			constexpr explicit type_info_iterator(Iter value) : value(value) {}
 
-			type_info_extractor() = delete;
-			constexpr explicit type_info_extractor(Iter value) : value(value) {}
-
-			constexpr type_info_extractor operator++(int) noexcept { return type_info_extractor{value++}; }
-			constexpr type_info_extractor &operator++() noexcept
+			constexpr type_info_iterator operator++(int) noexcept { return type_info_iterator{value++}; }
+			constexpr type_info_iterator &operator++() noexcept
 			{
 				++value;
 				return *this;
 			}
 
 			[[nodiscard]] constexpr type_info operator*() const noexcept { return type_info{*value}; }
+			[[nodiscard]] constexpr bool operator==(const type_info_iterator &) const noexcept = default;
 
 			Iter value;
 		};
 
+		class parent_iterator;
+		class attribute_iterator;
+
+	public:
+		class constructor_info;
+
+		/** @brief Structure containing type information of a function's signature. */
+		class signature_info
+		{
+			friend class constructor_info;
+
+		public:
+			typedef type_info value_type;
+			typedef type_info reference;
+			typedef type_info const_reference;
+			typedef std::size_t size_type;
+			typedef std::ptrdiff_t difference_type;
+
+		private:
+			class arg_type_iterator
+			{
+				friend class signature_info;
+
+			public:
+				typedef type_info value_type;
+				typedef type_info reference;
+				typedef std::ptrdiff_t difference_type;
+				typedef std::contiguous_iterator_tag iterator_category;
+
+			private:
+				constexpr explicit arg_type_iterator(const data_t::handle *ptr) noexcept : type_data(ptr) {}
+
+			public:
+				constexpr arg_type_iterator() noexcept = default;
+
+				constexpr arg_type_iterator operator++(int) noexcept
+				{
+					auto temp = *this;
+					++type_data;
+					return temp;
+				}
+				constexpr arg_type_iterator &operator++() noexcept
+				{
+					++type_data;
+					return *this;
+				}
+				constexpr arg_type_iterator &operator+=(difference_type n) noexcept
+				{
+					type_data += n;
+					return *this;
+				}
+				constexpr arg_type_iterator operator--(int) noexcept
+				{
+					auto temp = *this;
+					--type_data;
+					return temp;
+				}
+				constexpr arg_type_iterator &operator--() noexcept
+				{
+					--type_data;
+					return *this;
+				}
+				constexpr arg_type_iterator &operator-=(difference_type n) noexcept
+				{
+					type_data -= n;
+					return *this;
+				}
+
+				[[nodiscard]] constexpr arg_type_iterator operator+(difference_type n) const noexcept
+				{
+					return arg_type_iterator{type_data + n};
+				}
+				[[nodiscard]] constexpr arg_type_iterator operator-(difference_type n) const noexcept
+				{
+					return arg_type_iterator{type_data - n};
+				}
+				[[nodiscard]] constexpr difference_type operator-(const arg_type_iterator &other) const noexcept
+				{
+					return type_data - other.type_data;
+				}
+
+				[[nodiscard]] constexpr auto operator*() const noexcept { return type_info{*type_data}; }
+				[[nodiscard]] constexpr auto operator[](difference_type i) const noexcept
+				{
+					return type_info{type_data[i]};
+				}
+
+				[[nodiscard]] constexpr auto operator<=>(const arg_type_iterator &) const noexcept = default;
+				[[nodiscard]] constexpr bool operator==(const arg_type_iterator &) const noexcept = default;
+
+			private:
+				const data_t::handle *type_data;
+			};
+
+		public:
+			typedef arg_type_iterator iterator;
+			typedef arg_type_iterator const_iterator;
+			typedef std::reverse_iterator<iterator> reverse_iterator;
+			typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+
+		private:
+			constexpr explicit signature_info(data_t::handle ret, const data_t::handle *args, size_type args_n) noexcept
+				: ret(ret), args(args), args_n(args_n)
+			{
+			}
+
+		public:
+			constexpr signature_info() noexcept = default;
+
+			/** Returns the return type of the signature.
+			 * If a signature does not have a return type (ex. if it is a constructor signature),
+			 * returns an empty type info. */
+			[[nodiscard]] constexpr type_info return_type() const noexcept { return type_info{ret}; }
+
+			/** Returns the amount of arguments of the signature. */
+			[[nodiscard]] constexpr size_type arg_count() const noexcept { return args_n; }
+			/** @copydoc arg_count */
+			[[nodiscard]] constexpr size_type size() const noexcept { return arg_count(); }
+			/** Returns maximum amount of arguments of the signature. */
+			[[nodiscard]] constexpr size_type max_size() const noexcept
+			{
+				return std::numeric_limits<size_type>::max();
+			}
+
+			/** Returns iterator to the first argument type of the signature. */
+			[[nodiscard]] constexpr iterator begin() const noexcept { return iterator{args}; }
+			/** @copydoc begin */
+			[[nodiscard]] constexpr iterator cbegin() const noexcept { return begin(); }
+			/** Returns iterator one past the last argument type of the signature. */
+			[[nodiscard]] constexpr iterator end() const noexcept { return iterator{args + size()}; }
+			/** @copydoc end */
+			[[nodiscard]] constexpr iterator cend() const noexcept { return end(); }
+
+			/** Returns reverse iterator to the last argument of the signature. */
+			[[nodiscard]] constexpr reverse_iterator rbegin() const noexcept { return reverse_iterator{end()}; }
+			/** @copydoc rbegin */
+			[[nodiscard]] constexpr reverse_iterator crbegin() const noexcept { return rbegin(); }
+			/** Returns reverse iterator one past the first argument of the signature. */
+			[[nodiscard]] constexpr reverse_iterator rend() const noexcept { return reverse_iterator{begin()}; }
+			/** @copydoc rend */
+			[[nodiscard]] constexpr reverse_iterator crend() const noexcept { return rend(); }
+
+			/** Returns type info of the first argument of the signature. */
+			[[nodiscard]] constexpr type_info front() const noexcept { return type_info{*args}; }
+			/** Returns type info of the last argument of the signature. */
+			[[nodiscard]] constexpr type_info back() const noexcept { return type_info{*(args + size() - 1)}; }
+			/** Returns type info of the nth argument of the signature. */
+			[[nodiscard]] constexpr type_info at(size_type n) const noexcept { return type_info{*(args + n)}; }
+			/** @copydoc at */
+			[[nodiscard]] constexpr type_info operator[](size_type n) const noexcept { return at(n); }
+
+			[[nodiscard]] constexpr bool operator==(const signature_info &other) const noexcept
+			{
+				return return_type() == other.return_type() && std::equal(begin(), end(), other.begin(), other.end());
+			}
+
+		private:
+			data_t::handle ret = {};
+			const data_t::handle *args = nullptr;
+			size_type args_n = 0;
+		};
+		/** @brief Structure containing information about a type's constructor. */
+		class constructor_info
+		{
+			friend class attribute_iterator;
+
+			constexpr explicit constructor_info(const data_t::type_ctor *ptr) noexcept : ctor(ptr) {}
+
+		public:
+			constructor_info() = delete;
+
+			/** Returns signature of the constructor.
+			 * @note Returned signature will always have an empty return type. */
+			[[nodiscard]] constexpr signature_info signature() const noexcept
+			{
+				return signature_info{data_t::handle{}, ctor->arg_types.data(), ctor->arg_types.size()};
+			}
+
+			/* TODO: Implement constructor invocation. */
+
+			/** Invokes constructor for the passed object & arguments.
+			 *
+			 * @warning Passed object's type must be constructible using this constructor,
+			 * passing an invalid object will result in undefined behavior. */
+			template<typename T, typename... Args>
+			void invoke(T *ptr, Args &&...args) const
+			{
+				ctor->invoke(static_cast<void *>(ptr), std::forward<Args>(args)...);
+			}
+
+		private:
+			const data_t::type_ctor *ctor;
+		};
+		/** @brief Structure containing information about a type's attribute. */
+		class attribute_info
+		{
+			friend class attribute_iterator;
+
+			constexpr explicit attribute_info(const data_t::type_attribute *ptr) noexcept : attribute(ptr) {}
+
+		public:
+			attribute_info() = delete;
+
+			/** Returns type info of the attribute's type. */
+			[[nodiscard]] constexpr type_info type() const noexcept { return type_info{attribute->type}; }
+			/** Returns type id of the attribute's type. */
+			[[nodiscard]] constexpr type_id tid() const noexcept { return attribute->type->tid; }
+
+			/** Returns void pointer to raw attribute data. */
+			[[nodiscard]] constexpr const void *data() const noexcept { return attribute->data; }
+			/** Returns `any` instance containing reference to the attribute data. */
+			[[nodiscard]] constexpr any get() const noexcept;
+
+		private:
+			const data_t::type_attribute *attribute;
+		};
+
+	private:
+		template<typename Node, typename Iterator, typename Handle>
+		class type_data_view
+		{
+			friend class type_info;
+
+		public:
+			typedef Handle value_type;
+			typedef Handle reference;
+			typedef Handle const_reference;
+			typedef Iterator iterator;
+			typedef Iterator const_iterator;
+			typedef std::size_t size_type;
+			typedef std::ptrdiff_t difference_type;
+
+		private:
+			using view_data_t = data_t::type_node_view<Node>;
+
+			constexpr explicit type_data_view(view_data_t data) noexcept : data(std::move(data)) {}
+
+		public:
+			constexpr type_data_view() noexcept = default;
+
+			/** Returns iterator to the start of the view. */
+			[[nodiscard]] constexpr iterator begin() const noexcept { return iterator{data.begin()}; }
+			/** @copydoc begin */
+			[[nodiscard]] constexpr iterator cbegin() const noexcept { return begin(); }
+			/** Returns iterator to the end of the view. */
+			[[nodiscard]] constexpr iterator end() const noexcept { return iterator{data.end()}; }
+			/** @copydoc end */
+			[[nodiscard]] constexpr iterator cend() const noexcept { return end(); }
+
+			/** Returns element at the front of the view. */
+			[[nodiscard]] constexpr reference front() const noexcept { return *begin(); }
+
+			/** Returns the size of the view. */
+			[[nodiscard]] constexpr size_type size() const noexcept { return data.size(); }
+			/** Returns the max size of the view. */
+			[[nodiscard]] constexpr size_type max_size() const noexcept { return data.max_size(); }
+			/** Checks if the view is empty. */
+			[[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
+
+		private:
+			view_data_t data;
+		};
+
+		class attribute_iterator : data_t::type_node_iterator<data_t::type_attribute>
+		{
+			using base_t = data_t::type_node_iterator<data_t::type_attribute>;
+
+		public:
+			typedef attribute_info value_type;
+			typedef attribute_info reference;
+			typedef std::ptrdiff_t difference_type;
+			typedef std::forward_iterator_tag iterator_category;
+
+		private:
+			constexpr explicit attribute_iterator(base_t value) noexcept : base_t(value) {}
+
+		public:
+			constexpr attribute_iterator() noexcept = default;
+
+			constexpr attribute_iterator operator++(int) noexcept
+			{
+				auto result = *this;
+				base_t::move_next();
+				return result;
+			}
+			constexpr attribute_iterator &operator++() noexcept
+			{
+				base_t::move_next();
+				return *this;
+			}
+
+			[[nodiscard]] constexpr auto operator*() const noexcept { return attribute_info{base_t::node}; }
+
+			[[nodiscard]] constexpr bool operator==(const attribute_iterator &) const noexcept = default;
+		};
+		class parent_iterator : data_t::type_node_iterator<data_t::type_parent>
+		{
+			using base_t = data_t::type_node_iterator<data_t::type_parent>;
+
+		public:
+			typedef type_info value_type;
+			typedef type_info reference;
+			typedef std::ptrdiff_t difference_type;
+			typedef std::forward_iterator_tag iterator_category;
+
+		private:
+			constexpr explicit parent_iterator(base_t value) noexcept : base_t(value) {}
+
+		public:
+			constexpr parent_iterator() noexcept = default;
+
+			constexpr parent_iterator operator++(int) noexcept
+			{
+				auto result = *this;
+				base_t::move_next();
+				return result;
+			}
+			constexpr parent_iterator &operator++() noexcept
+			{
+				base_t::move_next();
+				return *this;
+			}
+
+			[[nodiscard]] constexpr auto operator*() const noexcept { return type_info{base_t::node->type}; }
+
+			[[nodiscard]] constexpr bool operator==(const parent_iterator &) const noexcept = default;
+		};
+
+		using attribute_view = type_data_view<data_t::type_attribute, attribute_iterator, attribute_info>;
+		using parent_view = type_data_view<data_t::type_parent, parent_iterator, type_info>;
+
+	private:
+		constexpr explicit type_info(data_t::handle data) noexcept : data(data) {}
+
 	public:
 		constexpr type_info() noexcept = default;
 
-		/** Checks if the type info is valid. */
-		[[nodiscard]] constexpr bool valid() const noexcept { return !data.empty(); }
+		/** Checks if the type info is empty (does not describe any type). */
+		[[nodiscard]] constexpr bool empty() const noexcept { return data.empty(); }
 
 		/** Returns id of the type. */
 		[[nodiscard]] type_id tid() const noexcept { return data->tid; }
@@ -141,44 +470,32 @@ namespace sek
 		[[nodiscard]] std::size_t alignment() const noexcept { return data->alignment; }
 
 		/** Checks if the type is const-qualified. */
-		[[nodiscard]] bool is_const() const noexcept { return data->variant_type & detail::type_data::VARIANT_CONST; }
+		[[nodiscard]] bool is_const() const noexcept { return data->variant_type & data_t::VARIANT_CONST; }
 		/** Checks if the type is volatile-qualified. */
-		[[nodiscard]] bool is_volatile() const noexcept
-		{
-			return data->variant_type & detail::type_data::VARIANT_VOLATILE;
-		}
+		[[nodiscard]] bool is_volatile() const noexcept { return data->variant_type & data_t::VARIANT_VOLATILE; }
 		/** Checks if the type is cv-qualified. */
-		[[nodiscard]] bool is_cv() const noexcept
-		{
-			return data->variant_type == detail::type_data::VARIANT_CONST_VOLATILE;
-		}
+		[[nodiscard]] bool is_cv() const noexcept { return data->variant_type == data_t::VARIANT_CONST_VOLATILE; }
 
 		/** Checks if the type is a qualified variant of another type.
 		 * @return true if the type is a qualified variant, false otherwise. */
-		[[nodiscard]] bool is_variant() const noexcept
-		{
-			return !data->variants[detail::type_data::VARIANT_PARENT].empty();
-		}
+		[[nodiscard]] bool is_variant() const noexcept { return !data->variants[data_t::VARIANT_PARENT].empty(); }
 		/** If the type is a qualified variant, returns the unqualified "parent" type.
 		 * Otherwise, returns an empty type info. */
 		[[nodiscard]] type_info get_variant_parent() const noexcept
 		{
-			return type_info{data->variants[detail::type_data::VARIANT_PARENT]};
+			return type_info{data->variants[data_t::VARIANT_PARENT]};
 		}
 
 		/** Checks if the type has a const-qualified variant.
 		 * @return true if the type has a const-qualified variant, false otherwise.
 		 * @note If the type itself is const-qualified, it does not have a const-qualified variant. */
-		[[nodiscard]] bool has_const_variant() const noexcept
-		{
-			return !data->variants[detail::type_data::VARIANT_CONST].empty();
-		}
+		[[nodiscard]] bool has_const_variant() const noexcept { return !data->variants[data_t::VARIANT_CONST].empty(); }
 		/** Returns type info of the const-qualified variant of the type.
 		 * @return Type info of the const-qualified variant if such variant is present, empty type info otherwise.
 		 * @note If the type itself is const-qualified, it does not have a const-qualified variant. */
 		[[nodiscard]] type_info get_const_variant() const noexcept
 		{
-			return type_info{data->variants[detail::type_data::VARIANT_CONST]};
+			return type_info{data->variants[data_t::VARIANT_CONST]};
 		}
 
 		/** Checks if the type has a volatile-qualified variant.
@@ -186,14 +503,14 @@ namespace sek
 		 * @note If the type itself is volatile-qualified, it does not have a volatile-qualified variant. */
 		[[nodiscard]] bool has_volatile_variant() const noexcept
 		{
-			return !data->variants[detail::type_data::VARIANT_VOLATILE].empty();
+			return !data->variants[data_t::VARIANT_VOLATILE].empty();
 		}
 		/** Returns type info of the volatile-qualified variant of the type.
 		 * @return Type info of the volatile-qualified variant if such variant is present, empty type info otherwise.
 		 * @note If the type itself is volatile-qualified, it does not have a volatile-qualified variant. */
 		[[nodiscard]] type_info get_volatile_variant() const noexcept
 		{
-			return type_info{data->variants[detail::type_data::VARIANT_VOLATILE]};
+			return type_info{data->variants[data_t::VARIANT_VOLATILE]};
 		}
 
 		/** Checks if the type has a cv-qualified variant.
@@ -201,14 +518,14 @@ namespace sek
 		 * @note If the type itself is either const or volatile-qualified, it does not have a cv-qualified variant. */
 		[[nodiscard]] bool has_cv_variant() const noexcept
 		{
-			return !data->variants[detail::type_data::VARIANT_CONST_VOLATILE].empty();
+			return !data->variants[data_t::VARIANT_CONST_VOLATILE].empty();
 		}
 		/** Returns type info of the cv-qualified variant of the type.
 		 * @return Type info of the cv-qualified variant if such variant is present, empty type info otherwise.
 		 * @note If the type itself is either const or volatile-qualified, it does not have a cv-qualified variant. */
 		[[nodiscard]] type_info get_cv_variant() const noexcept
 		{
-			return type_info{data->variants[detail::type_data::VARIANT_CONST_VOLATILE]};
+			return type_info{data->variants[data_t::VARIANT_CONST_VOLATILE]};
 		}
 
 		/** Checks if the type has a variant of a specific type.
@@ -230,6 +547,8 @@ namespace sek
 			return has_variant(id);
 		}
 
+		/** Returns a view containing parents of the type. */
+		[[nodiscard]] parent_view get_parents() const noexcept { return parent_view{data->get_parent_view()}; }
 		/** Checks if the type has a parent of a specific type.
 		 * @param id Id of the parent type.
 		 * @return true if the type has a parent of `id` type, false otherwise. */
@@ -270,6 +589,11 @@ namespace sek
 			return compatible_with(id);
 		}
 
+		/** Returns a view containing attributes of the type. */
+		[[nodiscard]] attribute_view get_attributes() const noexcept
+		{
+			return attribute_view{data->get_attribute_view()};
+		}
 		/** Checks if the type has an attribute of a specific type.
 		 * @param id Id of the attribute's type.
 		 * @return true if the type has an attribute of `id` type, false otherwise. */
@@ -284,8 +608,8 @@ namespace sek
 		}
 		/** Returns attribute of a specific type.
 		 * @param id Id of the attribute's type.
-		 * @return `any_ref` instance referencing the attribute if such attribute is present. Otherwise, and empty `any_ref` instance. */
-		[[nodiscard]] any_ref get_attribute(type_id id) const noexcept;
+		 * @return `any` instance referencing the attribute if such attribute is present. Otherwise, and empty `any` instance. */
+		[[nodiscard]] any get_attribute(type_id id) const noexcept;
 		/** Returns attribute of a specific type.
 		 * @tparam T Attribute's type.
 		 * @return Pointer to attribute's data if such attribute is present, nullptr otherwise. */
@@ -306,7 +630,7 @@ namespace sek
 		template<std::forward_iterator I>
 		[[nodiscard]] bool constructible_with(I args_first, I args_last) const requires std::same_as<std::iter_value_t<I>, type_info>
 		{
-			return data->has_ctor(type_info_extractor{args_first}, type_info_extractor{args_last});
+			return data->has_ctor(type_info_iterator{args_first}, type_info_iterator{args_last});
 		}
 		/** Checks if the type has a constructor invocable with the specified argument types.
 		 * @param args Range containing argument types.
@@ -325,9 +649,17 @@ namespace sek
 			return data->template has_ctor<Args...>();
 		}
 
+		[[nodiscard]] constexpr bool operator==(const type_info &other) const noexcept
+		{
+			if (!empty() && !other.empty()) [[likely]]
+				return data == other.data;
+			else
+				return empty() == other.empty();
+		}
+
 	private:
 		/** Handle to type's type_data instance. */
-		detail::type_data::handle data = {};
+		data_t::handle data = {};
 	};
 }	 // namespace sek
 
@@ -346,8 +678,8 @@ namespace sek
  * ``` */
 #define SEK_EXPORT_TYPE(T)                                                                                             \
 	template<>                                                                                                         \
-	constexpr bool sek::detail::type_data::instance<T>::is_exported = true;                                            \
-	extern template struct SEK_API_IMPORT sek::detail::type_data::instance<T>;
+	constexpr bool sek::data_t::instance<T>::is_exported = true;                                                       \
+	extern template struct SEK_API_IMPORT sek::data_t::instance<T>;
 
 #define SEK_DECLARE_TYPE_2(T, name)                                                                                    \
 	SEK_SET_TYPE_ID(T, name)                                                                                           \
@@ -379,9 +711,9 @@ namespace sek
  * @warning Types that have a factory must be exported via `SEK_EXPORT_TYPE`,
  * failing to do so may result in compilation/linking errors. */
 #define SEK_TYPE_FACTORY(T)                                                                                            \
-	static_assert(sek::detail::type_data::instance<T>::is_exported,                                                    \
+	static_assert(sek::data_t::instance<T>::is_exported,                                                               \
 				  "Type must be exported for type factory to work & be linked correctly");                             \
-	template struct SEK_API_EXPORT sek::detail::type_data::instance<T>;                                                \
+	template struct SEK_API_EXPORT sek::data_t::instance<T>;                                                           \
 	namespace                                                                                                          \
 	{                                                                                                                  \
 		template<typename U>                                                                                           \

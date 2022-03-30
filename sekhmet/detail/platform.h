@@ -93,10 +93,10 @@
 
 #ifndef SSIZE_MAX
 #if SIZE_MAX > INT32_MAX
-typedef int64_t ssize_t;
+typedef int64_t sstd::size_t;
 #define SSIZE_MAX INT64_MAX
 #else
-typedef int32_t ssize_t;
+typedef int32_t sstd::size_t;
 #define SSIZE_MAX INT32_MAX
 #endif
 #endif

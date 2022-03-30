@@ -33,11 +33,7 @@ namespace sek::detail
 			constexpr type_node_iterator() noexcept = default;
 			constexpr explicit type_node_iterator(const Node *node) noexcept : node(node) {}
 
-			constexpr type_node_iterator &move_next() noexcept
-			{
-				node = node->next;
-				return *this;
-			}
+			constexpr void move_next() noexcept { node = node->next; }
 
 			[[nodiscard]] constexpr bool operator==(const type_node_iterator &) const noexcept = default;
 
@@ -47,16 +43,19 @@ namespace sek::detail
 		struct type_node_view
 		{
 			constexpr type_node_view() noexcept = default;
-			constexpr explicit type_node_view(const Node *start, size_t count) noexcept : start(start), count(count) {}
+			constexpr explicit type_node_view(const Node *start, std::size_t count) noexcept
+				: start(start), count(count)
+			{
+			}
 
 			[[nodiscard]] constexpr auto begin() const noexcept { return type_node_iterator<Node>{start}; }
 			[[nodiscard]] constexpr auto end() const noexcept { return type_node_iterator<Node>{}; }
 
 			[[nodiscard]] constexpr auto size() const noexcept { return count; }
-			[[nodiscard]] constexpr auto max_size() const noexcept { return std::numeric_limits<size_t>::max(); }
+			[[nodiscard]] constexpr auto max_size() const noexcept { return std::numeric_limits<std::size_t>::max(); }
 
 			const Node *start = nullptr;
-			size_t count = 0;
+			std::size_t count = 0;
 		};
 
 		enum variant_type_t
@@ -314,7 +313,7 @@ namespace sek::detail
 		{
 		}
 
-		template<std::forward_iterator Iter>
+		template<typename Iter>
 		[[nodiscard]] constexpr const type_ctor *get_ctor(Iter first, Iter last) const noexcept
 		{
 			constexpr auto pred = [](handle a, type_id b) -> bool { return a->tid == b; };
@@ -389,10 +388,23 @@ namespace sek::detail
 			++attribute_count;
 		}
 
+		[[nodiscard]] constexpr type_node_view<type_ctor> get_ctor_view() const noexcept
+		{
+			return type_node_view<type_ctor>{constructor_list, constructor_count};
+		}
+		[[nodiscard]] constexpr type_node_view<type_parent> get_parent_view() const noexcept
+		{
+			return type_node_view<type_parent>{parent_list, parent_count};
+		}
+		[[nodiscard]] constexpr type_node_view<type_attribute> get_attribute_view() const noexcept
+		{
+			return type_node_view<type_attribute>{attribute_list, attribute_count};
+		}
+
 		type_id tid;
 
-		size_t size;
-		size_t alignment;
+		std::size_t size;
+		std::size_t alignment;
 
 		variant_type_t variant_type;
 		handle variants[VARIANTS_MAX];
@@ -400,13 +412,13 @@ namespace sek::detail
 		const type_dtor *destructor;
 
 		const type_ctor *constructor_list;
-		size_t constructor_count;
+		std::size_t constructor_count;
 
 		const type_parent *parent_list;
-		size_t parent_count;
+		std::size_t parent_count;
 
 		const type_attribute *attribute_list;
-		size_t attribute_count;
+		std::size_t attribute_count;
 	};
 
 	template<typename T>
