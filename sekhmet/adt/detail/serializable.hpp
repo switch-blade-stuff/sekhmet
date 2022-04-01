@@ -70,14 +70,14 @@ namespace sek::adt
 		if (auto attr = value.type().get_attribute<serializable_as_attribute>(); attr == nullptr) [[unlikely]]
 			throw sek::bad_type_exception("Missing `serializable_as_attribute` attribute");
 		else
-			attr->deserialize(*this, value.to_ref());
+			attr->deserialize(*this, value.as_ref());
 	}
 	inline node &node::set(const sek::any &value)
 	{
 		if (auto attr = value.type().get_attribute<serializable_as_attribute>(); attr == nullptr) [[unlikely]]
 			throw sek::bad_type_exception("Missing `serializable_as_attribute` attribute");
 		else
-			attr->serialize(*this, value.to_ref());
+			attr->serialize(*this, value.as_ref());
 		return *this;
 	}
 }	 // namespace sek::adt

@@ -18,7 +18,7 @@ TEST(reflection_tests, factory_test)
 	auto templated_get_name = sek::type_info::get<test_child>().tid().name().data();
 
 	EXPECT_EQ(runtime_get_name, templated_get_name);
-	//EXPECT_NE(runtime_get_name, sek::type_name<test_child>().data());
+	// EXPECT_NE(runtime_get_name, sek::type_name<test_child>().data());
 	EXPECT_TRUE(test_child::factory_invoked);
 
 	auto type = sek::type_info::get<test_child>();
@@ -47,14 +47,16 @@ TEST(reflection_tests, type_info_test)
 	EXPECT_TRUE(type.constructible_with<std::reference_wrapper<const test_child>>());
 	EXPECT_TRUE(type.constructible_with<double>());
 
-	//	sek::type_storage<test_child> s1;
-	//	EXPECT_THROW(type.construct<int>(s1.data(), 0), sek::bad_type_exception);
-	//	EXPECT_NO_THROW(type.construct<double>(s1.data(), 9.9));
-	//	EXPECT_EQ(s1.get<test_child>()->d, 9.9);
-	//
-	//	test_child s2;
-	//	EXPECT_NO_THROW(type.construct<std::reference_wrapper<const test_child>>(&s2, {*s1.get<test_child>()}));
-	//	EXPECT_EQ(s2.d, 9.9);
+	sek::type_storage<test_child> s1;
+	auto ctors = type.get_constructors();
+
+	EXPECT_THROW(type.construct<int>(s1.data(), 0), sek::bad_type_exception);
+	EXPECT_NO_THROW(type.construct<double>(s1.data(), 9.9));
+	EXPECT_EQ(s1.get<test_child>()->d, 9.9);
+
+	test_child s2;
+	EXPECT_NO_THROW(type.construct<std::reference_wrapper<const test_child>>(&s2, {*s1.get<test_child>()}));
+	EXPECT_EQ(s2.d, 9.9);
 }
 
 TEST(reflection_tests, any_test)
@@ -72,7 +74,7 @@ TEST(reflection_tests, any_test)
 	EXPECT_TRUE(any.contains<int>());
 	EXPECT_EQ(*any.as<int>(), 10);
 
-	ref1 = any.to_ref();
+	ref1 = any.as_ref();
 	EXPECT_FALSE(ref1.empty());
 	EXPECT_TRUE(ref1.contains<int>());
 	EXPECT_EQ(*ref1.as<int>(), 10);

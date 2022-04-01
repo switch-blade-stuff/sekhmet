@@ -14,8 +14,6 @@
 
 namespace sek
 {
-	class any;
-
 	/** @brief Exception thrown when a type is invalid or incompatible with another. */
 	class bad_type_exception : engine_exception
 	{
@@ -225,6 +223,22 @@ namespace sek
 
 		public:
 			constexpr signature_info() noexcept = default;
+			/** Initializes signature info from the specified argument types, return type is empty. */
+			template<typename... Args>
+			constexpr signature_info(type_seq_t<Args...>) noexcept : ret()
+			{
+				constexpr auto arg_types = data_t::make_handle_array<Args...>();
+				args = arg_types.data();
+				args_n = arg_types.size();
+			}
+			/** Initializes signature info from the specified return & argument types. */
+			template<typename R, typename... Args>
+			constexpr signature_info(type_selector_t<R>, type_seq_t<Args...>) noexcept : ret(data_t::make_handle<R>())
+			{
+				constexpr auto arg_types = data_t::make_handle_array<Args...>();
+				args = arg_types.data();
+				args_n = arg_types.size();
+			}
 
 			/** Returns the return type of the signature.
 			 * If a signature does not have a return type (ex. if it is a constructor signature),
@@ -296,50 +310,23 @@ namespace sek
 				return signature_info{data_t::handle{}, ctor->arg_types.data(), ctor->arg_types.size()};
 			}
 
-			/** Invokes constructor for the passed object & argument array.
-			 *
+			/** Invokes constructor for the passed object & arguments.
 			 * @param ptr Pointer to the object's memory.
-			 * @param args Array of pointers to the arguments passed to the constructor.
-			 *
-			 * @warning Passed argument array must contain all arguments required by the constructor.
-			 * Passing an invalid argument array will result in undefined behavior. */
-			constexpr void invoke(void *ptr, const void *const args[]) const { ctor->invoke(ptr, args); }
+			 * @param args Array of arguments passed to the constructor.
+			 * @throw bad_type_exception If the argument array was invalid. */
+			constexpr void invoke(void *ptr, size_t n, any args[]) const;
 			/** Invokes constructor for the passed object & arguments.
 			 *
 			 * @param ptr Pointer to the object's memory.
-			 * @param args Arguments passed to the constructor. */
+			 * @param args Arguments passed to the constructor.
+			 * @throw bad_type_exception If the passed arguments were invalid. */
 			template<typename... Args>
-			constexpr void invoke(void *ptr, Args &&...args) const
-			{
-				if constexpr (sizeof...(args) != 0)
-				{
-					/* Make an array of pointers to args. */
-					const void *args_array[sizeof...(args)] = {std::addressof(args)...};
-					invoke(ptr, args_array);
-				}
-				else
-					invoke(ptr, nullptr);
-			}
-			/** Invokes constructor for the passed object & arguments.
-			 *
-			 * @param ptr Pointer to the object's memory.
-			 * @param args_begin Iterator to the first element of the `any` sequence containing arguments passed to the constructor.
-			 * @param args_end Iterator one past the last `any` object of the argument sequence.
-			 *
-			 * @throw bad_type_exception If the argument sequence does not contain all arguments required by the constructor. */
-			template<forward_iterator_for<any> Iter>
-			constexpr void invoke(void *ptr, Iter args_begin, Iter args_end) const;
-			/** Invokes constructor for the passed object & arguments.
-			 *
-			 * @param ptr Pointer to the object's memory.
-			 * @param args Range of `any` objects containing arguments passed to the constructor.
-			 *
-			 * @throw bad_type_exception If the args range does not contain all arguments required by the constructor. */
-			template<forward_range_for<any> R>
-			constexpr void invoke(void *ptr, const R &args) const
-			{
-				invoke(ptr, std::ranges::begin(args), std::ranges::end(args));
-			}
+			constexpr void invoke(void *ptr, Args &&...args) const;
+			/** Returns an `any` object containing a instance of the type constructed with the passed arguments.
+			 * @param args Array of arguments passed to the constructor.
+			 * @return `any` containing the constructed object.
+			 * @throw bad_type_exception If the argument array was invalid. */
+			constexpr any invoke(size_t n, any args[]) const;
 
 		private:
 			const data_t::type_ctor *ctor;
@@ -758,7 +745,7 @@ namespace sek
 #define SEK_EXPORT_TYPE(T)                                                                                             \
 	template<>                                                                                                         \
 	constexpr bool sek::detail::is_exported_type<T> = true;                                                            \
-	extern template struct SEK_API_IMPORT sek::detail::type_data::instance<T>;
+	extern template struct sek::detail::type_data::instance<T>;
 
 #define SEK_DECLARE_TYPE_2(T, name)                                                                                    \
 	SEK_SET_TYPE_ID(T, name)                                                                                           \

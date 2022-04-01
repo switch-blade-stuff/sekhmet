@@ -45,7 +45,7 @@ namespace sek
 					.copy_func =
 						[](any &dest, const void *src)
 					{
-						using U = std::add_const_t<T>;
+						using U = std::add_const_t<std::remove_cv_t<T>>;
 						dest.template init_owned<T, U &>(*static_cast<U *>(src));
 					},
 					.delete_func =
@@ -211,15 +211,15 @@ namespace sek
 		}
 
 		/** Returns an `any` instance referencing the stored value. */
-		[[nodiscard]] constexpr any to_ref() noexcept
+		[[nodiscard]] constexpr any as_ref() noexcept
 		{
 			if (is_const()) [[unlikely]]
 				return any{type(), const_data()};
 			else
 				return any{type(), data_impl()};
 		}
-		/** @copydoc to_ref */
-		[[nodiscard]] constexpr any to_ref() const noexcept { return any{type(), data_impl()}; }
+		/** @copydoc as_ref */
+		[[nodiscard]] constexpr any as_ref() const noexcept { return any{type(), data_impl()}; }
 
 		/** Resets `any` to an empty state, destroying the stored value if necessary. */
 		constexpr void reset()
@@ -299,36 +299,62 @@ namespace sek
 		flags_t flags = {};
 	};
 
-	template<forward_iterator_for<any> Iter>
-	constexpr void type_info::constructor_info::invoke(void *ptr, Iter args_begin, Iter args_end) const
+	template<typename T, typename... Args>
+	constexpr void detail::type_data::type_ctor::instance<T, Args...>::ctor_impl(void *ptr, size_t n, any args[])
 	{
-		auto sign = signature();
-		auto args_array = new const void *[sign.size()];
-		try
-		{
-			/* Verify signature & fill the array. */
-			size_t i = 0;
-			for (auto expected = sign.begin(); expected != sign.end() && args_begin != args_end; ++expected, ++args_begin, ++i)
-			{
-				decltype(auto) arg = *args_begin;
-				if (arg.empty() || *expected != arg.type()) [[unlikely]]
-					throw bad_type_exception("Invalid constructor argument");
+		if (n != sizeof...(Args)) [[unlikely]]
+			throw bad_type_exception("Invalid amount of arguments for constructor");
 
-				args_array[i] = arg.const_data();
-			}
-			if (i != sign.size()) [[unlikely]]
-				throw bad_type_exception("Passed argument sequence is too short");
-
-			/* Arguments array is complete now. */
-			invoke(ptr, args_array);
-			delete[] args_array;
-		}
-		catch (...)
+		[]<size_t... Is>(std::index_sequence<Is...>, T * data, any args[])
 		{
-			delete[] args_array;
-			throw;
+			std::construct_at(data, extract_arg<Is>(args)...);
 		}
+		(std::make_index_sequence<sizeof...(Args)>{}, static_cast<T *>(ptr), args);
 	}
+	template<typename T, typename... Args>
+	constexpr any detail::type_data::type_ctor::instance<T, Args...>::factory_impl(size_t n, any args[])
+	{
+		if (n != sizeof...(Args)) [[unlikely]]
+			throw bad_type_exception("Invalid amount of arguments for constructor");
+
+		return []<size_t... Is>(std::index_sequence<Is...>, any args[])
+		{
+			return any{std::in_place_type<T>, extract_arg<Is>(args)...};
+		}
+		(std::make_index_sequence<sizeof...(Args)>{}, args);
+	}
+	template<typename T, typename... Args>
+	template<size_t I>
+	constexpr decltype(auto) detail::type_data::type_ctor::instance<T, Args...>::extract_arg(any args[])
+	{
+		auto &arg = args[I];
+		if (arg.empty()) [[unlikely]]
+			throw bad_type_exception("Constructor argument cannot be empty");
+
+		using U = type_seq_element_t<I, type_seq_t<Args...>>;
+		if constexpr (std::is_reference_v<U>)
+			return static_cast<U>(*arg.template as<std::remove_reference_t<U>>());
+		else
+			return *args[I].template as<U>();
+	}
+
+	constexpr void type_info::constructor_info::invoke(void *ptr, size_t n, any *args) const
+	{
+		ctor->ctor(ptr, n, args);
+	}
+	template<typename... Args>
+	constexpr void type_info::constructor_info::invoke(void *ptr, Args &&...args) const
+	{
+		if constexpr (sizeof...(args) != 0)
+		{
+			/* Make an array of any containing argument references. */
+			any args_array[sizeof...(args)] = {any::make_ref(std::forward<Args>(args))...};
+			invoke(ptr, sizeof...(args), args_array);
+		}
+		else
+			invoke(ptr, nullptr);
+	}
+	constexpr any type_info::constructor_info::invoke(size_t n, any args[]) const { return ctor->factory(n, args); }
 
 	constexpr any type_info::attribute_info::get() const noexcept { return any{type(), data()}; }
 }	 // namespace sek
