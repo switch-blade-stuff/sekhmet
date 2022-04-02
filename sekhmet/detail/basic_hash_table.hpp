@@ -882,7 +882,7 @@ namespace sek
 			size_type load_count = 0;
 			/** Total amount of tombstone buckets. */
 			size_type tombstone_count = 0;
-			/** Flag indicating that the table should consider shrinking on next insert. */
+			/** Flag indicating that the table should consider shrinking on read insert. */
 			bool consider_shrink = false;
 		};
 	}	 // namespace detail

@@ -301,31 +301,6 @@ namespace sek
 	template<template_type T, std::size_t I = 0>
 	using pack_member_t = typename pack_member<T, I>::type;
 
-	namespace detail
-	{
-		template<std::size_t I, auto Pred, std::size_t... Is>
-		constexpr static auto type_index_sequence_impl(type_seq_t<>, std::index_sequence<Is...>) noexcept
-		{
-			return std::index_sequence<Is...>{};
-		}
-		template<std::size_t I, auto Pred, typename T, typename... Ts, std::size_t... Is>
-		constexpr static auto type_index_sequence_impl(std::index_sequence<Is...>) noexcept
-		{
-			if constexpr (Pred(type_selector<T>))
-				return type_index_sequence_impl<I + 1, Pred, Ts...>(std::index_sequence<I, Is...>{});
-			else
-				return type_index_sequence_impl<I + 1, Pred, Ts...>(std::index_sequence<Is...>{});
-		}
-		template<auto Pred, typename... Ts>
-		constexpr static auto type_index_sequence_impl() noexcept
-		{
-			return type_index_sequence_impl<0, Pred, Ts...>(std::index_sequence<>{});
-		}
-	}	 // namespace detail
-
-	template<auto Pred, typename... Ts>
-	using filter_index_sequence = decltype(detail::type_index_sequence_impl<Pred, Ts...>());
-
 	/** @brief Structure used to define a compile-time constant instance of an NTTP variable.
 	 * @tparam Value NTTP object to create constant of. */
 	template<auto Value>
@@ -398,4 +373,50 @@ namespace sek
 	concept not_void = !std::is_void_v<T>;
 	template<typename T0, typename T1>
 	concept not_same = !std::is_same_v<T0, T1>;
+
+	/** @brief Transfers const & volatile qualifiers from the `From` type to the `To` type. */
+	template<typename From, typename To>
+	struct transfer_cv
+	{
+		using type = To;
+	};
+	template<typename From, typename To>
+	struct transfer_cv<const From, To>
+	{
+		using type = std::add_const_t<std::remove_cv_t<To>>;
+	};
+	template<typename From, typename To>
+	struct transfer_cv<volatile From, To>
+	{
+		using type = std::add_volatile_t<std::remove_cv_t<To>>;
+	};
+	template<typename From, typename To>
+	struct transfer_cv<const volatile From, To>
+	{
+		using type = std::add_cv_t<std::remove_cv_t<To>>;
+	};
+
+	template<typename From, typename To>
+	using transfer_cv_t = typename transfer_cv<From, To>::type;
+
+	/** Checks if a cast from `From` to `To` will not cast away qualifiers. */
+	template<typename From, typename To>
+	struct is_preserving_cv_cast : std::true_type
+	{
+	};
+	template<typename From, typename To>
+	struct is_preserving_cv_cast<const From, To> : std::is_const<To>
+	{
+	};
+	template<typename From, typename To>
+	struct is_preserving_cv_cast<volatile From, To> : std::is_volatile<To>
+	{
+	};
+	template<typename From, typename To>
+	struct is_preserving_cv_cast<const volatile From, To> : std::conjunction<std::is_const<To>, std::is_volatile<To>>
+	{
+	};
+
+	template<typename From, typename To>
+	constexpr auto is_preserving_cv_cast_v = is_preserving_cv_cast<From, To>::value;
 }	 // namespace sek

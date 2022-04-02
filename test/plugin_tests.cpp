@@ -57,3 +57,21 @@ TEST(plugin_tests, plugin_db_test)
 		std::ranges::find_if(loaded_plugins, [](const sek::plugin::handle &h) { return h.name() == "Test Plugin 2"; }),
 		loaded_plugins.end());
 }
+
+TEST(plugin_tests, plugin_object_test)
+{
+	sek::basic_object *obj = new sek::test::test_plugin_object{90};
+
+	EXPECT_TRUE(obj->inherits<sek::test::test_toplevel_base>());
+	EXPECT_TRUE(obj->inherits<sek::test::test_middle_base>());
+	EXPECT_FALSE(obj->inherits<int>());
+
+	EXPECT_TRUE(obj->has_attribute<sek::test::test_attribute>());
+	EXPECT_TRUE(obj->get_attribute<sek::test::test_attribute>()->b);
+
+	auto test_base = sek::object_cast<sek::test::test_toplevel_base>(obj);
+	EXPECT_NE(test_base, nullptr);
+	EXPECT_EQ(test_base->i, 90);
+
+	delete obj;
+}

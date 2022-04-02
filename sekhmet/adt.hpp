@@ -4,5 +4,6 @@
 
 #pragma once
 
-#include "adt/node.hpp"
-#include "adt/serializable.hpp"
+#include "detail/adt/archive.hpp"
+#include "detail/adt/node.hpp"
+#include "detail/adt/serialize_impl.hpp"

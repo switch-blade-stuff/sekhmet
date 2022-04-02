@@ -53,10 +53,25 @@ namespace sek
 		{
 			return sizeof...(Is);
 		}
+		template<std::size_t, std::size_t... Is>
+		constexpr static auto make_filter_sequence_impl(std::index_sequence<Is...>)
+		{
+			return std::index_sequence<Is...>{};
+		}
+		template<std::size_t I, auto V, auto... Vs, std::size_t... Is>
+		constexpr static auto make_filter_sequence_impl(std::index_sequence<Is...>)
+		{
+			if constexpr (std::same_as<std::decay_t<decltype(V)>, std::decay_t<T>>)
+				return make_filter_sequence_impl<I + 1, Vs...>(std::index_sequence<Is..., I>{});
+			else
+				return make_filter_sequence_impl<I + 1, Vs...>(std::index_sequence<Is...>{});
+		}
+		constexpr static auto make_filter_sequence()
+		{
+			return make_filter_sequence_impl<0, Vals...>(std::index_sequence<>{});
+		}
 
-		constexpr static auto filter = []<typename U>(type_selector_t<U>) { return std::is_convertible_v<U, T>; };
-		using idx_t = filter_index_sequence<filter, decltype(Vals)...>;
-		using array_t = detail::static_array_t<T, count_idx(idx_t{})>;
+		using array_t = detail::static_array_t<T, count_idx(make_filter_sequence())>;
 
 		template<std::size_t I, std::size_t J, auto Arg, auto... Args>
 		constexpr static auto extract_arg() noexcept
@@ -66,7 +81,6 @@ namespace sek
 			else
 				return extract_arg<I, J + 1, Args...>();
 		}
-
 		template<std::size_t... Is>
 		constexpr static array_t instantiate(std::index_sequence<Is...>) noexcept
 		{
@@ -74,7 +88,7 @@ namespace sek
 		}
 
 	public:
-		constexpr static array_t value = instantiate(idx_t{});
+		constexpr static array_t value = instantiate(make_filter_sequence());
 	};
 
 	/** @brief Simple structural view into a range of elements. */

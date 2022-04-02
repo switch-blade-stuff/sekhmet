@@ -6,24 +6,16 @@
 
 #include <functional>
 
-#include "engine_exception.hpp"
 #include "meta_util.hpp"
 
 namespace sek
 {
-	class adapter_exception : public engine_exception
+	class adapter_error : public std::runtime_error
 	{
-		constexpr static char default_msg[] = "Unknown adapter error";
-
 	public:
-		adapter_exception() : engine_exception(), msg(default_msg) {}
-		explicit adapter_exception(const char *msg) : engine_exception(), msg(msg) {}
-		~adapter_exception() override = default;
-
-		[[nodiscard]] const char *what() const noexcept override { return msg; }
-
-	private:
-		const char *msg = nullptr;
+		adapter_error() : std::runtime_error("Unknown adapter error") {}
+		explicit adapter_error(const char *msg) : std::runtime_error(msg) {}
+		~adapter_error() override = default;
 	};
 
 	template<typename...>
@@ -224,7 +216,7 @@ namespace sek
 		constexpr decltype(auto) invoke(Args &&...args) const
 		{
 			if (empty()) [[unlikely]]
-				throw adapter_exception("Attempted to invoke a proxy on an empty adapter");
+				throw adapter_error("Attempted to invoke a proxy on an empty adapter");
 			else
 				return std::invoke(vtable->template get<proxy_func_type<Proxy>>(), instance, std::forward<Args>(args)...);
 		}

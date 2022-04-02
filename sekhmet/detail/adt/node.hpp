@@ -7,11 +7,9 @@
 #include <string>
 #include <vector>
 
-#include "../../detail/aligned_storage.hpp"
-#include "../../detail/engine_exception.hpp"
-#include "../../detail/hmap.hpp"
-#include "../../detail/type_info.hpp"
 #include "../../math/detail/util.hpp"
+#include "../aligned_storage.hpp"
+#include "../hmap.hpp"
 
 #if defined(__cpp_lib_constexpr_string) && __cpp_lib_constexpr_string >= 201907L
 #define SEK_ADT_NODE_CONSTEXPR_STRING constexpr
@@ -96,57 +94,12 @@ namespace sek::adt
 	template<std::size_t N>
 	struct bytes;
 
-	/** @brief Exception thrown by nodes when (de)serialization of a type fails.
-	 *
-	 * `node_type_exception` is thrown on node type mismatch - when stored type differs from requested.
-	 * @example `as_table` was called on an empty node. */
-	class node_type_exception : engine_exception
+	/** @brief Exception thrown by nodes when (de)serialization of a type fails. */
+	class node_type_error : std::runtime_error
 	{
-		static std::string_view state_str(node_state_t state)
-		{
-			switch (state)
-			{
-				case node_state_t::EMPTY: return "empty";
-				case node_state_t::BOOL: return "bool";
-				case node_state_t::CHAR: return "char";
-				case node_state_t::UINT8: return "std::uint8";
-				case node_state_t::INT8: return "int8";
-				case node_state_t::INT16: return "int16";
-				case node_state_t::INT32: return "int32";
-				case node_state_t::INT64: return "int64";
-				case node_state_t::INT: return "int";
-				case node_state_t::FLOAT32: return "float32";
-				case node_state_t::FLOAT64: return "float64";
-				case node_state_t::FLOAT: return "float";
-				case node_state_t::NUMBER: return "number";
-				case node_state_t::POINTER: return "pointer";
-				case node_state_t::STRING: return "string";
-				case node_state_t::BINARY: return "binary";
-				case node_state_t::ARRAY: return "sequence";
-				case node_state_t::TABLE: return "table";
-				default: return {};
-			}
-		}
-		static std::string get_msg(node_state_t expected, node_state_t actual)
-		{
-			std::string result;
-			result.append("Mismatched adt node value type. Expected: \"");
-			result.append(state_str(expected));
-			result.append("\". Actual: \"");
-			result.append(state_str(actual));
-			result.append(1, '"');
-
-			return result;
-		}
-
 	public:
-		node_type_exception(node_state_t expected, node_state_t actual) : msg(get_msg(expected, actual)) {}
-		~node_type_exception() noexcept override = default;
-
-		[[nodiscard]] const char *what() const noexcept override { return msg.c_str(); }
-
-	private:
-		std::string msg;
+		node_type_error() : std::runtime_error("Invalid ADT node type") {}
+		~node_type_error() noexcept override = default;
 	};
 
 	/** @brief Structure used to store format-independent serialized data.
@@ -461,11 +414,6 @@ namespace sek::adt
 			get(value);
 			return value;
 		}
-		/** Deserializes an instance of an object using it's `serializable_as_attribute` attribute.
-		 * @param value Reference to the `any` instance storing the object to be deserialized.
-		 * @throw bad_type_exception If the referenced type does not have `serializable_as_attribute` attribute. */
-		void get(sek::any &value) const;
-
 		/** Serializes an instance of specified type into the node.
 		 * @param value Reference to the value to be serialized.
 		 * @return Reference to this node. */
@@ -475,12 +423,6 @@ namespace sek::adt
 			detail::node_setter<T>{}(*this, value);
 			return *this;
 		}
-		/** Serializes an instance of an object using it's `serializable_as_attribute` attribute.
-		 * @param value Reference to the `any` instance storing the object to be serialized.
-		 * @return Reference to this node.
-		 * @throw bad_type_exception If the referenced type does not have `serializable_as_attribute` attribute. */
-		node &set(const sek::any &value);
-
 		/** Checks if the node contains a bool. */
 		[[nodiscard]] constexpr bool is_bool() const noexcept { return state() == state_type::BOOL; }
 		/** Returns reference to the stored bool.
@@ -606,7 +548,7 @@ namespace sek::adt
 				case state_type::INT16: return static_cast<T>(int16_value);
 				case state_type::INT32: return static_cast<T>(int32_value);
 				case state_type::INT64: return static_cast<T>(int64_value);
-				default: throw node_type_exception(state_type::INT, node_state);
+				default: throw node_type_error();
 			}
 		}
 
@@ -655,7 +597,7 @@ namespace sek::adt
 			{
 				case state_type::FLOAT32: return static_cast<T>(float32_value);
 				case state_type::FLOAT64: return static_cast<T>(float64_value);
-				default: throw node_type_exception(state_type::FLOAT, node_state);
+				default: throw node_type_error();
 			}
 		}
 
@@ -679,7 +621,7 @@ namespace sek::adt
 				case state_type::INT64: return static_cast<T>(int64_value);
 				case state_type::FLOAT32: return static_cast<T>(float32_value);
 				case state_type::FLOAT64: return static_cast<T>(float64_value);
-				default: throw node_type_exception(state_type::NUMBER, node_state);
+				default: throw node_type_error();
 			}
 		}
 
@@ -769,7 +711,7 @@ namespace sek::adt
 		constexpr void assert_state() const
 		{
 			if (State != state()) [[unlikely]]
-				throw node_type_exception(State, node_state);
+				throw node_type_error();
 		}
 
 		SEK_ADT_NODE_CONSTEXPR void copy_from(const node &other)
@@ -874,7 +816,7 @@ namespace sek::adt
 					operator()(n, value);
 					return true;
 				}
-				catch (node_type_exception &)
+				catch (node_type_error &)
 				{
 					/* Only catch `node_type_exception` exceptions since they indicate deserialization failure. */
 					/* TODO: Log exception message. */

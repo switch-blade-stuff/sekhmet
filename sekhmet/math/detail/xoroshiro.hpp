@@ -348,9 +348,9 @@ namespace sek::math
 			s.generate(std::begin(base::state), std::end(base::state));
 		}
 
-		/** Returns the next random number. */
+		/** Returns the read random number. */
 		constexpr result_type next() noexcept { return base::do_next(); }
-		/** @copydoc next */
+		/** @copydoc read */
 		constexpr result_type operator()() noexcept { return next(); }
 
 		/** Advances the generator by `n`. */

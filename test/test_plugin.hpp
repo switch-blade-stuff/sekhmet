@@ -4,8 +4,8 @@
 
 #pragma once
 
+#include "sekhmet/object.hpp"
 #include "sekhmet/plugin.hpp"
-#include "sekhmet/reflection.hpp"
 
 #ifdef TEST_PLUGIN_EXPORT
 #define TEST_PLUGIN_API SEK_API_EXPORT
@@ -18,30 +18,38 @@ namespace sek::test
 	struct TEST_PLUGIN_API test_plugin_data
 	{
 		static int ctr;
-
 		int i;
-	};
-
-	struct test_parent_A
-	{
-	};
-	struct test_parent_B : test_parent_A
-	{
-	};
-	struct TEST_PLUGIN_API test_child : test_parent_B
-	{
-		static bool factory_invoked;
-
-		constexpr test_child() noexcept = default;
-		constexpr explicit test_child(double d) noexcept : d(d) {}
-
-		double d = 0;
 	};
 
 	struct test_attribute
 	{
-		int i;
+		bool b;
+	};
+
+	struct test_toplevel_base : basic_object
+	{
+		constexpr test_toplevel_base() noexcept = default;
+		constexpr explicit test_toplevel_base(int i) noexcept : i(i) {}
+
+		int i = 0;
+	};
+	struct test_middle_base : test_toplevel_base
+	{
+		SEK_OBJECT_TYPE()
+
+	public:
+		constexpr test_middle_base() noexcept = default;
+		constexpr explicit test_middle_base(int i) noexcept : test_toplevel_base(i) {}
+	};
+
+	struct test_plugin_object : test_middle_base
+	{
+		SEK_OBJECT_TYPE(SEK_OBJECT_PARENT(test_toplevel_base),
+						SEK_OBJECT_PARENT(test_middle_base),
+						SEK_OBJECT_ATTRIBUTE(test_attribute{true}));
+
+	public:
+		constexpr test_plugin_object() noexcept = default;
+		constexpr explicit test_plugin_object(int i) noexcept : test_middle_base(i) {}
 	};
 }	 // namespace sek::test
-
-SEK_DECLARE_TYPE(sek::test::test_child, "test_child")

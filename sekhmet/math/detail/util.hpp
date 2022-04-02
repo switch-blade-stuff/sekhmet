@@ -37,7 +37,7 @@ namespace sek
 			}
 		}	 // namespace detail
 
-		/** Aligns a positive number to be the next power of two. */
+		/** Aligns a positive number to be the read power of two. */
 		template<typename T>
 		[[nodiscard]] constexpr T next_pow_2(T num) noexcept
 		{

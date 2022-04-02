@@ -24,7 +24,6 @@ if (NOT GTEST_MISSING)
             debug_tests.cpp
             container_tests.cpp
             adapter_tests.cpp
-            reflection_tests.cpp
             plugin_tests.cpp
             adt_tests.cpp
             math_tests.cpp)

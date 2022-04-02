@@ -7,7 +7,7 @@
 #include <numbers>
 
 #include "sekhmet/adt.hpp"
-#include "sekhmet/reflection.hpp"
+#include "sekhmet/type_id.hpp"
 
 using namespace sek::literals;
 
@@ -19,7 +19,7 @@ TEST(adt_tests, node_test)
 	EXPECT_TRUE(n1.is_int());
 	EXPECT_FALSE(n1.is_float());
 
-	EXPECT_THROW([[maybe_unused]] auto f = n1.as_float32(), sek::adt::node_type_exception);
+	EXPECT_THROW([[maybe_unused]] auto f = n1.as_float32(), sek::adt::node_type_error);
 	EXPECT_NO_THROW([[maybe_unused]] auto i = n1.as_int32());
 	EXPECT_EQ(n1.as_int32(), 1);
 
@@ -88,60 +88,4 @@ TEST(adt_tests, serialization_test)
 	n2.get(vec);
 
 	EXPECT_EQ(vec.size(), 10);
-}
-
-using namespace std::literals;
-
-namespace
-{
-	struct test_serializable_struct
-	{
-		int i = 0;
-		bool b = false;
-
-		friend SEK_ADT_NODE_CONSTEXPR void serialize(sek::adt::node &node, const test_serializable_struct &s)
-		{
-			node = sek::adt::table{
-				{"i"s, s.i},
-				{"b"s, s.b},
-			};
-		}
-		friend SEK_ADT_NODE_CONSTEXPR void deserialize(const sek::adt::node &node, test_serializable_struct &s)
-		{
-			if (node.is_table()) [[likely]]
-			{
-				auto &t = node.as_table();
-				if (t.contains("i") && t.at("i").is_number()) s.i = t.at("i").as_number<int>();
-				if (t.contains("b") && t.at("b").is_bool()) s.b = t.at("b").as_bool();
-			}
-		}
-	};
-}	 // namespace
-
-SEK_DECLARE_TYPE(test_serializable_struct, "test_serializable_struct")
-SEK_TYPE_FACTORY(test_serializable_struct) { attributes<sek::adt::serializable_as<test_serializable_struct>>(); }
-
-TEST(adt_tests, serializable_as_test)
-{
-	EXPECT_TRUE(sek::type_info::get<test_serializable_struct>().has_attribute<sek::adt::serializable_as_attribute>());
-
-	sek::adt::node n1 = sek::adt::table{
-		{"i", 1000},
-		{"b", true},
-	};
-	test_serializable_struct value = {};
-
-	auto ref = sek::any::make_ref(value);
-	EXPECT_NO_THROW(n1.get(ref));
-	EXPECT_EQ(value.i, 1000);
-	EXPECT_TRUE(value.b);
-
-	n1.reset();
-
-	EXPECT_NO_THROW(n1.set(sek::any::make_ref(value)));
-	EXPECT_TRUE(n1.is_table());
-	EXPECT_TRUE(n1.as_table()["i"].is_int32());
-	EXPECT_EQ(n1.as_table()["i"].as_int32(), 1000);
-	EXPECT_TRUE(n1.as_table()["b"].is_bool());
-	EXPECT_TRUE(n1.as_table()["b"].as_bool());
 }
