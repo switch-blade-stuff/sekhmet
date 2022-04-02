@@ -169,21 +169,28 @@ namespace sek
 /** Macro used to define an object's attribute for use with `SEK_OBJECT_TYPE`. */
 #define SEK_OBJECT_ATTRIBUTE(V) sek::detail::object_data::attribute(&sek::auto_constant<V>::value)
 
-/** Macro used to generate object type's body.
+/** Macro used to declare object type's body. */
+#define SEK_DECLARE_OBJECT_TYPE                                                                                        \
+public:                                                                                                                \
+	const sek::detail::object_data &internal_get_object_data_instance() const noexcept override;                       \
+                                                                                                                       \
+private:
+
+/** Macro used to define object type.
+ * @param T Object type being declared.
+ * @param name Name of the object type.
  * Optionally, accepts any amount of `SEK_OBJECT_PARENT` & `SEK_OBJECT_ATTRIBUTE` arguments. */
-#define SEK_OBJECT_TYPE(...)                                                                                           \
-protected:                                                                                                             \
-	virtual const sek::detail::object_data &internal_get_object_data_instance() const noexcept override                \
+#define SEK_DEFINE_OBJECT_TYPE(T, name, ...)                                                                           \
+	SEK_SET_TYPE_ID(T, name)                                                                                           \
+	const sek::detail::object_data &T::internal_get_object_data_instance() const noexcept                              \
 	{                                                                                                                  \
 		constinit static const auto value = []() noexcept -> sek::detail::object_data                                  \
 		{                                                                                                              \
 			return sek::detail::object_data{                                                                           \
-				.tid = type_id::identify<std::decay_t<decltype(*this)>>(),                                             \
+				.tid = type_id::identify<T>(),                                                                         \
 				.parents = sek::detail::object_data::extract_parents<__VA_ARGS__>(),                                   \
 				.attributes = sek::detail::object_data::extract_attributes<__VA_ARGS__>(),                             \
 			};                                                                                                         \
 		}();                                                                                                           \
 		return value;                                                                                                  \
-	}                                                                                                                  \
-                                                                                                                       \
-private:
+	}

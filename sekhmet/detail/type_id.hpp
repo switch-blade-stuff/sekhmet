@@ -9,7 +9,6 @@
 #include "define.h"
 #include "hash.hpp"
 #include "static_string.hpp"
-#include <string_view>
 
 namespace sek::detail
 {
@@ -56,9 +55,10 @@ namespace sek
 	namespace detail
 	{
 		template<typename T>
-		[[nodiscard]] constexpr auto generate_type_name() noexcept
+		[[nodiscard]] constexpr std::basic_string_view<char> generate_type_name() noexcept
 		{
-			return generate_type_name_impl<SEK_PRETTY_FUNC>();
+			constexpr auto &value = auto_constant<generate_type_name_impl<SEK_PRETTY_FUNC>()>::value;
+			return std::basic_string_view<char>{value.begin(), value.end()};
 		}
 	}	 // namespace detail
 
@@ -68,8 +68,7 @@ namespace sek
 	template<typename T>
 	[[nodiscard]] constexpr std::string_view type_name() noexcept
 	{
-		constexpr auto &name = auto_constant<detail::generate_type_name<T>()>::value;
-		return std::string_view{name.begin(), name.end()};
+		return detail::generate_type_name<T>();
 	}
 	/** Returns hash of the specified type's name. */
 	template<typename T>
@@ -138,8 +137,12 @@ struct std::hash<sek::type_id>
  * SEK_SET_TYPE_ID(my_type, "my_type_name") // Type name will be "my_type_name"
  * ``` */
 #define SEK_SET_TYPE_ID(T, name)                                                                                       \
-	template<>                                                                                                         \
-	constexpr auto sek::detail::generate_type_name<T>() noexcept                                                       \
+	namespace sek::detail                                                                                              \
 	{                                                                                                                  \
-		return basic_static_string{(name)};                                                                            \
+		template<>                                                                                                     \
+		constexpr std::string_view generate_type_name<T>() noexcept                                                    \
+		{                                                                                                              \
+			constexpr auto &value = auto_constant<basic_static_string{(name)}>::value;                                 \
+			return std::string_view{value.begin(), value.end()};                                                       \
+		}                                                                                                              \
 	}

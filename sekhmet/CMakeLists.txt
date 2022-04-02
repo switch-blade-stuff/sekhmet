@@ -12,7 +12,6 @@ target_sources(${PROJECT_NAME} INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/thread_pool.hpp
         ${CMAKE_CURRENT_LIST_DIR}/plugin.hpp
         ${CMAKE_CURRENT_LIST_DIR}/type_id.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/reflection.hpp
         ${CMAKE_CURRENT_LIST_DIR}/object.hpp
         ${CMAKE_CURRENT_LIST_DIR}/math.hpp
         ${CMAKE_CURRENT_LIST_DIR}/adt.hpp)

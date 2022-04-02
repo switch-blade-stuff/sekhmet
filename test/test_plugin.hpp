@@ -35,7 +35,7 @@ namespace sek::test
 	};
 	struct test_middle_base : test_toplevel_base
 	{
-		SEK_OBJECT_TYPE()
+		SEK_DECLARE_OBJECT_TYPE
 
 	public:
 		constexpr test_middle_base() noexcept = default;
@@ -44,12 +44,17 @@ namespace sek::test
 
 	struct test_plugin_object : test_middle_base
 	{
-		SEK_OBJECT_TYPE(SEK_OBJECT_PARENT(test_toplevel_base),
-						SEK_OBJECT_PARENT(test_middle_base),
-						SEK_OBJECT_ATTRIBUTE(test_attribute{true}));
+		SEK_DECLARE_OBJECT_TYPE
 
 	public:
 		constexpr test_plugin_object() noexcept = default;
 		constexpr explicit test_plugin_object(int i) noexcept : test_middle_base(i) {}
 	};
 }	 // namespace sek::test
+
+SEK_DEFINE_OBJECT_TYPE(sek::test::test_middle_base, "test_middle_base")
+SEK_DEFINE_OBJECT_TYPE(sek::test::test_plugin_object,
+					   "test_object",
+					   SEK_OBJECT_PARENT(test_toplevel_base),
+					   SEK_OBJECT_PARENT(test_middle_base),
+					   SEK_OBJECT_ATTRIBUTE(test_attribute{true}))
