@@ -209,9 +209,9 @@ namespace sek
 
 		/** Loads a package at the specified path.
 		 * @param path Path of the package to load relative to the data directory.
-		 * @param override If set to true, will override conflicting global assets.
+		 * @param overwrite If set to true, will override conflicting global assets.
 		 * @return Handle to the loaded package or an empty handle if it was not loaded. */
-		SEK_API package_handle load_package(const std::filesystem::path &path, bool override = true);
+		SEK_API package_handle load_package(const std::filesystem::path &path, bool overwrite = true);
 		/** Checks if the path references a valid package without loading it.
 		 * @param path Path of the package to check relative to the data directory.
 		 * @return `1` if the package is a valid master package, `-1` if the package is a valid fragment,
