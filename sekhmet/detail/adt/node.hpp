@@ -745,13 +745,13 @@ namespace sek::adt
 		}
 
 		/** Calls `operator[]` on the contained sequence. */
-		[[nodiscard]] constexpr auto &operator[](sequence_type::size_type i) { return as_sequence()[i]; }
+		[[nodiscard]] SEK_ADT_NODE_CONSTEXPR_VECTOR auto &operator[](sequence_type::size_type i) { return as_sequence()[i]; }
 		/** @copydoc operator[] */
-		[[nodiscard]] constexpr const auto &operator[](sequence_type::size_type i) const { return as_sequence()[i]; }
+		[[nodiscard]] SEK_ADT_NODE_CONSTEXPR_VECTOR const auto &operator[](sequence_type::size_type i) const { return as_sequence()[i]; }
 		/** Calls `at` on the contained sequence. */
-		[[nodiscard]] constexpr auto &at(sequence_type::size_type i) { return as_sequence().at(i); }
+		[[nodiscard]] SEK_ADT_NODE_CONSTEXPR_VECTOR auto &at(sequence_type::size_type i) { return as_sequence().at(i); }
 		/** @copydoc at */
-		[[nodiscard]] constexpr const auto &at(sequence_type::size_type i) const { return as_sequence().at(i); }
+		[[nodiscard]] SEK_ADT_NODE_CONSTEXPR_VECTOR const auto &at(sequence_type::size_type i) const { return as_sequence().at(i); }
 
 		/** Calls `operator[]` on the contained table. */
 		[[nodiscard]] constexpr auto &operator[](const table_type::key_type &key) { return as_table()[key]; }

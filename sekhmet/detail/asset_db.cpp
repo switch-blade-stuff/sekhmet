@@ -40,7 +40,7 @@ namespace sek
 		return result;
 	}
 
-	package_handle asset_db::load_package(const std::filesystem::path &path, bool overwrite)
+	package_handle asset_db::load_package(const std::filesystem::path &path, bool /*overwrite*/)
 	{
 		package_handle result;
 		auto relative_path = get_relative_path(path);
