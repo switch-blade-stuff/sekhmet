@@ -2,7 +2,7 @@
 // Created by switchblade on 2022-04-04.
 //
 
-#include "asset_db.hpp"
+#include "assets.hpp"
 
 #ifdef SEK_OS_WIN
 #define MANIFEST_FILE_NAME L".manifest"

@@ -4,15 +4,209 @@
 
 #pragma once
 
+#include <atomic>
+#include <filesystem>
 #include <fstream>
+#include <memory>
+#include <utility>
 
-#include "asset_info.hpp"
+#include "adt/node.hpp"
+#include "adt/serialize_impl.hpp"
 #include "basic_service.hpp"
+#include "hset.hpp"
+#include "uuid.hpp"
 
 namespace sek
 {
-	class asset_db;
 	class asset_handle;
+	class package_handle;
+	class asset_db;
+
+	namespace detail
+	{
+		struct asset_package_base;
+		struct asset_record_base
+		{
+			asset_package_base *parent;
+
+			std::string id;
+			hset<std::string> tags;
+		};
+
+		struct loose_asset_record : asset_record_base
+		{
+			std::filesystem::path asset_path;
+			std::filesystem::path metadata_path;
+		};
+
+		void serialize(adt::node &node, const loose_asset_record &record)
+		{
+			node = adt::table{
+				{"id", record.id},
+				{"file", record.asset_path.string()},
+			};
+
+			if (!record.metadata_path.empty()) node.as_table().emplace("metadata", record.metadata_path.string());
+			if (!record.tags.empty()) node.as_table()["tags"].set(record.tags);
+		}
+		void deserialize(const adt::node &node, loose_asset_record &record)
+		{
+			if (node.is_table()) [[likely]]
+			{
+				record.id = node.at("id").as_string();
+				record.asset_path = node.at("file").as_string();
+
+				if (node.as_table().contains("tags"))
+				{
+					record.tags.clear();
+					node.at("tags").get(record.tags);
+				}
+				if (node.as_table().contains("metadata")) record.asset_path = node.at("metadata").as_string();
+			}
+		}
+
+		static_assert(adt::detail::serializable_type<loose_asset_record>);
+		static_assert(adt::detail::deserializable_type<loose_asset_record>);
+
+		struct archive_asset_record : asset_record_base
+		{
+			std::ptrdiff_t asset_offset = 0;
+			std::ptrdiff_t asset_size = 0;
+			std::ptrdiff_t metadata_offset = 0;
+			std::ptrdiff_t metadata_size = 0;
+		};
+
+		void serialize(adt::node &node, const archive_asset_record &record)
+		{
+			node = adt::sequence{
+				record.id,
+				record.asset_offset,
+				record.asset_size,
+				record.metadata_offset,
+				record.metadata_size,
+			};
+
+			if (!record.tags.empty())
+			{
+				adt::node tags_node;
+				tags_node.set(record.tags);
+				node.as_sequence().push_back(std::move(tags_node));
+			}
+		}
+		void deserialize(const adt::node &node, archive_asset_record &record)
+		{
+			if (node.is_sequence()) [[likely]]
+			{
+				auto &seq = node.as_sequence();
+				if (seq.size() >= 5) [[likely]]
+				{
+					seq[0].get(record.id);
+					seq[1].get(record.asset_offset);
+					seq[2].get(record.asset_size);
+					seq[3].get(record.metadata_offset);
+					seq[4].get(record.metadata_size);
+					if (seq.size() > 5 && seq[5].is_sequence()) seq[5].get(record.tags);
+				}
+			}
+		}
+
+		static_assert(adt::detail::serializable_type<archive_asset_record>);
+		static_assert(adt::detail::deserializable_type<archive_asset_record>);
+
+		struct asset_collection
+		{
+			mutable std::mutex mtx;
+			hmap<std::string_view, asset_record_base *> asset_map;
+		};
+
+		struct master_asset_package;
+
+		struct asset_package_base
+		{
+			enum flags_t : int
+			{
+				ARCHIVE_PACKAGE = 1,
+				READ_ONLY_PACKAGE = ARCHIVE_PACKAGE,
+				MASTER_PACKAGE = 2,
+			};
+
+			asset_package_base(std::filesystem::path path, flags_t flags) : bytes(), path(std::move(path)), flags(flags)
+			{
+				if (is_archive())
+					std::construct_at(&archive_records);
+				else
+					std::construct_at(&loose_records);
+			}
+			virtual ~asset_package_base()
+			{
+				if (is_archive())
+					std::destroy_at(&archive_records);
+				else
+					std::destroy_at(&loose_records);
+			}
+
+			[[nodiscard]] constexpr bool is_read_only() const noexcept
+			{
+				return (flags & READ_ONLY_PACKAGE) == READ_ONLY_PACKAGE;
+			}
+			[[nodiscard]] constexpr bool is_archive() const noexcept { return flags & ARCHIVE_PACKAGE; }
+			[[nodiscard]] constexpr bool is_master() const noexcept { return flags & MASTER_PACKAGE; }
+
+			[[nodiscard]] constexpr master_asset_package *get_master() noexcept;
+
+			virtual void acquire() noexcept;
+			virtual void release();
+
+			union
+			{
+				std::atomic<std::size_t> ref_count;
+				master_asset_package *master; /* Non-master packages do not have a reference counter. */
+
+				std::byte bytes[sizeof(ref_count) > sizeof(master) ? sizeof(ref_count) : sizeof(master)] = {};
+			};
+
+			std::filesystem::path path;
+			flags_t flags;
+
+			union
+			{
+				std::vector<archive_asset_record> archive_records;
+				std::vector<loose_asset_record> loose_records;
+			};
+		};
+
+		struct master_asset_package final : asset_package_base, asset_collection
+		{
+			master_asset_package(std::filesystem::path path, flags_t flags) : asset_package_base(std::move(path), flags)
+			{
+			}
+			~master_asset_package() override = default;
+
+			void acquire() noexcept final { ref_count.fetch_add(1); }
+			void release() final
+			{
+				if (ref_count.fetch_sub(1) == 1) [[unlikely]]
+					delete this;
+			}
+
+			std::vector<std::unique_ptr<asset_package_base>> fragments;
+		};
+
+		void asset_package_base::acquire() noexcept
+		{
+			if (!is_master()) [[unlikely]]
+				master->acquire();
+		}
+		void asset_package_base::release()
+		{
+			if (!is_master()) [[unlikely]]
+				master->release();
+		}
+		constexpr master_asset_package *asset_package_base::get_master() noexcept
+		{
+			return is_master() ? static_cast<master_asset_package *>(this) : master->get_master();
+		}
+	}	 // namespace detail
 
 	/** @brief Structure used to reference an asset package. */
 	class package_handle
@@ -157,8 +351,10 @@ namespace sek
 	};
 
 	/** @brief Structure used to manage assets & asset packages. */
-	class asset_db : detail::asset_collection, public basic_service<asset_db>
+	class asset_db : public basic_service<asset_db>, detail::asset_collection
 	{
+		using package_map_t = hmap<std::string_view, detail::master_asset_package *>;
+
 	public:
 		/** Initializes an asset database using the current directory as the data directory. */
 		asset_db() : asset_db(std::filesystem::current_path()) {}
@@ -172,45 +368,11 @@ namespace sek
 		/** Sets data directory path. */
 		void data_dir(std::filesystem::path new_path) { data_dir_path = std::move(new_path); }
 
-		/** Returns a vector containing all currently loaded assets. */
-		[[nodiscard]] std::vector<asset_handle> assets() const
-		{
-			std::vector<asset_handle> result;
-			result.reserve(asset_map.size());
-			for (auto &pkg : asset_map) result.push_back(to_asset(pkg.second));
-			return result;
-		}
-		/** Searches for a global asset with a specific id.
-		 * @param id Id of the asset.
-		 * @note If such asset does not exist, returns an empty asset handle. */
-		[[nodiscard]] asset_handle get_asset(std::string_view id) const
-		{
-			auto iter = asset_map.find(id);
-			return iter != asset_map.end() ? to_asset(iter->second) : asset_handle{};
-		}
-
-		/** Returns a vector containing all currently loaded packages. */
-		[[nodiscard]] std::vector<package_handle> packages() const
-		{
-			std::vector<package_handle> result;
-			result.reserve(package_map.size());
-			for (auto &pkg : package_map) result.push_back(pkg.second);
-			return result;
-		}
-		/** Searches for a package loaded at the specified path relative to the data directory.
-		 * @param path Path of the package relative to the data directory.
-		 * @return Handle to the requested package, or an empty handle if such package was not loaded. */
-		[[nodiscard]] package_handle get_package(const std::filesystem::path &path) const
-		{
-			/* Use path relative to the current data directory. */
-			auto iter = package_map.find(get_relative_path(path).native());
-			return iter != package_map.end() ? iter->second : package_handle{};
-		}
-
 		/** Loads a package at the specified path.
 		 * @param path Path of the package to load relative to the data directory.
-		 * @param overwrite If set to true, will override conflicting global assets.
-		 * @return Handle to the loaded package or an empty handle if it was not loaded. */
+		 * @param overwrite If set to true, will replace conflicting global assets.
+		 * @return Handle to the loaded package or an empty handle if it was not loaded.
+		 * @note If such package is already loaded, will return the loaded package. */
 		SEK_API package_handle load_package(const std::filesystem::path &path, bool overwrite = true);
 		/** Checks if the path references a valid package without loading it.
 		 * @param path Path of the package to check relative to the data directory.
@@ -247,10 +409,20 @@ namespace sek
 			return proximate(path, data_dir_path);
 		}
 
-		/** Path to the data directory. */
+		void insert_package(std::string_view path, detail::master_asset_package *ptr)
+		{
+			ptr->acquire();
+			package_map.emplace(path, ptr);
+		}
+		void erase_package(package_map_t::const_iterator where)
+		{
+			auto temp = where->second;
+			package_map.erase(where);
+			temp->release();
+		}
+
 		std::filesystem::path data_dir_path;
-		/** Packages mapped to their filename strings. */
-		hmap<std::filesystem::path::string_type, package_handle> package_map;
+		package_map_t package_map;
 	};
 
 	extern template struct SEK_API_IMPORT basic_service<asset_db>;

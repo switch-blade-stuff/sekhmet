@@ -5,4 +5,4 @@
 #pragma once
 
 #include "detail/asset_handle.hpp"
-#include "detail/asset_db.hpp"
+#include "detail/assets.hpp"
