@@ -7,6 +7,7 @@
 #include <atomic>
 #include <filesystem>
 #include <memory>
+#include <utility>
 
 #include "adt/node.hpp"
 #include "adt/serialize_impl.hpp"
@@ -109,7 +110,9 @@ namespace sek::detail
 		hmap<std::string_view, asset_record_base *> asset_map;
 	};
 
-	struct asset_package_base : asset_collection
+	struct master_asset_package;
+
+	struct asset_package_base
 	{
 		enum flags_t : int
 		{
@@ -118,6 +121,21 @@ namespace sek::detail
 			MASTER_PACKAGE = 2,
 		};
 
+		asset_package_base(std::filesystem::path path, flags_t flags) : bytes(), path(std::move(path)), flags(flags)
+		{
+			if (is_archive())
+				std::construct_at(&archive_records);
+			else
+				std::construct_at(&loose_records);
+		}
+		virtual ~asset_package_base()
+		{
+			if (is_archive())
+				std::destroy_at(&archive_records);
+			else
+				std::destroy_at(&loose_records);
+		}
+
 		[[nodiscard]] constexpr bool is_read_only() const noexcept
 		{
 			return (flags & READ_ONLY_PACKAGE) == READ_ONLY_PACKAGE;
@@ -125,45 +143,56 @@ namespace sek::detail
 		[[nodiscard]] constexpr bool is_archive() const noexcept { return flags & ARCHIVE_PACKAGE; }
 		[[nodiscard]] constexpr bool is_master() const noexcept { return flags & MASTER_PACKAGE; }
 
-		[[nodiscard]] constexpr asset_package_base *get_master() noexcept
-		{
-			return is_master() ? this : master->get_master();
-		}
+		[[nodiscard]] constexpr master_asset_package *get_master() noexcept;
 
-		constexpr void acquire() noexcept
-		{
-			if (!is_master()) [[unlikely]]
-				master->acquire();
-			else
-				ref_count.fetch_add(1);
-		}
-		constexpr void release()
-		{
-			if (!is_master()) [[unlikely]]
-				master->release();
-			else if (ref_count.fetch_sub(1) == 1) [[unlikely]]
-				delete this;
-		}
+		virtual void acquire() noexcept;
+		virtual void release();
 
 		union
 		{
-			std::atomic<std::size_t> ref_count = 0;
-			asset_package_base *master; /* Non-master packages do not have their own reference counter. */
+			std::atomic<std::size_t> ref_count;
+			master_asset_package *master; /* Non-master packages do not have a reference counter. */
+
+			std::byte bytes[sizeof(ref_count) > sizeof(master) ? sizeof(ref_count) : sizeof(master)] = {};
 		};
 
+		std::filesystem::path path;
 		flags_t flags;
 
-		std::filesystem::path path;
+		union
+		{
+			std::vector<archive_asset_record> archive_records;
+			std::vector<loose_asset_record> loose_records;
+		};
+	};
+
+	struct master_asset_package final : asset_package_base, asset_collection
+	{
+		master_asset_package(std::filesystem::path path, flags_t flags) : asset_package_base(std::move(path), flags) {}
+		~master_asset_package() override = default;
+
+		void acquire() noexcept final { ref_count.fetch_add(1); }
+		void release() final
+		{
+			if (ref_count.fetch_sub(1) == 1) [[unlikely]]
+				delete this;
+		}
+
 		std::vector<std::unique_ptr<asset_package_base>> fragments;
 	};
 
-	struct loose_package : asset_package_base
+	void asset_package_base::acquire() noexcept
 	{
-		std::vector<loose_asset_record> records;
-	};
-
-	struct archive_package : asset_package_base
+		if (!is_master()) [[unlikely]]
+			master->acquire();
+	}
+	void asset_package_base::release()
 	{
-		std::vector<archive_asset_record> records;
-	};
+		if (!is_master()) [[unlikely]]
+			master->release();
+	}
+	constexpr master_asset_package *asset_package_base::get_master() noexcept
+	{
+		return is_master() ? static_cast<master_asset_package *>(this) : master->get_master();
+	}
 }	 // namespace sek::detail

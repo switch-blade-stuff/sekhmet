@@ -54,6 +54,14 @@ namespace sek
 	}
 	int asset_db::check_package(const std::filesystem::path &path) const
 	{
+		/*
+		 * auto stream  = sek::stream_asset(handle, std::ios::in | std::ios::bin);
+		 * auto fmap    = sek::map_asset(handle);
+		 *
+		 * auto stream  = handle.get_stream(std::ios::in | std::ios::bin);
+		 * auto fmap    = handle.get_file_map();
+		 *
+		 * */
 		if (auto manifest_path = data_dir_path / get_manifest_path(get_relative_path(path)); exists(manifest_path))
 			if (auto manifest = load_package_manifest(manifest_path); manifest.is_table()) [[likely]]
 			{

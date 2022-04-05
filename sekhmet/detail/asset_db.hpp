@@ -214,7 +214,7 @@ namespace sek
 		SEK_API package_handle load_package(const std::filesystem::path &path, bool overwrite = true);
 		/** Checks if the path references a valid package without loading it.
 		 * @param path Path of the package to check relative to the data directory.
-		 * @return `1` if the package is a valid master package, `-1` if the package is a valid fragment,
+		 * @return `1` if the package is a valid master, `-1` if the package is a valid fragment,
 		 * `0` if the path is not a valid package. */
 		[[nodiscard]] SEK_API int check_package(const std::filesystem::path &path) const;
 
@@ -249,7 +249,7 @@ namespace sek
 
 		/** Path to the data directory. */
 		std::filesystem::path data_dir_path;
-		/** Packages mapped to their canonical filename strings. */
+		/** Packages mapped to their filename strings. */
 		hmap<std::filesystem::path::string_type, package_handle> package_map;
 	};
 
