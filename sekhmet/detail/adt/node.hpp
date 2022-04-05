@@ -36,7 +36,7 @@ namespace sek::adt
 		EMPTY = 0,
 		BOOL = 1,
 		CHAR = 2,
-		POINTER = 3,
+		// POINTER = 3,
 		STRING = 4,
 		BINARY = 5,
 		ARRAY = 6,
@@ -102,9 +102,9 @@ namespace sek::adt
 		~node_type_error() noexcept override = default;
 	};
 
-	/** @brief Structure used to store format-independent serialized data.
+	/** @brief Structure used to contain format-independent serialized data.
 	 *
-	 * A non-empty node stores one of the following:
+	 * A non-empty node contains one of the following:
 	 * * `bool_type` - bool.
 	 * * `char_type` - char character.
 	 * * `std::uint8_type` - 8-bit unsigned integer.
@@ -114,7 +114,6 @@ namespace sek::adt
 	 * * `int64_type` - 64-bit signed integer.
 	 * * `float32_type` - Single-precision float.
 	 * * `float64_type` - Double-precision float.
-	 * * `pointer_type` - Const pointer to a node.
 	 * * `string_type` - Utf-8 string.
 	 * * `binary_type` - Vector of `std::byte`.
 	 * * `sequence_type` - Vector of nodes.
@@ -139,7 +138,7 @@ namespace sek::adt
 		typedef std::int64_t int64_type;
 		typedef float float32_type;
 		typedef double float64_type;
-		typedef const node *pointer_type;
+		// typedef const node *pointer_type;
 
 		typedef std::string string_type;
 		typedef std::vector<std::byte> binary_type;
@@ -149,15 +148,16 @@ namespace sek::adt
 		typedef node_state_t state_type;
 
 	private:
-		constexpr static auto literal_value_size = max(sizeof(int64_type), sizeof(float64_type), sizeof(pointer_type));
-		constexpr static auto literal_value_align = max(alignof(int64_type), alignof(float64_type), alignof(pointer_type));
+		constexpr static auto literal_value_size = max(sizeof(int64_type), sizeof(float64_type) /*, sizeof(pointer_type)*/);
+		constexpr static auto literal_value_align =
+			max(alignof(int64_type), alignof(float64_type) /*, alignof(pointer_type)*/);
 
 		using literal_value_storage_t = sek::aligned_storage<literal_value_size, literal_value_align>;
 
 	public:
 		/** Initializes an empty node. */
 		constexpr node() noexcept : node_state(state_type::EMPTY) {}
-		/** Destroys the stored value. */
+		/** Destroys the contained value. */
 		SEK_ADT_NODE_CONSTEXPR ~node() { destroy(); }
 
 		/** Copy-constructs the node. */
@@ -251,12 +251,6 @@ namespace sek::adt
 		/** Initializes a node from a double.
 		 * @param value Value to store in the node. */
 		constexpr node(float64_type value) noexcept : node_state(state_type::FLOAT64), float64_value(value) {}
-
-		/** Initializes a node from a node pointer.
-		 * @param value Pointer to a different node.
-		 * @note Referenced node's lifetime must be managed by the user.
-		 * Node does not manage the other node's lifetime. */
-		constexpr node(pointer_type value) noexcept : node_state(state_type::POINTER), pointer_value(value) {}
 
 		/** Initializes the node from a string by copy.
 		 * @param str String to copy into the node. */
@@ -388,14 +382,14 @@ namespace sek::adt
 		/** Checks if the node is empty. */
 		[[nodiscard]] constexpr bool empty() const noexcept { return state() == state_type::EMPTY; }
 
-		/** Deserializes the stored value as the specified type.
+		/** Deserializes the contained value as the specified type.
 		 * @param value Reference to an instance of T to be deserialized. */
 		template<detail::has_node_getter T>
 		constexpr void get(T &value) const
 		{
 			detail::node_getter<T>{}(*this, value);
 		}
-		/** Deserializes the stored value as the specified type.
+		/** Deserializes the contained value as the specified type.
 		 * @param value Reference to an instance of T to be deserialized.
 		 * @return true if deserialized successfully. false otherwise.
 		 * @note If `node_type_exception` (serialization failure) is thrown, returns false.
@@ -405,7 +399,7 @@ namespace sek::adt
 		{
 			return detail::node_getter<T>{}(*this, value, std::nothrow);
 		}
-		/** Deserializes the stored value as the specified type.
+		/** Deserializes the contained value as the specified type.
 		 * @return Deserialized instance of T. */
 		template<detail::has_node_getter T>
 		[[nodiscard]] constexpr T get() const requires std::is_default_constructible_v<T>
@@ -423,10 +417,14 @@ namespace sek::adt
 			detail::node_setter<T>{}(*this, value);
 			return *this;
 		}
+
 		/** Checks if the node contains a bool. */
 		[[nodiscard]] constexpr bool is_bool() const noexcept { return state() == state_type::BOOL; }
-		/** Returns reference to the stored bool.
-		 * @throw node_type_exception If the node does not store a bool. */
+		/** Asserts that `is_bool` evaluates to true.
+		 * @throw node_type_exception If the node does not contain a bool. */
+		constexpr void require_bool() const { assert_state<state_type::BOOL>(); }
+		/** Returns reference to the contained bool.
+		 * @throw node_type_exception If the node does not contain a bool. */
 		[[nodiscard]] constexpr bool_type &as_bool()
 		{
 			assert_state<state_type::BOOL>();
@@ -441,8 +439,11 @@ namespace sek::adt
 
 		/** Checks if the node contains a character. */
 		[[nodiscard]] constexpr bool is_char() const noexcept { return state() == state_type::CHAR; }
-		/** Returns reference to the stored character.
-		 * @throw node_type_exception If the node does not store a character. */
+		/** Asserts that `is_char` evaluates to true.
+		 * @throw node_type_exception If the node does not contain a character. */
+		constexpr void require_char() const { assert_state<state_type::CHAR>(); }
+		/** Returns reference to the contained character.
+		 * @throw node_type_exception If the node does not contain a character. */
 		[[nodiscard]] constexpr char_type &as_char()
 		{
 			assert_state<state_type::CHAR>();
@@ -457,8 +458,11 @@ namespace sek::adt
 
 		/** Checks if the node contains an 8-bit unsigned integer. */
 		[[nodiscard]] constexpr bool is_uint8() const noexcept { return state() == state_type::UINT8; }
-		/** Returns reference to the stored 8-bit unsigned integer.
-		 * @throw node_type_exception If the node does not store an 8-bit unsigned integer. */
+		/** Asserts that `is_uint8` evaluates to true.
+		 * @throw node_type_exception If the node does not contain an 8-bit unsigned integer. */
+		constexpr void require_uint8() const { assert_state<state_type::UINT8>(); }
+		/** Returns reference to the contained 8-bit unsigned integer.
+		 * @throw node_type_exception If the node does not contain an 8-bit unsigned integer. */
 		[[nodiscard]] constexpr uint8_type &as_uint8()
 		{
 			assert_state<state_type::UINT8>();
@@ -472,8 +476,11 @@ namespace sek::adt
 		}
 		/** Checks if the node contains an 8-bit signed integer. */
 		[[nodiscard]] constexpr bool is_int8() const noexcept { return state() == state_type::INT8; }
-		/** Returns reference to the stored 8-bit signed integer.
-		 * @throw node_type_exception If the node does not store an 8-bit signed integer. */
+		/** Asserts that `is_int8` evaluates to true.
+		 * @throw node_type_exception If the node does not contain an 8-bit signed integer. */
+		constexpr void require_int8() const { assert_state<state_type::INT8>(); }
+		/** Returns reference to the contained 8-bit signed integer.
+		 * @throw node_type_exception If the node does not contain an 8-bit signed integer. */
 		[[nodiscard]] constexpr int8_type &as_int8()
 		{
 			assert_state<state_type::INT8>();
@@ -487,8 +494,11 @@ namespace sek::adt
 		}
 		/** Checks if the node contains an 16-bit signed integer. */
 		[[nodiscard]] constexpr bool is_int16() const noexcept { return state() == state_type::INT16; }
-		/** Returns reference to the stored 16-bit signed integer.
-		 * @throw node_type_exception If the node does not store an 16-bit signed integer. */
+		/** Asserts that `is_int16` evaluates to true.
+		 * @throw node_type_exception If the node does not contain a 16-bit signed integer. */
+		constexpr void require_int16() const { assert_state<state_type::INT16>(); }
+		/** Returns reference to the contained 16-bit signed integer.
+		 * @throw node_type_exception If the node does not contain a 16-bit signed integer. */
 		[[nodiscard]] constexpr int16_type &as_int16()
 		{
 			assert_state<state_type::INT16>();
@@ -502,8 +512,11 @@ namespace sek::adt
 		}
 		/** Checks if the node contains an 32-bit signed integer. */
 		[[nodiscard]] constexpr bool is_int32() const noexcept { return state() == state_type::INT32; }
-		/** Returns reference to the stored 32-bit signed integer.
-		 * @throw node_type_exception If the node does not store an 32-bit signed integer. */
+		/** Asserts that `is_int32` evaluates to true.
+		 * @throw node_type_exception If the node does not contain a 32-bit signed integer. */
+		constexpr void require_int32() const { assert_state<state_type::INT32>(); }
+		/** Returns reference to the contained 32-bit signed integer.
+		 * @throw node_type_exception If the node does not contain a 32-bit signed integer. */
 		[[nodiscard]] constexpr int32_type &as_int32()
 		{
 			assert_state<state_type::INT32>();
@@ -517,8 +530,11 @@ namespace sek::adt
 		}
 		/** Checks if the node contains an 64-bit signed integer. */
 		[[nodiscard]] constexpr bool is_int64() const noexcept { return state() == state_type::INT64; }
-		/** Returns reference to the stored 64-bit signed integer.
-		 * @throw node_type_exception If the node does not store an 64-bit signed integer. */
+		/** Asserts that `is_int64` evaluates to true.
+		 * @throw node_type_exception If the node does not contain a 64-bit signed integer. */
+		constexpr void require_int64() const { assert_state<state_type::INT64>(); }
+		/** Returns reference to the contained 64-bit signed integer.
+		 * @throw node_type_exception If the node does not contain a 64-bit signed integer. */
 		[[nodiscard]] constexpr int64_type &as_int64()
 		{
 			assert_state<state_type::INT64>();
@@ -535,9 +551,16 @@ namespace sek::adt
 		{
 			return static_cast<std::uint32_t>(state()) & static_cast<std::uint32_t>(state_type::INT);
 		}
-		/** Returns value of the stored integer.
+		/** Asserts that `is_int` evaluates to true.
+		 * @throw node_type_exception If the node does not contain an integer. */
+		constexpr void require_int() const
+		{
+			if (!is_int()) [[unlikely]]
+				throw node_type_error();
+		}
+		/** Returns value of the contained integer.
 		 * @note Will preform conversions from the underlying int type if appropriate.
-		 * @throw node_type_exception If the node does not store an integer. */
+		 * @throw node_type_exception If the node does not contain an integer. */
 		template<std::integral T>
 		[[nodiscard]] constexpr T as_int() const
 		{
@@ -554,8 +577,11 @@ namespace sek::adt
 
 		/** Checks if the node contains a single-precision float. */
 		[[nodiscard]] constexpr bool is_float32() const noexcept { return state() == state_type::FLOAT32; }
-		/** Returns reference to the stored single-precision float.
-		 * @throw node_type_exception If the node does not store a single-precision float. */
+		/** Asserts that `is_float32` evaluates to true.
+		 * @throw node_type_exception If the node does not contain a single-precision float. */
+		constexpr void require_float32() const { assert_state<state_type::FLOAT32>(); }
+		/** Returns reference to the contained single-precision float.
+		 * @throw node_type_exception If the node does not contain a single-precision float. */
 		[[nodiscard]] constexpr float32_type &as_float32()
 		{
 			assert_state<state_type::FLOAT32>();
@@ -569,8 +595,11 @@ namespace sek::adt
 		}
 		/** Checks if the node contains a double-precision float. */
 		[[nodiscard]] constexpr bool is_float64() const noexcept { return state() == state_type::FLOAT64; }
-		/** Returns reference to the stored double-precision float.
-		 * @throw node_type_exception If the node does not store a double-precision float. */
+		/** Asserts that `is_float64` evaluates to true.
+		 * @throw node_type_exception If the node does not contain a double-precision float. */
+		constexpr void require_float64() const { assert_state<state_type::FLOAT64>(); }
+		/** Returns reference to the contained double-precision float.
+		 * @throw node_type_exception If the node does not contain a double-precision float. */
 		[[nodiscard]] constexpr float64_type &as_float64()
 		{
 			assert_state<state_type::FLOAT64>();
@@ -587,9 +616,16 @@ namespace sek::adt
 		{
 			return static_cast<std::uint32_t>(state()) & static_cast<std::uint32_t>(state_type::FLOAT);
 		}
-		/** Returns reference to the stored float.
+		/** Asserts that `is_float` evaluates to true.
+		 * @throw node_type_exception If the node does not contain a float. */
+		constexpr void require_float() const
+		{
+			if (!is_float()) [[unlikely]]
+				throw node_type_error();
+		}
+		/** Returns reference to the contained float.
 		 * @note Will preform conversions from the underlying float type if appropriate.
-		 * @throw node_type_exception If the node does not store a float. */
+		 * @throw node_type_exception If the node does not contain a float. */
 		template<std::floating_point T>
 		[[nodiscard]] constexpr T as_float() const
 		{
@@ -606,9 +642,16 @@ namespace sek::adt
 		{
 			return static_cast<std::uint32_t>(state()) & static_cast<std::uint32_t>(state_type::NUMBER);
 		}
-		/** Returns copy of the stored number.
+		/** Asserts that `is_number` evaluates to true.
+		 * @throw node_type_exception If the node does not contain a number. */
+		constexpr void require_number() const
+		{
+			if (!is_number()) [[unlikely]]
+				throw node_type_error();
+		}
+		/** Returns copy of the contained number.
 		 * @note Will preform conversions from the underlying number type if appropriate.
-		 * @throw node_type_exception If the node does not store a number. */
+		 * @throw node_type_exception If the node does not contain a number. */
 		template<typename T>
 		[[nodiscard]] constexpr T as_number() const requires std::is_arithmetic_v<T>
 		{
@@ -625,43 +668,32 @@ namespace sek::adt
 			}
 		}
 
-		/** Checks if the node contains a node pointer. */
-		[[nodiscard]] constexpr bool is_pointer() const noexcept { return state() == state_type::POINTER; }
-		/** Returns reference to the stored node pointer.
-		 * @throw node_type_exception If the node does not hold a pointer. */
-		[[nodiscard]] constexpr pointer_type &as_pointer()
-		{
-			assert_state<state_type::POINTER>();
-			return pointer_value;
-		}
-		/** Returns reference to the stored node pointer.
-		 * @throw node_type_exception If the node does not hold a pointer. */
-		[[nodiscard]] constexpr const pointer_type &as_pointer() const
-		{
-			assert_state<state_type::POINTER>();
-			return pointer_value;
-		}
-
 		/** Checks if the node contains a string. */
 		[[nodiscard]] constexpr bool is_string() const noexcept { return state() == state_type::STRING; }
-		/** Returns reference to the stored string.
-		 * @throw node_type_exception If the node does not store a string. */
+		/** Asserts that `is_string` evaluates to true.
+		 * @throw node_type_exception If the node does not contain a string. */
+		constexpr void require_string() const { assert_state<state_type::STRING>(); }
+		/** Returns reference to the contained string.
+		 * @throw node_type_exception If the node does not contain a string. */
 		[[nodiscard]] constexpr string_type &as_string()
 		{
-			assert_state<state_type::STRING>();
+			require_string();
 			return string_value;
 		}
 		/** @copydoc as_binary */
 		[[nodiscard]] constexpr const string_type &as_string() const
 		{
-			assert_state<state_type::STRING>();
+			require_string();
 			return string_value;
 		}
 
 		/** Checks if the node contains a byte sequence. */
 		[[nodiscard]] constexpr bool is_binary() const noexcept { return state() == state_type::BINARY; }
-		/** Returns reference to the stored byte sequence.
-		 * @throw node_type_exception If the node does not store a byte sequence. */
+		/** Asserts that `is_binary` evaluates to true.
+		 * @throw node_type_exception If the node does not contain a byte sequence. */
+		constexpr void require_binary() const { assert_state<state_type::BINARY>(); }
+		/** Returns reference to the contained byte sequence.
+		 * @throw node_type_exception If the node does not contain a byte sequence. */
 		[[nodiscard]] constexpr binary_type &as_binary()
 		{
 			assert_state<state_type::BINARY>();
@@ -674,10 +706,13 @@ namespace sek::adt
 			return binary_value;
 		}
 
-		/** Checks if the node contains an sequence of nodes. */
+		/** Checks if the node contains a sequence of nodes. */
 		[[nodiscard]] constexpr bool is_sequence() const noexcept { return state() == state_type::ARRAY; }
-		/** Returns reference to the stored node sequence.
-		 * @throw node_type_exception If the node does not store a node sequence. */
+		/** Asserts that `is_sequence` evaluates to true.
+		 * @throw node_type_exception If the node does not contain a node sequence. */
+		constexpr void require_sequence() const { assert_state<state_type::ARRAY>(); }
+		/** Returns reference to the contained node sequence.
+		 * @throw node_type_exception If the node does not contain a node sequence. */
 		[[nodiscard]] constexpr sequence_type &as_sequence()
 		{
 			assert_state<state_type::ARRAY>();
@@ -692,8 +727,11 @@ namespace sek::adt
 
 		/** Checks if the node contains a table of nodes. */
 		[[nodiscard]] constexpr bool is_table() const noexcept { return state() == state_type::TABLE; }
-		/** Returns reference to the stored node table.
-		 * @throw node_type_exception If the node does not store a table. */
+		/** Asserts that `is_table` evaluates to true.
+		 * @throw node_type_exception If the node does not contain a table. */
+		constexpr void require_table() const { assert_state<state_type::TABLE>(); }
+		/** Returns reference to the contained node table.
+		 * @throw node_type_exception If the node does not contain a table. */
 		[[nodiscard]] constexpr table_type &as_table()
 		{
 			assert_state<state_type::TABLE>();
@@ -705,6 +743,22 @@ namespace sek::adt
 			assert_state<state_type::TABLE>();
 			return table_value;
 		}
+
+		/** Calls `operator[]` on the contained sequence. */
+		[[nodiscard]] constexpr auto &operator[](sequence_type::size_type i) { return as_sequence()[i]; }
+		/** @copydoc operator[] */
+		[[nodiscard]] constexpr const auto &operator[](sequence_type::size_type i) const { return as_sequence()[i]; }
+		/** Calls `at` on the contained sequence. */
+		[[nodiscard]] constexpr auto &at(sequence_type::size_type i) { return as_sequence().at(i); }
+		/** @copydoc at */
+		[[nodiscard]] constexpr const auto &at(sequence_type::size_type i) const { return as_sequence().at(i); }
+
+		/** Calls `operator[]` on the contained table. */
+		[[nodiscard]] constexpr auto &operator[](const table_type::key_type &key) { return as_table()[key]; }
+		/** Calls `at` on the contained table. */
+		[[nodiscard]] constexpr auto &at(const table_type::key_type &key) { return as_table().at(key); }
+		/** @copydoc at */
+		[[nodiscard]] constexpr const auto &at(const table_type::key_type &key) const { return as_table().at(key); }
 
 	private:
 		template<state_type State>
@@ -726,8 +780,7 @@ namespace sek::adt
 				case state_type::INT32:
 				case state_type::INT64:
 				case state_type::FLOAT32:
-				case state_type::FLOAT64:
-				case state_type::POINTER: std::construct_at(&literal_value_storage, other.literal_value_storage); break;
+				case state_type::FLOAT64: std::construct_at(&literal_value_storage, other.literal_value_storage); break;
 				case state_type::STRING: std::construct_at(&string_value, other.string_value); break;
 				case state_type::BINARY: std::construct_at(&binary_value, other.binary_value); break;
 				case state_type::ARRAY: std::construct_at(&sequence_value, other.sequence_value); break;
@@ -747,8 +800,7 @@ namespace sek::adt
 				case state_type::INT32:
 				case state_type::INT64:
 				case state_type::FLOAT32:
-				case state_type::FLOAT64:
-				case state_type::POINTER: std::construct_at(&literal_value_storage, other.literal_value_storage); break;
+				case state_type::FLOAT64: std::construct_at(&literal_value_storage, other.literal_value_storage); break;
 				case state_type::STRING: std::construct_at(&string_value, other.string_value); break;
 				case state_type::BINARY: std::construct_at(&binary_value, other.binary_value); break;
 				case state_type::ARRAY: std::construct_at(&sequence_value, other.sequence_value); break;
@@ -783,7 +835,7 @@ namespace sek::adt
 			int64_type int64_value;
 			float32_type float32_value;
 			float64_type float64_value;
-			pointer_type pointer_value;
+			// pointer_type pointer_value;
 
 			string_type string_value;
 			binary_type binary_value;
@@ -1141,35 +1193,6 @@ namespace sek::adt
 					n.node_state = node_state_t::FLOAT32;
 					n.float32_value = static_cast<typename node::float32_type>(value);
 				}
-			}
-		};
-
-		template<>
-		struct node_getter<const node *>
-		{
-			constexpr void operator()(const node &n, typename node::pointer_type &value) const
-			{
-				value = n.as_pointer();
-			}
-			constexpr bool operator()(const node &n, typename node::pointer_type &value, std::nothrow_t) const noexcept
-			{
-				if (n.is_bool()) [[likely]]
-				{
-					value = n.pointer_value;
-					return true;
-				}
-				else
-					return false;
-			}
-		};
-		template<typename T>
-		requires(std::same_as<T, node *> || std::same_as<T, const node *>) struct node_setter<T>
-		{
-			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::pointer_type value) const noexcept
-			{
-				n.destroy();
-				n.node_state = node_state_t::POINTER;
-				n.pointer_value = value;
 			}
 		};
 

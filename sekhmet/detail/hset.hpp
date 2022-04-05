@@ -219,8 +219,8 @@ namespace sek
 		/** Constructs a value (of value_type) in-place.
 		 * If the same value is already present within the set, replaces that value.
 		 * @param args Arguments used to construct the value object.
-		 * @return Pair where first element is the iterator to the inserted node
-		 * and second is boolean indicating whether the node was inserted or replace (true if inserted new, false if replaced). */
+		 * @return Pair where first element is the iterator to the inserted element
+		 * and second is boolean indicating whether the element was inserted or replace (true if inserted new, false if replaced). */
 		template<typename... Args>
 		constexpr std::pair<iterator, bool> emplace(Args &&...args)
 		{
@@ -230,14 +230,28 @@ namespace sek
 		/** Attempts to insert a value into the set.
 		 * If the same value is already present within the set, does not replace it.
 		 * @param value Value to insert.
-		 * @return Pair where first element is the iterator to the inserted potentially inserted node
-		 * and second is boolean indicating whether the node was inserted (true if inserted, false otherwise). */
+		 * @return Pair where first element is the iterator to the potentially inserted element
+		 * and second is boolean indicating whether the element was inserted (true if inserted, false otherwise). */
 		constexpr std::pair<iterator, bool> try_insert(value_type &&value)
 		{
 			return data_table.try_insert(std::forward<value_type>(value));
 		}
 		/** @copydoc try_insert */
 		constexpr std::pair<iterator, bool> try_insert(const value_type &value) { return data_table.try_insert(value); }
+		/** @copydetails try_insert
+		 * @param hint Hint for where to insert the value.
+		 * @param value Value to insert.
+		 * @return Iterator to the potentially inserted element or the element that prevented insertion.
+		 * @note Hint is required for compatibility with STL algorithms and is ignored.  */
+		constexpr iterator try_insert([[maybe_unused]] const_iterator hint, value_type &&value)
+		{
+			return try_insert(std::forward<value_type>(value)).first;
+		}
+		/** @copydoc try_insert */
+		constexpr iterator try_insert([[maybe_unused]] const_iterator hint, const value_type &value)
+		{
+			return try_insert(value).first;
+		}
 		/** Attempts to insert a sequence of values (of value_type) into the set.
 		 * If same values are already present within the set, does not replace them.
 		 * @param first Iterator to the start of the value sequence.
@@ -259,15 +273,29 @@ namespace sek
 
 		/** Inserts a value (of value_type) into the set.
 		 * If the same value is already present within the set, replaces that value.
-		 * @param value Value of the inserted object.
-		 * @return Pair where first element is the iterator to the inserted node
-		 * and second is boolean indicating whether the node was inserted or replace (true if inserted new, false if replaced). */
+		 * @param value Value to insert.
+		 * @return Pair where first element is the iterator to the inserted element
+		 * and second is boolean indicating whether the element was inserted or replaced (true if inserted new, false if replaced). */
 		constexpr std::pair<iterator, bool> insert(value_type &&value)
 		{
 			return data_table.insert(std::forward<value_type>(value));
 		}
 		/** @copydoc insert */
 		constexpr std::pair<iterator, bool> insert(const value_type &value) { return data_table.insert(value); }
+		/** @copydetails insert
+		 * @param hint Hint for where to insert the value.
+		 * @param value Value to insert.
+		 * @return Iterator to the inserted element.
+		 * @note Hint is required for compatibility with STL algorithms and is ignored. */
+		constexpr iterator insert([[maybe_unused]] const_iterator hint, value_type &&value)
+		{
+			return insert(std::forward<value_type>(value)).first;
+		}
+		/** @copydoc insert */
+		constexpr iterator insert([[maybe_unused]] const_iterator hint, const value_type &value)
+		{
+			return insert(value).first;
+		}
 		/** Inserts a sequence of values (of value_type) into the set.
 		 * If same values are already present within the set, replaces them.
 		 * @param first Iterator to the start of the value sequence.
@@ -329,19 +357,37 @@ namespace sek
 		 * If the same value is already present within the set, replaces that value.
 		 * @param node Node to insert.
 		 * @return Pair where first element is the iterator to the inserted node
-		 * and second is boolean indicating whether the node was inserted or replace (true if inserted new, false if replaced). */
+		 * and second is boolean indicating whether the node was inserted or replaced (true if inserted new, false if replaced). */
 		constexpr std::pair<iterator, bool> insert(node_handle &&node)
 		{
 			return data_table.insert_node(std::forward<node_handle>(node));
 		}
+		/** @copydetails insert
+		 * @param hint Hint for where to insert the node.
+		 * @param node Node to insert.
+		 * @return Iterator to the inserted node.
+		 * @note Hint is required for compatibility with STL algorithms and is ignored. */
+		constexpr iterator insert([[maybe_unused]] const_iterator hint, node_handle &&node)
+		{
+			return insert(std::forward<node_handle>(node)).first;
+		}
 		/** Attempts to insert the specified node into the set.
 		 * If the same value is already present within the set, does not replace it.
 		 * @param node Node to insert.
-		 * @return Pair where first element is the iterator to the inserted potentially inserted node
+		 * @return Pair where first element is the iterator to the potentially inserted node
 		 * and second is boolean indicating whether the node was inserted (true if inserted, false otherwise). */
 		constexpr std::pair<iterator, bool> try_insert(node_handle &&node)
 		{
 			return data_table.try_insert_node(std::forward<node_handle>(node));
+		}
+		/** @copydetails try_insert
+		 * @param hint Hint for where to insert the node.
+		 * @param node Node to insert.
+		 * @return Iterator to the potentially inserted node or the node that prevented insertion.
+		 * @note Hint is required for compatibility with STL algorithms and is ignored. */
+		constexpr iterator try_insert([[maybe_unused]] const_iterator hint, node_handle &&node)
+		{
+			return insert(std::forward<node_handle>(node)).first;
 		}
 
 		/** Returns current amount of elements in the set. */

@@ -7,19 +7,22 @@ needed.
 
 ### Assets & resources
 
-Every file that the engine uses is an "asset". Assets can be loaded from either loose files or asset packs. Within the
-engine, assets are represented using asset references. Asset references are unique IDs (UUIDs) that are mapped to an
-asset path. This is done in order to allow for asset overwriting, as well as simplify editor asset management - updating
-an asset's path will not require a change to all other assets that depend on it, only the central asset table will need
-to be updated.
+Every file that the engine uses is an "asset".
 
 Assets are supplied to the engine via asset packages. Asset packages can be either loose (in which case a package is a
 directory) or archived (in which case a package is a special archive meant for streaming). Every asset package must
-contain a ".manifest" configuration file which would contain a map of asset UUIDs to their paths within the package.
+contain configuration metadata which would contain a map of asset UUIDs to their paths within the package, as well as
+other information such as whether the package is a master, list of package's fragments, etc. For "loose" packages the
+metadata comes in form of the `.manifest` file inside the package's directory. For archive packages metadata is stored
+as the header of the package file.
+
 When an asset package is loaded, first it's manifest is read and every asset is added to the internal asset table. If
-multiple packages contain an asset with the same UUID, the most recently loaded package's asset will be used.
+multiple packages contain an asset with the same UUID, the most recently loaded package's asset will be used. There is
+an asset table for each individual package, as well as the global asset table. Assets can be searched for via either
+their UUID or their string tags (ex. all "image" assets).
 
-Assets can be loaded via either their UUID or an asset path (in this case, id indirection is impossible). Internally,
-the asset database is stored as a hash map of UUIDs and asset paths.
+Archived packages can be fragmented. Packages that do not have the "master" flag set are considered to be fragments and
+are ignored during package load. "Master" packages can specify a list of fragments, which will be loaded as a part of
+their "master" package.
 
-Resources are just assets of UBJson format (.ubj) that contain serializable information.
+Resources are just assets of UBJson format (.ubj) that contain serialized structure data.

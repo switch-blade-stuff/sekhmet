@@ -71,7 +71,7 @@ namespace sek::adt
 	{
 		if (n.is_sequence()) [[likely]]
 		{
-			for (auto out_iter = std::back_inserter(value); auto &item : n.as_sequence())
+			for (auto out_iter = std::inserter(value, std::ranges::end(value)); auto &item : n.as_sequence())
 				out_iter = item.get<std::ranges::range_value_t<R>>();
 		}
 	}
