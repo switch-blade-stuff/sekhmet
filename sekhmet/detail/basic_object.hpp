@@ -5,6 +5,7 @@
 #pragma once
 
 #include <bit>
+#include <stdexcept>
 
 #include "meta_containers.hpp"
 #include "type_id.hpp"
@@ -55,6 +56,14 @@ namespace sek
 			meta_view<attribute> attributes;
 		};
 	}	 // namespace detail
+
+	/** @brief Exception thrown on invalid object cast. */
+	class object_cast_error : public std::runtime_error
+	{
+	public:
+		object_cast_error() : std::runtime_error("Invalid object cast") {}
+		~object_cast_error() override = default;
+	};
 
 	/** @brief Base type that enables it's children to use runtime type information.
 	 * @note `basic_object` can not participate in multiple or `virtual` inheritance. */
@@ -152,13 +161,13 @@ namespace sek
 	 *
 	 * @param ref Reference to the `From` object.
 	 * @return `ref` casted to the `To` type.
-	 * @throw `std::bad_cast` If such cast is not possible.
+	 * @throw `object_cast_error` If such cast is not possible.
 	 * @note `object_cast` can not be used to cast away const-ness or volatility. Use `const_cast` instead. */
 	template<is_object_type To, is_object_type From>
 	constexpr To &object_cast(From &ptr) noexcept
 	{
 		if (auto result = object_cast<To>(std::addressof(ptr)); !result) [[unlikely]]
-			throw std::bad_cast();
+			throw object_cast_error();
 		else
 			return *result;
 	}

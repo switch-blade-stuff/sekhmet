@@ -187,7 +187,7 @@ namespace sek
 		/** Returns const iterator to the end of the map. */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return data_table.end(); }
 		/** @copydoc cbegin */
-		[[nodiscard]] constexpr const_iterator begin() const noexcept { return begin(); }
+		[[nodiscard]] constexpr const_iterator begin() const noexcept { return cbegin(); }
 		/** @copydoc cend */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
 

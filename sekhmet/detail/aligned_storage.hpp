@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <bit>
 #include <cstddef>
 
 namespace sek
@@ -13,18 +14,15 @@ namespace sek
 	{
 	public:
 		template<typename T>
-		requires(sizeof(T) <= Size) [[nodiscard]] constexpr T *get() noexcept
-		{
-			return reinterpret_cast<T *>(data_bytes);
-		}
+		requires(sizeof(T) <= Size) [[nodiscard]] constexpr T *get() noexcept { return std::bit_cast<T *>(data()); }
 		template<typename T>
 		requires(sizeof(T) <= Size) [[nodiscard]] constexpr const T *get() const noexcept
 		{
-			return reinterpret_cast<const T *>(data_bytes);
+			return std::bit_cast<const T *>(data());
 		}
 
-		[[nodiscard]] constexpr std::byte *data() noexcept { return data_bytes; }
-		[[nodiscard]] constexpr const std::byte *data() const noexcept { return data_bytes; }
+		[[nodiscard]] constexpr void *data() noexcept { return static_cast<void *>(data_bytes); }
+		[[nodiscard]] constexpr const void *data() const noexcept { return static_cast<const void *>(data_bytes); }
 
 	private:
 		std::byte data_bytes[Size];

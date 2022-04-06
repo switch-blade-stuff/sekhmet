@@ -425,5 +425,5 @@ namespace sek
 		package_map_t package_map;
 	};
 
-	extern template struct SEK_API_IMPORT basic_service<asset_db>;
+	extern template struct basic_service<asset_db>;
 }	 // namespace sek

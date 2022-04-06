@@ -40,9 +40,11 @@ namespace sek
 		typedef std::ptrdiff_t difference_type;
 
 	private:
-		constexpr static void *align_ptr(void *p, size_type align) noexcept
+		constexpr static void *align_ptr(void *p, ssize_t align) noexcept
 		{
-			return std::bit_cast<void *>((std::bit_cast<std::uintptr_t>(p) + (align - 1)) & -align);
+			auto int_ptr = std::bit_cast<std::intptr_t>(p);
+			int_ptr = static_cast<std::intptr_t>(int_ptr + (align - 1)) & static_cast<std::intptr_t>(-align);
+			return std::bit_cast<void *>(int_ptr);
 		}
 		constexpr static void *do_aligned_alloc(size_type n) noexcept
 		{
@@ -66,7 +68,7 @@ namespace sek
 #ifdef SEK_OS_WIN
 				return _aligned_realloc(ptr, sizeof(T) * n, alignof(T));
 #else
-				return align_ptr(realloc(ptr, sizeof(T) * n + alignof(T) - 1), alignof(T));
+				return align_ptr(realloc(ptr, sizeof(T) * n + alignof(T) - 1), static_cast<ssize_t>(alignof(T)));
 #endif
 			}
 		}

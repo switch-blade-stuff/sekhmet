@@ -27,7 +27,7 @@ namespace sek
 				std::lock_guard<std::mutex> l(data.mtx);
 				if (!(result = data.ptr.load(std::memory_order::relaxed)))
 				{
-					result = ptr ? ptr : local_instance();
+					result = ptr ? ptr : local();
 					data.ptr.store(result, std::memory_order::release);
 				}
 			}
@@ -41,15 +41,17 @@ namespace sek
 			std::atomic<Child *> ptr;
 		};
 
-		static Child *local_instance()
-		{
-			static Child value;
-			return &value;
-		}
+		static Child *local();
 
 		static sync_data data;
 	};
 
+	template<typename T>
+	T *basic_service<T>::local()
+	{
+		static T value;
+		return &value;
+	}
 	template<typename T>
 	typename basic_service<T>::sync_data basic_service<T>::data = {};
 }	 // namespace sek

@@ -12,7 +12,7 @@
 
 namespace sek
 {
-	template struct SEK_API_EXPORT basic_service<asset_db>;
+	template struct basic_service<asset_db>;
 
 	std::fstream asset_db::open_package_manifest(const std::filesystem::path &path, std::ios::openmode mode)
 	{

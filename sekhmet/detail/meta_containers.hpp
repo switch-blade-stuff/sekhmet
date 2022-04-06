@@ -53,25 +53,30 @@ namespace sek
 		{
 			return sizeof...(Is);
 		}
-		template<std::size_t, std::size_t... Is>
-		constexpr static auto make_filter_sequence_impl(std::index_sequence<Is...>)
-		{
-			return std::index_sequence<Is...>{};
-		}
-		template<std::size_t I, auto V, auto... Vs, std::size_t... Is>
-		constexpr static auto make_filter_sequence_impl(std::index_sequence<Is...>)
-		{
-			if constexpr (std::same_as<std::decay_t<decltype(V)>, std::decay_t<T>>)
-				return make_filter_sequence_impl<I + 1, Vs...>(std::index_sequence<Is..., I>{});
-			else
-				return make_filter_sequence_impl<I + 1, Vs...>(std::index_sequence<Is...>{});
-		}
-		constexpr static auto make_filter_sequence()
-		{
-			return make_filter_sequence_impl<0, Vals...>(std::index_sequence<>{});
-		}
 
-		using array_t = detail::static_array_t<T, count_idx(make_filter_sequence())>;
+		template<auto...>
+		struct value_seq
+		{
+		};
+
+		template<std::size_t I, typename...>
+		struct make_filter_sequence;
+		template<std::size_t I, std::size_t... Is>
+		struct make_filter_sequence<I, std::index_sequence<Is...>, value_seq<>>
+		{
+			using type = std::index_sequence<Is...>;
+		};
+		template<std::size_t I, std::size_t... Is, auto V, auto... Vs>
+		struct make_filter_sequence<I, std::index_sequence<Is...>, value_seq<V, Vs...>>
+		{
+			constexpr static bool match = std::same_as<std::decay_t<decltype(V)>, std::decay_t<T>>;
+			using next = std::conditional_t<match, std::index_sequence<Is..., I>, std::index_sequence<Is...>>;
+
+			using type = typename make_filter_sequence<I + 1, next, value_seq<Vs...>>::type;
+		};
+		using filter_sequence_t = typename make_filter_sequence<0, std::index_sequence<>, value_seq<Vals...>>::type;
+
+		using array_t = detail::static_array_t<T, count_idx(filter_sequence_t{})>;
 
 		template<std::size_t I, std::size_t J, auto Arg, auto... Args>
 		constexpr static auto extract_arg() noexcept
@@ -88,7 +93,7 @@ namespace sek
 		}
 
 	public:
-		constexpr static array_t value = instantiate(make_filter_sequence());
+		constexpr static array_t value = instantiate(filter_sequence_t{});
 	};
 
 	/** @brief Simple structural view into a range of elements. */
