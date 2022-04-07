@@ -28,16 +28,16 @@ namespace sek::detail
 #define SEK_ASSERT_2(cond, msg) sek::detail::assert_impl(cond, #cond, SEK_FILE, SEK_LINE, SEK_PRETTY_FUNC, msg)
 #define SEK_ASSERT_1(cond) SEK_ASSERT_2(cond, nullptr)
 
+/** Same as regular SEK_ASSERT, except applies even when SEK_NO_DEBUG_ASSERT is defined. */
+#define SEK_ASSERT_ALWAYS(...) SEK_GET_MACRO_2(__VA_ARGS__, SEK_ASSERT_2, SEK_ASSERT_1)(__VA_ARGS__)
+
 #if !defined(SEK_NO_DEBUG_ASSERT) && !defined(NDEBUG)
 /** Assert that supports an optional message, prints the enclosing function name and terminates using exit(1).
  * @note Currently the message can only be a char literal. */
-#define SEK_ASSERT(...) SEK_GET_MACRO_2(__VA_ARGS__, SEK_ASSERT_2, SEK_ASSERT_1)(__VA_ARGS__)
+#define SEK_ASSERT(...) SEK_ASSERT_ALWAYS(__VA_ARGS__)
 #else
 #define SEK_ASSERT(...)
 #endif
-
-/** Same as regular SEK_ASSERT, except applies even when SEK_NO_DEBUG_ASSERT is defined. */
-#define SEK_ASSERT_ALWAYS(...) SEK_GET_MACRO_2(__VA_ARGS__, SEK_ASSERT_2, SEK_ASSERT_1)(__VA_ARGS__)
 
 #define SEK_ASSERT_NORETURN_2(eval, msg)                                                                               \
 	do {                                                                                                               \

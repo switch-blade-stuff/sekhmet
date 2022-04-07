@@ -28,20 +28,20 @@ namespace sek::detail
 		return CreateFileMappingW(fd, nullptr, PAGE_READWRITE, 0, 0, wide_name.get());
 	}
 
-	static const std::ptrdiff_t filemap_offset_mult = []() noexcept
+	static std::ptrdiff_t alloc_granularity() noexcept
 	{
 		SYSTEM_INFO info;
 		GetSystemInfo(&info);
 		return static_cast<std::ptrdiff_t>(info.dwAllocationGranularity);
-	}();
-	void filemap_handle::init(native_file_type fd, std::ptrdiff_t offset, std::ptrdiff_t size, filemap_openmode mode, const char *name)
+	}
+	void filemap_handle::init(void *fd, std::ptrdiff_t offset, std::ptrdiff_t size, int mode, const char *name)
 	{
 		auto mapping = create_mapping(fd, name);
 		if (!mapping) [[unlikely]]
 			throw filemap_error("Failed to create file mapping object");
 
 		/* View must start at a multiple of allocation granularity. */
-		auto offset_diff = offset % filemap_offset_mult;
+		auto offset_diff = offset % alloc_granularity();
 		auto real_offset = offset - offset_diff;
 		auto real_size = size + offset_diff;
 
@@ -56,8 +56,7 @@ namespace sek::detail
 		view_ptr = std::bit_cast<HANDLE>(std::bit_cast<std::intptr_t>(view_ptr) + offset_diff);
 		map_size = size;
 	}
-	filemap_handle::filemap_handle(
-		const wchar_t *path, std::ptrdiff_t offset, std::ptrdiff_t size, filemap_openmode mode, const char *name)
+	filemap_handle::filemap_handle(const wchar_t *path, std::ptrdiff_t offset, std::ptrdiff_t size, int mode, const char *name)
 	{
 		struct raii_file
 		{
@@ -65,10 +64,7 @@ namespace sek::detail
 			constexpr ~raii_file() noexcept(false)
 			{
 				if (ptr && !CloseHandle(ptr)) [[unlikely]]
-				{
-					/* Throwing is fine here, since it is only used for RAII. */
 					throw filemap_error("Failed to close file handle");
-				}
 			}
 
 			HANDLE ptr;

@@ -57,12 +57,12 @@ namespace sek
 		 * @param file_path Path of the file to map into memory.
 		 * @param offset Offset into the file (in bytes) to start the mapping at.
 		 * @param size Amount of bytes from the offset position to map into memory.
-		 * @param mode Mode oof the file map. Default mode allows reading & writing.
+		 * @param mode Mode of the file map. By default, file mappings are read-only.
 		 * @param name Optional name for the file mapping. If the OS does not support named file mapping, the name is ignored. */
 		filemap(const std::filesystem::path &file_path,
 				std::ptrdiff_t offset,
 				std::ptrdiff_t size,
-				openmode mode = in | out,
+				openmode mode = in,
 				const char *name = nullptr)
 			: handle(file_path.c_str(), offset, size, mode, name)
 		{
@@ -71,9 +71,9 @@ namespace sek
 		 * @param fd Native file descriptor to create the mapping for.
 		 * @param offset Offset into the file (in bytes) to start the mapping at.
 		 * @param size Amount of bytes from the offset position to map into memory.
-		 * @param mode Mode oof the file map. Default mode allows reading & writing.
+		 * @param mode Mode of the file map. By default, file mappings are read-only.
 		 * @param name Optional name for the file mapping. If the OS does not support named file mapping, the name is ignored. */
-		filemap(native_file_type fd, std::ptrdiff_t offset, std::ptrdiff_t size, openmode mode = in | out, const char *name = nullptr)
+		filemap(native_file_type fd, std::ptrdiff_t offset, std::ptrdiff_t size, openmode mode = in, const char *name = nullptr)
 			: handle(fd, offset, size, mode, name)
 		{
 		}
