@@ -478,10 +478,10 @@ namespace sek
 			constexpr void rehash(size_type new_capacity)
 			{
 				/* Adjust the capacity to be at least large enough to fit the current load count. */
-				new_capacity = max(apply_load_factor_inv(load_count), new_capacity);
+				new_capacity = math::max(apply_load_factor_inv(load_count), new_capacity);
 
 				/* Quadratic search implementation requires power of 2 capacity, since the c1 and c2 constants are 0.5. */
-				new_capacity = next_pow_2(new_capacity);
+				new_capacity = math::next_pow_2(new_capacity);
 
 				/* Don't do anything if the capacity did not change after the adjustment. */
 				if (new_capacity != buckets_capacity) [[likely]]
@@ -804,7 +804,7 @@ namespace sek
 				else if (load_factor() >= max_load_factor())
 					rehash_impl(buckets_capacity * 2);
 				else if (consider_shrink && tombstone_factor() > min_tombstone_factor())
-					rehash_impl(next_pow_2(load_factor()));
+					rehash_impl(math::next_pow_2(load_factor()));
 			}
 
 			template<typename... Args>

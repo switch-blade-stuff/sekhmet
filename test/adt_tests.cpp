@@ -19,7 +19,7 @@ TEST(adt_tests, node_test)
 	EXPECT_TRUE(n1.is_int());
 	EXPECT_FALSE(n1.is_float());
 
-	EXPECT_THROW([[maybe_unused]] auto f = n1.as_float32(), sek::adt::node_type_error);
+	EXPECT_THROW([[maybe_unused]] auto f = n1.as_float32(), sek::adt::node_error);
 	EXPECT_NO_THROW([[maybe_unused]] auto i = n1.as_int32());
 	EXPECT_EQ(n1.as_int32(), 1);
 

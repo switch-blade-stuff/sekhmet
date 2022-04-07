@@ -13,7 +13,7 @@ namespace sek
 	{
 		/* Spawn worker threads. */
 		{
-			auto n = max<std::size_t>(1, worker_count);
+			auto n = math::max<std::size_t>(1, worker_count);
 			workers.reserve(n);
 			while (n-- > 0) workers.emplace_back(worker{this});
 		}

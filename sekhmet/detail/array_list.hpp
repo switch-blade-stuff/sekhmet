@@ -803,7 +803,7 @@ namespace sek
 		{
 			auto new_size = size() + amount;
 			if (new_size > capacity()) [[unlikely]]
-				resize_impl(max(new_size, next_capacity()));
+				resize_impl(math::max(new_size, next_capacity()));
 
 			auto new_end = data_begin + new_size;
 			std::move_backward(data_begin + pos, data_end, new_end);

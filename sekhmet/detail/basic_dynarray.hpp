@@ -40,11 +40,16 @@ namespace sek
 		typedef std::ptrdiff_t difference_type;
 
 	private:
-		constexpr static void *align_ptr(void *p, ssize_t align) noexcept
+		constexpr static void *align_ptr(void *p) noexcept
 		{
-			auto int_ptr = std::bit_cast<std::intptr_t>(p);
-			int_ptr = static_cast<std::intptr_t>(int_ptr + (align - 1)) & static_cast<std::intptr_t>(-align);
-			return std::bit_cast<void *>(int_ptr);
+			if constexpr (alignof(T) <= alignof(std::max_align_t))
+				return p;
+			else
+			{
+				auto int_ptr = std::bit_cast<std::intptr_t>(p);
+				int_ptr = static_cast<std::intptr_t>(int_ptr + (alignof(T) - 1)) & static_cast<std::intptr_t>(-alignof(T));
+				return std::bit_cast<void *>(int_ptr);
+			}
 		}
 		constexpr static void *do_aligned_alloc(size_type n) noexcept
 		{
@@ -68,7 +73,7 @@ namespace sek
 #ifdef SEK_OS_WIN
 				return _aligned_realloc(ptr, sizeof(T) * n, alignof(T));
 #else
-				return align_ptr(realloc(ptr, sizeof(T) * n + alignof(T) - 1), static_cast<ssize_t>(alignof(T)));
+				return realloc(real_ptr, sizeof(T) * n + alignof(T) - 1), static_cast<ssize_t>(alignof(T));
 #endif
 			}
 		}
@@ -88,7 +93,7 @@ namespace sek
 		constexpr basic_dynarray(size_type n, Args &&...args) requires std::constructible_from<T, Args...> : data_size(n)
 		{
 			init_impl(n);
-			while (n-- > 0) ::new (data_begin + n) value_type{std::forward<Args>(args)...};
+			while (n-- > 0) ::new (data() + n) value_type{std::forward<Args>(args)...};
 		}
 		template<std::forward_iterator I>
 		constexpr basic_dynarray(I first, I last) requires std::constructible_from<T, std::iter_value_t<I>>
@@ -107,14 +112,14 @@ namespace sek
 		constexpr basic_dynarray(const basic_dynarray &other)
 		{
 			init_impl(data_size = other.data_size);
-			std::copy_n(other.data_begin, data_size, data_begin);
+			std::copy_n(other.data(), data_size, data());
 		}
 		constexpr basic_dynarray &operator=(const basic_dynarray &other)
 		{
 			if (this != &other)
 			{
 				reserve(data_size = other.data_size);
-				std::copy_n(other.data_begin, data_size, data_begin);
+				std::copy_n(other.data(), data_size, data());
 			}
 			return *this;
 		}
@@ -139,7 +144,8 @@ namespace sek
 			resize_impl(n);
 			if (n > data_size)
 			{
-				for (auto elem = data_begin + data_size, end = data_begin + n; elem < end; ++elem)
+				auto aligned = data();
+				for (auto elem = aligned + data_size, end = aligned + n; elem < end; ++elem)
 					::new (elem) value_type{std::forward<Args>(args)...};
 			}
 			data_size = n;
@@ -150,8 +156,8 @@ namespace sek
 		[[nodiscard]] constexpr size_type capacity() const noexcept { return data_capacity; }
 		[[nodiscard]] constexpr size_type empty() const noexcept { return size() == 0; }
 
-		[[nodiscard]] constexpr pointer data() noexcept { return data_begin; }
-		[[nodiscard]] constexpr const_pointer data() const noexcept { return data_begin; }
+		[[nodiscard]] constexpr pointer data() noexcept { return static_cast<pointer>(align_ptr(data_begin)); }
+		[[nodiscard]] constexpr const_pointer data() const noexcept { return static_cast<const_pointer>(align_ptr(data_begin)); }
 
 		[[nodiscard]] constexpr reference at(size_type i) noexcept { return data()[i]; }
 		[[nodiscard]] constexpr const_reference at(size_type i) const noexcept { return data()[i]; }
@@ -166,8 +172,8 @@ namespace sek
 		[[nodiscard]] constexpr iterator begin() noexcept { return iterator{data()}; }
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return const_iterator{data()}; }
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
-		[[nodiscard]] constexpr iterator end() noexcept { return iterator{data_begin + size()}; }
-		[[nodiscard]] constexpr const_iterator end() const noexcept { return const_iterator{data_begin + size()}; }
+		[[nodiscard]] constexpr iterator end() noexcept { return iterator{data() + size()}; }
+		[[nodiscard]] constexpr const_iterator end() const noexcept { return const_iterator{data() + size()}; }
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
 
 		template<typename... Args>
@@ -188,22 +194,21 @@ namespace sek
 		template<std::forward_iterator I>
 		constexpr iterator insert(const_iterator where, I first, I last)
 		{
-			auto insert_pos = where.get() - data_begin;
+			auto insert_pos = where.get() - data();
 
 			if constexpr (std::random_access_iterator<I>)
 			{
 				make_space(insert_pos, static_cast<size_type>(std::distance(first, last)));
 
-				for (auto elem = data_begin + insert_pos; first != last; ++elem, ++first)
-					::new (elem) value_type(*first);
+				auto aligned = data();
+				for (auto elem = aligned + insert_pos; first != last; ++elem, ++first) ::new (elem) value_type(*first);
+				return iterator{aligned + insert_pos};
 			}
 			else
 			{
-				for (auto dest = iterator{data_begin + insert_pos}; first != last; ++first)
-					dest = std::next(insert(dest, *first));
+				for (auto dest = begin() + insert_pos; first != last; ++first) dest = std::next(insert(dest, *first));
+				return begin() + insert_pos;
 			}
-
-			return iterator{data_begin + insert_pos};
 		}
 
 		constexpr void push_back(const value_type &value) { insert(end(), value); }
@@ -218,10 +223,11 @@ namespace sek
 
 			auto amount = last - first;
 			auto first_pos = first - begin(), last_pos = last - begin();
-			std::move(data_begin + last_pos, data_begin + data_size, data_begin + first_pos);
+			auto aligned = data();
+			std::move(aligned + last_pos, aligned + data_size, aligned + first_pos);
 			data_size -= static_cast<size_type>(amount);
 
-			return iterator{data_begin + first_pos};
+			return iterator{aligned + first_pos};
 		}
 		constexpr iterator erase(const_iterator where) { return erase(where, std::next(where)); }
 
@@ -285,7 +291,8 @@ namespace sek
 			auto new_size = data_size + amount;
 			reserve(new_size);
 
-			std::move_backward(data_begin + pos, data_begin + data_size, data_begin + new_size);
+			auto aligned = data();
+			std::move_backward(aligned + pos, aligned + data_size, aligned + new_size);
 			data_size = new_size;
 		}
 		template<typename... Args>
@@ -293,12 +300,13 @@ namespace sek
 		{
 			SEK_ASSERT(where < end() && where >= begin());
 
-			auto insert_pos = where.get() - data_begin;
+			auto insert_pos = where.get() - data();
 			make_space(insert_pos, amount);
 
-			for (auto elem = data_begin + insert_pos, last = elem + amount; elem != last; ++elem)
+			auto aligned = data();
+			for (auto elem = aligned + insert_pos, last = elem + amount; elem != last; ++elem)
 				::new (elem) value_type{std::forward<Args>(args)...};
-			return iterator{data_begin + insert_pos};
+			return iterator{aligned + insert_pos};
 		}
 
 		pointer data_begin = nullptr;

@@ -1,5 +1,5 @@
 //
-// Created by switch_blade on 2022-03-29.
+// Created by switchblade on 2022-03-29.
 //
 
 #define TEST_PLUGIN_EXPORT

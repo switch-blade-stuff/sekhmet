@@ -94,12 +94,13 @@ namespace sek::adt
 	template<std::size_t N>
 	struct bytes;
 
-	/** @brief Exception thrown by nodes when (de)serialization of a type fails. */
-	class node_type_error : std::runtime_error
+	/** @brief Exception thrown by nodes when (de)serialization fails. */
+	class node_error : std::runtime_error
 	{
 	public:
-		node_type_error() : std::runtime_error("Invalid ADT node type") {}
-		~node_type_error() noexcept override = default;
+		node_error() : std::runtime_error("Invalid ADT node type") {}
+		explicit node_error(const char *msg) : std::runtime_error(msg) {}
+		~node_error() noexcept override = default;
 	};
 
 	/** @brief Structure used to contain format-independent serialized data.
@@ -148,9 +149,10 @@ namespace sek::adt
 		typedef node_state_t state_type;
 
 	private:
-		constexpr static auto literal_value_size = max(sizeof(int64_type), sizeof(float64_type) /*, sizeof(pointer_type)*/);
+		constexpr static auto literal_value_size =
+			math::max(sizeof(int64_type), sizeof(float64_type) /*, sizeof(pointer_type)*/);
 		constexpr static auto literal_value_align =
-			max(alignof(int64_type), alignof(float64_type) /*, alignof(pointer_type)*/);
+			math::max(alignof(int64_type), alignof(float64_type) /*, alignof(pointer_type)*/);
 
 		using literal_value_storage_t = sek::aligned_storage<literal_value_size, literal_value_align>;
 
@@ -556,7 +558,7 @@ namespace sek::adt
 		constexpr void require_int() const
 		{
 			if (!is_int()) [[unlikely]]
-				throw node_type_error();
+				throw node_error();
 		}
 		/** Returns value of the contained integer.
 		 * @note Will preform conversions from the underlying int type if appropriate.
@@ -571,7 +573,7 @@ namespace sek::adt
 				case state_type::INT16: return static_cast<T>(int16_value);
 				case state_type::INT32: return static_cast<T>(int32_value);
 				case state_type::INT64: return static_cast<T>(int64_value);
-				default: throw node_type_error();
+				default: throw node_error();
 			}
 		}
 
@@ -621,7 +623,7 @@ namespace sek::adt
 		constexpr void require_float() const
 		{
 			if (!is_float()) [[unlikely]]
-				throw node_type_error();
+				throw node_error();
 		}
 		/** Returns reference to the contained float.
 		 * @note Will preform conversions from the underlying float type if appropriate.
@@ -633,7 +635,7 @@ namespace sek::adt
 			{
 				case state_type::FLOAT32: return static_cast<T>(float32_value);
 				case state_type::FLOAT64: return static_cast<T>(float64_value);
-				default: throw node_type_error();
+				default: throw node_error();
 			}
 		}
 
@@ -647,7 +649,7 @@ namespace sek::adt
 		constexpr void require_number() const
 		{
 			if (!is_number()) [[unlikely]]
-				throw node_type_error();
+				throw node_error();
 		}
 		/** Returns copy of the contained number.
 		 * @note Will preform conversions from the underlying number type if appropriate.
@@ -664,7 +666,7 @@ namespace sek::adt
 				case state_type::INT64: return static_cast<T>(int64_value);
 				case state_type::FLOAT32: return static_cast<T>(float32_value);
 				case state_type::FLOAT64: return static_cast<T>(float64_value);
-				default: throw node_type_error();
+				default: throw node_error();
 			}
 		}
 
@@ -745,13 +747,22 @@ namespace sek::adt
 		}
 
 		/** Calls `operator[]` on the contained sequence. */
-		[[nodiscard]] SEK_ADT_NODE_CONSTEXPR_VECTOR auto &operator[](sequence_type::size_type i) { return as_sequence()[i]; }
+		[[nodiscard]] SEK_ADT_NODE_CONSTEXPR_VECTOR auto &operator[](sequence_type::size_type i)
+		{
+			return as_sequence()[i];
+		}
 		/** @copydoc operator[] */
-		[[nodiscard]] SEK_ADT_NODE_CONSTEXPR_VECTOR const auto &operator[](sequence_type::size_type i) const { return as_sequence()[i]; }
+		[[nodiscard]] SEK_ADT_NODE_CONSTEXPR_VECTOR const auto &operator[](sequence_type::size_type i) const
+		{
+			return as_sequence()[i];
+		}
 		/** Calls `at` on the contained sequence. */
 		[[nodiscard]] SEK_ADT_NODE_CONSTEXPR_VECTOR auto &at(sequence_type::size_type i) { return as_sequence().at(i); }
 		/** @copydoc at */
-		[[nodiscard]] SEK_ADT_NODE_CONSTEXPR_VECTOR const auto &at(sequence_type::size_type i) const { return as_sequence().at(i); }
+		[[nodiscard]] SEK_ADT_NODE_CONSTEXPR_VECTOR const auto &at(sequence_type::size_type i) const
+		{
+			return as_sequence().at(i);
+		}
 
 		/** Calls `operator[]` on the contained table. */
 		[[nodiscard]] constexpr auto &operator[](const table_type::key_type &key) { return as_table()[key]; }
@@ -765,7 +776,7 @@ namespace sek::adt
 		constexpr void assert_state() const
 		{
 			if (State != state()) [[unlikely]]
-				throw node_type_error();
+				throw node_error();
 		}
 
 		SEK_ADT_NODE_CONSTEXPR void copy_from(const node &other)
@@ -868,7 +879,7 @@ namespace sek::adt
 					operator()(n, value);
 					return true;
 				}
-				catch (node_type_error &)
+				catch (node_error &)
 				{
 					/* Only catch `node_type_exception` exceptions since they indicate deserialization failure. */
 					/* TODO: Log exception message. */
