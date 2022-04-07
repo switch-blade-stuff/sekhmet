@@ -58,7 +58,8 @@ namespace sek
 		 * @param offset Offset into the file (in bytes) to start the mapping at.
 		 * @param size Amount of bytes from the offset position to map into memory.
 		 * @param mode Mode of the file map. By default, file mappings are read-only.
-		 * @param name Optional name for the file mapping. If the OS does not support named file mapping, the name is ignored. */
+		 * @param name Optional name for the file mapping. If the OS does not support named file mapping, the name is ignored.
+		 * @throw filemap_error On any implementation-defined error. */
 		filemap(const std::filesystem::path &file_path,
 				std::ptrdiff_t offset,
 				std::ptrdiff_t size,
@@ -72,7 +73,8 @@ namespace sek
 		 * @param offset Offset into the file (in bytes) to start the mapping at.
 		 * @param size Amount of bytes from the offset position to map into memory.
 		 * @param mode Mode of the file map. By default, file mappings are read-only.
-		 * @param name Optional name for the file mapping. If the OS does not support named file mapping, the name is ignored. */
+		 * @param name Optional name for the file mapping. If the OS does not support named file mapping, the name is ignored.
+		 * @throw filemap_error On any implementation-defined error. */
 		filemap(native_file_type fd, std::ptrdiff_t offset, std::ptrdiff_t size, openmode mode = in, const char *name = nullptr)
 			: handle(fd, offset, size, mode, name)
 		{

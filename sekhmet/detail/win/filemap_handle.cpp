@@ -61,9 +61,9 @@ namespace sek::detail
 		struct raii_file
 		{
 			constexpr explicit raii_file(HANDLE ptr) noexcept : ptr(ptr) {}
-			constexpr ~raii_file() noexcept(false)
+			~raii_file() noexcept(false)
 			{
-				if (ptr && !CloseHandle(ptr)) [[unlikely]]
+				if (!CloseHandle(ptr)) [[unlikely]]
 					throw filemap_error("Failed to close file handle");
 			}
 
@@ -86,13 +86,16 @@ namespace sek::detail
 	filemap_handle::native_handle_type filemap_handle::handle_from_view(void *ptr) noexcept
 	{
 		auto int_ptr = std::bit_cast<std::intptr_t>(ptr);
-		return std::bit_cast<HANDLE>(int_ptr - (int_ptr % filemap_offset_mult));
+		return std::bit_cast<HANDLE>(int_ptr - (int_ptr % alloc_granularity()));
 	}
 
 	filemap_handle::~filemap_handle() { SEK_ASSERT_ALWAYS(UnmapViewOfFile(native_handle())); }
 	void filemap_handle::flush(std::ptrdiff_t n) const
 	{
-		if (!FlushViewOfFile(native_handle(), static_cast<SIZE_T>(n))) [[unlikely]]
+		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
+		auto diff = int_ptr % alloc_granularity();
+
+		if (!FlushViewOfFile(std::bit_cast<HANDLE>(int_ptr - diff), static_cast<SIZE_T>(n + diff))) [[unlikely]]
 			throw filemap_error("`FlushViewOfFile` returned 0");
 	}
 }	 // namespace sek::detail
