@@ -56,9 +56,9 @@ namespace sek
 		struct archive_asset_record : asset_record_base
 		{
 			std::ptrdiff_t file_offset;
-			std::ptrdiff_t file_size;
+			std::size_t file_size;
 			std::ptrdiff_t metadata_offset;
-			std::ptrdiff_t metadata_size;
+			std::size_t metadata_size;
 		};
 
 		void serialize(adt::node &node, const archive_asset_record &record)

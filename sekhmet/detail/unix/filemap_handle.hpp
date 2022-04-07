@@ -14,17 +14,17 @@ namespace sek::detail
 
 	private:
 		SEK_API static native_handle_type handle_from_view(void *) noexcept;
-		SEK_API void init(native_file_type, std::ptrdiff_t, std::ptrdiff_t, filemap_openmode, const char *);
+		SEK_API void init(native_file_type, std::ptrdiff_t, std::size_t, filemap_openmode, const char *);
 
 	public:
-		filemap_handle(native_file_type fd, std::ptrdiff_t offset, std::ptrdiff_t size, filemap_openmode mode, const char *name)
+		filemap_handle(native_file_type fd, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *name)
 		{
 			init(fd, offset, size, mode, name);
 		}
-		SEK_API filemap_handle(const char *path, std::ptrdiff_t offset, std::ptrdiff_t size, filemap_openmode mode, const char *name);
+		SEK_API filemap_handle(const char *path, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *name);
 		SEK_API ~filemap_handle();
 
-		[[nodiscard]] constexpr std::ptrdiff_t size() const noexcept { return map_size; }
+		[[nodiscard]] constexpr std::size_t size() const noexcept { return map_size; }
 		[[nodiscard]] constexpr void *data() const noexcept { return view_ptr; }
 
 		SEK_API void flush(std::ptrdiff_t n) const;
@@ -33,6 +33,6 @@ namespace sek::detail
 
 	private:
 		void *view_ptr = nullptr;
-		std::ptrdiff_t map_size = 0;
+		std::size_t map_size = 0;
 	};
 }	 // namespace sek::detail

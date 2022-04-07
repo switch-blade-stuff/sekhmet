@@ -20,12 +20,12 @@ namespace sek::detail
 		return std::bit_cast<void *>(int_ptr - (int_ptr % page_size()));
 	}
 
-	void filemap_handle::init(int fd, std::ptrdiff_t offset, std::ptrdiff_t size, filemap_openmode mode, const char *)
+	void filemap_handle::init(int fd, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *)
 	{
 		/* Adjust offset to be a multiple of page size. */
 		auto offset_diff = offset % page_size();
 		auto real_offset = offset - offset_diff;
-		auto real_size = size + offset_diff;
+		auto real_size = size + static_cast<std::size_t>(offset_diff);
 
 		int prot = (mode & filemap_in ? PROT_READ : 0) | (mode & filemap_out ? PROT_WRITE : 0);
 		view_ptr = mmap(nullptr, static_cast<std::size_t>(real_size), prot, MAP_SHARED, fd, real_offset);
@@ -36,7 +36,7 @@ namespace sek::detail
 		view_ptr = std::bit_cast<void *>(std::bit_cast<std::intptr_t>(view_ptr) + offset_diff);
 		map_size = size;
 	}
-	filemap_handle::filemap_handle(const char *path, std::ptrdiff_t offset, std::ptrdiff_t size, filemap_openmode mode, const char *name)
+	filemap_handle::filemap_handle(const char *path, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *name)
 	{
 		struct raii_file
 		{
@@ -65,13 +65,20 @@ namespace sek::detail
 	{
 		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
 		auto diff = int_ptr % page_size();
-		SEK_ASSERT_ALWAYS(!munmap(std::bit_cast<void *>(int_ptr - diff), static_cast<size_t>(map_size + diff)));
+		SEK_ASSERT_ALWAYS(!munmap(std::bit_cast<void *>(int_ptr - diff), map_size + static_cast<std::size_t>(diff)));
 	}
 	void filemap_handle::flush(std::ptrdiff_t n) const
 	{
 		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
 		auto diff = int_ptr % page_size();
-		if (msync(std::bit_cast<void *>(int_ptr - diff), static_cast<size_t>(n + diff), MS_SYNC | MS_INVALIDATE)) [[unlikely]]
-			throw filemap_error("`msync` returned non-0");
+		auto err = msync(std::bit_cast<void *>(int_ptr - diff), static_cast<size_t>(n + diff), MS_SYNC | MS_INVALIDATE);
+		if (err) [[unlikely]]
+			switch (errno)
+			{
+				case EBUSY: throw filemap_error("Mapped file is busy");
+				case ENOMEM:
+				case EINVAL: throw filemap_error("Bad mapping handle");
+				default: throw filemap_error("Call to `msync` failed");
+			}
 	}
 }	 // namespace sek::detail

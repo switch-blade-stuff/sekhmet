@@ -62,7 +62,7 @@ namespace sek
 		 * @throw filemap_error On any implementation-defined error. */
 		filemap(const std::filesystem::path &file_path,
 				std::ptrdiff_t offset,
-				std::ptrdiff_t size,
+				std::size_t size,
 				openmode mode = in,
 				const char *name = nullptr)
 			: handle(file_path.c_str(), offset, size, mode, name)
@@ -75,13 +75,13 @@ namespace sek
 		 * @param mode Mode of the file map. By default, file mappings are read-only.
 		 * @param name Optional name for the file mapping. If the OS does not support named file mapping, the name is ignored.
 		 * @throw filemap_error On any implementation-defined error. */
-		filemap(native_file_type fd, std::ptrdiff_t offset, std::ptrdiff_t size, openmode mode = in, const char *name = nullptr)
+		filemap(native_file_type fd, std::ptrdiff_t offset, std::size_t size, openmode mode = in, const char *name = nullptr)
 			: handle(fd, offset, size, mode, name)
 		{
 		}
 
 		/** Returns the size (in bytes) of the file mapping. */
-		[[nodiscard]] constexpr std::ptrdiff_t size() const noexcept { return handle.size(); }
+		[[nodiscard]] constexpr std::size_t size() const noexcept { return handle.size(); }
 		/** Returns pointer to the start of the mapped file. */
 		[[nodiscard]] constexpr void *data() const noexcept { return handle.data(); }
 

@@ -34,7 +34,7 @@ namespace sek::detail
 		GetSystemInfo(&info);
 		return static_cast<std::ptrdiff_t>(info.dwAllocationGranularity);
 	}
-	void filemap_handle::init(void *fd, std::ptrdiff_t offset, std::ptrdiff_t size, int mode, const char *name)
+	void filemap_handle::init(void *fd, std::size_t offset, std::size_t size, int mode, const char *name)
 	{
 		auto mapping = create_mapping(fd, name);
 		if (!mapping) [[unlikely]]
@@ -56,7 +56,7 @@ namespace sek::detail
 		view_ptr = std::bit_cast<HANDLE>(std::bit_cast<std::intptr_t>(view_ptr) + offset_diff);
 		map_size = size;
 	}
-	filemap_handle::filemap_handle(const wchar_t *path, std::ptrdiff_t offset, std::ptrdiff_t size, int mode, const char *name)
+	filemap_handle::filemap_handle(const wchar_t *path, std::size_t offset, std::size_t size, int mode, const char *name)
 	{
 		struct raii_file
 		{
