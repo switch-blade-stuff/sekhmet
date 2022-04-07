@@ -38,3 +38,9 @@
 #define SEK_MB(val) (1024 * SEK_KB(val))
 #define SEK_GB(val) (1024 * SEK_MB(val))
 #define SEK_TB(val) (1024 * SEK_GB(val))
+
+#ifdef SEK_EDITOR
+#define SEK_IF_EDITOR(x) x
+#else
+#define SEK_IF_EDITOR(...)
+#endif

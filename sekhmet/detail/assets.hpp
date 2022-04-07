@@ -15,13 +15,10 @@
 #include "basic_service.hpp"
 #include "hset.hpp"
 #include "uuid.hpp"
+#include <shared_mutex>
 
 namespace sek
 {
-	class asset_handle;
-	class package_handle;
-	class asset_db;
-
 	namespace detail
 	{
 		struct asset_package_base;
@@ -115,7 +112,14 @@ namespace sek
 
 		struct asset_collection
 		{
-			mutable std::mutex mtx;
+			asset_record_base *find_record(std::string_view id) const
+			{
+				std::shared_lock<std::shared_mutex> l(mtx);
+				auto iter = asset_map.find(id);
+				return iter != asset_map.end() ? iter->second : nullptr;
+			}
+
+			mutable std::shared_mutex mtx;
 			hmap<std::string_view, asset_record_base *> asset_map;
 		};
 
@@ -208,11 +212,23 @@ namespace sek
 		}
 	}	 // namespace detail
 
+	class asset_handle;
+	class package_handle;
+	class asset_db;
+
+#ifdef SEK_EDITOR
+	namespace editor
+	{
+		class editor_asset_db;
+	}
+#endif
+
 	/** @brief Structure used to reference an asset package. */
 	class package_handle
 	{
 		friend class asset_db;
 		friend class asset_handle;
+		SEK_IF_EDITOR(friend class editor::editor_asset_db;)
 
 		constexpr explicit package_handle(detail::asset_package_base *ptr) noexcept { init(ptr); }
 
@@ -248,6 +264,11 @@ namespace sek
 		/** Returns the path of the package. */
 		[[nodiscard]] constexpr const std::filesystem::path &path() const noexcept { return package->path; }
 
+		/** Finds an asset within this package using it's id.
+		 * @param id Id of the asset.
+		 * @return Handle to the asset or an empty handle if such asset was not found. */
+		[[nodiscard]] asset_handle find(std::string_view id) const;
+
 		/** Resets the package reference to an empty state */
 		constexpr void reset()
 		{
@@ -259,6 +280,15 @@ namespace sek
 		friend constexpr void swap(package_handle &a, package_handle &b) noexcept { a.swap(b); }
 
 	private:
+		[[nodiscard]] constexpr auto *master_ptr() noexcept
+		{
+			return static_cast<detail::master_asset_package *>(package);
+		}
+		[[nodiscard]] constexpr const auto *master_ptr() const noexcept
+		{
+			return static_cast<const detail::master_asset_package *>(package);
+		}
+
 		constexpr void release() const
 		{
 			if (package) [[likely]]
@@ -283,6 +313,8 @@ namespace sek
 	class asset_handle
 	{
 		friend class asset_db;
+		friend class package_handle;
+		SEK_IF_EDITOR(friend class editor::editor_asset_db;)
 
 		constexpr explicit asset_handle(detail::asset_record_base *record) noexcept { init(record); }
 
@@ -350,6 +382,8 @@ namespace sek
 		detail::asset_record_base *record = nullptr;
 	};
 
+	asset_handle package_handle::find(std::string_view id) const { return asset_handle{master_ptr()->find_record(id)}; }
+
 	/** @brief Structure used to manage assets & asset packages. */
 	class asset_db : public basic_service<asset_db>, detail::asset_collection
 	{
@@ -368,6 +402,11 @@ namespace sek
 		/** Sets data directory path. */
 		void data_dir(std::filesystem::path new_path) { data_dir_path = std::move(new_path); }
 
+		/** Finds a global asset using it's id.
+		 * @param id Id of the asset.
+		 * @return Handle to the asset or an empty handle if such asset was not found. */
+		[[nodiscard]] asset_handle find(std::string_view id) const { return asset_handle{find_record(id)}; }
+
 		/** Loads a package at the specified path.
 		 * @param path Path of the package to load relative to the data directory.
 		 * @param overwrite If set to true, will replace conflicting global assets.
@@ -381,22 +420,6 @@ namespace sek
 		[[nodiscard]] SEK_API int check_package(const std::filesystem::path &path) const;
 
 	protected:
-		/* Expose private package & asset access to database children. */
-		constexpr static asset_handle to_asset(detail::asset_record_base *asset) { return asset_handle{asset}; }
-		constexpr static package_handle to_package(detail::asset_package_base *package)
-		{
-			return package_handle{package};
-		}
-		constexpr static detail::asset_record_base *to_asset_ptr(const asset_handle &asset) { return asset.record; }
-		constexpr static detail::asset_package_base *to_package_ptr(const package_handle &package)
-		{
-			return package.package;
-		}
-		constexpr static detail::asset_package_base *to_package_ptr(const asset_handle &asset)
-		{
-			return asset.record->parent;
-		}
-
 		[[nodiscard]] static std::filesystem::path get_manifest_path(const std::filesystem::path &path)
 		{
 			return is_directory(path) ? path / ".manifest" : path;

@@ -42,6 +42,7 @@ if (PROJECT_IS_TOP_LEVEL OR EXPORT_BUILD)
 
     # Include editor project
     if (BUILD_EDITOR AND NOT EXPORT_BUILD AND EXISTS ${SEKHMET_SOURCE_DIR}/editor/CMakeLists.txt)
+        add_compile_definitions(SEK_EDITOR)
         add_subdirectory(${SEKHMET_SOURCE_DIR}/editor editor)
     endif ()
 

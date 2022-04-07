@@ -51,31 +51,6 @@ namespace sek::adt
 		};
 	}	 // namespace detail
 
-	template<detail::array_like_serializable R>
-	constexpr void serialize(node &n, const R &value)
-	{
-		n = node{std::in_place_type<typename node::sequence_type>};
-		auto &node_array = n.as_sequence();
-
-		if constexpr (std::constructible_from<node, std::ranges::range_value_t<R>>)
-			node_array.insert(node_array.end(), value.begin(), value.end());
-		else
-			for (auto &item : value)
-			{
-				node_array.emplace_back();
-				node_array.back().set(item);
-			}
-	}
-	template<detail::array_like_serializable R>
-	constexpr void deserialize(const node &n, R &value)
-	{
-		if (n.is_sequence()) [[likely]]
-		{
-			for (auto out_iter = std::inserter(value, std::ranges::end(value)); auto &item : n.as_sequence())
-				out_iter = item.get<std::ranges::range_value_t<R>>();
-		}
-	}
-
 	template<detail::pair_like_serializable P>
 	constexpr void serialize(node &n, const P &value)
 	{
@@ -105,8 +80,33 @@ namespace sek::adt
 		}
 	}
 
+	template<detail::array_like_serializable R>
+	void serialize(node &n, const R &value)
+	{
+		n = node{std::in_place_type<typename node::sequence_type>};
+		auto &node_array = n.as_sequence();
+
+		if constexpr (std::constructible_from<node, std::ranges::range_value_t<R>>)
+			node_array.insert(node_array.end(), value.begin(), value.end());
+		else
+			for (auto &item : value)
+			{
+				node_array.emplace_back();
+				node_array.back().set(item);
+			}
+	}
+	template<detail::array_like_serializable R>
+	void deserialize(const node &n, R &value)
+	{
+		if (n.is_sequence()) [[likely]]
+		{
+			for (auto out_iter = std::inserter(value, std::ranges::end(value)); auto &item : n.as_sequence())
+				out_iter = item.get<std::ranges::range_value_t<R>>();
+		}
+	}
+
 	template<detail::table_like_serializable T>
-	constexpr void serialize(node &n, const T &value)
+	void serialize(node &n, const T &value)
 	{
 		n = node{std::in_place_type<typename node::table_type>, value.size()};
 		for (auto &node_table = n.as_table(); auto &pair : value)
@@ -118,7 +118,7 @@ namespace sek::adt
 		}
 	}
 	template<detail::table_like_serializable T>
-	constexpr void deserialize(const node &n, T &value)
+	void deserialize(const node &n, T &value)
 	{
 		if (n.is_table()) [[likely]]
 			for (auto &pair : n.as_table()) pair.second.get(value[pair.first]);
