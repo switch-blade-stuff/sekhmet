@@ -90,12 +90,12 @@ namespace sek::detail
 	}
 
 	filemap_handle::~filemap_handle() { SEK_ASSERT_ALWAYS(UnmapViewOfFile(native_handle())); }
-	void filemap_handle::flush(std::ptrdiff_t n) const
+	void filemap_handle::flush(std::size_t n) const
 	{
 		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
 		auto diff = int_ptr % alloc_granularity();
 
-		if (!FlushViewOfFile(std::bit_cast<HANDLE>(int_ptr - diff), static_cast<SIZE_T>(n + diff))) [[unlikely]]
+		if (!FlushViewOfFile(std::bit_cast<HANDLE>(int_ptr - diff), n + static_cast<SIZE_T>(diff))) [[unlikely]]
 			throw filemap_error("`FlushViewOfFile` returned 0");
 	}
 }	 // namespace sek::detail

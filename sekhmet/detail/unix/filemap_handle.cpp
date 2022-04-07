@@ -22,13 +22,10 @@ namespace sek::detail
 
 	void filemap_handle::init(int fd, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *)
 	{
-		/* Adjust offset to be a multiple of page size. */
-		auto offset_diff = offset % page_size();
-		auto real_offset = offset - offset_diff;
-		auto real_size = size + static_cast<std::size_t>(offset_diff);
-
+		auto offset_diff = offset % page_size(); /* Adjust offset to be a multiple of page size. */
 		int prot = (mode & filemap_in ? PROT_READ : 0) | (mode & filemap_out ? PROT_WRITE : 0);
-		view_ptr = mmap(nullptr, static_cast<std::size_t>(real_size), prot, MAP_SHARED, fd, real_offset);
+
+		view_ptr = mmap(nullptr, size + static_cast<std::size_t>(offset_diff), prot, MAP_SHARED, fd, offset - offset_diff);
 		if (!view_ptr) [[unlikely]]
 			throw filemap_error("Failed to mmap file");
 
@@ -67,12 +64,12 @@ namespace sek::detail
 		auto diff = int_ptr % page_size();
 		SEK_ASSERT_ALWAYS(!munmap(std::bit_cast<void *>(int_ptr - diff), map_size + static_cast<std::size_t>(diff)));
 	}
-	void filemap_handle::flush(std::ptrdiff_t n) const
+	void filemap_handle::flush(std::size_t n) const
 	{
 		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
 		auto diff = int_ptr % page_size();
-		auto err = msync(std::bit_cast<void *>(int_ptr - diff), static_cast<size_t>(n + diff), MS_SYNC | MS_INVALIDATE);
-		if (err) [[unlikely]]
+		if (msync(std::bit_cast<void *>(int_ptr - diff), n + static_cast<size_t>(diff), MS_SYNC | MS_INVALIDATE)) [[unlikely]]
+		{
 			switch (errno)
 			{
 				case EBUSY: throw filemap_error("Mapped file is busy");
@@ -80,5 +77,6 @@ namespace sek::detail
 				case EINVAL: throw filemap_error("Bad mapping handle");
 				default: throw filemap_error("Call to `msync` failed");
 			}
+		}
 	}
 }	 // namespace sek::detail

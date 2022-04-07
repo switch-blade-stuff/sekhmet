@@ -27,7 +27,7 @@ namespace sek::detail
 		[[nodiscard]] constexpr std::size_t size() const noexcept { return map_size; }
 		[[nodiscard]] constexpr void *data() const noexcept { return view_ptr; }
 
-		SEK_API void flush(std::ptrdiff_t n) const;
+		SEK_API void flush(std::size_t n) const;
 
 		[[nodiscard]] native_handle_type native_handle() const noexcept { return handle_from_view(view_ptr); }
 
