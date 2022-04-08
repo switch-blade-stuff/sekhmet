@@ -15,7 +15,7 @@
 #include "hset.hpp"
 #include <shared_mutex>
 
-#define SEK_ARCHIVE_PACKAGE_SIGNATURE "\3SEKPAK"
+#define SEK_PACKAGE_SIGNATURE "\3SEKPAK"
 
 namespace sek
 {

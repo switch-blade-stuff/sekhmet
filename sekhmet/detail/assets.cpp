@@ -121,10 +121,9 @@ namespace sek
 			else if ((manifest_file = OS_FOPEN(path.c_str(), "rb")) != nullptr) [[likely]]
 			{
 				/* Check that the package has a valid signature. */
-				constexpr auto sign_size = sizeof(SEK_ARCHIVE_PACKAGE_SIGNATURE);
+				constexpr auto sign_size = sizeof(SEK_PACKAGE_SIGNATURE);
 				char sign[sign_size];
-				if (fread(sign, 1, sign_size, manifest_file) == sign_size &&
-					!memcmp(sign, SEK_ARCHIVE_PACKAGE_SIGNATURE, sign_size))
+				if (fread(sign, 1, sign_size, manifest_file) == sign_size && !memcmp(sign, SEK_PACKAGE_SIGNATURE, sign_size))
 				{
 					/* TODO: read UBJson manifest. */
 				}
