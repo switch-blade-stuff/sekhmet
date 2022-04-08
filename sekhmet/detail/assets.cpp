@@ -107,12 +107,19 @@ namespace sek
 			serialize_impl(node, package);
 		}
 
-		static void get_package_info(const std::filesystem::path &path, adt::node &manifest, package_fragment::flags_t &flags)
+		struct package_info
 		{
+			adt::node manifest = {};
+			package_fragment::flags_t flags = {};
+		};
+
+		static package_info get_package_info(const std::filesystem::path &path)
+		{
+			package_info result;
 			FILE *manifest_file;
 			if (is_directory(path))
 			{
-				flags = static_cast<package_fragment::flags_t>(flags | package_fragment::LOOSE_PACKAGE);
+				result.flags = package_fragment::LOOSE_PACKAGE;
 				if ((manifest_file = OS_FOPEN((path / MANIFEST_FILE_NAME).c_str(), "r")) != nullptr) [[likely]]
 				{
 					/* TODO: read TOML manifest. */
@@ -128,6 +135,7 @@ namespace sek
 					/* TODO: read UBJson manifest. */
 				}
 			}
+			return result;
 		}
 
 		void deserialize(const adt::node &node, package_fragment &fragment)
@@ -147,28 +155,23 @@ namespace sek
 				package.fragments.reserve(fragments.size());
 				for (auto &fragment : fragments)
 				{
-					adt::node fragment_manifest;
-					package_fragment::flags_t flags;
 					auto path = parent_path / fragment.as_string();
-					get_package_info(path, fragment_manifest, flags);
-					deserialize(fragment_manifest, package.add_fragment(std::move(path), flags));
+					auto info = get_package_info(path);
+					deserialize(info.manifest, package.add_fragment(std::move(path), info.flags));
 				}
 			}
 		}
 
 		master_package *load_package(std::filesystem::path &&path)
 		{
-			adt::node manifest;
-			package_fragment::flags_t flags;
-			get_package_info(path, manifest, flags);
-
 			try
 			{
-				/* Ignore packages without `master` flag. */
-				if (manifest.as_table().contains("master") && manifest.at("master").as_bool())
+				auto info = get_package_info(path);
+				auto &table = info.manifest.as_table();
+				if (auto flag_iter = table.find("master"); flag_iter != table.end() && flag_iter->second.as_bool())
 				{
-					auto package = std::make_unique<master_package>(std::move(path), flags);
-					deserialize(manifest, *package);
+					auto package = std::make_unique<master_package>(std::move(path), info.flags);
+					deserialize(info.manifest, *package);
 					return package.release();
 				}
 			}
