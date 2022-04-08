@@ -7,6 +7,7 @@
 #include "assets.hpp"
 
 #include <cstdio>
+#include <cstring>
 #include <memory>
 
 #ifdef SEK_OS_WIN
@@ -42,13 +43,6 @@ namespace sek
 			};
 			if (!metadata_path.empty()) node["metadata"] = metadata_path.string();
 		}
-		void loose_asset_record::deserialize(const adt::node &node)
-		{
-			node.at("id").get(id);
-			node.at("tags").get(tags);
-			file_path.assign(node.at("path").as_string());
-			if (node.as_table().contains("metadata")) metadata_path = node.at("metadata").as_string();
-		}
 		void loose_asset_record::deserialize(adt::node &&node)
 		{
 			std::move(node.at("id")).get(id);
@@ -61,20 +55,6 @@ namespace sek
 		void archive_asset_record::serialize(adt::node &node) const
 		{
 			node = adt::sequence{id, tags, file_offset, file_size, metadata_offset, metadata_size};
-		}
-		void archive_asset_record::deserialize(const adt::node &node)
-		{
-			if (node.as_sequence().size() >= 6) [[likely]]
-			{
-				node[0].get(id);
-				node[1].get(tags);
-				node[2].get(file_offset);
-				node[3].get(file_size);
-				node[4].get(metadata_offset);
-				node[5].get(metadata_size);
-			}
-			else
-				throw adt::node_error("Invalid archive record size");
 		}
 		void archive_asset_record::deserialize(adt::node &&node)
 		{
@@ -145,7 +125,7 @@ namespace sek
 		{
 			auto &data = node.at("assets").as_sequence();
 			assets.reserve(data.size());
-			std::for_each(data.begin(), data.end(), [&](auto &n) { assets.emplace_back(this).ptr->deserialize(n); });
+			for(auto &n : data) assets.emplace_back(this).ptr->deserialize(std::move(n));
 		}
 		void master_package::deserialize(adt::node &&node)
 		{

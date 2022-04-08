@@ -8,6 +8,7 @@
 #include <fcntl.h>
 
 #include <sys/mman.h>
+#include <sys/stat.h>
 
 namespace sek::detail
 {
@@ -15,7 +16,7 @@ namespace sek::detail
 	static std::size_t file_size(int fd) noexcept
 	{
 		struct stat st;
-		return !fstat(fd, &st) ? st.st_size : 0;
+		return !fstat(fd, &st) ? static_cast<std::size_t>(st.st_size) : 0;
 	}
 
 	void filemap_handle::init(int fd, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *)
@@ -33,7 +34,7 @@ namespace sek::detail
 		{
 			if ((real_size = file_size(fd)) == 0) [[unlikely]]
 				throw filemap_error("Failed to get file size");
-			real_size = (size = real_size - offset) + offset_diff;
+			real_size = (size = real_size - static_cast<std::size_t>(offset)) + static_cast<std::size_t>(offset_diff);
 		}
 		else
 			real_size = size + static_cast<std::size_t>(offset_diff);
