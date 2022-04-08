@@ -73,11 +73,15 @@ namespace sek::detail
 
 		init(file.fd, offset, size, mode, name);
 	}
-	filemap_handle::~filemap_handle()
+	bool filemap_handle::reset() noexcept
 	{
-		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
-		auto diff = int_ptr % page_size();
-		SEK_ASSERT_ALWAYS(!munmap(std::bit_cast<void *>(int_ptr - diff), map_size + static_cast<std::size_t>(diff)));
+		if (view_ptr) [[likely]]
+		{
+			auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
+			auto diff = int_ptr % page_size();
+			return !munmap(std::bit_cast<void *>(int_ptr - diff), map_size + static_cast<std::size_t>(diff));
+		}
+		return false;
 	}
 	void filemap_handle::flush(std::size_t n) const
 	{

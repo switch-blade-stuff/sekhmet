@@ -8,6 +8,7 @@
 #include <span>
 #include <stdexcept>
 
+#include "debug.hpp"
 #include "define.h"
 
 namespace sek
@@ -53,6 +54,18 @@ namespace sek
 		constexpr static openmode out = detail::filemap_out;
 
 	public:
+		filemap() = delete;
+		filemap(const filemap &) = delete;
+		filemap &operator=(const filemap &) = delete;
+
+		constexpr filemap(filemap &&other) noexcept : handle(std::move(other.handle)) {}
+		filemap &operator=(filemap &&other) noexcept
+		{
+			handle = std::move(other.handle);
+			return *this;
+		}
+		~filemap() { SEK_ASSERT_ALWAYS(handle.reset()); }
+
 		/** Initializes a filemap for the specified file using a size and an offset.
 		 * @param file_path Path of the file to map into memory.
 		 * @param offset Offset into the file (in bytes) to start the mapping at.

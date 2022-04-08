@@ -7,8 +7,6 @@
 #include <limits>
 #include <windows.h>
 
-#include "../debug.hpp"
-
 namespace sek::detail
 {
 	static void *create_mapping(HANDLE fd, const char *name)
@@ -104,7 +102,12 @@ namespace sek::detail
 		return std::bit_cast<HANDLE>(int_ptr - (int_ptr % alloc_granularity()));
 	}
 
-	filemap_handle::~filemap_handle() { SEK_ASSERT_ALWAYS(UnmapViewOfFile(native_handle())); }
+	bool filemap_handle::reset() noexcept
+	{
+		if (view_ptr) [[likely]]
+			return UnmapViewOfFile(native_handle());
+		return false;
+	}
 	void filemap_handle::flush(std::size_t n) const
 	{
 		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
