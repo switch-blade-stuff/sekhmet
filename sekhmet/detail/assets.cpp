@@ -47,8 +47,17 @@ namespace sek
 			node.at("id").get(id);
 			node.at("tags").get(tags);
 			file_path.assign(node.at("path").as_string());
-			if (node.as_table().contains("metadata")) metadata_path.assign(node.at("metadata").as_string());
+			if (node.as_table().contains("metadata")) metadata_path = node.at("metadata").as_string();
 		}
+		void loose_asset_record::deserialize(adt::node &&node)
+		{
+			std::move(node.at("id")).get(id);
+			std::move(node.at("tags")).get(tags);
+
+			file_path.assign(node.at("path").as_string());
+			if (node.as_table().contains("metadata")) metadata_path = node.at("metadata").as_string();
+		}
+
 		void archive_asset_record::serialize(adt::node &node) const
 		{
 			node = adt::sequence{id, tags, file_offset, file_size, metadata_offset, metadata_size};
@@ -67,6 +76,20 @@ namespace sek
 			else
 				throw adt::node_error("Invalid archive record size");
 		}
+		void archive_asset_record::deserialize(adt::node &&node)
+		{
+			if (node.as_sequence().size() >= 6) [[likely]]
+			{
+				std::move(node[0]).get(id);
+				std::move(node[1]).get(tags);
+				std::move(node[2]).get(file_offset);
+				std::move(node[3]).get(file_size);
+				std::move(node[4]).get(metadata_offset);
+				std::move(node[5]).get(metadata_size);
+			}
+			else
+				throw adt::node_error("Invalid archive record size");
+		}
 
 		package_base::record_handle::record_handle(package_fragment *parent)
 		{
@@ -79,13 +102,13 @@ namespace sek
 		void package_fragment::serialize(adt::node &node) const { node = adt::table{{"assets", assets}}; }
 		void master_package::serialize(adt::node &node) const
 		{
-			package_fragment::serialize(node);
 			node["master"].set(true);
 			if (!fragments.empty()) [[likely]]
 			{
 				auto &out_sequence = node.as_table().emplace("fragments", adt::sequence{}).first->second.as_sequence();
 				for (auto &fragment : fragments) out_sequence.emplace_back(relative(fragment.path, path).string());
 			}
+			package_fragment::serialize(node);
 		}
 
 		struct package_info
@@ -118,15 +141,14 @@ namespace sek
 			return result;
 		}
 
-		void package_fragment::deserialize(const adt::node &node)
+		void package_fragment::deserialize(adt::node &&node)
 		{
 			auto &data = node.at("assets").as_sequence();
 			assets.reserve(data.size());
 			std::for_each(data.begin(), data.end(), [&](auto &n) { assets.emplace_back(this).ptr->deserialize(n); });
 		}
-		void master_package::deserialize(const adt::node &node)
+		void master_package::deserialize(adt::node &&node)
 		{
-			package_fragment::deserialize(node);
 			if (node.as_table().contains("fragments"))
 			{
 				auto &fragments_seq = node.at("fragments").as_sequence();
@@ -135,9 +157,10 @@ namespace sek
 				{
 					auto fragment_path = path / fragment.as_string();
 					auto info = get_package_info(fragment_path);
-					add_fragment(std::move(fragment_path), info.flags).deserialize(info.manifest);
+					add_fragment(std::move(fragment_path), info.flags).deserialize(std::move(info.manifest));
 				}
 			}
+			package_fragment::deserialize(std::move(node));
 		}
 
 		master_package *load_package(std::filesystem::path &&path)
@@ -149,7 +172,7 @@ namespace sek
 				if (auto flag_iter = table.find("master"); flag_iter != table.end() && flag_iter->second.as_bool())
 				{
 					auto package = std::make_unique<master_package>(std::move(path), info.flags);
-					package->deserialize(info.manifest);
+					package->deserialize(std::move(info.manifest));
 					return package.release();
 				}
 			}

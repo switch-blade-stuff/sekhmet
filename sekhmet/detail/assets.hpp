@@ -38,6 +38,7 @@ namespace sek
 
 			virtual void serialize(adt::node &) const = 0;
 			virtual void deserialize(const adt::node &) = 0;
+			virtual void deserialize(adt::node &&) = 0;
 
 			package_fragment *parent = nullptr;
 
@@ -52,6 +53,7 @@ namespace sek
 
 			SEK_API void serialize(adt::node &) const final;
 			SEK_API void deserialize(const adt::node &) final;
+			SEK_API void deserialize(adt::node &&) final;
 
 			std::filesystem::path file_path;
 			std::filesystem::path metadata_path;
@@ -64,6 +66,7 @@ namespace sek
 
 			SEK_API void serialize(adt::node &) const final;
 			SEK_API void deserialize(const adt::node &) final;
+			SEK_API void deserialize(adt::node &&) final;
 
 			std::ptrdiff_t file_offset = 0;
 			std::size_t file_size = 0;
@@ -125,7 +128,7 @@ namespace sek
 			virtual master_package *get_master() { return master; }
 
 			SEK_API virtual void serialize(adt::node &) const;
-			SEK_API virtual void deserialize(const adt::node &);
+			SEK_API virtual void deserialize(adt::node &&);
 
 			union
 			{
@@ -161,7 +164,7 @@ namespace sek
 			master_package *get_master() final { return this; }
 
 			SEK_API void serialize(adt::node &) const final;
-			SEK_API void deserialize(const adt::node &) final;
+			SEK_API void deserialize(adt::node &&) final;
 
 			package_fragment &add_fragment(std::filesystem::path &&path, flags_t flags)
 			{

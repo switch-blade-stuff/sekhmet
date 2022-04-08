@@ -58,31 +58,8 @@ namespace sek::adt
 	{
 		template<typename T>
 		struct node_getter;
-
-		template<typename, typename = void>
-		struct has_node_getter_impl : std::false_type
-		{
-		};
-		template<typename T>
-		struct has_node_getter_impl<T, std::void_t<decltype(sizeof(node_getter<T>))>> : std::true_type
-		{
-		};
-		template<typename T>
-		concept has_node_getter = has_node_getter_impl<T>::value;
-
 		template<typename T>
 		struct node_setter;
-
-		template<typename, typename = void>
-		struct has_node_setter_impl : std::false_type
-		{
-		};
-		template<typename T>
-		struct has_node_setter_impl<T, std::void_t<decltype(sizeof(node_setter<T>))>> : std::true_type
-		{
-		};
-		template<typename T>
-		concept has_node_setter = has_node_setter_impl<T>::value;
 	}	 // namespace detail
 
 	/** @brief Helper structure used to store temporary node sequence for node initialization. */
@@ -217,7 +194,7 @@ namespace sek::adt
 
 		/** Initializes the node an object by calling `set`.
 		 * @param value Value to store in the node. */
-		template<detail::has_node_setter T>
+		template<typename T>
 		constexpr node(const T &value) : node()
 		{
 			set(value);
@@ -386,37 +363,81 @@ namespace sek::adt
 
 		/** Deserializes the contained value as the specified type.
 		 * @param value Reference to an instance of T to be deserialized. */
-		template<detail::has_node_getter T>
-		constexpr void get(T &value) const
+		template<typename T>
+		constexpr void get(T &value) const &
 		{
 			detail::node_getter<T>{}(*this, value);
+		}
+		/** @copydoc get
+		 * @note This version uses rvalue overload of the `deserialize` function if available. */
+		template<typename T>
+		constexpr void get(T &value) &&
+		{
+			detail::node_getter<T>{}(std::forward<node>(*this), value);
 		}
 		/** Deserializes the contained value as the specified type.
 		 * @param value Reference to an instance of T to be deserialized.
 		 * @return true if deserialized successfully. false otherwise.
 		 * @note If `node_type_exception` (serialization failure) is thrown, returns false.
 		 * Any other exception will be passed through and should be handled by the user. */
-		template<detail::has_node_getter T>
-		constexpr bool get(T &value, std::nothrow_t) const
+		template<typename T>
+		constexpr bool get(T &value, std::nothrow_t) const &
 		{
 			return detail::node_getter<T>{}(*this, value, std::nothrow);
 		}
+		/** @copydoc get
+		 * @note This version uses rvalue overload of the `deserialize` function if available. */
+		template<typename T>
+		constexpr bool get(T &value, std::nothrow_t) &&
+		{
+			return detail::node_getter<T>{}(std::forward<node>(*this), value, std::nothrow);
+		}
 		/** Deserializes the contained value as the specified type.
 		 * @return Deserialized instance of T. */
-		template<detail::has_node_getter T>
-		[[nodiscard]] constexpr T get() const requires std::is_default_constructible_v<T>
+		template<typename T>
+		[[nodiscard]] constexpr T get() const &
 		{
 			T value = {};
 			get(value);
 			return value;
 		}
+		/** @copydoc get */
+		template<typename T>
+		[[nodiscard]] constexpr operator T() const &
+		{
+			return get<T>();
+		}
+		/** @copydoc get
+		 * @note This version uses rvalue overload of the `deserialize` function if available. */
+		template<typename T>
+		[[nodiscard]] constexpr T get() &&
+		{
+			T value = {};
+			std::move(*this).get(value);
+			return value;
+		}
+		/** @copydoc get */
+		template<typename T>
+		[[nodiscard]] constexpr operator T() &&
+		{
+			return std::move(*this).get<T>();
+		}
+
 		/** Serializes an instance of specified type into the node.
 		 * @param value Reference to the value to be serialized.
 		 * @return Reference to this node. */
-		template<detail::has_node_setter T>
+		template<typename T>
 		constexpr node &set(const T &value)
 		{
 			detail::node_setter<T>{}(*this, value);
+			return *this;
+		}
+		/** @copydoc set
+		 * @note This version uses rvalue overload of the `serialize` function if available. */
+		template<typename T>
+		constexpr node &set(T &&value)
+		{
+			detail::node_setter<T>{}(*this, std::move(value));
 			return *this;
 		}
 
@@ -858,20 +879,64 @@ namespace sek::adt
 	namespace detail
 	{
 		template<typename T>
+		concept has_adl_deserialize = requires(const node &node, T &value)
+		{
+			deserialize(node, value);
+		};
+		template<typename T>
+		concept has_adl_deserialize_move = requires(node &&node, T &value)
+		{
+			deserialize_move(std::move(node), value);
+		};
+		template<typename T>
+		concept has_member_deserialize = requires(const node &node, T &value)
+		{
+			value.deserialize(node);
+		};
+		template<typename T>
+		concept has_member_deserialize_move = requires(node &node, T &&value)
+		{
+			value.serialize_move(std::move(node));
+		};
+		template<typename T>
+		concept has_deserialize = has_adl_deserialize<T> || has_adl_deserialize_move<T> || has_member_deserialize<T> ||
+			has_member_deserialize_move<T>;
+
+		template<typename T>
 		concept has_adl_serialize = requires(node &node, const T &value)
 		{
 			serialize(node, value);
 		};
 		template<typename T>
-		concept has_adl_deserialize = requires(const node &node, T &value)
+		concept has_adl_serialize_move = requires(node &node, T &&value)
 		{
-			deserialize(node, value);
+			serialize_move(node, std::move(value));
 		};
+		template<typename T>
+		concept has_member_serialize = requires(node &node, const T &value)
+		{
+			value.serialize(node);
+		};
+		template<typename T>
+		concept has_member_serialize_move = requires(node &node, T &&value)
+		{
+			std::move(value).serialize_move(node);
+		};
+		template<typename T>
+		concept has_serialize = has_adl_serialize<T> || has_adl_serialize_move<T> || has_member_serialize<T> ||
+			has_member_serialize_move<T>;
 
-		template<has_adl_deserialize T>
+		template<has_deserialize T>
 		struct node_getter<T>
 		{
-			constexpr void operator()(const node &n, T &value) const { deserialize(n, value); }
+			constexpr void operator()(const node &n, T &value) const
+				requires(has_adl_deserialize<T> || has_member_deserialize<T>)
+			{
+				if constexpr (has_adl_serialize<T>)
+					deserialize(n, value);
+				else
+					value.deserialize(n);
+			}
 			constexpr bool operator()(const node &n, T &value, std::nothrow_t) const
 			{
 				try
@@ -886,14 +951,51 @@ namespace sek::adt
 					return false;
 				}
 			}
+
+			constexpr void operator()(node &&n, T &value) const
+				requires(has_adl_deserialize_move<T> || has_member_deserialize_move<T>)
+			{
+				if constexpr (has_adl_serialize_move<T>)
+					deserialize(std::move(n), value);
+				else
+					value.deserialize(std::move(n));
+			}
+			constexpr bool operator()(node &&n, T &value, std::nothrow_t) const
+			{
+				try
+				{
+					operator()(std::move(n), value);
+					return true;
+				}
+				catch (node_error &)
+				{
+					/* Only catch `node_type_exception` exceptions since they indicate deserialization failure. */
+					/* TODO: Log exception message. */
+					return false;
+				}
+			}
 		};
-		template<has_adl_serialize T>
+		template<has_serialize T>
 		struct node_setter<T>
 		{
 			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, const T &value) const
+				requires(has_adl_serialize<T> || has_member_serialize<T>)
 			{
 				n.destroy();
-				serialize(n, value);
+				if constexpr (has_adl_serialize<T>)
+					serialize(n, value);
+				else
+					value.serialize(n);
+			}
+
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, T &&value) const
+				requires(has_adl_serialize_move<T> || has_member_serialize_move<T>)
+			{
+				n.destroy();
+				if constexpr (has_adl_serialize_move<T>)
+					serialize(n, std::move(value));
+				else
+					std::move(value).serialize(n);
 			}
 		};
 
@@ -1214,11 +1316,25 @@ namespace sek::adt
 			{
 				value = n.as_string();
 			}
+			SEK_ADT_NODE_CONSTEXPR_STRING void operator()(node &&n, typename node::string_type &value) const
+			{
+				value = std::move(n.as_string());
+			}
 			SEK_ADT_NODE_CONSTEXPR_STRING bool operator()(const node &n, typename node::string_type &value, std::nothrow_t) const
 			{
 				if (n.is_string()) [[likely]]
 				{
 					value = n.string_value;
+					return true;
+				}
+				else
+					return false;
+			}
+			SEK_ADT_NODE_CONSTEXPR_STRING bool operator()(node &&n, typename node::string_type &value, std::nothrow_t) const
+			{
+				if (n.is_string()) [[likely]]
+				{
+					value = std::move(n.string_value);
 					return true;
 				}
 				else
@@ -1239,6 +1355,17 @@ namespace sek::adt
 					n.node_state = node_state_t::STRING;
 				}
 			}
+			SEK_ADT_NODE_CONSTEXPR_STRING void operator()(node &n, typename node::string_type &&value) const
+			{
+				if (n.is_string()) [[unlikely]]
+					n.string_value = std::move(value);
+				else
+				{
+					n.destroy();
+					std::construct_at(&n.string_value, std::move(value));
+					n.node_state = node_state_t::STRING;
+				}
+			}
 		};
 
 		template<>
@@ -1248,11 +1375,25 @@ namespace sek::adt
 			{
 				value = n.as_binary();
 			}
+			SEK_ADT_NODE_CONSTEXPR_VECTOR void operator()(node &&n, typename node::binary_type &value) const
+			{
+				value = std::move(n.as_binary());
+			}
 			SEK_ADT_NODE_CONSTEXPR_VECTOR bool operator()(const node &n, typename node::binary_type &value, std::nothrow_t) const
 			{
 				if (n.is_binary()) [[likely]]
 				{
 					value = n.binary_value;
+					return true;
+				}
+				else
+					return false;
+			}
+			SEK_ADT_NODE_CONSTEXPR_VECTOR bool operator()(node &&n, typename node::binary_type &value, std::nothrow_t) const
+			{
+				if (n.is_binary()) [[likely]]
+				{
+					value = std::move(n.binary_value);
 					return true;
 				}
 				else
@@ -1273,6 +1414,17 @@ namespace sek::adt
 					n.node_state = node_state_t::BINARY;
 				}
 			}
+			SEK_ADT_NODE_CONSTEXPR_VECTOR void operator()(node &n, typename node::binary_type &&value) const
+			{
+				if (n.is_binary()) [[unlikely]]
+					n.binary_value = std::move(value);
+				else
+				{
+					n.destroy();
+					std::construct_at(&n.binary_value, std::move(value));
+					n.node_state = node_state_t::BINARY;
+				}
+			}
 		};
 
 		template<>
@@ -1282,11 +1434,25 @@ namespace sek::adt
 			{
 				value = n.as_sequence();
 			}
+			SEK_ADT_NODE_CONSTEXPR_VECTOR void operator()(node &&n, typename node::sequence_type &value) const
+			{
+				value = std::move(n.as_sequence());
+			}
 			SEK_ADT_NODE_CONSTEXPR_VECTOR bool operator()(const node &n, typename node::sequence_type &value, std::nothrow_t) const
 			{
 				if (n.is_sequence()) [[likely]]
 				{
 					value = n.sequence_value;
+					return true;
+				}
+				else
+					return false;
+			}
+			SEK_ADT_NODE_CONSTEXPR_VECTOR bool operator()(node &&n, typename node::sequence_type &value, std::nothrow_t) const
+			{
+				if (n.is_sequence()) [[likely]]
+				{
+					value = std::move(n.sequence_value);
 					return true;
 				}
 				else
@@ -1307,17 +1473,42 @@ namespace sek::adt
 					n.node_state = node_state_t::ARRAY;
 				}
 			}
+			SEK_ADT_NODE_CONSTEXPR_VECTOR void operator()(node &n, typename node::sequence_type &&value) const
+			{
+				if (n.is_sequence()) [[unlikely]]
+					n.sequence_value = std::move(value);
+				else
+				{
+					n.destroy();
+					std::construct_at(&n.sequence_value, std::move(value));
+					n.node_state = node_state_t::ARRAY;
+				}
+			}
 		};
 
 		template<>
 		struct node_getter<typename node::table_type>
 		{
 			constexpr void operator()(const node &n, typename node::table_type &value) const { value = n.as_table(); }
+			constexpr void operator()(node &&n, typename node::table_type &value) const
+			{
+				value = std::move(n.as_table());
+			}
 			constexpr bool operator()(const node &n, typename node::table_type &value, std::nothrow_t) const
 			{
 				if (n.is_table()) [[likely]]
 				{
 					value = n.table_value;
+					return true;
+				}
+				else
+					return false;
+			}
+			constexpr bool operator()(node &&n, typename node::table_type &value, std::nothrow_t) const
+			{
+				if (n.is_table()) [[likely]]
+				{
+					value = std::move(n.table_value);
 					return true;
 				}
 				else
@@ -1335,6 +1526,17 @@ namespace sek::adt
 				{
 					n.destroy();
 					std::construct_at(&n.table_value, value);
+					n.node_state = node_state_t::TABLE;
+				}
+			}
+			SEK_ADT_NODE_CONSTEXPR void operator()(node &n, typename node::table_type &&value) const
+			{
+				if (n.is_table()) [[unlikely]]
+					n.table_value = std::move(value);
+				else
+				{
+					n.destroy();
+					std::construct_at(&n.table_value, std::move(value));
 					n.node_state = node_state_t::TABLE;
 				}
 			}
