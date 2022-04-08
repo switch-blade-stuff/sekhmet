@@ -28,6 +28,7 @@ namespace sek
 
 		constexpr auto filemap_in = static_cast<filemap_openmode>(0b1);
 		constexpr auto filemap_out = static_cast<filemap_openmode>(0b10);
+		constexpr auto filemap_copy = static_cast<filemap_openmode>(0b110);
 
 		class filemap_handle;
 	}	 // namespace detail
@@ -50,8 +51,12 @@ namespace sek
 
 		typedef detail::filemap_openmode openmode;
 
+		/** Enables read mode for the filemap. */
 		constexpr static openmode in = detail::filemap_in;
+		/** Enables write mode for the filemap. */
 		constexpr static openmode out = detail::filemap_out;
+		/** Enables copy-on-write mode for the filemap. Exclusive with `out`. */
+		constexpr static openmode copy = detail::filemap_copy;
 
 	public:
 		filemap() = delete;

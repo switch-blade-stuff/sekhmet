@@ -57,12 +57,17 @@ namespace sek::detail
 		}
 		else
 			real_size.QuadPart = static_cast<LONGLONG>(size) + offset_diff;
-		DWORD access = mode & filemap_out ? FILE_MAP_ALL_ACCESS : FILE_MAP_READ;
 
 		/* Create temporary mapping object for the specified name. */
 		auto mapping = raii_mapping{create_mapping(fd, name)};
 		if (!mapping.ptr) [[unlikely]]
 			throw filemap_error("Failed to create file mapping object");
+
+		DWORD access = mode & filemap_in ? FILE_MAP_READ : 0;
+		if ((mode & filemap_copy) == filemap_copy)
+			access |= FILE_MAP_COPY;
+		else if (mode & filemap_out)
+			access |= FILE_MAP_WRITE;
 
 		view_ptr = MapViewOfFile(
 			mapping.ptr, access, real_offset.HighPart, real_offset.LowPart, static_cast<SIZE_T>(real_size.QuadPart));
