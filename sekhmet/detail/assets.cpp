@@ -10,6 +10,9 @@
 #include <cstring>
 #include <memory>
 
+#include "adt/toml_archive.hpp"
+#include "adt/ubj_archive.hpp"
+
 #ifdef SEK_OS_WIN
 #define MANIFEST_FILE_NAME L".manifest"
 #define OS_FOPEN(path, mode) _wfopen(path, L##mode)
@@ -36,20 +39,16 @@ namespace sek
 	{
 		void loose_asset_record::serialize(adt::node &node) const
 		{
-			node = adt::table{
-				{"id", id},
-				{"tags", tags},
-				{"path", file_path.string()},
-			};
-			if (!metadata_path.empty()) node["metadata"] = metadata_path.string();
+			auto &table = (node = adt::table{{"id", id}, {"tags", tags}, {"path", file_path.string()}}).as_table();
+			if (!metadata_path.empty()) table.emplace("metadata", metadata_path.string());
 		}
 		void loose_asset_record::deserialize(adt::node &&node)
 		{
 			std::move(node.at("id")).get(id);
 			std::move(node.at("tags")).get(tags);
 
-			file_path.assign(node.at("path").as_string());
-			if (node.as_table().contains("metadata")) metadata_path = node.at("metadata").as_string();
+			file_path.assign(std::move(node.at("path").as_string()));
+			if (node.as_table().contains("metadata")) metadata_path.assign(std::move(node.at("metadata").as_string()));
 		}
 
 		void archive_asset_record::serialize(adt::node &node) const
@@ -82,10 +81,11 @@ namespace sek
 		void package_fragment::serialize(adt::node &node) const { node = adt::table{{"assets", assets}}; }
 		void master_package::serialize(adt::node &node) const
 		{
-			node["master"].set(true);
+			auto &table = node.as_table();
+			table.emplace("master", true);
 			if (!fragments.empty()) [[likely]]
 			{
-				auto &out_sequence = node.as_table().emplace("fragments", adt::sequence{}).first->second.as_sequence();
+				auto &out_sequence = table.emplace("fragments", adt::sequence{}).first->second.as_sequence();
 				for (auto &fragment : fragments) out_sequence.emplace_back(relative(fragment.path, path).string());
 			}
 			package_fragment::serialize(node);
@@ -103,10 +103,8 @@ namespace sek
 			if (is_directory(path))
 			{
 				result.flags = package_fragment::LOOSE_PACKAGE;
-				if ((manifest_file = OS_FOPEN((path / MANIFEST_FILE_NAME).c_str(), "r")) != nullptr) [[likely]]
-				{
-					/* TODO: read TOML manifest. */
-				}
+				if ((manifest_file = OS_FOPEN((path / MANIFEST_FILE_NAME).c_str(), "rb")) != nullptr) [[likely]]
+					adt::toml_input_archive{manifest_file}.read(result.manifest);
 			}
 			else if ((manifest_file = OS_FOPEN(path.c_str(), "rb")) != nullptr) [[likely]]
 			{
@@ -114,9 +112,7 @@ namespace sek
 				constexpr auto sign_size = sizeof(SEK_PACKAGE_SIGNATURE);
 				char sign[sign_size];
 				if (fread(sign, 1, sign_size, manifest_file) == sign_size && !memcmp(sign, SEK_PACKAGE_SIGNATURE, sign_size))
-				{
-					/* TODO: read UBJson manifest. */
-				}
+					adt::ubj_input_archive{manifest_file}.read(result.manifest);
 			}
 			return result;
 		}
@@ -125,7 +121,7 @@ namespace sek
 		{
 			auto &data = node.at("assets").as_sequence();
 			assets.reserve(data.size());
-			for(auto &n : data) assets.emplace_back(this).ptr->deserialize(std::move(n));
+			for (auto &n : data) assets.emplace_back(this).ptr->deserialize(std::move(n));
 		}
 		void master_package::deserialize(adt::node &&node)
 		{
@@ -175,11 +171,13 @@ namespace sek
 
 	asset_repository &asset_repository::merge(asset_repository &&other)
 	{
+		/* Transfer & clear other's assets. */
 		assets.reserve(assets.size() + other.assets.size());
 		for (auto item = other.assets.begin(), end = other.assets.end(); item != end; ++item)
 			assets.insert(other.assets.extract(item));
 		other.assets.clear();
 
+		/* Transfer & clear other's packages. */
 		packages.reserve(packages.size() + other.packages.size());
 		for (auto item = other.packages.begin(), end = other.packages.end(); item != end; ++item)
 			packages.insert(other.packages.extract(item));
