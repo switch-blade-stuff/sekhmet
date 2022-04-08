@@ -366,14 +366,14 @@ namespace sek::adt
 		template<typename T>
 		constexpr void get(T &value) const &
 		{
-			detail::node_getter<T>{}(*this, value);
+			detail::node_getter<std::decay_t<T>>{}(*this, value);
 		}
 		/** @copydoc get
 		 * @note This version uses rvalue overload of the `deserialize` function if available. */
 		template<typename T>
 		constexpr void get(T &value) &&
 		{
-			detail::node_getter<T>{}(std::forward<node>(*this), value);
+			detail::node_getter<std::decay_t<T>>{}(std::forward<node>(*this), value);
 		}
 		/** Deserializes the contained value as the specified type.
 		 * @param value Reference to an instance of T to be deserialized.
@@ -383,14 +383,14 @@ namespace sek::adt
 		template<typename T>
 		constexpr bool get(T &value, std::nothrow_t) const &
 		{
-			return detail::node_getter<T>{}(*this, value, std::nothrow);
+			return detail::node_getter<std::decay_t<T>>{}(*this, value, std::nothrow);
 		}
 		/** @copydoc get
 		 * @note This version uses rvalue overload of the `deserialize` function if available. */
 		template<typename T>
 		constexpr bool get(T &value, std::nothrow_t) &&
 		{
-			return detail::node_getter<T>{}(std::forward<node>(*this), value, std::nothrow);
+			return detail::node_getter<std::decay_t<T>>{}(std::forward<node>(*this), value, std::nothrow);
 		}
 		/** Deserializes the contained value as the specified type.
 		 * @return Deserialized instance of T. */
@@ -429,7 +429,7 @@ namespace sek::adt
 		template<typename T>
 		constexpr node &set(const T &value)
 		{
-			detail::node_setter<T>{}(*this, value);
+			detail::node_setter<std::decay_t<T>>{}(*this, value);
 			return *this;
 		}
 		/** @copydoc set
@@ -437,7 +437,7 @@ namespace sek::adt
 		template<typename T>
 		constexpr node &set(T &&value)
 		{
-			detail::node_setter<T>{}(*this, std::move(value));
+			detail::node_setter<std::decay_t<T>>{}(*this, std::move(value));
 			return *this;
 		}
 

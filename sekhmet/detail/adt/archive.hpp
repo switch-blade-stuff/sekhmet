@@ -22,6 +22,7 @@ namespace sek::adt
 	/** @brief Base interface for ADT input archives. */
 	class basic_input_archive
 	{
+	protected:
 		struct reader_base
 		{
 			virtual ~reader_base() = default;
@@ -162,18 +163,19 @@ namespace sek::adt
 		}
 		virtual void do_read(node &n) = 0;
 
+		reader_base *reader = nullptr;
+
 	private:
 		constexpr void check_reader() const
 		{
 			if (!reader) [[unlikely]]
 				throw archive_error("Archive reader is empty");
 		}
-
-		reader_base *reader = nullptr;
 	};
 	/** @brief Base interface for ADT output archives. */
 	class basic_output_archive
 	{
+	protected:
 		struct writer_base
 		{
 			virtual ~writer_base() = default;
@@ -268,13 +270,13 @@ namespace sek::adt
 	protected:
 		virtual void do_write(const node &n) = 0;
 
+		writer_base *writer = nullptr;
+
 	private:
 		constexpr void check_writer() const
 		{
 			if (!writer) [[unlikely]]
 				throw archive_error("Archive writer is empty");
 		}
-
-		writer_base *writer = nullptr;
 	};
 }	 // namespace sek::adt
