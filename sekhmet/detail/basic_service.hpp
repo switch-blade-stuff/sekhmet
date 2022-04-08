@@ -5,7 +5,6 @@
 #pragma once
 
 #include <atomic>
-#include <mutex>
 
 namespace sek
 {
@@ -14,44 +13,30 @@ namespace sek
 	template<typename Child>
 	struct basic_service
 	{
-		/** Returns pointer to the global instance of the system. If the global instance is not initialized,
-		 * uses the passed pointer as the global instance.
+		/** Sets the the global instance of the system.
+		 * @param ptr System to be used as the global instance in case the global pointer is not initialized.
+		 * @return Value of the global instance pointer before the operation. */
+		static Child *instance(Child *p) { return global_ptr().exchange(p); }
+		/** Returns pointer to the global instance of the system.
 		 * @param ptr System to be used as the global instance in case the global pointer is not initialized.
 		 * @return Pointer to the current global instance.
-		 * @note In case the passed pointer is null, initialized a default-constructed global instance. */
-		static Child *instance(Child *ptr = nullptr)
+		 * @note In case the global instance is not set, initialized a default-constructed global instance. */
+		static Child *instance()
 		{
-			Child *result = data.ptr.load(std::memory_order::acquire);
+			auto &ptr = global_ptr();
+			auto result = ptr.load();
 			if (!result) [[unlikely]]
-			{
-				std::lock_guard<std::mutex> l(data.mtx);
-				if (!(result = data.ptr.load(std::memory_order::relaxed)))
-				{
-					result = ptr ? ptr : local();
-					data.ptr.store(result, std::memory_order::release);
-				}
-			}
+				ptr.store(result = local());
 			return result;
 		}
 
+		static SEK_API_IMPORT std::atomic<Child *> &global_ptr() noexcept;
+
 	private:
-		struct sync_data
+		static Child *local()
 		{
-			mutable std::mutex mtx;
-			std::atomic<Child *> ptr;
-		};
-
-		static Child *local();
-
-		static sync_data data;
+			static Child value;
+			return &value;
+		}
 	};
-
-	template<typename T>
-	T *basic_service<T>::local()
-	{
-		static T value;
-		return &value;
-	}
-	template<typename T>
-	typename basic_service<T>::sync_data basic_service<T>::data = {};
 }	 // namespace sek

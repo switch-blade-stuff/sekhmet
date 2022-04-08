@@ -13,9 +13,14 @@
 #include "basic_service.hpp"
 #include "filemap.hpp"
 #include "hset.hpp"
+#include <shared_mutex>
 
 namespace sek
 {
+	class asset_repository;
+	class asset_package;
+	class asset;
+
 	namespace detail
 	{
 		struct package_fragment;
@@ -69,17 +74,19 @@ namespace sek
 			virtual void release();
 			virtual master_package *get_master() { return master; }
 
+			[[nodiscard]] constexpr bool is_loose() const noexcept { return flags & LOOSE_PACKAGE; }
+
 			template<typename... Args>
 			void init_assets(Args &&...args)
 			{
-				if (flags & LOOSE_PACKAGE)
+				if (is_loose())
 					std::construct_at(&loose_assets, std::forward<Args>(args)...);
 				else
 					std::construct_at(&archive_assets, std::forward<Args>(args)...);
 			}
 			void destroy_assets()
 			{
-				if (flags & LOOSE_PACKAGE)
+				if (is_loose())
 					std::destroy_at(&loose_assets);
 				else
 					std::destroy_at(&archive_assets);
@@ -109,8 +116,9 @@ namespace sek
 		}
 		filemap archive_asset_record::map_file(filemap::openmode mode) const
 		{
-			/* For archives only `filemap::in` is allowed. */
-			return filemap{parent->path, file_offset, file_size, mode & filemap::in};
+			/* For archives `filemap::out` is not allowed. */
+			mode |= mode & filemap::out ? filemap::copy : 0;
+			return filemap{parent->path, file_offset, file_size, mode};
 		}
 
 		struct master_package final : package_fragment
@@ -133,9 +141,86 @@ namespace sek
 		void package_fragment::release() { master->release(); }
 	}	 // namespace detail
 
-	class asset;
-	class asset_package;
-	class asset_db;
+	/** @brief Structure used to manage assets & asset packages. */
+	class asset_repository
+	{
+	public:
+		/** Returns pointer to the global asset repository.
+		 * @note Global asset repository operations must be synchronized using the `global_mtx` shared mutex. */
+		[[nodiscard]] static asset_repository *global() noexcept { return basic_service<asset_repository>::instance(); }
+		/** Sets the global asset repository.
+		 * @param ptr Pointer to the new global repository.
+		 * @return Value of the global repository pointer before the operation. */
+		static asset_repository *global(asset_repository *ptr)
+		{
+			return basic_service<asset_repository>::instance(ptr);
+		}
+
+		/** Returns reference to the global repository mutex.
+		 * This mutex should be used to synchronize global repository operations. */
+		[[nodiscard]] static SEK_API std::shared_mutex &global_mtx() noexcept;
+
+	protected:
+		using path_string_view = std::basic_string_view<typename std::filesystem::path::value_type>;
+		using packages_map_t = hmap<path_string_view, detail::master_package *>;
+		using assets_map_t = hmap<std::string_view, detail::asset_record_base *>;
+
+	public:
+		/** Merges other asset repository with this one.
+		 * @param other Repository to merge with this.
+		 * @return Reference to this repository. */
+		constexpr asset_repository &merge(asset_repository &&other)
+		{
+			assets.reserve(assets.size() + other.assets.size());
+			for (auto item = other.assets.begin(), end = other.assets.end(); item != end; ++item)
+				assets.insert(other.assets.extract(item));
+			other.assets.clear();
+
+			packages.reserve(packages.size() + other.packages.size());
+			for (auto item = other.packages.begin(), end = other.packages.end(); item != end; ++item)
+				packages.insert(other.packages.extract(item));
+			other.packages.clear();
+
+			return *this;
+		}
+
+	protected:
+		constexpr void add_asset_impl(detail::asset_record_base *record) { assets.emplace(record->id, record); }
+
+		constexpr void add_fragment_assets(detail::package_fragment *pkg)
+		{
+			auto add_asset = [&](detail::asset_record_base &r) { add_asset_impl(&r); };
+
+			if (pkg->is_loose())
+				std::for_each(pkg->loose_assets.begin(), pkg->loose_assets.end(), add_asset);
+			else
+				std::for_each(pkg->archive_assets.begin(), pkg->archive_assets.end(), add_asset);
+		}
+		constexpr void remove_fragment_assets(detail::package_fragment *pkg)
+		{
+			auto remove_asset = [&](detail::asset_record_base &r) { assets.erase(r.id); };
+
+			if (pkg->is_loose())
+				std::for_each(pkg->loose_assets.begin(), pkg->loose_assets.end(), remove_asset);
+			else
+				std::for_each(pkg->archive_assets.begin(), pkg->archive_assets.end(), remove_asset);
+		}
+
+		constexpr void add_package_impl(detail::master_package *pkg)
+		{
+			pkg->acquire();
+			packages.emplace(pkg->path.native(), pkg);
+		}
+		constexpr void remove_package_impl(typename packages_map_t::const_iterator where)
+		{
+			auto pkg = where->second;
+			packages.erase(where);
+			pkg->release();
+		}
+
+		packages_map_t packages;
+		assets_map_t assets;
+	};
 
 	//#ifdef SEK_EDITOR
 	//	namespace editor
@@ -351,7 +436,7 @@ namespace sek
 	//			return proximate(path, data_dir_path);
 	//		}
 	//
-	//		void insert_package(std::string_view path, detail::master_asset_package *ptr)
+	//		void add_package_impl(std::string_view path, detail::master_asset_package *ptr)
 	//		{
 	//			ptr->acquire();
 	//			package_map.emplace(path, ptr);

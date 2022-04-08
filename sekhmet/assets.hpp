@@ -4,5 +4,4 @@
 
 #pragma once
 
-#include "detail/asset_handle.hpp"
 #include "detail/assets.hpp"

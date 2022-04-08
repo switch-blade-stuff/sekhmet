@@ -12,12 +12,17 @@ TEST_PLUGIN_API int test_plugin_data::ctr = 0;
 SEK_DECLARE_PLUGIN("Test Plugin", metadata<test_plugin_data{1}>)
 SEK_DECLARE_PLUGIN("Test Plugin 2", metadata<test_plugin_data{2}>)
 
+#include "sekhmet/assets.hpp"
 
 SEK_ON_PLUGIN_ENABLE("Test Plugin")
 {
+	sek::asset_repository::global(new sek::asset_repository{});
+
 	test_plugin_data::ctr = 1;
 }
 SEK_ON_PLUGIN_DISABLE("Test Plugin 2")
 {
+	delete sek::asset_repository::global(nullptr);
+
 	test_plugin_data::ctr = 2;
 }

@@ -465,13 +465,6 @@ namespace sek
 			constexpr void clear()
 			{
 				for (auto item = begin(), last = end(); item != last; ++item) erase_bucket_impl(item.bucket_ptr);
-				tombstone_count += load_count;
-				load_count = 0;
-				consider_shrink = true;
-			}
-			constexpr void purge()
-			{
-				clear();
 				destroy_data();
 			}
 

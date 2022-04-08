@@ -28,8 +28,7 @@ if (NOT GTEST_MISSING)
             adt_tests.cpp
             math_tests.cpp)
 
-    add_library(${PROJECT_NAME}.plugin SHARED
-            test_plugin.hpp test_plugin.cpp)
+    add_library(${PROJECT_NAME}.plugin SHARED test_plugin.hpp test_plugin.cpp)
     target_link_libraries(${PROJECT_NAME}.plugin PUBLIC ${SEKHMET_PROJECT})
 
     target_link_libraries(${PROJECT_NAME} PUBLIC ${SEKHMET_PROJECT} ${PROJECT_NAME}.plugin gtest)

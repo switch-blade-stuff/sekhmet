@@ -242,9 +242,6 @@ namespace sek
 
 		/** Empties the map's contents. */
 		constexpr void clear() { data_table.clear(); }
-		/** Empties the map's contents and attempts to resize the internal
-		 * storage. */
-		constexpr void purge() { data_table.purge(); }
 
 		/** Re-hashes the map for the specified minimal capacity. */
 		constexpr void rehash(size_type capacity) { data_table.rehash(capacity); }
