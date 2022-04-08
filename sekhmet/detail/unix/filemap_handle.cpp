@@ -18,12 +18,6 @@ namespace sek::detail
 		return !fstat(fd, &st) ? st.st_size : 0;
 	}
 
-	filemap_handle::native_handle_type filemap_handle::handle_from_view(void *ptr) noexcept
-	{
-		auto int_ptr = std::bit_cast<std::intptr_t>(ptr);
-		return std::bit_cast<void *>(int_ptr - (int_ptr % page_size()));
-	}
-
 	void filemap_handle::init(int fd, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *)
 	{
 		int prot = (mode & filemap_in ? PROT_READ : 0) | (mode & filemap_out ? PROT_WRITE : 0);
@@ -96,5 +90,11 @@ namespace sek::detail
 				default: throw filemap_error("Call to `msync` failed");
 			}
 		}
+	}
+
+	filemap_handle::native_handle_type filemap_handle::native_handle() const noexcept
+	{
+		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
+		return std::bit_cast<void *>(int_ptr - (int_ptr % page_size()));
 	}
 }	 // namespace sek::detail

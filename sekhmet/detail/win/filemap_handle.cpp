@@ -96,12 +96,6 @@ namespace sek::detail
 		init(file.ptr, offset, size, mode, name);
 	}
 
-	filemap_handle::native_handle_type filemap_handle::handle_from_view(void *ptr) noexcept
-	{
-		auto int_ptr = std::bit_cast<std::intptr_t>(ptr);
-		return std::bit_cast<HANDLE>(int_ptr - (int_ptr % alloc_granularity()));
-	}
-
 	bool filemap_handle::reset() noexcept
 	{
 		if (view_ptr) [[likely]]
@@ -115,5 +109,11 @@ namespace sek::detail
 
 		if (!FlushViewOfFile(std::bit_cast<HANDLE>(int_ptr - diff), n + static_cast<SIZE_T>(diff))) [[unlikely]]
 			throw filemap_error("`FlushViewOfFile` returned 0");
+	}
+
+	filemap_handle::native_handle_type filemap_handle::native_handle() const noexcept
+	{
+		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
+		return std::bit_cast<HANDLE>(int_ptr - (int_ptr % alloc_granularity()));
 	}
 }	 // namespace sek::detail

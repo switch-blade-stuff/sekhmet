@@ -174,5 +174,13 @@ namespace sek
 		{
 			return filemap{parent->path, file_offset, file_size, filemap::in};
 		}
+
+		/** @brief Buffer type used to construct `asset_stream` for an archive asset. */
+		struct filemap_buffer : std::streambuf
+		{
+			explicit filemap_buffer(filemap &&map) noexcept : map(std::move(map)) {}
+
+			filemap map;
+		};
 	}	 // namespace detail
 }	 // namespace sek

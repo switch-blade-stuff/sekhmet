@@ -13,7 +13,6 @@ namespace sek::detail
 		using native_file_type = int;
 
 	private:
-		SEK_API static native_handle_type handle_from_view(void *) noexcept;
 		SEK_API void init(native_file_type, std::ptrdiff_t, std::size_t, filemap_openmode, const char *);
 
 	public:
@@ -45,7 +44,7 @@ namespace sek::detail
 		SEK_API bool reset() noexcept;
 		SEK_API void flush(std::size_t n) const;
 
-		[[nodiscard]] native_handle_type native_handle() const noexcept { return handle_from_view(view_ptr); }
+		[[nodiscard]] SEK_API native_handle_type native_handle() const noexcept;
 
 	private:
 		void *view_ptr = nullptr;
