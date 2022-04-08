@@ -403,7 +403,7 @@ namespace sek::adt
 		}
 		/** @copydoc get */
 		template<typename T>
-		[[nodiscard]] constexpr operator T() const &
+		[[nodiscard]] constexpr explicit operator T() const &
 		{
 			return get<T>();
 		}
@@ -418,7 +418,7 @@ namespace sek::adt
 		}
 		/** @copydoc get */
 		template<typename T>
-		[[nodiscard]] constexpr operator T() &&
+		[[nodiscard]] constexpr explicit operator T() &&
 		{
 			return std::move(*this).get<T>();
 		}
