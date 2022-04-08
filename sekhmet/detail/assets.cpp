@@ -7,6 +7,7 @@
 #include "assets.hpp"
 
 #include <cstdio>
+#include <memory>
 
 #ifdef SEK_OS_WIN
 #define MANIFEST_FILE_NAME L".manifest"
@@ -112,13 +113,12 @@ namespace sek
 			if (is_directory(path))
 			{
 				flags = static_cast<package_fragment::flags_t>(flags | package_fragment::LOOSE_PACKAGE);
-				auto manifest_path = path / MANIFEST_FILE_NAME;
-				if (exists(manifest_path) && (manifest_file = OS_FOPEN(manifest_path.c_str(), "r")) != nullptr) [[likely]]
+				if ((manifest_file = OS_FOPEN((path / MANIFEST_FILE_NAME).c_str(), "r")) != nullptr) [[likely]]
 				{
 					/* TODO: read TOML manifest. */
 				}
 			}
-			else if ((manifest_file = OS_FOPEN(path.c_str(), "rb")) != nullptr)
+			else if ((manifest_file = OS_FOPEN(path.c_str(), "rb")) != nullptr) [[likely]]
 			{
 				/* Check that the package has a valid signature. */
 				constexpr auto sign_size = sizeof(SEK_ARCHIVE_PACKAGE_SIGNATURE);
@@ -143,7 +143,7 @@ namespace sek
 			deserialize(node, static_cast<package_fragment &>(package));
 			if (node.as_table().contains("fragments"))
 			{
-				auto parent_path = package.path.parent_path();
+				auto parent_path = package.path.parent_path(); /* Fragment paths are stored relative to parent directory. */
 				auto &fragments = node.at("fragments").as_sequence();
 				package.fragments.reserve(fragments.size());
 				for (auto &fragment : fragments)
@@ -151,9 +151,8 @@ namespace sek
 					adt::node fragment_manifest;
 					package_fragment::flags_t flags;
 					auto path = parent_path / fragment.as_string();
-
 					get_package_info(path, fragment_manifest, flags);
-					deserialize(fragment_manifest, package.fragments.emplace_back(&package, std::move(path), flags));
+					deserialize(fragment_manifest, package.add_fragment(std::move(path), flags));
 				}
 			}
 		}
@@ -164,22 +163,20 @@ namespace sek
 			package_fragment::flags_t flags;
 			get_package_info(path, manifest, flags);
 
-			if (manifest.is_table() && manifest.as_table().contains("master"))
+			try
 			{
-				auto package = std::make_unique<master_package>(std::move(path), flags);
-				try
+				/* Ignore packages without `master` flag. */
+				if (manifest.as_table().contains("master") && manifest.at("master").as_bool())
 				{
+					auto package = std::make_unique<master_package>(std::move(path), flags);
 					deserialize(manifest, *package);
 					return package.release();
 				}
-				catch (adt::node_error &)
-				{
-					/* Only deserialization exceptions are recoverable,
-					 * since they indicate an invalid package and thus will return nullptr.
-					 *
-					 * Any other exceptions are either caused by fatal errors (such as memory errors)
-					 * or by filesystem errors and are thus non-recoverable. */
-				}
+			}
+			catch (adt::node_error &)
+			{
+				/* Only deserialization exceptions are recoverable, since they indicate an invalid package and thus will return nullptr.
+				 * Any other exceptions are either caused by fatal errors or by filesystem errors and are thus non-recoverable. */
 			}
 			return nullptr;
 		}

@@ -156,9 +156,9 @@ namespace sek
 			}
 			master_package *get_master() final { return this; }
 
-			package_fragment *add_fragment(std::filesystem::path &&path, flags_t flags)
+			package_fragment &add_fragment(std::filesystem::path &&path, flags_t flags)
 			{
-				return &fragments.emplace_back(this, std::move(path), flags);
+				return fragments.emplace_back(this, std::move(path), flags);
 			}
 
 			std::vector<package_fragment> fragments;
