@@ -6,11 +6,11 @@
 
 namespace sek::adt
 {
-	void ubj_input_archive::do_read(node &n)
+	void ubj_input_archive::do_read(node &)
 	{
 		/* TODO: Read UBJ */
 	}
-	void ubj_output_archive::do_write(const node &n)
+	void ubj_output_archive::do_write(const node &)
 	{
 		/* TODO: Write UBJ */
 	}

@@ -6,6 +6,6 @@ option(EXPORT_BUILD "Project is built for export" OFF)
 
 option(ENABLE_TESTS "Build unit tests" OFF)
 if (CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-    set(ENABLE_TESTS ON)
+    set(ENABLE_TESTS ON CACHE BOOL "" FORCE)
 endif ()
 

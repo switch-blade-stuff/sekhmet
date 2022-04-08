@@ -6,11 +6,11 @@
 
 namespace sek::adt
 {
-	void toml_input_archive::do_read(node &n)
+	void toml_input_archive::do_read(node &)
 	{
 		/* TODO: Read TOML */
 	}
-	void toml_output_archive::do_write(const node &n)
+	void toml_output_archive::do_write(const node &)
 	{
 		/* TODO: Write TOML */
 	}

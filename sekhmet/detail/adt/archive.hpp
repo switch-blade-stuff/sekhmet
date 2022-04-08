@@ -41,7 +41,7 @@ namespace sek::adt
 #ifdef SEK_OS_WIN
 				return _fseeki64(file, n, SEEK_CUR) ? 0 : n;
 #else
-				return fseek(file, n, SEEK_CUR) ? 0 : n;
+				return fseeko(file, static_cast<off_t>(n), SEEK_CUR) ? 0 : n;
 #endif
 			}
 
@@ -61,7 +61,7 @@ namespace sek::adt
 				if (next > last) [[unlikely]]
 					next = last;
 				std::copy(curr, next, static_cast<std::byte *>(dest));
-				return next - std::exchange(curr, next);
+				return static_cast<std::size_t>(next - std::exchange(curr, next));
 			}
 			int peek() final
 			{
@@ -75,7 +75,7 @@ namespace sek::adt
 				auto next = curr + n;
 				if (next > last) [[unlikely]]
 					next = last;
-				return next - std::exchange(curr, next);
+				return static_cast<std::size_t>(next - std::exchange(curr, next));
 			}
 
 			const std::byte *curr;
@@ -95,7 +95,7 @@ namespace sek::adt
 			std::size_t bump(std::size_t n) final
 			{
 				auto old = streambuf->pubseekoff(0, std::ios::cur, std::ios::in);
-				auto abs = streambuf->pubseekpos(old + static_cast<std::fpos_t>(n), std::ios::in);
+				auto abs = streambuf->pubseekpos(old + static_cast<std::streamoff>(n), std::ios::in);
 				return static_cast<std::size_t>(abs - old);
 			}
 
@@ -199,7 +199,7 @@ namespace sek::adt
 			std::size_t write(const void *src, std::size_t n) final
 			{
 				if (curr + n > last) [[unlikely]]
-					n = last - curr;
+					n = static_cast<std::size_t>(last - curr);
 				curr = std::copy_n(static_cast<const std::byte *>(src), n, curr);
 				return n;
 			}
@@ -215,7 +215,8 @@ namespace sek::adt
 
 			std::size_t write(const void *src, std::size_t n) final
 			{
-				return static_cast<std::size_t>(streambuf->sputn(static_cast<const std::streambuf::char_type *>(src), n));
+				return static_cast<std::size_t>(streambuf->sputn(static_cast<const std::streambuf::char_type *>(src),
+																 static_cast<std::ptrdiff_t>(n)));
 			}
 
 			std::streambuf *streambuf;

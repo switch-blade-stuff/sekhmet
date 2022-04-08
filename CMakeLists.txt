@@ -3,7 +3,6 @@ project(sekhmet)
 
 include(${CMAKE_CURRENT_LIST_DIR}/CMakeLists.macros.txt)
 include(${CMAKE_CURRENT_LIST_DIR}/CMakeLists.options.txt)
-include(${CMAKE_CURRENT_LIST_DIR}/CMakeLists.flags.txt)
 
 set_cxx_version_20()
 
@@ -14,6 +13,7 @@ include_directories(${CMAKE_CURRENT_LIST_DIR})
 
 if (PROJECT_IS_TOP_LEVEL OR EXPORT_BUILD)
     add_library(${PROJECT_NAME} SHARED)
+    init_target_options(${PROJECT_NAME})
 
     # Set project-related variables & properties
     set_maybe_parent(SEKHMET_PROJECT ${PROJECT_NAME})
@@ -39,6 +39,9 @@ if (PROJECT_IS_TOP_LEVEL OR EXPORT_BUILD)
 
     # Include project source subdirectory
     include(${SEKHMET_SOURCE_DIR}/CMakeLists.txt)
+
+    # Set project include file for all subsequent projects
+    set(CMAKE_PROJECT_INCLUDE ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.include.txt)
 
     # Include editor project
     if (BUILD_EDITOR AND NOT EXPORT_BUILD AND EXISTS ${SEKHMET_SOURCE_DIR}/editor/CMakeLists.txt)
