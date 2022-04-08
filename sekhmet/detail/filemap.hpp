@@ -56,7 +56,7 @@ namespace sek
 		/** Initializes a filemap for the specified file using a size and an offset.
 		 * @param file_path Path of the file to map into memory.
 		 * @param offset Offset into the file (in bytes) to start the mapping at.
-		 * @param size Amount of bytes from the offset position to map into memory.
+		 * @param size Amount of bytes from the offset position to map into memory. If set to 0, maps the entire file.
 		 * @param mode Mode of the file map. By default, file mappings are read-only.
 		 * @param name Optional name for the file mapping. If the OS does not support named file mapping, the name is ignored.
 		 * @throw filemap_error On any implementation-defined error.
@@ -72,11 +72,10 @@ namespace sek
 		/** Initializes a filemap for the specified native file descriptor type using a size and an offset.
 		 * @param fd Native file descriptor to create the mapping for.
 		 * @param offset Offset into the file (in bytes) to start the mapping at.
-		 * @param size Amount of bytes from the offset position to map into memory.
+		 * @param size Amount of bytes from the offset position to map into memory. If set to 0, maps the entire file.
 		 * @param mode Mode of the file map. By default, file mappings are read-only.
 		 * @param name Optional name for the file mapping. If the OS does not support named file mapping, the name is ignored.
-		 * @throw filemap_error On any implementation-defined error.
-		 * @note If size is set to 0, maps the entire file. */
+		 * @throw filemap_error On any implementation-defined error. */
 		explicit filemap(native_file_type fd, std::ptrdiff_t offset = 0, std::size_t size = 0, openmode mode = in, const char *name = nullptr)
 			: handle(fd, offset, size, mode, name)
 		{
