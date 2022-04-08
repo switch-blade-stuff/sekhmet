@@ -125,6 +125,8 @@ namespace sek
 					delete this;
 			}
 			master_package *get_master() final { return this; }
+
+			std::vector<package_fragment> fragments;
 		};
 
 		void package_fragment::acquire() { master->acquire(); }
