@@ -45,6 +45,7 @@ namespace sek::adt
 
 	private:
 		static ubjf_error on_value_event(ubjf_value value, void *udata) noexcept;
+		static char *on_string_alloc_event(std::size_t n, void *udata) noexcept;
 
 		SEK_API void init_state() noexcept;
 

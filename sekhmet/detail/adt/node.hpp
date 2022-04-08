@@ -402,8 +402,15 @@ namespace sek::adt
 		template<typename T>
 		constexpr node &set(T &&value)
 		{
-			detail::node_setter<std::decay_t<T>>{}(*this, std::move(value));
+			detail::node_setter<std::decay_t<T>>{}(*this, std::forward<T>(value));
 			return *this;
+		}
+		/** Serializes a default-constructed instance of T. */
+		template<typename T>
+		constexpr node &set()
+		{
+			T value = {};
+			return set(std::move(value));
 		}
 
 		/** Checks if the node contains a bool. */

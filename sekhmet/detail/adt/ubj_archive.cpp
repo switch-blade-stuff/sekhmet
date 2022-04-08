@@ -43,25 +43,19 @@ namespace sek::adt
 	{
 		try
 		{
-			switch (auto &node = *static_cast<ubj_input_archive *>(p)->next_node; value.type)
-			{
-				case UBJF_BOOL: node.set(value.boolean); break;
-				case UBJF_CHAR: node.set(value.character); break;
-
-				case UBJF_INT8:
-				case UBJF_UINT8:
-				case UBJF_INT16:
-				case UBJF_INT32:
-				case UBJF_INT64: node.set(value.integer); break;
-
-				case UBJF_FLOAT32:
-				case UBJF_FLOAT64: node.set(static_cast<adt::node::float_type>(value.floating)); break;
-
-				default:
-					/* TODO: Handle string types. */
-					node = adt::node{};
-					break;
-			}
+			auto &node = *static_cast<ubj_input_archive *>(p)->next_node;
+			if (value.type == UBJF_BOOL) node.set(value.boolean);
+#ifndef UBJF_NO_SPEC12 /* Type-based booleans are not supported after spec12. */
+			else if (value.type & UBJF_BOOL_TYPE_MASK) [[unlikely]]
+				node.set(static_cast<bool>(value.type & 1));
+#endif
+			else if (value.type & UBJF_INTEGER_TYPE_MASK)
+				node.set(value.integer);
+			else if (value.type & UBJF_FLOAT_TYPE_MASK)
+				node.set(value.floating);
+			else
+				node.reset();
+			/* TODO: Handle string types. */
 
 			return UBJF_NO_ERROR;
 		}
@@ -72,6 +66,19 @@ namespace sek::adt
 		catch (...)
 		{
 			return UBJF_ERROR_UNKNOWN;
+		}
+	}
+	char *ubj_input_archive::on_string_alloc_event(std::size_t n, void *p) noexcept
+	{
+		try
+		{
+			auto &str = static_cast<ubj_input_archive *>(p)->next_node->set<std::string>().as_string();
+			str.reserve(n);
+			return str.data();
+		}
+		catch (...)
+		{
+			return nullptr;
 		}
 	}
 	void ubj_input_archive::init_state() noexcept
@@ -85,7 +92,7 @@ namespace sek::adt
 		ubjf_parse_event_info parse_info = {
 			.udata = this,
 			.on_value = on_value_event,
-			.on_string_alloc = {},
+			.on_string_alloc = on_string_alloc_event,
 			.on_container_begin = {},
 			.on_container_end = {},
 		};
