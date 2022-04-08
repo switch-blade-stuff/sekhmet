@@ -57,11 +57,7 @@ namespace sek::detail
 		struct raii_file
 		{
 			constexpr explicit raii_file(int fd) noexcept : fd(fd) {}
-			~raii_file() noexcept(false)
-			{
-				if (close(fd)) [[unlikely]]
-					throw filemap_error("Failed to close file descriptor");
-			}
+			~raii_file() { close(fd); }
 
 			int fd;
 		};

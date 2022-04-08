@@ -36,11 +36,13 @@ namespace sek::detail
 	}
 	void filemap_handle::init(void *fd, std::ptrdiff_t offset, std::size_t size, int mode, const char *name)
 	{
-		auto mapping = create_mapping(fd, name);
-		if (!mapping) [[unlikely]]
-			throw filemap_error("Failed to create file mapping object");
+		struct raii_mapping
+		{
+			constexpr explicit raii_mapping(HANDLE ptr) noexcept : ptr(ptr) {}
+			~raii_mapping() { CloseHandle(ptr); }
 
-		DWORD access = mode & filemap_out ? FILE_MAP_ALL_ACCESS : FILE_MAP_READ;
+			HANDLE ptr;
+		};
 
 		/* View must start at a multiple of allocation granularity. */
 		auto offset_diff = static_cast<std::ptrdiff_t>(offset % alloc_granularity());
@@ -57,9 +59,15 @@ namespace sek::detail
 		}
 		else
 			real_size.QuadPart = static_cast<LONGLONG>(size) + offset_diff;
+		DWORD access = mode & filemap_out ? FILE_MAP_ALL_ACCESS : FILE_MAP_READ;
+
+		/* Create temporary mapping object for the specified name. */
+		auto mapping = raii_mapping{create_mapping(fd, name)};
+		if (!mapping.ptr) [[unlikely]]
+			throw filemap_error("Failed to create file mapping object");
 
 		view_ptr = MapViewOfFile(
-			mapping, access, real_offset.HighPart, real_offset.LowPart, static_cast<SIZE_T>(real_size.QuadPart));
+			mapping.ptr, access, real_offset.HighPart, real_offset.LowPart, static_cast<SIZE_T>(real_size.QuadPart));
 		if (!view_ptr) [[unlikely]]
 			throw filemap_error("Failed to map view of file");
 
@@ -72,11 +80,7 @@ namespace sek::detail
 		struct raii_file
 		{
 			constexpr explicit raii_file(HANDLE ptr) noexcept : ptr(ptr) {}
-			~raii_file() noexcept(false)
-			{
-				if (!CloseHandle(ptr)) [[unlikely]]
-					throw filemap_error("Failed to close file handle");
-			}
+			~raii_file() { CloseHandle(ptr); }
 
 			HANDLE ptr;
 		};
