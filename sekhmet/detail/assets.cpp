@@ -2,16 +2,34 @@
 // Created by switchblade on 2022-04-04.
 //
 
+#define _CRT_SECURE_NO_WARNINGS
+
 #include "assets.hpp"
+
+#include <cstdio>
 
 #ifdef SEK_OS_WIN
 #define MANIFEST_FILE_NAME L".manifest"
+#define OS_FOPEN(path, mode) _wfopen(path, L##mode)
 #else
 #define MANIFEST_FILE_NAME ".manifest"
+#define OS_FOPEN(path, mode) fopen(path, mode)
 #endif
 
 namespace sek
 {
+	template<>
+	SEK_API_EXPORT std::atomic<asset_repository *> &basic_service<asset_repository>::global_ptr() noexcept
+	{
+		static std::atomic<asset_repository *> value;
+		return value;
+	}
+	std::shared_mutex &asset_repository::global_mtx() noexcept
+	{
+		static std::shared_mutex value;
+		return value;
+	}
+
 	namespace detail
 	{
 		void serialize(adt::node &node, const loose_asset_record &record)
@@ -57,17 +75,113 @@ namespace sek
 			else
 				throw adt::node_error("Invalid archive record size");
 		}
-	}	 // namespace detail
 
-	template<>
-	SEK_API_EXPORT std::atomic<asset_repository *> &basic_service<asset_repository>::global_ptr() noexcept
-	{
-		static std::atomic<asset_repository *> value;
-		return value;
-	}
-	std::shared_mutex &asset_repository::global_mtx() noexcept
-	{
-		static std::shared_mutex value;
-		return value;
-	}
+		void serialize_impl(adt::node &node, const package_fragment &fragment)
+		{
+			if (fragment.is_loose())
+				node.at("assets").set(fragment.loose_assets);
+			else
+				node.at("assets").set(fragment.archive_assets);
+		}
+		void serialize(adt::node &node, const package_fragment &fragment)
+		{
+			node = adt::table{{"assets", adt::node{}}};
+			serialize_impl(node, fragment);
+		}
+		void serialize(adt::node &node, const master_package &package)
+		{
+			node = adt::table{
+				{"master", true},
+				{"assets", adt::node{}},
+			};
+
+			if (!package.fragments.empty()) [[likely]]
+			{
+				auto parent_path = package.path.parent_path();
+				auto &fragments = node.as_table().emplace("fragments", adt::sequence{}).first->second.as_sequence();
+				for (auto &fragment : package.fragments)
+					fragments.emplace_back(relative(fragment.path, parent_path).string());
+			}
+
+			serialize_impl(node, package);
+		}
+
+		static void get_package_info(const std::filesystem::path &path, adt::node &manifest, package_fragment::flags_t &flags)
+		{
+			FILE *manifest_file;
+			if (is_directory(path))
+			{
+				flags = static_cast<package_fragment::flags_t>(flags | package_fragment::LOOSE_PACKAGE);
+				auto manifest_path = path / MANIFEST_FILE_NAME;
+				if (exists(manifest_path) && (manifest_file = OS_FOPEN(manifest_path.c_str(), "r")) != nullptr) [[likely]]
+				{
+					/* TODO: read TOML manifest. */
+				}
+			}
+			else if ((manifest_file = OS_FOPEN(path.c_str(), "rb")) != nullptr)
+			{
+				/* Check that the package has a valid signature. */
+				constexpr auto sign_size = sizeof(SEK_ARCHIVE_PACKAGE_SIGNATURE);
+				char sign[sign_size];
+				if (fread(sign, 1, sign_size, manifest_file) == sign_size &&
+					!memcmp(sign, SEK_ARCHIVE_PACKAGE_SIGNATURE, sign_size))
+				{
+					/* TODO: read UBJson manifest. */
+				}
+			}
+		}
+
+		void deserialize(const adt::node &node, package_fragment &fragment)
+		{
+			if (fragment.is_loose())
+				node.at("assets").get(fragment.loose_assets);
+			else
+				node.at("assets").get(fragment.archive_assets);
+		}
+		void deserialize(const adt::node &node, master_package &package)
+		{
+			deserialize(node, static_cast<package_fragment &>(package));
+			if (node.as_table().contains("fragments"))
+			{
+				auto parent_path = package.path.parent_path();
+				auto &fragments = node.at("fragments").as_sequence();
+				package.fragments.reserve(fragments.size());
+				for (auto &fragment : fragments)
+				{
+					adt::node fragment_manifest;
+					package_fragment::flags_t flags;
+					auto path = parent_path / fragment.as_string();
+
+					get_package_info(path, fragment_manifest, flags);
+					deserialize(fragment_manifest, package.fragments.emplace_back(&package, std::move(path), flags));
+				}
+			}
+		}
+
+		master_package *load_package(std::filesystem::path &&path)
+		{
+			adt::node manifest;
+			package_fragment::flags_t flags;
+			get_package_info(path, manifest, flags);
+
+			if (manifest.is_table() && manifest.as_table().contains("master"))
+			{
+				auto package = std::make_unique<master_package>(std::move(path), flags);
+				try
+				{
+					deserialize(manifest, *package);
+					return package.release();
+				}
+				catch (adt::node_error &)
+				{
+					/* Only deserialization exceptions are recoverable,
+					 * since they indicate an invalid package and thus will return nullptr.
+					 *
+					 * Any other exceptions are either caused by fatal errors (such as memory errors)
+					 * or by filesystem errors and are thus non-recoverable. */
+				}
+			}
+			return nullptr;
+		}
+	}	 // namespace detail
 }	 // namespace sek

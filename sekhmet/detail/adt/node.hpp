@@ -1371,6 +1371,14 @@ namespace sek::adt
 
 		node data[N];
 	};
+	template<>
+	struct sequence<0>
+	{
+		template<typename... Ts>
+		constexpr sequence(Ts &&...)
+		{
+		}
+	};
 	template<typename... Ts>
 	sequence(Ts &&...) -> sequence<sizeof...(Ts)>;
 
@@ -1378,8 +1386,11 @@ namespace sek::adt
 	SEK_ADT_NODE_CONSTEXPR_VECTOR node::node(sequence<N> sequence_init) noexcept
 		: node(std::in_place_type<sequence_type>)
 	{
-		sequence_value.reserve(N);
-		for (auto &node : sequence_init.data) sequence_value.push_back(std::move(node));
+		if constexpr (N != 0)
+		{
+			sequence_value.reserve(N);
+			for (auto &node : sequence_init.data) sequence_value.push_back(std::move(node));
+		}
 	}
 
 	struct table

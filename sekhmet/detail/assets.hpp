@@ -15,6 +15,8 @@
 #include "hset.hpp"
 #include <shared_mutex>
 
+#define SEK_ARCHIVE_PACKAGE_SIGNATURE "\3SEKPAK"
+
 namespace sek
 {
 	class asset_repository;
@@ -67,24 +69,27 @@ namespace sek
 				LOOSE_PACKAGE = 1,
 			};
 
-			explicit package_fragment(flags_t flags) : padding(), flags(flags) { init_assets(); }
-			virtual ~package_fragment() { destroy_assets(); }
+			package_fragment() = delete;
+			package_fragment(const package_fragment &) = delete;
 
-			virtual void acquire();
-			virtual void release();
-			virtual master_package *get_master() { return master; }
-
-			[[nodiscard]] constexpr bool is_loose() const noexcept { return flags & LOOSE_PACKAGE; }
-
-			template<typename... Args>
-			void init_assets(Args &&...args)
+			package_fragment(package_fragment &&other) noexcept
+				: padding(other.padding), path(std::move(other.path)), flags(other.flags)
 			{
 				if (is_loose())
-					std::construct_at(&loose_assets, std::forward<Args>(args)...);
+					std::construct_at(&loose_assets, std::move(other.loose_assets));
 				else
-					std::construct_at(&archive_assets, std::forward<Args>(args)...);
+					std::construct_at(&archive_assets, std::move(other.archive_assets));
 			}
-			void destroy_assets()
+			explicit package_fragment(std::filesystem::path &&path, flags_t flags) : path(std::move(path)), flags(flags)
+			{
+				init();
+			}
+			explicit package_fragment(master_package *master, std::filesystem::path &&path, flags_t flags)
+				: master(master), path(std::move(path)), flags(flags)
+			{
+				init();
+			}
+			virtual ~package_fragment()
 			{
 				if (is_loose())
 					std::destroy_at(&loose_assets);
@@ -92,12 +97,26 @@ namespace sek
 					std::destroy_at(&archive_assets);
 			}
 
+			virtual void acquire();
+			virtual void release();
+			virtual master_package *get_master() { return master; }
+
+			[[nodiscard]] constexpr bool is_loose() const noexcept { return flags & LOOSE_PACKAGE; }
+
+			void init()
+			{
+				if (is_loose())
+					std::construct_at(&loose_assets);
+				else
+					std::construct_at(&archive_assets);
+			}
+
 			union
 			{
+				std::intptr_t padding = 0;
+
 				std::atomic<std::size_t> ref_count;
 				master_package *master;
-
-				std::byte padding[math::max(sizeof(std::atomic<std::size_t>), sizeof(master_package *))];
 			};
 
 			std::filesystem::path path;
@@ -123,7 +142,10 @@ namespace sek
 
 		struct master_package final : package_fragment
 		{
-			explicit master_package(flags_t flags) : package_fragment(flags) {}
+			explicit master_package(std::filesystem::path &&path, flags_t flags)
+				: package_fragment(std::move(path), flags)
+			{
+			}
 			~master_package() final = default;
 
 			void acquire() final { ref_count += 1; }
@@ -134,11 +156,22 @@ namespace sek
 			}
 			master_package *get_master() final { return this; }
 
+			package_fragment *add_fragment(std::filesystem::path &&path, flags_t flags)
+			{
+				return &fragments.emplace_back(this, std::move(path), flags);
+			}
+
 			std::vector<package_fragment> fragments;
 		};
 
 		void package_fragment::acquire() { master->acquire(); }
 		void package_fragment::release() { master->release(); }
+
+		SEK_API void serialize(adt::node &, const package_fragment &);
+		SEK_API void deserialize(const adt::node &, package_fragment &);
+		SEK_API void serialize(adt::node &, const master_package &);
+		SEK_API void deserialize(const adt::node &, master_package &);
+		SEK_API master_package *load_package(std::filesystem::path &&);
 	}	 // namespace detail
 
 	/** @brief Structure used to manage assets & asset packages. */
