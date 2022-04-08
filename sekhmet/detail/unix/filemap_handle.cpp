@@ -13,6 +13,11 @@
 namespace sek::detail
 {
 	static auto page_size() noexcept { return sysconf(_SC_PAGE_SIZE); }
+	static std::size_t file_size(int fd) noexcept
+	{
+		struct stat st;
+		return !fstat(fd, &st) ? st.st_size : 0;
+	}
 
 	filemap_handle::native_handle_type filemap_handle::handle_from_view(void *ptr) noexcept
 	{
@@ -22,10 +27,24 @@ namespace sek::detail
 
 	void filemap_handle::init(int fd, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *)
 	{
-		auto offset_diff = offset % page_size(); /* Adjust offset to be a multiple of page size. */
 		int prot = (mode & filemap_in ? PROT_READ : 0) | (mode & filemap_out ? PROT_WRITE : 0);
 
-		view_ptr = mmap(nullptr, size + static_cast<std::size_t>(offset_diff), prot, MAP_SHARED, fd, offset - offset_diff);
+		/* Adjust offset to be a multiple of page size. */
+		auto offset_diff = offset % page_size();
+		auto real_offset = offset - offset_diff;
+
+		/* Get the actual size from the file descriptor if size == 0. */
+		std::size_t real_size;
+		if (!size) [[unlikely]]
+		{
+			if ((real_size = file_size(fd)) == 0) [[unlikely]]
+				throw filemap_error("Failed to get file size");
+			real_size = (size = real_size - offset) + offset_diff;
+		}
+		else
+			real_size = size + static_cast<std::size_t>(offset_diff);
+
+		view_ptr = mmap(nullptr, real_size, prot, MAP_SHARED, fd, real_offset);
 		if (!view_ptr) [[unlikely]]
 			throw filemap_error("Failed to mmap file");
 

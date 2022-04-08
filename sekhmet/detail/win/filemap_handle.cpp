@@ -34,29 +34,40 @@ namespace sek::detail
 		GetSystemInfo(&info);
 		return static_cast<std::ptrdiff_t>(info.dwAllocationGranularity);
 	}
-	void filemap_handle::init(void *fd, std::size_t offset, std::size_t size, int mode, const char *name)
+	void filemap_handle::init(void *fd, std::ptrdiff_t offset, std::size_t size, int mode, const char *name)
 	{
 		auto mapping = create_mapping(fd, name);
 		if (!mapping) [[unlikely]]
 			throw filemap_error("Failed to create file mapping object");
 
-		/* View must start at a multiple of allocation granularity. */
-		auto offset_diff = offset % alloc_granularity();
-		auto real_offset = offset - offset_diff;
-		auto real_size = size + offset_diff;
-
 		DWORD access = mode & filemap_out ? FILE_MAP_ALL_ACCESS : FILE_MAP_READ;
-		ULARGE_INTEGER offset_qword = {.QuadPart = static_cast<ULONGLONG>(real_offset)};
 
-		view_ptr = MapViewOfFile(mapping, access, offset_qword.HighPart, offset_qword.LowPart, static_cast<DWORD>(real_size));
+		/* View must start at a multiple of allocation granularity. */
+		auto offset_diff = static_cast<std::ptrdiff_t>(offset % alloc_granularity());
+		ULARGE_INTEGER real_offset = {.QuadPart = static_cast<ULONGLONG>(offset - offset_diff)};
+
+		/* If size == 0, get size of the entire file. */
+		LARGE_INTEGER real_size;
+		if (!size) [[unlikely]]
+		{
+			if (!GetFileSizeEx(fd, &real_size)) [[unlikely]]
+				throw filemap_error("Failed to get file size");
+			real_size.QuadPart =
+				static_cast<LONGLONG>(size = static_cast<std::size_t>(real_size.QuadPart - offset)) + offset_diff;
+		}
+		else
+			real_size.QuadPart = static_cast<LONGLONG>(size) + offset_diff;
+
+		view_ptr = MapViewOfFile(
+			mapping, access, real_offset.HighPart, real_offset.LowPart, static_cast<SIZE_T>(real_size.QuadPart));
 		if (!view_ptr) [[unlikely]]
 			throw filemap_error("Failed to map view of file");
 
 		/* Offset might not be the same as the start position, need to adjust the handle pointer. */
-		view_ptr = std::bit_cast<HANDLE>(std::bit_cast<std::intptr_t>(view_ptr) + offset_diff);
+		view_ptr = std::bit_cast<void *>(std::bit_cast<std::intptr_t>(view_ptr) + offset_diff);
 		map_size = size;
 	}
-	filemap_handle::filemap_handle(const wchar_t *path, std::size_t offset, std::size_t size, int mode, const char *name)
+	filemap_handle::filemap_handle(const wchar_t *path, std::ptrdiff_t offset, std::size_t size, int mode, const char *name)
 	{
 		struct raii_file
 		{

@@ -22,14 +22,18 @@ namespace sek
 	{
 		struct asset_record_base
 		{
+			[[nodiscard]] virtual filemap map_file() const = 0;
+
 			package_fragment *parent;
 
 			std::string id;
 			hset<std::string> tags;
 		};
 
-		struct loose_asset_record : asset_record_base
+		struct loose_asset_record final : asset_record_base
 		{
+			[[nodiscard]] filemap map_file() const final;
+
 			std::filesystem::path file_path;
 			std::filesystem::path metadata_path;
 		};
@@ -55,6 +59,8 @@ namespace sek
 
 		struct archive_asset_record : asset_record_base
 		{
+			[[nodiscard]] filemap map_file() const final;
+
 			std::ptrdiff_t file_offset;
 			std::size_t file_size;
 			std::ptrdiff_t metadata_offset;
@@ -124,6 +130,7 @@ namespace sek
 			};
 
 			flags_t flags;
+			std::filesystem::path path;
 
 			union
 			{
@@ -158,5 +165,14 @@ namespace sek
 				fragment->get_master()->acquire();
 		}
 		master_package *get_master(package_fragment *fragment) { return fragment ? fragment->get_master() : nullptr; }
+
+		filemap loose_asset_record::map_file() const
+		{
+			return filemap{parent->path / file_path, 0, 0, filemap::in | filemap::out};
+		}
+		filemap archive_asset_record::map_file() const
+		{
+			return filemap{parent->path, file_offset, file_size, filemap::in};
+		}
 	}	 // namespace detail
 }	 // namespace sek
