@@ -98,10 +98,9 @@ namespace sek
 
 			if (!package.fragments.empty()) [[likely]]
 			{
-				auto parent_path = package.path.parent_path();
 				auto &fragments = node.as_table().emplace("fragments", adt::sequence{}).first->second.as_sequence();
 				for (auto &fragment : package.fragments)
-					fragments.emplace_back(relative(fragment.path, parent_path).string());
+					fragments.emplace_back(relative(fragment.path, package.path).string());
 			}
 
 			serialize_impl(node, package);
@@ -150,12 +149,11 @@ namespace sek
 			deserialize(node, static_cast<package_fragment &>(package));
 			if (node.as_table().contains("fragments"))
 			{
-				auto parent_path = package.path.parent_path(); /* Fragment paths are stored relative to parent directory. */
 				auto &fragments = node.at("fragments").as_sequence();
 				package.fragments.reserve(fragments.size());
 				for (auto &fragment : fragments)
 				{
-					auto path = parent_path / fragment.as_string();
+					auto path = package.path / fragment.as_string();
 					auto info = get_package_info(path);
 					deserialize(info.manifest, package.add_fragment(std::move(path), info.flags));
 				}
