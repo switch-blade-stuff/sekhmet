@@ -8,7 +8,7 @@
 #include <span>
 #include <stdexcept>
 
-#include "debug.hpp"
+#include "assert.hpp"
 #include "define.h"
 
 namespace sek
@@ -59,7 +59,7 @@ namespace sek
 		filemap &operator=(const filemap &) = delete;
 
 		constexpr filemap(filemap &&other) noexcept : handle(std::move(other.handle)) {}
-		filemap &operator=(filemap &&other) noexcept
+		constexpr filemap &operator=(filemap &&other) noexcept
 		{
 			handle = std::move(other.handle);
 			return *this;
@@ -112,6 +112,9 @@ namespace sek
 
 		/** Returns the underlying native handle. */
 		[[nodiscard]] native_handle_type native_handle() const noexcept { return handle.native_handle(); }
+
+		constexpr void swap(filemap &other) noexcept { handle.swap(other.handle); }
+		friend constexpr void swap(filemap &a, filemap &b) noexcept { a.swap(b); }
 
 	private:
 		detail::filemap_handle handle;

@@ -21,12 +21,9 @@ namespace sek::detail
 			: view_ptr(std::exchange(other.view_ptr, nullptr)), map_size(std::exchange(other.map_size, 0))
 		{
 		}
-		filemap_handle &operator=(filemap_handle &&other) noexcept
+		constexpr filemap_handle &operator=(filemap_handle &&other) noexcept
 		{
-			SEK_ASSERT_ALWAYS(reset());
-			view_ptr = std::exchange(other.view_ptr, nullptr);
-			map_size = std::exchange(other.map_size, 0);
-
+			swap(other);
 			return *this;
 		}
 
@@ -41,7 +38,6 @@ namespace sek::detail
 			init(fd, offset, size, mode, name);
 		}
 		SEK_API filemap_handle(const wchar_t *path, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *name);
-		SEK_API ~filemap_handle();
 
 		[[nodiscard]] constexpr std::size_t size() const noexcept { return map_size; }
 		[[nodiscard]] constexpr void *data() const noexcept { return view_ptr; }

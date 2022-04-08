@@ -7,7 +7,6 @@
 #include <bit>
 #include <fcntl.h>
 
-#include "../assert.hpp"
 #include <sys/mman.h>
 
 namespace sek::detail
