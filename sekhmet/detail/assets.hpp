@@ -4,37 +4,131 @@
 
 #pragma once
 
+#include <atomic>
 #include <filesystem>
+#include <vector>
 
 #include "adt/node.hpp"
 #include "adt/serialize_impl.hpp"
 #include "basic_service.hpp"
 #include "filemap.hpp"
+#include "hset.hpp"
 
 namespace sek
 {
 	namespace detail
 	{
-		struct asset_record_base;
+		struct package_fragment;
+		struct master_package;
 
-		struct loose_asset_record;
+		struct asset_record_base
+		{
+			[[nodiscard]] virtual filemap map_file(filemap::openmode mode) const = 0;
+
+			package_fragment *parent;
+
+			std::string id;
+			hset<std::string> tags;
+		};
+
+		struct loose_asset_record final : asset_record_base
+		{
+			[[nodiscard]] filemap map_file(filemap::openmode mode) const final;
+
+			std::filesystem::path file_path;
+			std::filesystem::path metadata_path;
+		};
 
 		SEK_API void serialize(adt::node &, const loose_asset_record &);
 		SEK_API void deserialize(const adt::node &, loose_asset_record &);
 
-		struct archive_asset_record;
+		struct archive_asset_record final : asset_record_base
+		{
+			[[nodiscard]] filemap map_file(filemap::openmode mode) const final;
+
+			std::ptrdiff_t file_offset;
+			std::size_t file_size;
+			std::ptrdiff_t metadata_offset;
+			std::size_t metadata_size;
+		};
 
 		SEK_API void serialize(adt::node &, const archive_asset_record &);
 		SEK_API void deserialize(const adt::node &, archive_asset_record &);
 
-		struct package_fragment;
-		struct master_package;
+		struct package_fragment
+		{
+			enum flags_t : int
+			{
+				LOOSE_PACKAGE = 1,
+			};
 
-		SEK_API void acquire(package_fragment *);
-		SEK_API void release(package_fragment *);
-		SEK_API master_package *get_master(package_fragment *);
+			explicit package_fragment(flags_t flags) : padding(), flags(flags) { init_assets(); }
+			virtual ~package_fragment() { destroy_assets(); }
 
-		struct asset_collection;
+			virtual void acquire();
+			virtual void release();
+			virtual master_package *get_master() { return master; }
+
+			template<typename... Args>
+			void init_assets(Args &&...args)
+			{
+				if (flags & LOOSE_PACKAGE)
+					std::construct_at(&loose_assets, std::forward<Args>(args)...);
+				else
+					std::construct_at(&archive_assets, std::forward<Args>(args)...);
+			}
+			void destroy_assets()
+			{
+				if (flags & LOOSE_PACKAGE)
+					std::destroy_at(&loose_assets);
+				else
+					std::destroy_at(&archive_assets);
+			}
+
+			union
+			{
+				std::atomic<std::size_t> ref_count;
+				master_package *master;
+
+				std::byte padding[math::max(sizeof(std::atomic<std::size_t>), sizeof(master_package *))];
+			};
+
+			std::filesystem::path path;
+			flags_t flags;
+
+			union
+			{
+				std::vector<archive_asset_record> archive_assets;
+				std::vector<loose_asset_record> loose_assets;
+			};
+		};
+
+		filemap loose_asset_record::map_file(filemap::openmode mode) const
+		{
+			return filemap{parent->path / file_path, 0, 0, mode};
+		}
+		filemap archive_asset_record::map_file(filemap::openmode mode) const
+		{
+			/* For archives only `filemap::in` is allowed. */
+			return filemap{parent->path, file_offset, file_size, mode & filemap::in};
+		}
+
+		struct master_package final : package_fragment
+		{
+			explicit master_package(flags_t flags) : package_fragment(flags) {}
+			~master_package() final = default;
+
+			void acquire() final { ref_count += 1; }
+			void release() final
+			{
+				if (ref_count.fetch_sub(1) == 1) [[unlikely]]
+					delete this;
+			}
+			master_package *get_master() final { return this; }
+		};
+
+		void package_fragment::acquire() { master->acquire(); }
+		void package_fragment::release() { master->release(); }
 	}	 // namespace detail
 
 	class asset;
