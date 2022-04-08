@@ -48,14 +48,14 @@ namespace sek::adt
 				case UBJF_BOOL: node.set(value.boolean); break;
 				case UBJF_CHAR: node.set(value.character); break;
 
-				case UBJF_INT8: node.set(static_cast<adt::node::int8_type>(value.integer)); break;
-				case UBJF_UINT8: node.set(static_cast<adt::node::uint8_type>(value.integer)); break;
-				case UBJF_INT16: node.set(static_cast<adt::node::int16_type>(value.integer)); break;
-				case UBJF_INT32: node.set(static_cast<adt::node::int32_type>(value.integer)); break;
-				case UBJF_INT64: node.set(static_cast<adt::node::int64_type>(value.integer)); break;
+				case UBJF_INT8:
+				case UBJF_UINT8:
+				case UBJF_INT16:
+				case UBJF_INT32:
+				case UBJF_INT64: node.set(value.integer); break;
 
-				case UBJF_FLOAT32: node.set(static_cast<adt::node::float32_type>(value.floating)); break;
-				case UBJF_FLOAT64: node.set(static_cast<adt::node::float64_type>(value.floating)); break;
+				case UBJF_FLOAT32:
+				case UBJF_FLOAT64: node.set(static_cast<adt::node::float_type>(value.floating)); break;
 
 				default:
 					/* TODO: Handle string types. */

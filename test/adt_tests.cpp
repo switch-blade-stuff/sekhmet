@@ -19,14 +19,14 @@ TEST(adt_tests, node_test)
 	EXPECT_TRUE(n1.is_int());
 	EXPECT_FALSE(n1.is_float());
 
-	EXPECT_THROW([[maybe_unused]] auto f = n1.as_float32(), sek::adt::node_error);
-	EXPECT_NO_THROW([[maybe_unused]] auto i = n1.as_int32());
-	EXPECT_EQ(n1.as_int32(), 1);
+	EXPECT_THROW([[maybe_unused]] auto f = n1.as_float(), sek::adt::node_error);
+	EXPECT_NO_THROW([[maybe_unused]] auto i = n1.as_int());
+	EXPECT_EQ(n1.as_int(), 1);
 
 	auto n2 = n1;
 
 	EXPECT_TRUE(n2.is_number());
-	EXPECT_TRUE(n2.is_int32());
+	EXPECT_TRUE(n2.is_int());
 	EXPECT_FALSE(n2.is_float());
 	EXPECT_EQ(n2.as_number<float>(), 1.0f);
 
@@ -37,15 +37,15 @@ TEST(adt_tests, node_test)
 	sek::adt::node n4 = sek::adt::sequence{"hello, world", 7};
 	EXPECT_TRUE(n4.is_sequence());
 	EXPECT_TRUE(n4.as_sequence()[0].is_string());
-	EXPECT_TRUE(n4.as_sequence()[1].is_int32());
+	EXPECT_TRUE(n4.as_sequence()[1].is_int());
 
 	sek::adt::node n5 = sek::adt::table{
 		{"first", 9},
 		{"second", std::numbers::pi_v<float>},
 	};
 	EXPECT_TRUE(n5.is_table());
-	EXPECT_TRUE(n5.as_table()["first"].is_int32());
-	EXPECT_TRUE(n5.as_table()["second"].is_float32());
+	EXPECT_TRUE(n5.as_table()["first"].is_int());
+	EXPECT_TRUE(n5.as_table()["second"].is_float());
 
 	n5 = sek::adt::bytes{0xff, 0x00};
 	EXPECT_TRUE(n5.is_binary());
