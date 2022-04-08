@@ -33,77 +33,59 @@ namespace sek
 
 	namespace detail
 	{
-		void serialize(adt::node &node, const loose_asset_record &record)
+		void loose_asset_record::serialize(adt::node &node) const
 		{
 			node = adt::table{
-				{"id", record.id},
-				{"tags", record.tags},
-				{"path", record.file_path.string()},
+				{"id", id},
+				{"tags", tags},
+				{"path", file_path.string()},
 			};
-
-			if (!record.metadata_path.empty()) node["metadata"] = record.metadata_path.string();
+			if (!metadata_path.empty()) node["metadata"] = metadata_path.string();
 		}
-		void deserialize(const adt::node &node, loose_asset_record &record)
+		void loose_asset_record::deserialize(const adt::node &node)
 		{
-			node.at("id").get(record.id);
-			node.at("tags").get(record.tags);
-			record.file_path.assign(node.at("path").as_string());
-
-			if (node.as_table().contains("metadata")) record.metadata_path.assign(node.at("metadata").as_string());
+			node.at("id").get(id);
+			node.at("tags").get(tags);
+			file_path.assign(node.at("path").as_string());
+			if (node.as_table().contains("metadata")) metadata_path.assign(node.at("metadata").as_string());
 		}
-		void serialize(adt::node &node, const archive_asset_record &record)
+		void archive_asset_record::serialize(adt::node &node) const
 		{
-			node = adt::sequence{
-				record.id,
-				record.tags,
-				record.file_offset,
-				record.file_size,
-				record.metadata_offset,
-				record.metadata_size,
-			};
+			node = adt::sequence{id, tags, file_offset, file_size, metadata_offset, metadata_size};
 		}
-		void deserialize(const adt::node &node, archive_asset_record &record)
+		void archive_asset_record::deserialize(const adt::node &node)
 		{
 			if (node.as_sequence().size() >= 6) [[likely]]
 			{
-				node[0].get(record.id);
-				node[1].get(record.tags);
-				node[2].get(record.file_offset);
-				node[3].get(record.file_size);
-				node[4].get(record.metadata_offset);
-				node[5].get(record.metadata_size);
+				node[0].get(id);
+				node[1].get(tags);
+				node[2].get(file_offset);
+				node[3].get(file_size);
+				node[4].get(metadata_offset);
+				node[5].get(metadata_size);
 			}
 			else
 				throw adt::node_error("Invalid archive record size");
 		}
 
-		void serialize_impl(adt::node &node, const package_fragment &fragment)
+		package_base::record_handle::record_handle(package_fragment *parent)
 		{
-			if (fragment.is_loose())
-				node.at("assets").set(fragment.loose_assets);
+			if (parent->flags & LOOSE_PACKAGE)
+				ptr = new loose_asset_record{parent};
 			else
-				node.at("assets").set(fragment.archive_assets);
+				ptr = new archive_asset_record{parent};
 		}
-		void serialize(adt::node &node, const package_fragment &fragment)
-		{
-			node = adt::table{{"assets", adt::node{}}};
-			serialize_impl(node, fragment);
-		}
-		void serialize(adt::node &node, const master_package &package)
-		{
-			node = adt::table{
-				{"master", true},
-				{"assets", adt::node{}},
-			};
 
-			if (!package.fragments.empty()) [[likely]]
+		void package_fragment::serialize(adt::node &node) const { node = adt::table{{"assets", assets}}; }
+		void master_package::serialize(adt::node &node) const
+		{
+			package_fragment::serialize(node);
+			node["master"].set(true);
+			if (!fragments.empty()) [[likely]]
 			{
-				auto &fragments = node.as_table().emplace("fragments", adt::sequence{}).first->second.as_sequence();
-				for (auto &fragment : package.fragments)
-					fragments.emplace_back(relative(fragment.path, package.path).string());
+				auto &out_sequence = node.as_table().emplace("fragments", adt::sequence{}).first->second.as_sequence();
+				for (auto &fragment : fragments) out_sequence.emplace_back(relative(fragment.path, path).string());
 			}
-
-			serialize_impl(node, package);
 		}
 
 		struct package_info
@@ -111,7 +93,6 @@ namespace sek
 			adt::node manifest = {};
 			package_fragment::flags_t flags = {};
 		};
-
 		static package_info get_package_info(const std::filesystem::path &path)
 		{
 			package_info result;
@@ -137,25 +118,24 @@ namespace sek
 			return result;
 		}
 
-		void deserialize(const adt::node &node, package_fragment &fragment)
+		void package_fragment::deserialize(const adt::node &node)
 		{
-			if (fragment.is_loose())
-				node.at("assets").get(fragment.loose_assets);
-			else
-				node.at("assets").get(fragment.archive_assets);
+			auto &data = node.at("assets").as_sequence();
+			assets.reserve(data.size());
+			std::for_each(data.begin(), data.end(), [&](auto &n) { assets.emplace_back(this).ptr->deserialize(n); });
 		}
-		void deserialize(const adt::node &node, master_package &package)
+		void master_package::deserialize(const adt::node &node)
 		{
-			deserialize(node, static_cast<package_fragment &>(package));
+			package_fragment::deserialize(node);
 			if (node.as_table().contains("fragments"))
 			{
-				auto &fragments = node.at("fragments").as_sequence();
-				package.fragments.reserve(fragments.size());
-				for (auto &fragment : fragments)
+				auto &fragments_seq = node.at("fragments").as_sequence();
+				fragments.reserve(fragments_seq.size());
+				for (auto &fragment : fragments_seq)
 				{
-					auto path = package.path / fragment.as_string();
-					auto info = get_package_info(path);
-					deserialize(info.manifest, package.add_fragment(std::move(path), info.flags));
+					auto fragment_path = path / fragment.as_string();
+					auto info = get_package_info(fragment_path);
+					add_fragment(std::move(fragment_path), info.flags).deserialize(info.manifest);
 				}
 			}
 		}
@@ -169,7 +149,7 @@ namespace sek
 				if (auto flag_iter = table.find("master"); flag_iter != table.end() && flag_iter->second.as_bool())
 				{
 					auto package = std::make_unique<master_package>(std::move(path), info.flags);
-					deserialize(info.manifest, *package);
+					package->deserialize(info.manifest);
 					return package.release();
 				}
 			}
@@ -181,4 +161,27 @@ namespace sek
 			return nullptr;
 		}
 	}	 // namespace detail
+
+	asset asset_repository::find(std::string_view id) const noexcept
+	{
+		auto asset_iter = assets.find(id);
+		if (asset_iter == assets.end()) [[unlikely]]
+			return asset{};
+		return asset{asset_iter->second};
+	}
+
+	asset_repository &asset_repository::merge(asset_repository &&other)
+	{
+		assets.reserve(assets.size() + other.assets.size());
+		for (auto item = other.assets.begin(), end = other.assets.end(); item != end; ++item)
+			assets.insert(other.assets.extract(item));
+		other.assets.clear();
+
+		packages.reserve(packages.size() + other.packages.size());
+		for (auto item = other.packages.begin(), end = other.packages.end(); item != end; ++item)
+			packages.insert(other.packages.extract(item));
+		other.packages.clear();
+
+		return *this;
+	}
 }	 // namespace sek
