@@ -104,7 +104,8 @@ namespace sek
 			{
 				result.flags = package_fragment::LOOSE_PACKAGE;
 				if ((manifest_file = OS_FOPEN((path / MANIFEST_FILE_NAME).c_str(), "rb")) != nullptr) [[likely]]
-					adt::toml_input_archive{manifest_file}.read(result.manifest);
+				{	 // adt::toml_input_archive{manifest_file}.read(result.manifest);
+				}
 			}
 			else if ((manifest_file = OS_FOPEN(path.c_str(), "rb")) != nullptr) [[likely]]
 			{

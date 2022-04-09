@@ -9,33 +9,61 @@
 
 namespace sek::adt
 {
+	namespace detail
+	{
+		struct ubj_read_frame
+		{
+			enum mode_t
+			{
+				/* data = target value node. */
+				VALUE,
+				/* data = parent sequence node. */
+				ARRAY,
+				/* data = parent table node. */
+				OBJECT_KEY,
+			};
+
+			node &data;
+			mode_t mode;
+		};
+	}
+
 	class ubj_input_archive final : public basic_input_archive
 	{
 	public:
-		constexpr ubj_input_archive() noexcept = default;
-		constexpr ubj_input_archive(ubj_input_archive &&other) noexcept
-			: basic_input_archive(std::move(other)), state(std::exchange(other.state, {}))
+		SEK_ADT_NODE_CONSTEXPR_VECTOR ubj_input_archive(ubj_input_archive &&other) noexcept
+			: basic_input_archive(std::move(other)),
+			  destroy_func(std::exchange(other.destroy_func, {})),
+			  parse_stack(std::move(other.parse_stack)),
+			  state(std::exchange(other.state, {}))
 		{
 		}
-		constexpr ubj_input_archive &operator=(ubj_input_archive &&other) noexcept
+		SEK_ADT_NODE_CONSTEXPR_VECTOR ubj_input_archive &operator=(ubj_input_archive &&other) noexcept
 		{
 			swap(other);
 			return *this;
 		}
-		~ubj_input_archive() { ubjf_destroy_read(&state); }
+		~ubj_input_archive() final
+		{
+			if (destroy_func) [[likely]]
+				destroy_func(&state);
+		}
 
 		/** Initializes a UBJson archive from a raw memory buffer. */
-		ubj_input_archive(const void *buf, std::size_t n) noexcept : basic_input_archive(buf, n) { init_state(); }
+		SEK_API ubj_input_archive(const void *buf, std::size_t n) noexcept;
 		/** Initializes a UBJson archive from a `FILE *`. */
-		explicit ubj_input_archive(FILE *file) noexcept : basic_input_archive(file) { init_state(); }
+		SEK_API explicit ubj_input_archive(FILE *file) noexcept;
 		/** Initializes a UBJson archive from an input buffer. */
-		explicit ubj_input_archive(std::streambuf *buf) noexcept : basic_input_archive(buf) { init_state(); }
+		SEK_API explicit ubj_input_archive(std::streambuf *buf) noexcept;
 		/** Initializes a UBJson archive from an input stream. */
-		explicit ubj_input_archive(std::istream &is) noexcept : basic_input_archive(is) { init_state(); }
+		explicit ubj_input_archive(std::istream &is) noexcept : ubj_input_archive(is.rdbuf()) {}
 
 		constexpr void swap(ubj_input_archive &other) noexcept
 		{
-			std::swap(state, other.state);
+			using std::swap;
+			swap(destroy_func, other.destroy_func);
+			swap(parse_stack, other.parse_stack);
+			swap(state, other.state);
 			basic_input_archive::swap(other);
 		}
 		friend constexpr void swap(ubj_input_archive &a, ubj_input_archive &b) noexcept { a.swap(b); }
@@ -44,22 +72,14 @@ namespace sek::adt
 		SEK_API void do_read(node &n) final;
 
 	private:
-		static ubjf_error on_value_event(ubjf_value value, void *udata) noexcept;
-		static char *on_string_alloc_event(std::size_t n, void *udata) noexcept;
+		static ubjf_error on_value_event(ubjf_value, void *) noexcept;
+		static char *on_string_alloc_event(std::size_t, void *) noexcept;
+		ubjf_error on_container_begin_event(ubjf_type, std::int64_t, ubjf_type, void *) noexcept;
 
-		SEK_API void init_state() noexcept;
+		ubjf_read_state_info make_init_info() noexcept;
 
-		node *next_node = nullptr;
+		void (*destroy_func)(ubjf_read_state *) = nullptr;
+		std::vector<detail::ubj_read_frame> parse_stack = {};
 		ubjf_read_state state = {};
-	};
-	class ubj_output_archive final : public basic_output_archive
-	{
-	public:
-		using basic_output_archive::basic_output_archive;
-
-	protected:
-		SEK_API void do_write(const node &n) final;
-
-		ubjf_write_state state;
 	};
 }	 // namespace sek::adt
