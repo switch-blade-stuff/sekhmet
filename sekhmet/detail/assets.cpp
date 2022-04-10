@@ -101,17 +101,17 @@ namespace sek
 				result.flags = package_fragment::LOOSE_PACKAGE;
 				if (std::ifstream manifest_stream{path / MANIFEST_FILE_NAME}; manifest_stream.is_open()) [[likely]]
 				{
-					//					adt::toml_input_archive{manifest_stream}.read(result.manifest);
+					// adt::toml_input_archive{manifest_stream}.read(result.manifest);
 				}
 			}
 			else if (std::ifstream manifest_stream{path, std::ios::binary}; manifest_stream.is_open()) [[likely]]
 			{
 				/* Check that the package has a valid signature. */
-				constexpr auto sign_size = sizeof(SEK_PACKAGE_SIGNATURE);
+				constexpr auto sign_size = sizeof(SEK_PACKAGE_SIGNATURE_V1);
 				char sign[sign_size];
 
 				if (static_cast<std::size_t>(manifest_stream.readsome(sign, sign_size)) == sign_size &&
-					std::equal(std::begin(sign), std::end(sign), std::begin(SEK_PACKAGE_SIGNATURE), std::end(SEK_PACKAGE_SIGNATURE)))
+					std::equal(std::begin(sign), std::end(sign), std::begin(SEK_PACKAGE_SIGNATURE_V1), std::end(SEK_PACKAGE_SIGNATURE_V1)))
 					adt::ubj_input_archive{manifest_stream}.read(result.manifest);
 			}
 			return result;
