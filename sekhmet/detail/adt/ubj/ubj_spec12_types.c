@@ -4,7 +4,7 @@
 
 #include "ubj_spec12_types.h"
 
-const ubj_type_t ubj_spec12_type_table[CHAR_MAX] = {
+const ubj_type_t sek_ubj_spec12_type_table[CHAR_MAX] = {
 	UBJ_INVALID,
 	['Z'] = UBJ_NULL,
 	['N'] = UBJ_NOOP,
@@ -24,7 +24,7 @@ const ubj_type_t ubj_spec12_type_table[CHAR_MAX] = {
 	['['] = UBJ_ARRAY,
 };
 
-const char ubj_spec12_token_table[UBJ_TYPE_MAX] = {
+const char sek_ubj_spec12_token_table[UBJ_TYPE_MAX] = {
 	[UBJ_NULL] = 'Z',
 	[UBJ_NOOP] = 'N',
 	[UBJ_CHAR] = 'C',
