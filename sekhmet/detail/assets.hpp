@@ -15,7 +15,7 @@
 #include "hset.hpp"
 #include <shared_mutex>
 
-#define SEK_PACKAGE_SIGNATURE_V1 "\3SEKPAKv1\0\0\0\0\0\0"
+#define SEK_PACKAGE_SIGNATURE "\3SEKPAK"
 
 namespace sek
 {
@@ -80,7 +80,7 @@ namespace sek
 
 			struct record_handle
 			{
-				SEK_API explicit record_handle(package_fragment *parent);
+				explicit record_handle(package_fragment *parent);
 
 				constexpr record_handle(record_handle &&other) noexcept : ptr(std::exchange(other.ptr, nullptr)) {}
 				constexpr record_handle &operator=(record_handle &&other) noexcept
@@ -135,6 +135,14 @@ namespace sek
 				master_package *master;
 			};
 		};
+
+		package_base::record_handle::record_handle(package_fragment *parent)
+		{
+			if (parent->flags & LOOSE_PACKAGE)
+				ptr = new loose_asset_record{parent};
+			else
+				ptr = new archive_asset_record{parent};
+		}
 
 		filemap loose_asset_record::map_file(filemap::openmode mode) const
 		{

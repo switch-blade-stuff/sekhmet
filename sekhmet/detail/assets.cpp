@@ -6,6 +6,7 @@
 
 #include "assets.hpp"
 
+#include <cstring>
 #include <fstream>
 #include <memory>
 
@@ -17,6 +18,8 @@
 #else
 #define MANIFEST_FILE_NAME ".manifest"
 #endif
+
+#define RECORD_ERROR_MSG "Invalid asset record"
 
 namespace sek
 {
@@ -41,11 +44,22 @@ namespace sek
 		}
 		void loose_asset_record::deserialize(adt::node &&node)
 		{
-			std::move(node.at("id")).get(id);
-			std::move(node.at("tags")).get(tags);
+			auto &table = node.as_table();
+			{
+				auto id_iter = table.find("id");
+				auto path_iter = table.find("path");
+				if (id_iter != table.end() && path_iter != table.end()) [[likely]]
+				{
+					std::move(id_iter->second).get(id);
+					file_path.assign(std::move(path_iter->second.as_string()));
+				}
+				else
+					throw std::runtime_error(RECORD_ERROR_MSG);
+			}
 
-			file_path.assign(std::move(node.at("path").as_string()));
-			if (node.as_table().contains("metadata")) metadata_path.assign(std::move(node.at("metadata").as_string()));
+			if (auto tags_iter = table.find("tags"); tags_iter != table.end()) std::move(tags_iter->second).get(tags);
+			if (auto metadata_iter = table.find("path"); metadata_iter != table.end())
+				metadata_path.assign(std::move(metadata_iter->second.as_string()));
 		}
 
 		void archive_asset_record::serialize(adt::node &node) const
@@ -54,25 +68,17 @@ namespace sek
 		}
 		void archive_asset_record::deserialize(adt::node &&node)
 		{
-			if (node.as_sequence().size() >= 6) [[likely]]
+			if (auto &seq = node.as_sequence(); seq.size() >= 6) [[likely]]
 			{
-				std::move(node[0]).get(id);
-				std::move(node[1]).get(tags);
-				std::move(node[2]).get(file_offset);
-				std::move(node[3]).get(file_size);
-				std::move(node[4]).get(metadata_offset);
-				std::move(node[5]).get(metadata_size);
+				std::move(seq[0]).get(id);
+				std::move(seq[1]).get(tags);
+				std::move(seq[2]).get(file_offset);
+				std::move(seq[3]).get(file_size);
+				std::move(seq[4]).get(metadata_offset);
+				std::move(seq[5]).get(metadata_size);
 			}
 			else
-				throw adt::node_error("Invalid archive record size");
-		}
-
-		package_base::record_handle::record_handle(package_fragment *parent)
-		{
-			if (parent->flags & LOOSE_PACKAGE)
-				ptr = new loose_asset_record{parent};
-			else
-				ptr = new archive_asset_record{parent};
+				throw std::runtime_error(RECORD_ERROR_MSG);
 		}
 
 		void package_fragment::serialize(adt::node &node) const { node = adt::table{{"assets", assets}}; }
@@ -106,12 +112,13 @@ namespace sek
 			}
 			else if (std::ifstream manifest_stream{path, std::ios::binary}; manifest_stream.is_open()) [[likely]]
 			{
-				/* Check that the package has a valid signature. */
-				constexpr auto sign_size = sizeof(SEK_PACKAGE_SIGNATURE_V1);
+				/* Check that the package has a valid signature.
+				 * TODO: Use versioned signature to allow for future expansion. */
+				constexpr auto sign_size = sizeof(SEK_PACKAGE_SIGNATURE);
 				char sign[sign_size];
 
 				if (static_cast<std::size_t>(manifest_stream.readsome(sign, sign_size)) == sign_size &&
-					std::equal(std::begin(sign), std::end(sign), std::begin(SEK_PACKAGE_SIGNATURE_V1), std::end(SEK_PACKAGE_SIGNATURE_V1)))
+					!strncmp(sign, SEK_PACKAGE_SIGNATURE, sign_size))
 					adt::ubj_input_archive{manifest_stream}.read(result.manifest);
 			}
 			return result;
@@ -119,15 +126,20 @@ namespace sek
 
 		void package_fragment::deserialize(adt::node &&node)
 		{
-			auto &data = node.at("assets").as_sequence();
-			assets.reserve(data.size());
-			for (auto &n : data) assets.emplace_back(this).ptr->deserialize(std::move(n));
+			auto &table = node.as_table();
+			if (auto assets_iter = table.find("assets"); assets_iter != table.end()) [[likely]]
+			{
+				auto &data = assets_iter->second.as_sequence();
+				assets.reserve(data.size());
+				for (auto &n : data) assets.emplace_back(this).ptr->deserialize(std::move(n));
+			}
 		}
 		void master_package::deserialize(adt::node &&node)
 		{
-			if (node.as_table().contains("fragments"))
+			auto &table = node.as_table();
+			if (auto fragments_iter = table.find("fragments"); fragments_iter != table.end())
 			{
-				auto &fragments_seq = node.at("fragments").as_sequence();
+				auto &fragments_seq = fragments_iter->second.as_sequence();
 				fragments.reserve(fragments_seq.size());
 				for (auto &fragment : fragments_seq)
 				{
@@ -152,8 +164,10 @@ namespace sek
 					return package.release();
 				}
 			}
-			/* Only deserialization exceptions are recoverable, since they indicate an invalid package and thus will return nullptr.
-			 * Any other exceptions are either caused by fatal errors or by filesystem errors and are thus non-recoverable. */
+			/* Ugly catch ladder. Needed here since we want to return nullptr on invalid package.
+			 * `adt::archive_error` & `adt::node_error` handle invalid parsing & deserialization of package manifest,
+			 * while `std::logic_error` & `std::runtime_error` handle edge cases such as filesystem errors &
+			 * out-of-range hashmap access. */
 			catch (adt::archive_error &)
 			{
 				/* Log archive error. */
@@ -162,6 +176,15 @@ namespace sek
 			{
 				/* Log node error. */
 			}
+			catch (std::logic_error &)
+			{
+				/* Log logic error. */
+			}
+			catch (std::runtime_error &)
+			{
+				/* Log runtime error. */
+			}
+			/* Other exceptions are fatal. */
 			return nullptr;
 		}
 	}	 // namespace detail
