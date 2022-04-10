@@ -33,7 +33,7 @@ namespace sek::adt
 		constexpr static parse_mode uint8_binary = 4;
 
 	private:
-		struct basic_parser
+		struct parse_state
 		{
 			void read_guarded(void *, std::size_t) const;
 			void bump_guarded(std::size_t) const;
@@ -47,7 +47,7 @@ namespace sek::adt
 		};
 		struct parser_spec12;
 
-		typedef void (*parse_func)(basic_parser *);
+		typedef void (*parse_func)(const parse_state &);
 
 		constexpr static parse_mode highp_mask = 3;
 
@@ -132,15 +132,15 @@ namespace sek::adt
 		typedef int emit_mode;
 
 		/** Emit fixed-size containers (recommended). */
-		constexpr static emit_mode fix_size = 1;
+		constexpr static emit_mode fixed_size = 1;
 		/** Emit fixed-type containers when possible
-		 * @warning Will decrease performance, as every container element will need to be inspected. */
-		constexpr static emit_mode fix_type = 3;
+		 * @warning Will decrease performance, as every container element would need to be inspected. */
+		constexpr static emit_mode fixed_type = 3;
 		/** Use best-fit value types (recommended). If not set will use int64 for integers & float64 for floats. */
 		constexpr static emit_mode best_fit = 4;
 
 	private:
-		struct basic_emitter
+		struct emitter_state
 		{
 			void write_guarded(const void *, std::size_t) const;
 			void write_token(char) const;
@@ -151,15 +151,16 @@ namespace sek::adt
 		};
 		struct emitter_spec12;
 
-		typedef void (*emit_func)(basic_emitter *);
+		typedef void (*emit_func)(const emitter_state &);
 
 	public:
 		constexpr ubj_output_archive(ubj_output_archive &&other) noexcept
-			: basic_output_archive(std::move(other)), emit(other.emit)
+			: basic_output_archive(std::move(other)), mode(other.mode), emit(other.emit)
 		{
 		}
 		constexpr ubj_output_archive &operator=(ubj_output_archive &&other) noexcept
 		{
+			mode = other.mode;
 			emit = other.emit;
 			basic_output_archive::operator=(std::move(other));
 			return *this;
@@ -173,7 +174,7 @@ namespace sek::adt
 		 * @param n Size of the data buffer.
 		 * @param mode Mode flags used to control emitter behavior.
 		 * @param stx Version of UBJson syntax to use. */
-		ubj_output_archive(void *buf, std::size_t n, emit_mode mode = fix_size | best_fit, syntax stx = syntax::SPEC_12)
+		ubj_output_archive(void *buf, std::size_t n, emit_mode mode = fixed_size | best_fit, syntax stx = syntax::SPEC_12)
 			: basic_output_archive(buf, n)
 		{
 			init(mode, stx);
@@ -183,7 +184,7 @@ namespace sek::adt
 		 * @param mode Mode flags used to control emitter behavior.
 		 * @param stx Version of UBJson syntax to use.
 		 * @note File must be opened in binary mode. */
-		explicit ubj_output_archive(FILE *file, emit_mode mode = fix_size | best_fit, syntax stx = syntax::SPEC_12) noexcept
+		explicit ubj_output_archive(FILE *file, emit_mode mode = fixed_size | best_fit, syntax stx = syntax::SPEC_12) noexcept
 			: basic_output_archive(file)
 		{
 			init(mode, stx);
@@ -193,7 +194,7 @@ namespace sek::adt
 		 * @param mode Mode flags used to control emitter behavior.
 		 * @param stx Version of UBJson syntax to use.
 		 * @note Buffer must be a binary buffer. */
-		explicit ubj_output_archive(std::streambuf *buf, emit_mode mode = fix_size | best_fit, syntax stx = syntax::SPEC_12) noexcept
+		explicit ubj_output_archive(std::streambuf *buf, emit_mode mode = fixed_size | best_fit, syntax stx = syntax::SPEC_12) noexcept
 			: basic_output_archive(buf)
 		{
 			init(mode, stx);
@@ -203,7 +204,7 @@ namespace sek::adt
 		 * @param mode Mode flags used to control emitter behavior.
 		 * @param stx Version of UBJson syntax to use.
 		 * @note Stream must be a binary stream. */
-		explicit ubj_output_archive(std::ostream &os, emit_mode mode = fix_size | best_fit, syntax stx = syntax::SPEC_12) noexcept
+		explicit ubj_output_archive(std::ostream &os, emit_mode mode = fixed_size | best_fit, syntax stx = syntax::SPEC_12) noexcept
 			: ubj_output_archive(os.rdbuf(), mode, stx)
 		{
 		}

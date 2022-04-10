@@ -111,23 +111,23 @@ namespace sek::adt
 
 #endif
 
-	void ubj_input_archive::basic_parser::read_guarded(void *dest, std::size_t n) const
+	void ubj_input_archive::parse_state::read_guarded(void *dest, std::size_t n) const
 	{
 		if (reader->read(dest, n) != n) [[unlikely]]
 			throw archive_error(EOF_ERROR_MSG);
 	}
-	void ubj_input_archive::basic_parser::bump_guarded(std::size_t n) const
+	void ubj_input_archive::parse_state::bump_guarded(std::size_t n) const
 	{
 		if (reader->bump(n) != n) [[unlikely]]
 			throw archive_error(EOF_ERROR_MSG);
 	}
-	char ubj_input_archive::basic_parser::read_token() const
+	char ubj_input_archive::parse_state::read_token() const
 	{
 		char token;
 		read_guarded(&token, sizeof(token));
 		return token;
 	}
-	char ubj_input_archive::basic_parser::peek_token() const
+	char ubj_input_archive::parse_state::peek_token() const
 	{
 		if (int token = reader->peek(); token == std::istream::traits_type::eof()) [[unlikely]]
 			throw archive_error(EOF_ERROR_MSG);
@@ -135,7 +135,7 @@ namespace sek::adt
 			return static_cast<char>(token);
 	}
 
-	struct ubj_input_archive::parser_spec12 : basic_parser
+	struct ubj_input_archive::parser_spec12
 	{
 		static ubj_type_t assert_type_token(char token)
 		{
@@ -146,120 +146,123 @@ namespace sek::adt
 		}
 
 		template<typename T>
-		[[nodiscard]] T read_literal() const
+		[[nodiscard]] static T read_literal(const parse_state &s)
 		{
 			T result;
-			read_guarded(&result, sizeof(T));
+			s.read_guarded(&result, sizeof(T));
 			return result;
 		}
-		[[nodiscard]] ubj_type_t read_type_token() const { return assert_type_token(read_token()); }
+		[[nodiscard]] static ubj_type_t read_type_token(const parse_state &s)
+		{
+			return assert_type_token(s.read_token());
+		}
 
-		[[nodiscard]] double parse_float(ubj_type_t type) const
+		[[nodiscard]] static double parse_float(const parse_state &s, ubj_type_t type)
 		{
 			switch (type)
 			{
-				case UBJ_FLOAT32: return fix_endianness_read(read_literal<float>());
-				case UBJ_FLOAT64: return fix_endianness_read(read_literal<double>());
+				case UBJ_FLOAT32: return fix_endianness_read(read_literal<float>(s));
+				case UBJ_FLOAT64: return fix_endianness_read(read_literal<double>(s));
 			}
 			/* Other cases are handled upstream. */
 		}
-		[[nodiscard]] std::int64_t parse_int(ubj_type_t type) const
+		[[nodiscard]] static std::int64_t parse_int(const parse_state &s, ubj_type_t type)
 		{
 			switch (type)
 			{
-				case UBJ_UINT8: return static_cast<std::int64_t>(read_literal<std::uint8_t>());
-				case UBJ_INT8: return static_cast<std::int64_t>(read_literal<std::int8_t>());
-				case UBJ_INT16: return static_cast<std::int64_t>(fix_endianness_read(read_literal<std::int16_t>()));
-				case UBJ_INT32: return static_cast<std::int64_t>(fix_endianness_read(read_literal<std::int32_t>()));
-				case UBJ_INT64: return fix_endianness_read(read_literal<std::int64_t>());
+				case UBJ_UINT8: return static_cast<std::int64_t>(read_literal<std::uint8_t>(s));
+				case UBJ_INT8: return static_cast<std::int64_t>(read_literal<std::int8_t>(s));
+				case UBJ_INT16: return static_cast<std::int64_t>(fix_endianness_read(read_literal<std::int16_t>(s)));
+				case UBJ_INT32: return static_cast<std::int64_t>(fix_endianness_read(read_literal<std::int32_t>(s)));
+				case UBJ_INT64: return fix_endianness_read(read_literal<std::int64_t>(s));
 			}
 			/* Other cases are handled upstream. */
 		}
-		[[nodiscard]] std::int64_t parse_length() const
+		[[nodiscard]] static std::int64_t parse_length(const parse_state &s)
 		{
-			if (auto token = ubj_spec12_type_table[read_token()]; !(token & UBJ_INT_MASK)) [[unlikely]]
+			if (auto token = ubj_spec12_type_table[s.read_token()]; !(token & UBJ_INT_MASK)) [[unlikely]]
 				throw archive_error(BAD_LENGTH_MSG);
 			else
-				return parse_int(token);
+				return parse_int(s, token);
 		}
-		[[nodiscard]] std::string parse_string() const
+		[[nodiscard]] static std::string parse_string(const parse_state &s)
 		{
 			/* Allocate a string of 0s & read its characters from input. */
-			std::string result(static_cast<std::size_t>(parse_length()), '\0');
-			read_guarded(result.data(), result.size());
+			std::string result(static_cast<std::size_t>(parse_length(s)), '\0');
+			s.read_guarded(result.data(), result.size());
 			return result;
 		}
-		[[nodiscard]] node parse_value(ubj_type_t type) const
+		[[nodiscard]] static node parse_value(const parse_state &s, ubj_type_t type)
 		{
 			if (type & UBJ_FLOAT_MASK)
-				return node{parse_float(type)};
+				return node{parse_float(s, type)};
 			else if (type & UBJ_INT_MASK)
-				return node{parse_int(type)};
+				return node{parse_int(s, type)};
 			else if (type & UBJ_STRING_MASK)
 			{
 				if (type == UBJ_HIGHP) [[unlikely]]
 				{
-					if (auto hp_mode = mode & highp_mask; hp_mode == highp_throw)
+					if (auto hp_mode = s.mode & highp_mask; hp_mode == highp_throw)
 						throw archive_error(HIGHP_ERROR_MSG);
 					else if (hp_mode == highp_skip)
 						return {};
 				}
-				return node{parse_string()};
+				return node{parse_string(s)};
 			}
 			else if (type & UBJ_BOOL_MASK)
 				return node{static_cast<bool>(type & UBJ_BOOL_TRUE)};
 			return {};
 		}
 
-		[[nodiscard]] node parse_binary(std::int64_t length) const
+		[[nodiscard]] static node parse_binary(const parse_state &s, std::int64_t length)
 		{
 			node::binary_type result(static_cast<std::size_t>(length));
-			read_guarded(result.data(), result.size());
+			s.read_guarded(result.data(), result.size());
 			return node{std::move(result)};
 		}
-		[[nodiscard]] node parse_array(std::int64_t length, ubj_type_t data_type) const
+		[[nodiscard]] static node parse_array(const parse_state &s, std::int64_t length, ubj_type_t data_type)
 		{
 			/* Interpret array of unsigned int as `binary_type` if `uint8_binary` mode is set. */
-			if (data_type == UBJ_UINT8 && (mode & uint8_binary)) [[unlikely]]
-				return parse_binary(length);
+			if (data_type == UBJ_UINT8 && (s.mode & uint8_binary)) [[unlikely]]
+				return parse_binary(s, length);
 
 			node::sequence_type result;
 			if (length < 0) /* Dynamic-size array. */
 				for (;;)
 				{
-					auto token = read_token();
+					auto token = s.read_token();
 					if (token == ']') [[unlikely]]
 						break;
-					result.push_back(parse_node(assert_type_token(token)));
+					result.push_back(parse_node(s, assert_type_token(token)));
 				}
 			else
 			{
 				result.reserve(static_cast<std::size_t>(length));
 				if (data_type == UBJ_INVALID) /* Dynamic-type array. */
-					while (length-- > 0) result.push_back(parse_node());
+					while (length-- > 0) result.push_back(parse_node(s));
 				else
-					while (length-- > 0) result.push_back(parse_node(data_type));
+					while (length-- > 0) result.push_back(parse_node(s, data_type));
 			}
 
 			return node{std::move(result)};
 		};
-		[[nodiscard]] node parse_object(std::int64_t length, ubj_type_t data_type) const
+		[[nodiscard]] static node parse_object(const parse_state &s, std::int64_t length, ubj_type_t data_type)
 		{
 			node::table_type result;
 			auto parse_item_dynamic = [&]()
 			{
-				auto key = parse_string();
-				auto value = parse_node();
+				auto key = parse_string(s);
+				auto value = parse_node(s);
 				result.emplace(std::move(key), std::move(value));
 			};
 
 			if (length < 0) /* Dynamic-size object. */
 				for (;;)
 				{
-					auto token = peek_token();
+					auto token = s.peek_token();
 					if (token == '}') [[unlikely]]
 					{
-						bump_guarded(1);
+						s.bump_guarded(1);
 						break;
 					}
 					parse_item_dynamic();
@@ -272,62 +275,61 @@ namespace sek::adt
 				else
 					while (length-- > 0)
 					{
-						auto key = parse_string();
-						auto value = parse_node(data_type);
+						auto key = parse_string(s);
+						auto value = parse_node(s, data_type);
 						result.emplace(std::move(key), std::move(value));
 					}
 			}
 
 			return node{std::move(result)};
 		}
-		[[nodiscard]] node parse_container(ubj_type_t type) const
+		[[nodiscard]] static node parse_container(const parse_state &s, ubj_type_t type)
 		{
 			/* Read length & data type if available. */
 			std::int64_t length = -1;
 			ubj_type_t data_type = UBJ_INVALID;
-			switch (peek_token())
+			switch (s.peek_token())
 			{
 				case '$':
 				{
-					bump_guarded(1);
-					data_type = read_type_token();
+					s.bump_guarded(1);
+					data_type = read_type_token(s);
 
 					/* Always expect length after a type. */
-					if (peek_token() != '#') [[unlikely]]
+					if (s.peek_token() != '#') [[unlikely]]
 						throw archive_error(BAD_LENGTH_MSG);
 				}
 				case '#':
 				{
-					bump_guarded(1);
-					length = parse_length();
+					s.bump_guarded(1);
+					length = parse_length(s);
 				}
 				default: break;
 			}
 
 			/* Parse the appropriate container. */
 			if (type == UBJ_ARRAY)
-				return parse_array(length, data_type);
+				return parse_array(s, length, data_type);
 			else
-				return parse_object(length, data_type);
+				return parse_object(s, length, data_type);
 		}
 
-		[[nodiscard]] node parse_node(ubj_type_t type) const
+		[[nodiscard]] static node parse_node(const parse_state &s, ubj_type_t type)
 		{
 			if (type & ubj_type_t::UBJ_CONTAINER_MASK)
-				return parse_container(type);
+				return parse_container(s, type);
 			else
-				return parse_value(type);
+				return parse_value(s, type);
 		}
-		[[nodiscard]] node parse_node() const { return parse_node(read_type_token()); }
+		[[nodiscard]] static node parse_node(const parse_state &s) { return parse_node(s, read_type_token(s)); }
 
-		void parse() const { result = parse_node(); }
+		static void parse(const parse_state &s) { s.result = parse_node(s); }
 	};
 
 	void ubj_input_archive::init(parse_mode m, syntax stx) noexcept
 	{
 		constinit static const parse_func parse_table[] = {
-			/* Spec 12. */
-			+[](basic_parser *parser) { static_cast<parser_spec12 *>(parser)->parse(); },
+			parser_spec12::parse,
 		};
 
 		parse = parse_table[static_cast<int>(stx)];
@@ -335,22 +337,22 @@ namespace sek::adt
 	}
 	void ubj_input_archive::do_read(node &n)
 	{
-		basic_parser state = {
+		parse_state state = {
 			.reader = reader,
 			.mode = mode,
 			.result = n,
 		};
-		parse(&state);
+		parse(state);
 	}
 
-	void ubj_output_archive::basic_emitter::write_guarded(const void *src, std::size_t n) const
+	void ubj_output_archive::emitter_state::write_guarded(const void *src, std::size_t n) const
 	{
 		if (writer->write(src, n) != n) [[unlikely]]
 			throw archive_error(WRITE_FAIL_MSG);
 	}
-	void ubj_output_archive::basic_emitter::write_token(char c) const { write_guarded(&c, sizeof(c)); }
+	void ubj_output_archive::emitter_state::write_token(char c) const { write_guarded(&c, sizeof(c)); }
 
-	struct ubj_output_archive::emitter_spec12 : basic_emitter
+	struct ubj_output_archive::emitter_spec12
 	{
 		[[nodiscard]] static ubj_type_t get_int_type(std::int64_t i)
 		{
@@ -372,7 +374,7 @@ namespace sek::adt
 			else
 				return UBJ_FLOAT64;
 		}
-		[[nodiscard]] ubj_type_t get_node_type(const node &n) const
+		[[nodiscard]] static ubj_type_t get_node_type(const emitter_state &s, const node &n)
 		{
 			switch (n.state())
 			{
@@ -380,8 +382,8 @@ namespace sek::adt
 				case node::state_type::CHAR: return UBJ_CHAR;
 				case node::state_type::BOOL: return n.as_bool() ? UBJ_BOOL_TRUE : UBJ_BOOL_FALSE;
 				/*case node::state_type::NUMBER:*/
-				case node::state_type::INT: return mode & best_fit ? get_int_type(n.as_int()) : UBJ_INT64;
-				case node::state_type::FLOAT: return mode & best_fit ? get_float_type(n.as_float()) : UBJ_FLOAT64;
+				case node::state_type::INT: return s.mode & best_fit ? get_int_type(n.as_int()) : UBJ_INT64;
+				case node::state_type::FLOAT: return s.mode & best_fit ? get_float_type(n.as_float()) : UBJ_FLOAT64;
 				case node::state_type::STRING: return UBJ_STRING;
 				case node::state_type::BINARY: /* Array of int */
 				case node::state_type::ARRAY: return UBJ_ARRAY;
@@ -389,15 +391,18 @@ namespace sek::adt
 			}
 		}
 
-		[[nodiscard]] constexpr bool do_fix_type() const noexcept { return (mode & fix_type) == fix_type; }
-		[[nodiscard]] ubj_type_t get_array_type(const node::sequence_type &s) const
+		[[nodiscard]] constexpr static bool do_fix_type(const emitter_state &s) noexcept
+		{
+			return (s.mode & fixed_type) == fixed_type;
+		}
+		[[nodiscard]] static ubj_type_t get_array_type(const emitter_state &s, const node::sequence_type &seq)
 		{
 			ubj_type_t type = UBJ_INVALID;
-			if (std::all_of(s.begin(),
-							s.end(),
+			if (std::all_of(seq.begin(),
+							seq.end(),
 							[&](auto &n)
 							{
-								auto node_type = get_node_type(n);
+								auto node_type = get_node_type(s, n);
 								if (type == UBJ_INVALID) [[unlikely]]
 								{
 									type = node_type;
@@ -410,14 +415,14 @@ namespace sek::adt
 			else
 				return UBJ_INVALID;
 		}
-		[[nodiscard]] ubj_type_t get_object_type(const node::table_type &t) const
+		[[nodiscard]] static ubj_type_t get_object_type(const emitter_state &s, const node::table_type &t)
 		{
 			ubj_type_t type = UBJ_INVALID;
 			if (std::all_of(t.begin(),
 							t.end(),
 							[&](auto &p)
 							{
-								auto node_type = get_node_type(p.second);
+								auto node_type = get_node_type(s, p.second);
 								if (type == UBJ_INVALID) [[unlikely]]
 								{
 									type = node_type;
@@ -432,116 +437,119 @@ namespace sek::adt
 		}
 
 		template<typename T>
-		void emit_literal(T value) const
+		static void emit_literal(const emitter_state &s, T value)
 		{
-			write_guarded(&value, sizeof(T));
+			s.write_guarded(&value, sizeof(T));
 		}
-		void emit_type_token(ubj_type_t type) const { write_token(ubj_spec12_token_table[type]); }
+		static void emit_type_token(const emitter_state &s, ubj_type_t type)
+		{
+			s.write_token(ubj_spec12_token_table[type]);
+		}
 
-		void emit_int(std::int64_t i, ubj_type_t type) const
+		static void emit_int(const emitter_state &s, std::int64_t i, ubj_type_t type)
 		{
 			switch (type)
 			{
-				case UBJ_UINT8: emit_literal(static_cast<std::uint8_t>(i)); break;
-				case UBJ_INT8: emit_literal(static_cast<std::int8_t>(i)); break;
-				case UBJ_INT16: emit_literal(fix_endianness_write(static_cast<std::int16_t>(i))); break;
-				case UBJ_INT32: emit_literal(fix_endianness_write(static_cast<std::int32_t>(i))); break;
-				case UBJ_INT64: emit_literal(fix_endianness_write(i)); break;
+				case UBJ_UINT8: emit_literal(s, static_cast<std::uint8_t>(i)); break;
+				case UBJ_INT8: emit_literal(s, static_cast<std::int8_t>(i)); break;
+				case UBJ_INT16: emit_literal(s, fix_endianness_write(static_cast<std::int16_t>(i))); break;
+				case UBJ_INT32: emit_literal(s, fix_endianness_write(static_cast<std::int32_t>(i))); break;
+				case UBJ_INT64: emit_literal(s, fix_endianness_write(i)); break;
 			}
 		}
-		void emit_float(double f, ubj_type_t type) const
+		static void emit_float(const emitter_state &s, double f, ubj_type_t type)
 		{
 			switch (type)
 			{
-				case UBJ_FLOAT32: emit_literal(fix_endianness_write(static_cast<float>(f))); break;
-				case UBJ_FLOAT64: emit_literal(fix_endianness_write(f)); break;
+				case UBJ_FLOAT32: emit_literal(s, fix_endianness_write(static_cast<float>(f))); break;
+				case UBJ_FLOAT64: emit_literal(s, fix_endianness_write(f)); break;
 			}
 		}
-		void emit_length(std::int64_t l) const
+		static void emit_length(const emitter_state &s, std::int64_t l)
 		{
 			if (l < 0) [[unlikely]]
 				throw archive_error(LENGTH_OVERFLOW_MSG);
-			auto int_type = mode & best_fit ? get_int_type(l) : UBJ_INT64;
-			emit_type_token(int_type);
-			emit_int(l, int_type);
+			auto int_type = s.mode & best_fit ? get_int_type(l) : UBJ_INT64;
+			emit_type_token(s, int_type);
+			emit_int(s, l, int_type);
 		}
-		void emit_string(std::string_view s) const
+		static void emit_string(const emitter_state &s, std::string_view sv)
 		{
-			emit_length(static_cast<std::int64_t>(s.size()));
-			write_guarded(s.data(), s.size());
+			emit_length(s, static_cast<std::int64_t>(sv.size()));
+			s.write_guarded(sv.data(), sv.size());
 		}
-		void emit_value(const node &n, ubj_type_t type) const
+		static void emit_value(const emitter_state &s, const node &n, ubj_type_t type)
 		{
 			if (type == UBJ_CHAR)
-				emit_literal(n.as_char());
+				emit_literal(s, n.as_char());
 			else if (type & UBJ_STRING_MASK)
-				emit_string(n.as_string());
+				emit_string(s, n.as_string());
 			else if (type & UBJ_FLOAT_MASK)
-				emit_float(n.as_float(), type);
+				emit_float(s, n.as_float(), type);
 			else if (type & UBJ_INT_MASK)
-				emit_int(n.as_int(), type);
+				emit_int(s, n.as_int(), type);
 		}
 
-		void emit_fixed_type(ubj_type_t type) const
+		static void emit_fixed_type(const emitter_state &s, ubj_type_t type)
 		{
-			write_token('$');
-			emit_type_token(type);
+			s.write_token('$');
+			emit_type_token(s, type);
 		}
-		void emit_fixed_length(std::int64_t l) const
+		static void emit_fixed_length(const emitter_state &s, std::int64_t l)
 		{
-			write_token('#');
-			emit_length(l);
+			s.write_token('#');
+			emit_length(s, l);
 		}
 
-		void emit_binary(const node::binary_type &b) const
+		static void emit_binary(const emitter_state &s, const node::binary_type &b)
 		{
-			emit_fixed_type(UBJ_UINT8);
-			emit_fixed_length(static_cast<std::int64_t>(b.size()));
-			write_guarded(b.data(), b.size());
+			emit_fixed_type(s, UBJ_UINT8);
+			emit_fixed_length(s, static_cast<std::int64_t>(b.size()));
+			s.write_guarded(b.data(), b.size());
 		}
-		void emit_array(const node::sequence_type &s) const
+		static void emit_array(const emitter_state &s, const node::sequence_type &seq)
 		{
-			if (ubj_type_t type; do_fix_type() && (type = get_array_type(s)) != UBJ_INVALID) [[unlikely]]
+			if (ubj_type_t type; do_fix_type(s) && (type = get_array_type(s, seq)) != UBJ_INVALID) [[unlikely]]
 			{
 				/* Fixed-type & fixed-size array. */
-				emit_fixed_type(type);
-				emit_fixed_length(static_cast<std::int64_t>(s.size()));
-				for (auto &item : s) emit_node(item, type);
+				emit_fixed_type(s, type);
+				emit_fixed_length(s, static_cast<std::int64_t>(seq.size()));
+				for (auto &item : seq) emit_node(s, item, type);
 			}
-			else if (mode & fix_size) [[likely]]
+			else if (s.mode & fixed_size) [[likely]]
 			{
 				/* Fixed-size array. */
-				emit_fixed_length(static_cast<std::int64_t>(s.size()));
-				for (auto &item : s) emit_node(item);
+				emit_fixed_length(s, static_cast<std::int64_t>(seq.size()));
+				for (auto &item : seq) emit_node(s, item);
 			}
 			else
 			{
 				/* Fully dynamic array. */
-				for (auto &item : s) emit_node(item);
-				write_token(']');
+				for (auto &item : seq) emit_node(s, item);
+				s.write_token(']');
 			}
 		}
-		void emit_object(const node::table_type &t) const
+		static void emit_object(const emitter_state &s, const node::table_type &t)
 		{
-			if (ubj_type_t type; do_fix_type() && (type = get_object_type(t)) != UBJ_INVALID) [[unlikely]]
+			if (ubj_type_t type; do_fix_type(s) && (type = get_object_type(s, t)) != UBJ_INVALID) [[unlikely]]
 			{
 				/* Fixed-type & fixed-size object. */
-				emit_fixed_type(type);
-				emit_fixed_length(static_cast<std::int64_t>(t.size()));
+				emit_fixed_type(s, type);
+				emit_fixed_length(s, static_cast<std::int64_t>(t.size()));
 				for (auto &item : t)
 				{
-					emit_string(item.first);
-					emit_node(item.second, type);
+					emit_string(s, item.first);
+					emit_node(s, item.second, type);
 				}
 			}
-			else if (mode & fix_size) [[likely]]
+			else if (s.mode & fixed_size) [[likely]]
 			{
 				/* Fixed-size object. */
-				emit_fixed_length(static_cast<std::int64_t>(t.size()));
+				emit_fixed_length(s, static_cast<std::int64_t>(t.size()));
 				for (auto &item : t)
 				{
-					emit_string(item.first);
-					emit_node(item.second);
+					emit_string(s, item.first);
+					emit_node(s, item.second);
 				}
 			}
 			else
@@ -549,41 +557,40 @@ namespace sek::adt
 				/* Fully dynamic object. */
 				for (auto &item : t)
 				{
-					emit_string(item.first);
-					emit_node(item.second);
+					emit_string(s, item.first);
+					emit_node(s, item.second);
 				}
-				write_token('}');
+				s.write_token('}');
 			}
 		}
 
-		void emit_node(const node &n, ubj_type_t type) const
+		static void emit_node(const emitter_state &s, const node &n, ubj_type_t type)
 		{
 			if (type == UBJ_ARRAY)
 			{
 				if (n.is_binary()) [[unlikely]]
-					emit_binary(n.as_binary());
+					emit_binary(s, n.as_binary());
 				else
-					emit_array(n.as_sequence());
+					emit_array(s, n.as_sequence());
 			}
 			else if (type == UBJ_OBJECT)
-				emit_object(n.as_table());
+				emit_object(s, n.as_table());
 			else
-				emit_value(n, type);
+				emit_value(s, n, type);
 		}
-		void emit_node(const node &n) const
+		static void emit_node(const emitter_state &s, const node &n)
 		{
-			auto type = get_node_type(n);
-			emit_type_token(type);
-			emit_node(n, type);
+			auto type = get_node_type(s, n);
+			emit_type_token(s, type);
+			emit_node(s, n, type);
 		}
-		void emit() const { emit_node(data); }
+		static void emit(const emitter_state &s) { emit_node(s, s.data); }
 	};
 
 	void ubj_output_archive::init(emit_mode m, syntax stx) noexcept
 	{
 		constinit static const emit_func emit_table[] = {
-			/* Spec 12. */
-			+[](basic_emitter *emitter) { static_cast<emitter_spec12 *>(emitter)->emit(); },
+			emitter_spec12::emit,
 		};
 
 		emit = emit_table[static_cast<int>(stx)];
@@ -591,11 +598,11 @@ namespace sek::adt
 	}
 	void ubj_output_archive::do_write(const node &n)
 	{
-		basic_emitter state = {
+		emitter_state state = {
 			.writer = writer,
 			.mode = mode,
 			.data = n,
 		};
-		emit(&state);
+		emit(state);
 	}
 }	 // namespace sek::adt

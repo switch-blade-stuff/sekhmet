@@ -174,7 +174,7 @@ TEST(adt_tests, ubjson_test)
 		EXPECT_NO_THROW((sek::adt::ubj_output_archive(buffer.data(), buffer.size()).write(data)));
 		EXPECT_EQ(buffer, "[#i\x02Si\x05text0Si\x05text1");
 
-		auto flags = sek::adt::ubj_output_archive::fix_type | sek::adt::ubj_output_archive::best_fit;
+		auto flags = sek::adt::ubj_output_archive::fixed_type | sek::adt::ubj_output_archive::best_fit;
 		EXPECT_NO_THROW((sek::adt::ubj_output_archive(buffer.data(), buffer.size(), flags).write(data)));
 		EXPECT_EQ(buffer, "[$S#i\x02i\x05text0i\x05text1");
 
