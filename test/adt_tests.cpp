@@ -145,4 +145,22 @@ TEST(adt_tests, ubjson_test)
 		EXPECT_EQ(seq.size(), 1);
 		EXPECT_TRUE(seq[0].empty());
 	}
+
+	{
+		static const char data[] = "HU\0";
+		EXPECT_THROW((node = sek::adt::ubj_input_archive{data, sizeof(data)}.read()), sek::adt::archive_error);
+		EXPECT_NO_THROW(
+			(node = sek::adt::ubj_input_archive{data, sizeof(data), sek::adt::ubj_input_archive::highp_skip}.read()));
+		EXPECT_TRUE(node.empty());
+		EXPECT_NO_THROW(
+			(node = sek::adt::ubj_input_archive{data, sizeof(data), sek::adt::ubj_input_archive::highp_string}.read()));
+		EXPECT_TRUE(node.is_string());
+	}
+
+	{
+		static const char data[] = "[$U#U\1\1";
+		EXPECT_NO_THROW((node = sek::adt::ubj_input_archive{data, sizeof(data)}.read()));
+		EXPECT_TRUE(node.is_binary());
+		EXPECT_EQ(node.as_binary()[0], std::byte{1});
+	}
 }

@@ -189,30 +189,39 @@ namespace sek::adt
 		}
 		[[nodiscard]] node parse_value(ubj_type_t type) const
 		{
-			if (type & UBJ_BOOL_MASK)
-				return node{static_cast<bool>(type & UBJ_BOOL_TRUE)};
+			if (type & UBJ_FLOAT_MASK)
+				return node{parse_float(type)};
 			else if (type & UBJ_INT_MASK)
 				return node{parse_int(type)};
-			else if (type & UBJ_FLOAT_MASK)
-				return node{parse_float(type)};
 			else if (type & UBJ_STRING_MASK)
 			{
 				if (type == UBJ_HIGHP) [[unlikely]]
 				{
-					if (hp_mode == highp_mode::THROW)
+					if (auto hp_mode = mode & highp_mask; hp_mode == highp_throw)
 						throw archive_error(HIGHP_ERROR_MSG);
-					else if (hp_mode == highp_mode::SKIP)
+					else if (hp_mode == highp_skip)
 						return {};
 				}
 				return node{parse_string()};
 			}
+			else if (type & UBJ_BOOL_MASK)
+				return node{static_cast<bool>(type & UBJ_BOOL_TRUE)};
 			return {};
 		}
 
+		[[nodiscard]] node parse_binary(std::int64_t length) const
+		{
+			node::binary_type result(static_cast<std::size_t>(length));
+			read_guarded(result.data(), result.size());
+			return node{std::move(result)};
+		}
 		[[nodiscard]] node parse_array(std::int64_t length, ubj_type_t data_type) const
 		{
-			node::sequence_type result;
+			/* Interpret array of unsigned int as `binary_type` if `uint8_binary` mode is set. */
+			if (data_type == UBJ_UINT8 && (mode & uint8_binary)) [[unlikely]]
+				return parse_binary(length);
 
+			node::sequence_type result;
 			if (length < 0) /* Dynamic-size array. */
 				for (;;)
 				{
@@ -312,7 +321,7 @@ namespace sek::adt
 		void parse() const { result = parse_node(); }
 	};
 
-	void ubj_input_archive::init(highp_mode hpm, syntax stx) noexcept
+	void ubj_input_archive::init(parse_mode m, syntax stx) noexcept
 	{
 		constinit static const parse_func parse_table[] = {
 			/* Spec 12. */
@@ -320,15 +329,76 @@ namespace sek::adt
 		};
 
 		parse = parse_table[static_cast<int>(stx)];
-		hp_mode = hpm;
+		mode = m;
 	}
 	void ubj_input_archive::do_read(node &n)
 	{
 		basic_parser state = {
 			.reader = reader,
-			.hp_mode = hp_mode,
+			.mode = mode,
 			.result = n,
 		};
 		parse(&state);
+	}
+
+	struct ubj_output_archive::emitter_spec12 : basic_emitter
+	{
+		void emit_type_token(ubj_type_t type) const { write_token(ubj_spec12_token_table[type]); }
+		ubj_type_t get_node_type(const node &n) const
+		{
+			switch (n.state())
+			{
+				case node::state_type::EMPTY: return UBJ_NULL;
+				case node::state_type::CHAR: return UBJ_CHAR;
+				case node::state_type::BOOL: return n.as_bool() ? UBJ_BOOL_TRUE : UBJ_BOOL_FALSE;
+				case node::state_type::INT:
+				{
+					if (auto i = n.as_int(); i <= static_cast<node::int_type>(std::numeric_limits<std::int8_t>::max()))
+						return UBJ_INT8;
+					else if (i <= static_cast<node::int_type>(std::numeric_limits<std::uint8_t>::max()))
+						return UBJ_INT8;
+					else if (i <= static_cast<node::int_type>(std::numeric_limits<std::uint16_t>::max()))
+						return UBJ_INT16;
+					else if (i <= static_cast<node::int_type>(std::numeric_limits<std::uint32_t>::max()))
+						return UBJ_INT32;
+					else
+						return UBJ_INT64;
+				}
+				case node::state_type::FLOAT:
+				{
+					if (auto f = n.as_float(); f <= static_cast<node::float_type>(std::numeric_limits<float>::max()))
+						return UBJ_FLOAT32;
+					else
+						return UBJ_FLOAT64;
+				}
+				case node::state_type::STRING: return UBJ_STRING;
+				case node::state_type::BINARY: /* Array of int */
+				case node::state_type::ARRAY: return UBJ_ARRAY;
+				case node::state_type::TABLE: return UBJ_OBJECT;
+			}
+		}
+
+		void emit_n(const node &n, ubj_type_t type) const {}
+		void emit_node(const node &n) const {}
+		void emit() const { emit_node(data); }
+	};
+
+	void ubj_output_archive::init(syntax stx) noexcept
+	{
+		constinit static const emit_func emit_table[] = {
+			/* Spec 12. */
+			+[](basic_emitter *emitter) { static_cast<emitter_spec12 *>(emitter)->emit(); },
+		};
+
+		emit = emit_table[static_cast<int>(stx)];
+	}
+
+	void ubj_output_archive::do_write(const node &n)
+	{
+		basic_emitter state = {
+			.writer = writer,
+			.data = n,
+		};
+		emit(&state);
 	}
 }	 // namespace sek::adt

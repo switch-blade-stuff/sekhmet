@@ -36,13 +36,16 @@ typedef enum
 	UBJ_CONTAINER_MASK = 64,
 	UBJ_ARRAY = UBJ_CONTAINER_MASK | 1,
 	UBJ_OBJECT = UBJ_CONTAINER_MASK | 2,
+	UBJ_TYPE_MAX,
 } ubj_type_t;
 
 #ifdef __cplusplus
 extern "C"
 {
-	SEK_API extern ubj_type_t ubj_spec12_type_table[CHAR_MAX];
+	SEK_API extern const ubj_type_t ubj_spec12_type_table[CHAR_MAX];
+	SEK_API extern const char ubj_spec12_token_table[UBJ_TYPE_MAX];
 }
 #else
-SEK_API extern ubj_type_t ubj_spec12_type_table[CHAR_MAX];
+SEK_API extern const ubj_type_t ubj_spec12_type_table[CHAR_MAX];
+SEK_API extern const char ubj_spec12_token_table[UBJ_TYPE_MAX];
 #endif

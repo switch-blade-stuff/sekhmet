@@ -20,15 +20,17 @@ namespace sek::adt
 	{
 	public:
 		typedef detail::ubj_syntax syntax;
-		enum class highp_mode : int
-		{
-			/** Treat high-precision numbers as errors and throw `archive_error`. */
-			THROW,
-			/** Parse high-precision numbers as strings. */
-			AS_STRING,
-			/** Skip high-precision numbers (not recommended). */
-			SKIP,
-		};
+		typedef int parse_mode;
+
+		/** Treat high-precision numbers as errors and throw `archive_error`. */
+		constexpr static parse_mode highp_throw = 0;
+		/** Parse high-precision numbers as strings. */
+		constexpr static parse_mode highp_string = 1;
+		/** Skip high-precision numbers (not recommended). */
+		constexpr static parse_mode highp_skip = 2;
+
+		/** Treat arrays of unsigned 8-bit integers as binary array. */
+		constexpr static parse_mode uint8_binary = 4;
 
 	private:
 		struct basic_parser
@@ -40,20 +42,23 @@ namespace sek::adt
 			[[nodiscard]] char peek_token() const;
 
 			basic_reader *reader;
-			highp_mode hp_mode;
+			parse_mode mode;
 			node &result;
 		};
 		struct parser_spec12;
 
 		typedef void (*parse_func)(basic_parser *);
 
+		constexpr static parse_mode highp_mask = 3;
+
 	public:
 		constexpr ubj_input_archive(ubj_input_archive &&other) noexcept
-			: basic_input_archive(std::move(other)), parse(other.parse)
+			: basic_input_archive(std::move(other)), mode(other.mode), parse(other.parse)
 		{
 		}
 		constexpr ubj_input_archive &operator=(ubj_input_archive &&other) noexcept
 		{
+			mode = other.mode;
 			parse = other.parse;
 			basic_input_archive::operator=(std::move(other));
 			return *this;
@@ -65,51 +70,140 @@ namespace sek::adt
 		/** Initializes a UBJson archive from a raw memory buffer.
 		 * @param buf Buffer containing UBJson data.
 		 * @param n Size of the data buffer.
-		 * @param hp_mode Mode used to parse high-precision numbers.
+		 * @param mode Mode used to parse high-precision numbers & binary arrays.
 		 * @param stx Version of UBJson syntax to use. */
-		ubj_input_archive(const void *buf, std::size_t n, highp_mode hp_mode = highp_mode::THROW, syntax stx = syntax::SPEC_12)
+		ubj_input_archive(const void *buf, std::size_t n, parse_mode mode = highp_throw | uint8_binary, syntax stx = syntax::SPEC_12)
 			: basic_input_archive(buf, n)
 		{
-			init(hp_mode, stx);
+			init(mode, stx);
 		}
 		/** Initializes a UBJson archive from a `FILE *`.
 		 * @param file File containing UBJson data.
-		 * @param hp_mode Mode used to parse high-precision numbers.
+		 * @param mode Mode used to parse high-precision numbers & binary arrays.
 		 * @param stx Version of UBJson syntax to use.
 		 * @note File must be opened in binary mode. */
-		explicit ubj_input_archive(FILE *file, highp_mode hp_mode = highp_mode::THROW, syntax stx = syntax::SPEC_12) noexcept
+		explicit ubj_input_archive(FILE *file, parse_mode mode = highp_throw | uint8_binary, syntax stx = syntax::SPEC_12) noexcept
 			: basic_input_archive(file)
 		{
-			init(hp_mode, stx);
+			init(mode, stx);
 		}
 		/** Initializes a UBJson archive from an input buffer.
 		 * @param buf `std::streambuf` used to read UBJson data.
-		 * @param hp_mode Mode used to parse high-precision numbers.
+		 * @param mode Mode used to parse high-precision numbers & binary arrays.
 		 * @param stx Version of UBJson syntax to use.
 		 * @note Buffer must be a binary buffer. */
-		explicit ubj_input_archive(std::streambuf *buf, highp_mode hp_mode = highp_mode::THROW, syntax stx = syntax::SPEC_12) noexcept
+		explicit ubj_input_archive(std::streambuf *buf, parse_mode mode = highp_throw | uint8_binary, syntax stx = syntax::SPEC_12) noexcept
 			: basic_input_archive(buf)
 		{
-			init(hp_mode, stx);
+			init(mode, stx);
 		}
 		/** Initializes a UBJson archive from an input stream.
 		 * @param is Stream used to read UBJson data.
-		 * @param hp_mode Mode used to parse high-precision numbers.
+		 * @param mode Mode used to parse high-precision numbers & binary arrays.
 		 * @param stx Version of UBJson syntax to use.
 		 * @note Stream must be a binary stream. */
-		explicit ubj_input_archive(std::istream &is, highp_mode hp_mode = highp_mode::THROW, syntax stx = syntax::SPEC_12) noexcept
-			: ubj_input_archive(is.rdbuf(), hp_mode, stx)
+		explicit ubj_input_archive(std::istream &is, parse_mode mode = highp_throw | uint8_binary, syntax stx = syntax::SPEC_12) noexcept
+			: ubj_input_archive(is.rdbuf(), mode, stx)
 		{
 		}
 
-		constexpr void swap(ubj_input_archive &other) noexcept { basic_input_archive::swap(other); }
+		constexpr void swap(ubj_input_archive &other) noexcept
+		{
+			using std::swap;
+			swap(mode, other.mode);
+			swap(parse, other.parse);
+
+			basic_input_archive::swap(other);
+		}
 		friend constexpr void swap(ubj_input_archive &a, ubj_input_archive &b) noexcept { a.swap(b); }
 
 	private:
-		SEK_API void init(highp_mode, syntax) noexcept;
+		SEK_API void init(parse_mode, syntax) noexcept;
 		SEK_API void do_read(node &) final;
 
-		highp_mode hp_mode;
+		parse_mode mode;
 		parse_func parse;
+	};
+
+	class ubj_output_archive final : public basic_output_archive
+	{
+	public:
+		typedef detail::ubj_syntax syntax;
+
+	private:
+		struct basic_emitter
+		{
+			void write_guarded(const void *, std::size_t) const;
+			void write_token(char) const;
+
+			basic_writer *writer;
+			const node &data;
+		};
+		struct emitter_spec12;
+
+		typedef void (*emit_func)(basic_emitter *);
+
+	public:
+		constexpr ubj_output_archive(ubj_output_archive &&other) noexcept
+			: basic_output_archive(std::move(other)), emit(other.emit)
+		{
+		}
+		constexpr ubj_output_archive &operator=(ubj_output_archive &&other) noexcept
+		{
+			emit = other.emit;
+			basic_output_archive::operator=(std::move(other));
+			return *this;
+		}
+
+		/** Initializes an empty UBJson archive. */
+		constexpr ubj_output_archive() noexcept = default;
+
+		/** Initializes a UBJson archive from a raw memory buffer.
+		 * @param buf Buffer receiving UBJson data.
+		 * @param n Size of the data buffer.
+		 * @param stx Version of UBJson syntax to use. */
+		ubj_output_archive(void *buf, std::size_t n, syntax stx = syntax::SPEC_12) : basic_output_archive(buf, n)
+		{
+			init(stx);
+		}
+		/** Initializes a UBJson archive from a `FILE *`.
+		 * @param file File receiving UBJson data.
+		 * @param stx Version of UBJson syntax to use.
+		 * @note File must be opened in binary mode. */
+		explicit ubj_output_archive(FILE *file, syntax stx = syntax::SPEC_12) noexcept : basic_output_archive(file)
+		{
+			init(stx);
+		}
+		/** Initializes a UBJson archive from an output buffer.
+		 * @param buf `std::streambuf` used to write UBJson data.
+		 * @param stx Version of UBJson syntax to use.
+		 * @note Buffer must be a binary buffer. */
+		explicit ubj_output_archive(std::streambuf *buf, syntax stx = syntax::SPEC_12) noexcept
+			: basic_output_archive(buf)
+		{
+			init(stx);
+		}
+		/** Initializes a UBJson archive from an output stream.
+		 * @param os Stream used to write UBJson data.
+		 * @param stx Version of UBJson syntax to use.
+		 * @note Stream must be a binary stream. */
+		explicit ubj_output_archive(std::ostream &os, syntax stx = syntax::SPEC_12) noexcept
+			: ubj_output_archive(os.rdbuf(), stx)
+		{
+		}
+
+		constexpr void swap(ubj_output_archive &other) noexcept
+		{
+			using std::swap;
+			swap(emit, other.emit);
+			basic_output_archive::swap(other);
+		}
+		friend constexpr void swap(ubj_output_archive &a, ubj_output_archive &b) noexcept { a.swap(b); }
+
+	private:
+		SEK_API void init(syntax) noexcept;
+		SEK_API void do_write(const node &) final;
+
+		emit_func emit;
 	};
 }	 // namespace sek::adt
