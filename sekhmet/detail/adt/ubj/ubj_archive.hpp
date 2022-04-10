@@ -129,6 +129,15 @@ namespace sek::adt
 	{
 	public:
 		typedef detail::ubj_syntax syntax;
+		typedef int emit_mode;
+
+		/** Emit fixed-size containers (recommended). */
+		constexpr static emit_mode fix_size = 1;
+		/** Emit fixed-type containers when possible
+		 * @warning Will decrease performance, as every container element will need to be inspected. */
+		constexpr static emit_mode fix_type = 3;
+		/** Use best-fit value types (recommended). If not set will use int64 for integers & float64 for floats. */
+		constexpr static emit_mode best_fit = 4;
 
 	private:
 		struct basic_emitter
@@ -137,6 +146,7 @@ namespace sek::adt
 			void write_token(char) const;
 
 			basic_writer *writer;
+			emit_mode mode;
 			const node &data;
 		};
 		struct emitter_spec12;
@@ -161,34 +171,40 @@ namespace sek::adt
 		/** Initializes a UBJson archive from a raw memory buffer.
 		 * @param buf Buffer receiving UBJson data.
 		 * @param n Size of the data buffer.
+		 * @param mode Mode flags used to control emitter behavior.
 		 * @param stx Version of UBJson syntax to use. */
-		ubj_output_archive(void *buf, std::size_t n, syntax stx = syntax::SPEC_12) : basic_output_archive(buf, n)
+		ubj_output_archive(void *buf, std::size_t n, emit_mode mode = fix_size | best_fit, syntax stx = syntax::SPEC_12)
+			: basic_output_archive(buf, n)
 		{
-			init(stx);
+			init(mode, stx);
 		}
 		/** Initializes a UBJson archive from a `FILE *`.
 		 * @param file File receiving UBJson data.
+		 * @param mode Mode flags used to control emitter behavior.
 		 * @param stx Version of UBJson syntax to use.
 		 * @note File must be opened in binary mode. */
-		explicit ubj_output_archive(FILE *file, syntax stx = syntax::SPEC_12) noexcept : basic_output_archive(file)
+		explicit ubj_output_archive(FILE *file, emit_mode mode = fix_size | best_fit, syntax stx = syntax::SPEC_12) noexcept
+			: basic_output_archive(file)
 		{
-			init(stx);
+			init(mode, stx);
 		}
 		/** Initializes a UBJson archive from an output buffer.
 		 * @param buf `std::streambuf` used to write UBJson data.
+		 * @param mode Mode flags used to control emitter behavior.
 		 * @param stx Version of UBJson syntax to use.
 		 * @note Buffer must be a binary buffer. */
-		explicit ubj_output_archive(std::streambuf *buf, syntax stx = syntax::SPEC_12) noexcept
+		explicit ubj_output_archive(std::streambuf *buf, emit_mode mode = fix_size | best_fit, syntax stx = syntax::SPEC_12) noexcept
 			: basic_output_archive(buf)
 		{
-			init(stx);
+			init(mode, stx);
 		}
 		/** Initializes a UBJson archive from an output stream.
 		 * @param os Stream used to write UBJson data.
+		 * @param mode Mode flags used to control emitter behavior.
 		 * @param stx Version of UBJson syntax to use.
 		 * @note Stream must be a binary stream. */
-		explicit ubj_output_archive(std::ostream &os, syntax stx = syntax::SPEC_12) noexcept
-			: ubj_output_archive(os.rdbuf(), stx)
+		explicit ubj_output_archive(std::ostream &os, emit_mode mode = fix_size | best_fit, syntax stx = syntax::SPEC_12) noexcept
+			: ubj_output_archive(os.rdbuf(), mode, stx)
 		{
 		}
 
@@ -201,9 +217,10 @@ namespace sek::adt
 		friend constexpr void swap(ubj_output_archive &a, ubj_output_archive &b) noexcept { a.swap(b); }
 
 	private:
-		SEK_API void init(syntax) noexcept;
+		SEK_API void init(emit_mode, syntax) noexcept;
 		SEK_API void do_write(const node &) final;
 
+		emit_mode mode;
 		emit_func emit;
 	};
 }	 // namespace sek::adt

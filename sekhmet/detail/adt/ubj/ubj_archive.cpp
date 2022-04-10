@@ -68,6 +68,8 @@ constexpr static uint16_t bswap_16(uint16_t value)
 #define HIGHP_ERROR_MSG "UBJson: High-precision number support disabled"
 #define BAD_DATA_MSG "UBJson: Invalid input, expected value or container data"
 #define BAD_LENGTH_MSG "UBJson: Invalid input, expected length"
+#define LENGTH_OVERFLOW_MSG "UBJson: Data length out of int64 range"
+#define WRITE_FAIL_MSG "UBJson: Failed to write serialized data"
 
 namespace sek::adt
 {
@@ -341,36 +343,45 @@ namespace sek::adt
 		parse(&state);
 	}
 
+	void ubj_output_archive::basic_emitter::write_guarded(const void *src, std::size_t n) const
+	{
+		if (writer->write(src, n) != n) [[unlikely]]
+			throw archive_error(WRITE_FAIL_MSG);
+	}
+	void ubj_output_archive::basic_emitter::write_token(char c) const { write_guarded(&c, sizeof(c)); }
+
 	struct ubj_output_archive::emitter_spec12 : basic_emitter
 	{
-		void emit_type_token(ubj_type_t type) const { write_token(ubj_spec12_token_table[type]); }
-		ubj_type_t get_node_type(const node &n) const
+		[[nodiscard]] static ubj_type_t get_int_type(std::int64_t i)
+		{
+			if (i <= static_cast<node::int_type>(std::numeric_limits<std::int8_t>::max()))
+				return UBJ_INT8;
+			else if (i <= static_cast<node::int_type>(std::numeric_limits<std::uint8_t>::max()))
+				return UBJ_UINT8;
+			else if (i <= static_cast<node::int_type>(std::numeric_limits<std::uint16_t>::max()))
+				return UBJ_INT16;
+			else if (i <= static_cast<node::int_type>(std::numeric_limits<std::uint32_t>::max()))
+				return UBJ_INT32;
+			else
+				return UBJ_INT64;
+		}
+		[[nodiscard]] static ubj_type_t get_float_type(double f)
+		{
+			if (f <= static_cast<node::float_type>(std::numeric_limits<float>::max()))
+				return UBJ_FLOAT32;
+			else
+				return UBJ_FLOAT64;
+		}
+		[[nodiscard]] ubj_type_t get_node_type(const node &n) const
 		{
 			switch (n.state())
 			{
 				case node::state_type::EMPTY: return UBJ_NULL;
 				case node::state_type::CHAR: return UBJ_CHAR;
 				case node::state_type::BOOL: return n.as_bool() ? UBJ_BOOL_TRUE : UBJ_BOOL_FALSE;
-				case node::state_type::INT:
-				{
-					if (auto i = n.as_int(); i <= static_cast<node::int_type>(std::numeric_limits<std::int8_t>::max()))
-						return UBJ_INT8;
-					else if (i <= static_cast<node::int_type>(std::numeric_limits<std::uint8_t>::max()))
-						return UBJ_INT8;
-					else if (i <= static_cast<node::int_type>(std::numeric_limits<std::uint16_t>::max()))
-						return UBJ_INT16;
-					else if (i <= static_cast<node::int_type>(std::numeric_limits<std::uint32_t>::max()))
-						return UBJ_INT32;
-					else
-						return UBJ_INT64;
-				}
-				case node::state_type::FLOAT:
-				{
-					if (auto f = n.as_float(); f <= static_cast<node::float_type>(std::numeric_limits<float>::max()))
-						return UBJ_FLOAT32;
-					else
-						return UBJ_FLOAT64;
-				}
+				/*case node::state_type::NUMBER:*/
+				case node::state_type::INT: return mode & best_fit ? get_int_type(n.as_int()) : UBJ_INT64;
+				case node::state_type::FLOAT: return mode & best_fit ? get_float_type(n.as_float()) : UBJ_FLOAT64;
 				case node::state_type::STRING: return UBJ_STRING;
 				case node::state_type::BINARY: /* Array of int */
 				case node::state_type::ARRAY: return UBJ_ARRAY;
@@ -378,12 +389,197 @@ namespace sek::adt
 			}
 		}
 
-		void emit_n(const node &n, ubj_type_t type) const {}
-		void emit_node(const node &n) const {}
+		[[nodiscard]] constexpr bool do_fix_type() const noexcept { return (mode & fix_type) == fix_type; }
+		[[nodiscard]] ubj_type_t get_array_type(const node::sequence_type &s) const
+		{
+			ubj_type_t type = UBJ_INVALID;
+			if (std::all_of(s.begin(),
+							s.end(),
+							[&](auto &n)
+							{
+								auto node_type = get_node_type(n);
+								if (type == UBJ_INVALID) [[unlikely]]
+								{
+									type = node_type;
+									return true;
+								}
+								else
+									return type == node_type;
+							}))
+				return type;
+			else
+				return UBJ_INVALID;
+		}
+		[[nodiscard]] ubj_type_t get_object_type(const node::table_type &t) const
+		{
+			ubj_type_t type = UBJ_INVALID;
+			if (std::all_of(t.begin(),
+							t.end(),
+							[&](auto &p)
+							{
+								auto node_type = get_node_type(p.second);
+								if (type == UBJ_INVALID) [[unlikely]]
+								{
+									type = node_type;
+									return true;
+								}
+								else
+									return type == node_type;
+							}))
+				return type;
+			else
+				return UBJ_INVALID;
+		}
+
+		template<typename T>
+		void emit_literal(T value) const
+		{
+			write_guarded(&value, sizeof(T));
+		}
+		void emit_type_token(ubj_type_t type) const { write_token(ubj_spec12_token_table[type]); }
+
+		void emit_int(std::int64_t i, ubj_type_t type) const
+		{
+			switch (type)
+			{
+				case UBJ_UINT8: emit_literal(static_cast<std::uint8_t>(i)); break;
+				case UBJ_INT8: emit_literal(static_cast<std::int8_t>(i)); break;
+				case UBJ_INT16: emit_literal(fix_endianness_write(static_cast<std::int16_t>(i))); break;
+				case UBJ_INT32: emit_literal(fix_endianness_write(static_cast<std::int32_t>(i))); break;
+				case UBJ_INT64: emit_literal(fix_endianness_write(i)); break;
+			}
+		}
+		void emit_float(double f, ubj_type_t type) const
+		{
+			switch (type)
+			{
+				case UBJ_FLOAT32: emit_literal(fix_endianness_write(static_cast<float>(f))); break;
+				case UBJ_FLOAT64: emit_literal(fix_endianness_write(f)); break;
+			}
+		}
+		void emit_length(std::int64_t l) const
+		{
+			if (l < 0) [[unlikely]]
+				throw archive_error(LENGTH_OVERFLOW_MSG);
+			auto int_type = mode & best_fit ? get_int_type(l) : UBJ_INT64;
+			emit_type_token(int_type);
+			emit_int(l, int_type);
+		}
+		void emit_string(std::string_view s) const
+		{
+			emit_length(static_cast<std::int64_t>(s.size()));
+			write_guarded(s.data(), s.size());
+		}
+		void emit_value(const node &n, ubj_type_t type) const
+		{
+			if (type == UBJ_CHAR)
+				emit_literal(n.as_char());
+			else if (type & UBJ_STRING_MASK)
+				emit_string(n.as_string());
+			else if (type & UBJ_FLOAT_MASK)
+				emit_float(n.as_float(), type);
+			else if (type & UBJ_INT_MASK)
+				emit_int(n.as_int(), type);
+		}
+
+		void emit_fixed_type(ubj_type_t type) const
+		{
+			write_token('$');
+			emit_type_token(type);
+		}
+		void emit_fixed_length(std::int64_t l) const
+		{
+			write_token('#');
+			emit_length(l);
+		}
+
+		void emit_binary(const node::binary_type &b) const
+		{
+			emit_fixed_type(UBJ_UINT8);
+			emit_fixed_length(static_cast<std::int64_t>(b.size()));
+			write_guarded(b.data(), b.size());
+		}
+		void emit_array(const node::sequence_type &s) const
+		{
+			if (ubj_type_t type; do_fix_type() && (type = get_array_type(s)) != UBJ_INVALID) [[unlikely]]
+			{
+				/* Fixed-type & fixed-size array. */
+				emit_fixed_type(type);
+				emit_fixed_length(static_cast<std::int64_t>(s.size()));
+				for (auto &item : s) emit_node(item, type);
+			}
+			else if (mode & fix_size) [[likely]]
+			{
+				/* Fixed-size array. */
+				emit_fixed_length(static_cast<std::int64_t>(s.size()));
+				for (auto &item : s) emit_node(item);
+			}
+			else
+			{
+				/* Fully dynamic array. */
+				for (auto &item : s) emit_node(item);
+				write_token(']');
+			}
+		}
+		void emit_object(const node::table_type &t) const
+		{
+			if (ubj_type_t type; do_fix_type() && (type = get_object_type(t)) != UBJ_INVALID) [[unlikely]]
+			{
+				/* Fixed-type & fixed-size object. */
+				emit_fixed_type(type);
+				emit_fixed_length(static_cast<std::int64_t>(t.size()));
+				for (auto &item : t)
+				{
+					emit_string(item.first);
+					emit_node(item.second, type);
+				}
+			}
+			else if (mode & fix_size) [[likely]]
+			{
+				/* Fixed-size object. */
+				emit_fixed_length(static_cast<std::int64_t>(t.size()));
+				for (auto &item : t)
+				{
+					emit_string(item.first);
+					emit_node(item.second);
+				}
+			}
+			else
+			{
+				/* Fully dynamic object. */
+				for (auto &item : t)
+				{
+					emit_string(item.first);
+					emit_node(item.second);
+				}
+				write_token('}');
+			}
+		}
+
+		void emit_node(const node &n, ubj_type_t type) const
+		{
+			if (type == UBJ_ARRAY)
+			{
+				if (n.is_binary()) [[unlikely]]
+					emit_binary(n.as_binary());
+				else
+					emit_array(n.as_sequence());
+			}
+			else if (type == UBJ_OBJECT)
+				emit_object(n.as_table());
+			else
+				emit_value(n, type);
+		}
+		void emit_node(const node &n) const
+		{
+			auto type = get_node_type(n);
+			emit_type_token(type);
+			emit_node(n, type);
+		}
 		void emit() const { emit_node(data); }
 	};
 
-	void ubj_output_archive::init(syntax stx) noexcept
+	void ubj_output_archive::init(emit_mode m, syntax stx) noexcept
 	{
 		constinit static const emit_func emit_table[] = {
 			/* Spec 12. */
@@ -391,12 +587,13 @@ namespace sek::adt
 		};
 
 		emit = emit_table[static_cast<int>(stx)];
+		mode = m;
 	}
-
 	void ubj_output_archive::do_write(const node &n)
 	{
 		basic_emitter state = {
 			.writer = writer,
+			.mode = mode,
 			.data = n,
 		};
 		emit(&state);

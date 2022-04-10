@@ -163,4 +163,29 @@ TEST(adt_tests, ubjson_test)
 		EXPECT_TRUE(node.is_binary());
 		EXPECT_EQ(node.as_binary()[0], std::byte{1});
 	}
+
+	{
+		std::string buffer(20, '\0');
+		sek::adt::node data = sek::adt::sequence{
+			"text0",
+			"text1",
+		};
+
+		EXPECT_NO_THROW((sek::adt::ubj_output_archive(buffer.data(), buffer.size()).write(data)));
+		EXPECT_EQ(buffer, "[#i\x02Si\x05text0Si\x05text1");
+
+		auto flags = sek::adt::ubj_output_archive::fix_type | sek::adt::ubj_output_archive::best_fit;
+		EXPECT_NO_THROW((sek::adt::ubj_output_archive(buffer.data(), buffer.size(), flags).write(data)));
+		EXPECT_EQ(buffer, "[$S#i\x02i\x05text0i\x05text1");
+
+		EXPECT_NO_THROW((sek::adt::ubj_input_archive(buffer.data(), buffer.size()).read(node)));
+		EXPECT_TRUE(node.is_sequence());
+
+		auto &seq = node.as_sequence();
+		EXPECT_EQ(seq.size(), 2);
+		EXPECT_TRUE(seq[0].is_string());
+		EXPECT_EQ(seq[0].as_string(), "text0");
+		EXPECT_TRUE(seq[1].is_string());
+		EXPECT_EQ(seq[1].as_string(), "text1");
+	}
 }

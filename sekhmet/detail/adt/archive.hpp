@@ -235,7 +235,7 @@ namespace sek::adt
 					auto buffer = static_cast<buffer_writer *>(base);
 					if (buffer->data_pos + n > buffer->data_end) [[unlikely]]
 						n = static_cast<std::size_t>(std::distance(buffer->data_pos, buffer->data_end));
-					buffer->data_pos = std::copy_n(static_cast<const std::byte *>(src), n, buffer->data_end);
+					buffer->data_pos = std::copy_n(static_cast<const std::byte *>(src), n, buffer->data_pos);
 					return n;
 				};
 				invoke_destroy = [](basic_writer *base) { delete static_cast<buffer_writer *>(base); };
