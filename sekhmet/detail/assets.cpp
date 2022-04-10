@@ -81,9 +81,15 @@ namespace sek
 				throw std::runtime_error(RECORD_ERROR_MSG);
 		}
 
-		void package_fragment::serialize(adt::node &node) const { node = adt::table{{"assets", assets}}; }
+		void package_fragment::serialize(adt::node &node) const
+		{
+			auto &table = (node = adt::table{}).as_table();
+			if (!assets.empty()) [[likely]]
+				table.emplace("assets", assets);
+		}
 		void master_package::serialize(adt::node &node) const
 		{
+			package_fragment::serialize(node);
 			auto &table = node.as_table();
 			table.emplace("master", true);
 			if (!fragments.empty()) [[likely]]
@@ -91,7 +97,6 @@ namespace sek
 				auto &out_sequence = table.emplace("fragments", adt::sequence{}).first->second.as_sequence();
 				for (auto &fragment : fragments) out_sequence.emplace_back(relative(fragment.path, path).string());
 			}
-			package_fragment::serialize(node);
 		}
 
 		struct package_info
