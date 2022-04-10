@@ -501,37 +501,46 @@ namespace sek::adt
 			emit_length(s, l);
 		}
 
+		static void close_array(const emitter_state &s) { s.write_token(']'); }
 		static void emit_binary(const emitter_state &s, const node::binary_type &b)
 		{
-			emit_fixed_type(s, UBJ_UINT8);
-			emit_fixed_length(s, static_cast<std::int64_t>(b.size()));
-			s.write_guarded(b.data(), b.size());
+			if (!b.empty()) [[likely]]
+			{
+				emit_fixed_type(s, UBJ_UINT8);
+				emit_fixed_length(s, static_cast<std::int64_t>(b.size()));
+				s.write_guarded(b.data(), b.size());
+			}
+			else
+				close_array(s);
 		}
 		static void emit_array(const emitter_state &s, const node::sequence_type &seq)
 		{
-			if (ubj_type_t type; do_fix_type(s) && (type = get_array_type(s, seq)) != UBJ_INVALID) [[unlikely]]
+			if (seq.empty()) [[unlikely]]
+				close_array(s);
+			else if (ubj_type_t type; do_fix_type(s) && (type = get_array_type(s, seq)) != UBJ_INVALID) [[unlikely]]
 			{
 				/* Fixed-type & fixed-size array. */
 				emit_fixed_type(s, type);
 				emit_fixed_length(s, static_cast<std::int64_t>(seq.size()));
 				for (auto &item : seq) emit_node(s, item, type);
 			}
-			else if (s.mode & fixed_size) [[likely]]
-			{
-				/* Fixed-size array. */
-				emit_fixed_length(s, static_cast<std::int64_t>(seq.size()));
-				for (auto &item : seq) emit_node(s, item);
-			}
 			else
 			{
-				/* Fully dynamic array. */
+				bool is_fixed_size = s.mode & fixed_size;
+				if (is_fixed_size) [[likely]]
+					emit_fixed_length(s, static_cast<std::int64_t>(seq.size()));
+
+				/* Emit dynamic-typed nodes. */
 				for (auto &item : seq) emit_node(s, item);
-				s.write_token(']');
+
 			}
 		}
+		static void close_object(const emitter_state &s) { s.write_token('}'); }
 		static void emit_object(const emitter_state &s, const node::table_type &t)
 		{
-			if (ubj_type_t type; do_fix_type(s) && (type = get_object_type(s, t)) != UBJ_INVALID) [[unlikely]]
+			if (t.empty()) [[unlikely]]
+				close_object(s);
+			else if (ubj_type_t type; do_fix_type(s) && (type = get_object_type(s, t)) != UBJ_INVALID) [[unlikely]]
 			{
 				/* Fixed-type & fixed-size object. */
 				emit_fixed_type(s, type);
@@ -541,26 +550,22 @@ namespace sek::adt
 					emit_string(s, item.first);
 					emit_node(s, item.second, type);
 				}
-			}
-			else if (s.mode & fixed_size) [[likely]]
-			{
-				/* Fixed-size object. */
-				emit_fixed_length(s, static_cast<std::int64_t>(t.size()));
-				for (auto &item : t)
-				{
-					emit_string(s, item.first);
-					emit_node(s, item.second);
-				}
+				return;
 			}
 			else
 			{
-				/* Fully dynamic object. */
+				bool is_fixed_size = s.mode & fixed_size;
+				if (is_fixed_size) [[likely]]
+					emit_fixed_length(s, static_cast<std::int64_t>(t.size()));
+
 				for (auto &item : t)
 				{
 					emit_string(s, item.first);
 					emit_node(s, item.second);
 				}
-				s.write_token('}');
+
+				if (!is_fixed_size) [[unlikely]]
+					close_object(s);
 			}
 		}
 

@@ -39,7 +39,8 @@ namespace sek
 	{
 		void loose_asset_record::serialize(adt::node &node) const
 		{
-			auto &table = (node = adt::table{{"id", id}, {"tags", tags}, {"path", file_path.string()}}).as_table();
+			auto &table = (node = adt::table{{"id", id}, {"path", file_path.string()}}).as_table();
+			if (!tags.empty()) table.emplace("tags", tags);
 			if (!metadata_path.empty()) table.emplace("metadata", metadata_path.string());
 		}
 		void loose_asset_record::deserialize(adt::node &&node)
@@ -54,7 +55,7 @@ namespace sek
 					file_path.assign(std::move(path_iter->second.as_string()));
 				}
 				else
-					throw std::runtime_error(RECORD_ERROR_MSG);
+					throw adt::node_error(RECORD_ERROR_MSG);
 			}
 
 			if (auto tags_iter = table.find("tags"); tags_iter != table.end()) std::move(tags_iter->second).get(tags);
@@ -78,12 +79,18 @@ namespace sek
 				std::move(seq[5]).get(metadata_size);
 			}
 			else
-				throw std::runtime_error(RECORD_ERROR_MSG);
+				throw adt::node_error(RECORD_ERROR_MSG);
 		}
 
-		void package_fragment::serialize(adt::node &node) const { node = adt::table{{"assets", assets}}; }
+		void package_fragment::serialize(adt::node &node) const
+		{
+			auto &table = (node = adt::table{}).as_table();
+			if (!assets.empty()) [[likely]]
+				table.emplace("assets", assets);
+		}
 		void master_package::serialize(adt::node &node) const
 		{
+			package_fragment::serialize(node);
 			auto &table = node.as_table();
 			table.emplace("master", true);
 			if (!fragments.empty()) [[likely]]
@@ -91,7 +98,6 @@ namespace sek
 				auto &out_sequence = table.emplace("fragments", adt::sequence{}).first->second.as_sequence();
 				for (auto &fragment : fragments) out_sequence.emplace_back(relative(fragment.path, path).string());
 			}
-			package_fragment::serialize(node);
 		}
 
 		struct package_info
@@ -120,6 +126,8 @@ namespace sek
 				if (static_cast<std::size_t>(manifest_stream.readsome(sign, sign_size)) == sign_size &&
 					!strncmp(sign, SEK_PACKAGE_SIGNATURE, sign_size))
 					adt::ubj_input_archive{manifest_stream}.read(result.manifest);
+				else
+					throw std::runtime_error("Bad package signature");
 			}
 			return result;
 		}
@@ -164,25 +172,20 @@ namespace sek
 					return package.release();
 				}
 			}
-			/* Ugly catch ladder. Needed here since we want to return nullptr on invalid package.
-			 * `adt::archive_error` & `adt::node_error` handle invalid parsing & deserialization of package manifest,
-			 * while `std::logic_error` & `std::runtime_error` handle edge cases such as filesystem errors &
-			 * out-of-range hashmap access. */
-			catch (adt::archive_error &)
-			{
-				/* Log archive error. */
-			}
 			catch (adt::node_error &)
 			{
-				/* Log node error. */
+				/* Manifest was parsed but is invalid. */
+				/* TODO: Log node error. */
 			}
-			catch (std::logic_error &)
+			catch (adt::archive_error &)
 			{
-				/* Log logic error. */
+				/* Error during manifest parsing. */
+				/* TODO: Log archive error. */
 			}
 			catch (std::runtime_error &)
 			{
-				/* Log runtime error. */
+				/* Failed to read and/or verify manifest file/header (most likely it does not exist). */
+				/* TODO: Log runtime error. */
 			}
 			/* Other exceptions are fatal. */
 			return nullptr;
