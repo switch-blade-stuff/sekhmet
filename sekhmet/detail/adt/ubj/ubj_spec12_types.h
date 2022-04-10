@@ -46,6 +46,6 @@ extern "C"
 	SEK_API extern const char ubj_spec12_token_table[UBJ_TYPE_MAX];
 }
 #else
-SEK_API extern const ubj_type_t ubj_spec12_type_table[CHAR_MAX];
-SEK_API extern const char ubj_spec12_token_table[UBJ_TYPE_MAX];
+SEK_API extern const ubj_type_t sek_ubj_spec12_type_table[CHAR_MAX];
+SEK_API extern const char sek_ubj_spec12_token_table[UBJ_TYPE_MAX];
 #endif
