@@ -1,6 +1,4 @@
 
-include(${CMAKE_CURRENT_LIST_DIR}/CMakeLists.macros.txt)
 foreach (TARGET ${BUILDSYSTEM_TARGETS})
-    init_target_options(${TARGET})
-    target_include_directories(${TARGET} PRIVATE ${SEKHMET_SOURCE_DIR})
+    target_include_directories(${TARGET} PRIVATE ${SEK_SOURCE_DIR})
 endforeach ()

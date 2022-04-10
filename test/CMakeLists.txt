@@ -1,5 +1,5 @@
 project(${PROJECT_NAME}.test)
-#set_cxx_version_20()
+#sek_set_cxx_version_20()
 
 if (WIN32)
     # Windows does not have OS-level library lookup, thus need to use a local dependency
@@ -17,6 +17,10 @@ else ()
 endif ()
 
 if (NOT GTEST_MISSING)
+    add_library(${PROJECT_NAME}.plugin SHARED test_plugin.hpp test_plugin.cpp)
+    sek_init_target_options(${PROJECT_NAME}.plugin)
+    target_link_libraries(${PROJECT_NAME}.plugin PUBLIC ${SEK_PROJECT})
+
     include(GoogleTest)
     add_executable(${PROJECT_NAME}
             main.cpp
@@ -27,11 +31,8 @@ if (NOT GTEST_MISSING)
             plugin_tests.cpp
             adt_tests.cpp
             math_tests.cpp)
-
-    add_library(${PROJECT_NAME}.plugin SHARED test_plugin.hpp test_plugin.cpp)
-    target_link_libraries(${PROJECT_NAME}.plugin PUBLIC ${SEKHMET_PROJECT})
-
-    target_link_libraries(${PROJECT_NAME} PUBLIC ${SEKHMET_PROJECT} ${PROJECT_NAME}.plugin gtest)
+    sek_init_target_options(${PROJECT_NAME})
+    target_link_libraries(${PROJECT_NAME} PUBLIC ${SEK_PROJECT} ${PROJECT_NAME}.plugin gtest)
     if (UNIX)
         target_link_libraries(${PROJECT_NAME} PUBLIC dl)
     endif ()

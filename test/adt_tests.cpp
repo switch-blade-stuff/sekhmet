@@ -89,3 +89,60 @@ TEST(adt_tests, serialization_test)
 
 	EXPECT_EQ(vec.size(), 10);
 }
+
+TEST(adt_tests, ubjson_test)
+{
+	sek::adt::node node;
+
+	{
+		static const char data[] = "SU\x0chello, world";
+
+		EXPECT_NO_THROW((node = sek::adt::ubj_input_archive{data, sizeof(data)}.read()));
+		EXPECT_TRUE(node.is_string());
+		EXPECT_EQ(node.as_string(), "hello, world");
+	}
+
+	{
+		static const char data[] = "[$T#U\5";
+		EXPECT_NO_THROW((node = sek::adt::ubj_input_archive{data, sizeof(data)}.read()));
+		EXPECT_TRUE(node.is_sequence());
+
+		auto &seq = node.as_sequence();
+		EXPECT_EQ(seq.size(), 5);
+		EXPECT_TRUE(std::all_of(seq.begin(), seq.end(), [](auto &n) { return n.is_bool() && n.as_bool(); }));
+	}
+
+	{
+		static const char data[] = "{$S#U\3"
+								   "U\2_0U\5item0"
+								   "U\2_1U\5item1"
+								   "U\2_2U\5item2";
+		EXPECT_NO_THROW((node = sek::adt::ubj_input_archive{data, sizeof(data)}.read()));
+		EXPECT_TRUE(node.is_table());
+
+		auto &table = node.as_table();
+		EXPECT_TRUE(table["_0"].is_string());
+		EXPECT_EQ(table.at("_0").as_string(), "item0");
+		EXPECT_TRUE(table["_1"].is_string());
+		EXPECT_EQ(table.at("_1").as_string(), "item1");
+		EXPECT_TRUE(table["_2"].is_string());
+		EXPECT_EQ(table.at("_2").as_string(), "item2");
+	}
+
+	{
+		static const char data[] = "{#U\2"
+								   "U\4flagT"
+								   "U\5child[Z]";
+		EXPECT_NO_THROW((node = sek::adt::ubj_input_archive{data, sizeof(data)}.read()));
+		EXPECT_TRUE(node.is_table());
+
+		auto &table = node.as_table();
+		EXPECT_TRUE(table["flag"].is_bool());
+		EXPECT_TRUE(table.at("flag").as_bool());
+		EXPECT_TRUE(table["child"].is_sequence());
+
+		auto &seq = table.at("child").as_sequence();
+		EXPECT_EQ(seq.size(), 1);
+		EXPECT_TRUE(seq[0].empty());
+	}
+}

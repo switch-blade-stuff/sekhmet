@@ -6,19 +6,16 @@
 
 #include "assets.hpp"
 
-#include <cstdio>
-#include <cstring>
+#include <fstream>
 #include <memory>
 
 #include "adt/toml_archive.hpp"
-#include "adt/ubj_archive.hpp"
+#include "adt/ubj/ubj_archive.hpp"
 
 #ifdef SEK_OS_WIN
 #define MANIFEST_FILE_NAME L".manifest"
-#define OS_FOPEN(path, mode) _wfopen(path, L##mode)
 #else
 #define MANIFEST_FILE_NAME ".manifest"
-#define OS_FOPEN(path, mode) fopen(path, mode)
 #endif
 
 namespace sek
@@ -99,21 +96,23 @@ namespace sek
 		static package_info get_package_info(const std::filesystem::path &path)
 		{
 			package_info result;
-			FILE *manifest_file;
 			if (is_directory(path))
 			{
 				result.flags = package_fragment::LOOSE_PACKAGE;
-				if ((manifest_file = OS_FOPEN((path / MANIFEST_FILE_NAME).c_str(), "rb")) != nullptr) [[likely]]
-				{	 // adt::toml_input_archive{manifest_file}.read(result.manifest);
+				if (std::ifstream manifest_stream{path / MANIFEST_FILE_NAME}; manifest_stream.is_open()) [[likely]]
+				{
+					//					adt::toml_input_archive{manifest_stream}.read(result.manifest);
 				}
 			}
-			else if ((manifest_file = OS_FOPEN(path.c_str(), "rb")) != nullptr) [[likely]]
+			else if (std::ifstream manifest_stream{path, std::ios::binary}; manifest_stream.is_open()) [[likely]]
 			{
 				/* Check that the package has a valid signature. */
 				constexpr auto sign_size = sizeof(SEK_PACKAGE_SIGNATURE);
 				char sign[sign_size];
-				if (fread(sign, 1, sign_size, manifest_file) == sign_size && !memcmp(sign, SEK_PACKAGE_SIGNATURE, sign_size))
-					adt::ubj_input_archive{manifest_file}.read(result.manifest);
+
+				if (static_cast<std::size_t>(manifest_stream.readsome(sign, sign_size)) == sign_size &&
+					std::equal(std::begin(sign), std::end(sign), std::begin(SEK_PACKAGE_SIGNATURE), std::end(SEK_PACKAGE_SIGNATURE)))
+					adt::ubj_input_archive{manifest_stream}.read(result.manifest);
 			}
 			return result;
 		}
@@ -153,10 +152,15 @@ namespace sek
 					return package.release();
 				}
 			}
+			/* Only deserialization exceptions are recoverable, since they indicate an invalid package and thus will return nullptr.
+			 * Any other exceptions are either caused by fatal errors or by filesystem errors and are thus non-recoverable. */
+			catch (adt::archive_error &)
+			{
+				/* Log archive error. */
+			}
 			catch (adt::node_error &)
 			{
-				/* Only deserialization exceptions are recoverable, since they indicate an invalid package and thus will return nullptr.
-				 * Any other exceptions are either caused by fatal errors or by filesystem errors and are thus non-recoverable. */
+				/* Log node error. */
 			}
 			return nullptr;
 		}

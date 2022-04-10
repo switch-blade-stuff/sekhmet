@@ -7,3 +7,4 @@
 #include "detail/adt/archive.hpp"
 #include "detail/adt/node.hpp"
 #include "detail/adt/serialize_impl.hpp"
+#include "detail/adt/ubj/ubj_archive.hpp"

@@ -64,7 +64,7 @@ namespace sek::adt
 	struct bytes;
 
 	/** @brief Exception thrown by nodes when (de)serialization fails. */
-	class node_error : std::runtime_error
+	class node_error : public std::runtime_error
 	{
 	public:
 		node_error() : std::runtime_error("Invalid ADT node type") {}

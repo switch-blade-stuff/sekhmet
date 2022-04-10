@@ -1,5 +1,5 @@
 
-macro(set_maybe_parent)
+macro(sek_set_maybe_parent)
     if (PROJECT_IS_TOP_LEVEL)
         set(${ARGV0} ${ARGV1})
     else ()
@@ -7,7 +7,7 @@ macro(set_maybe_parent)
     endif ()
 endmacro()
 
-macro(set_cxx_version_20)
+macro(sek_set_cxx_version_20)
     # Handle pre C++20 ABI-freeze MSVC versions
     if (MSVC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS_EQUAL 19.30)
         set(CMAKE_CXX_STANDARD 23) # /std:c++latest required for MSVC pre abi-freeze
@@ -16,14 +16,14 @@ macro(set_cxx_version_20)
     endif ()
 endmacro()
 
-macro(init_target_options)
+macro(sek_init_target_options)
     if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
         target_compile_options(${ARGV0} PRIVATE /W3)
     endif ()
 
     if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-        target_compile_options(${ARGV0} PRIVATE "-Wall" "-Wno-unknown-pragmas" "-Wconversion" "-Werror")
-        #target_compile_options(${ARGV0} PRIVATE "-Wextra" "-mavx")
+        target_compile_options(${ARGV0} PRIVATE "-Wall" "-Wextra" "-Wno-unknown-pragmas" "-Wconversion" "-Werror")
+        #target_compile_options(${ARGV0} PRIVATE "-mavx")
 
         if ("${CMAKE_BUILD_TYPE}" EQUAL "Debug")
             target_compile_options(${ARGV0} PRIVATE "-fsanitize=undefined")

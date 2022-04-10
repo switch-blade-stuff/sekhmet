@@ -13,30 +13,42 @@
 #define SEK_ARCH_x86_32
 #define SEK_ARCH_x86
 #elif defined(__ARM_ARCH_2__)
+#define SEK_ARCH_ARM
 #define SEK_ARCH_ARM2
 #elif defined(__ARM_ARCH_3__) || defined(__ARM_ARCH_3M__)
+#define SEK_ARCH_ARM
 #define SEK_ARCH_ARM3
 #elif defined(__ARM_ARCH_4T__) || defined(__TARGET_ARM_4T)
+#define SEK_ARCH_ARM
 #define SEK_ARCH_ARM4T
 #elif defined(__ARM_ARCH_5_) || defined(__ARM_ARCH_5E_)
+#define SEK_ARCH_ARM
 #define SEK_ARCH_ARM5
 #elif defined(__ARM_ARCH_6T2_) || defined(__ARM_ARCH_6T2_)
+#define SEK_ARCH_ARM
 #define SEK_ARCH_ARM6T2
 #elif defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) || defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) ||   \
 	defined(__ARM_ARCH_6ZK__)
+#define SEK_ARCH_ARM
 #define SEK_ARCH_ARM6
 #elif defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) ||   \
 	defined(__ARM_ARCH_7S__)
+#define SEK_ARCH_ARM
 #define SEK_ARCH_ARM7
 #elif defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
+#define SEK_ARCH_ARM
 #define SEK_ARCH_ARM7A
 #elif defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
+#define SEK_ARCH_ARM
 #define SEK_ARCH_ARM7R
 #elif defined(__ARM_ARCH_7M__)
+#define SEK_ARCH_ARM
 #define SEK_ARCH_ARM7M
 #elif defined(__ARM_ARCH_7S__)
+#define SEK_ARCH_ARM
 #define SEK_ARCH_ARM7S
 #elif defined(__aarch64__) || defined(_M_ARM64)
+#define SEK_ARCH_ARM
 #define SEK_ARCH_ARM64
 #elif defined(mips) || defined(__mips__) || defined(__mips)
 #define SEK_ARCH_MIPS
@@ -46,6 +58,7 @@
 	defined(__ppc__) || defined(__PPC__) || defined(_ARCH_PPC)
 #define SEK_ARCH_POWERPC
 #elif defined(__PPC64__) || defined(__ppc64__) || defined(_ARCH_PPC64)
+#define SEK_ARCH_POWERPC
 #define SEK_ARCH_POWERPC64
 #elif defined(__sparc__) || defined(__sparc)
 #define SEK_ARCH_SPARC
@@ -53,4 +66,11 @@
 #define SEK_ARCH_M68K
 #else
 #define SEK_ARCH_UNKNOWN
+#endif
+
+#if defined(__BIG_ENDIAN__) || defined(__BIG_ENDIAN) || defined(_BIG_ENDIAN) ||                                        \
+	(defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__) || defined(SEK_ARCH_POWERPC)
+#define SEK_ARCH_BIG_ENDIAN
+#else
+#define SEK_ARCH_LITTLE_ENDIAN
 #endif
