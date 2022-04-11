@@ -391,7 +391,7 @@ namespace sek::adt
 			}
 		}
 
-		[[nodiscard]] constexpr static bool do_fix_type(const emitter_state &s) noexcept
+		[[nodiscard]] constexpr static bool use_fixed_type(const emitter_state &s) noexcept
 		{
 			return (s.mode & fixed_type) == fixed_type;
 		}
@@ -517,7 +517,7 @@ namespace sek::adt
 		{
 			if (seq.empty()) [[unlikely]]
 				close_array(s);
-			else if (ubj_type_t type; do_fix_type(s) && (type = get_array_type(s, seq)) != UBJ_INVALID) [[unlikely]]
+			else if (ubj_type_t type; use_fixed_type(s) && (type = get_array_type(s, seq)) != UBJ_INVALID) [[unlikely]]
 			{
 				/* Fixed-type & fixed-size array. */
 				emit_fixed_type(s, type);
@@ -532,7 +532,6 @@ namespace sek::adt
 
 				/* Emit dynamic-typed nodes. */
 				for (auto &item : seq) emit_node(s, item);
-
 			}
 		}
 		static void close_object(const emitter_state &s) { s.write_token('}'); }
@@ -540,7 +539,7 @@ namespace sek::adt
 		{
 			if (t.empty()) [[unlikely]]
 				close_object(s);
-			else if (ubj_type_t type; do_fix_type(s) && (type = get_object_type(s, t)) != UBJ_INVALID) [[unlikely]]
+			else if (ubj_type_t type; use_fixed_type(s) && (type = get_object_type(s, t)) != UBJ_INVALID) [[unlikely]]
 			{
 				/* Fixed-type & fixed-size object. */
 				emit_fixed_type(s, type);
