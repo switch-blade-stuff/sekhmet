@@ -6,6 +6,7 @@
 
 #include "assets.hpp"
 
+#include <cstring>
 #include <fstream>
 #include <memory>
 
@@ -17,6 +18,8 @@
 #else
 #define MANIFEST_FILE_NAME ".manifest"
 #endif
+
+#define RECORD_ERROR_MSG "Invalid asset record"
 
 namespace sek
 {
@@ -36,16 +39,28 @@ namespace sek
 	{
 		void loose_asset_record::serialize(adt::node &node) const
 		{
-			auto &table = (node = adt::table{{"id", id}, {"tags", tags}, {"path", file_path.string()}}).as_table();
+			auto &table = (node = adt::table{{"id", id}, {"path", file_path.string()}}).as_table();
+			if (!tags.empty()) table.emplace("tags", tags);
 			if (!metadata_path.empty()) table.emplace("metadata", metadata_path.string());
 		}
 		void loose_asset_record::deserialize(adt::node &&node)
 		{
-			std::move(node.at("id")).get(id);
-			std::move(node.at("tags")).get(tags);
+			auto &table = node.as_table();
+			{
+				auto id_iter = table.find("id");
+				auto path_iter = table.find("path");
+				if (id_iter != table.end() && path_iter != table.end()) [[likely]]
+				{
+					std::move(id_iter->second).get(id);
+					file_path.assign(std::move(path_iter->second.as_string()));
+				}
+				else
+					throw adt::node_error(RECORD_ERROR_MSG);
+			}
 
-			file_path.assign(std::move(node.at("path").as_string()));
-			if (node.as_table().contains("metadata")) metadata_path.assign(std::move(node.at("metadata").as_string()));
+			if (auto tags_iter = table.find("tags"); tags_iter != table.end()) std::move(tags_iter->second).get(tags);
+			if (auto metadata_iter = table.find("path"); metadata_iter != table.end())
+				metadata_path.assign(std::move(metadata_iter->second.as_string()));
 		}
 
 		void archive_asset_record::serialize(adt::node &node) const
@@ -54,30 +69,28 @@ namespace sek
 		}
 		void archive_asset_record::deserialize(adt::node &&node)
 		{
-			if (node.as_sequence().size() >= 6) [[likely]]
+			if (auto &seq = node.as_sequence(); seq.size() >= 6) [[likely]]
 			{
-				std::move(node[0]).get(id);
-				std::move(node[1]).get(tags);
-				std::move(node[2]).get(file_offset);
-				std::move(node[3]).get(file_size);
-				std::move(node[4]).get(metadata_offset);
-				std::move(node[5]).get(metadata_size);
+				std::move(seq[0]).get(id);
+				std::move(seq[1]).get(tags);
+				std::move(seq[2]).get(file_offset);
+				std::move(seq[3]).get(file_size);
+				std::move(seq[4]).get(metadata_offset);
+				std::move(seq[5]).get(metadata_size);
 			}
 			else
-				throw adt::node_error("Invalid archive record size");
+				throw adt::node_error(RECORD_ERROR_MSG);
 		}
 
-		package_base::record_handle::record_handle(package_fragment *parent)
+		void package_fragment::serialize(adt::node &node) const
 		{
-			if (parent->flags & LOOSE_PACKAGE)
-				ptr = new loose_asset_record{parent};
-			else
-				ptr = new archive_asset_record{parent};
+			auto &table = (node = adt::table{}).as_table();
+			if (!assets.empty()) [[likely]]
+				table.emplace("assets", assets);
 		}
-
-		void package_fragment::serialize(adt::node &node) const { node = adt::table{{"assets", assets}}; }
 		void master_package::serialize(adt::node &node) const
 		{
+			package_fragment::serialize(node);
 			auto &table = node.as_table();
 			table.emplace("master", true);
 			if (!fragments.empty()) [[likely]]
@@ -85,7 +98,6 @@ namespace sek
 				auto &out_sequence = table.emplace("fragments", adt::sequence{}).first->second.as_sequence();
 				for (auto &fragment : fragments) out_sequence.emplace_back(relative(fragment.path, path).string());
 			}
-			package_fragment::serialize(node);
 		}
 
 		struct package_info
@@ -101,33 +113,41 @@ namespace sek
 				result.flags = package_fragment::LOOSE_PACKAGE;
 				if (std::ifstream manifest_stream{path / MANIFEST_FILE_NAME}; manifest_stream.is_open()) [[likely]]
 				{
-					//					adt::toml_input_archive{manifest_stream}.read(result.manifest);
+					// adt::toml_input_archive{manifest_stream}.read(result.manifest);
 				}
 			}
 			else if (std::ifstream manifest_stream{path, std::ios::binary}; manifest_stream.is_open()) [[likely]]
 			{
-				/* Check that the package has a valid signature. */
+				/* Check that the package has a valid signature.
+				 * TODO: Use versioned signature to allow for future expansion. */
 				constexpr auto sign_size = sizeof(SEK_PACKAGE_SIGNATURE);
 				char sign[sign_size];
 
 				if (static_cast<std::size_t>(manifest_stream.readsome(sign, sign_size)) == sign_size &&
-					std::equal(std::begin(sign), std::end(sign), std::begin(SEK_PACKAGE_SIGNATURE), std::end(SEK_PACKAGE_SIGNATURE)))
+					!strncmp(sign, SEK_PACKAGE_SIGNATURE, sign_size))
 					adt::ubj_input_archive{manifest_stream}.read(result.manifest);
+				else
+					throw std::runtime_error("Bad package signature");
 			}
 			return result;
 		}
 
 		void package_fragment::deserialize(adt::node &&node)
 		{
-			auto &data = node.at("assets").as_sequence();
-			assets.reserve(data.size());
-			for (auto &n : data) assets.emplace_back(this).ptr->deserialize(std::move(n));
+			auto &table = node.as_table();
+			if (auto assets_iter = table.find("assets"); assets_iter != table.end()) [[likely]]
+			{
+				auto &data = assets_iter->second.as_sequence();
+				assets.reserve(data.size());
+				for (auto &n : data) assets.emplace_back(this).ptr->deserialize(std::move(n));
+			}
 		}
 		void master_package::deserialize(adt::node &&node)
 		{
-			if (node.as_table().contains("fragments"))
+			auto &table = node.as_table();
+			if (auto fragments_iter = table.find("fragments"); fragments_iter != table.end())
 			{
-				auto &fragments_seq = node.at("fragments").as_sequence();
+				auto &fragments_seq = fragments_iter->second.as_sequence();
 				fragments.reserve(fragments_seq.size());
 				for (auto &fragment : fragments_seq)
 				{
@@ -152,16 +172,22 @@ namespace sek
 					return package.release();
 				}
 			}
-			/* Only deserialization exceptions are recoverable, since they indicate an invalid package and thus will return nullptr.
-			 * Any other exceptions are either caused by fatal errors or by filesystem errors and are thus non-recoverable. */
-			catch (adt::archive_error &)
-			{
-				/* Log archive error. */
-			}
 			catch (adt::node_error &)
 			{
-				/* Log node error. */
+				/* Manifest was parsed but is invalid. */
+				/* TODO: Log node error. */
 			}
+			catch (adt::archive_error &)
+			{
+				/* Error during manifest parsing. */
+				/* TODO: Log archive error. */
+			}
+			catch (std::runtime_error &)
+			{
+				/* Failed to read and/or verify manifest file/header (most likely it does not exist). */
+				/* TODO: Log runtime error. */
+			}
+			/* Other exceptions are fatal. */
 			return nullptr;
 		}
 	}	 // namespace detail

@@ -139,7 +139,7 @@ namespace sek::adt
 	{
 		static ubj_type_t assert_type_token(char token)
 		{
-			if (auto type = ubj_spec12_type_table[token]; token == UBJ_INVALID) [[unlikely]]
+			if (auto type = sek_ubj_spec12_type_table[static_cast<std::uint8_t>(token)]; token == UBJ_INVALID) [[unlikely]]
 				throw archive_error(BAD_DATA_MSG);
 			else
 				return type;
@@ -159,12 +159,10 @@ namespace sek::adt
 
 		[[nodiscard]] static double parse_float(const parse_state &s, ubj_type_t type)
 		{
-			switch (type)
-			{
-				case UBJ_FLOAT32: return fix_endianness_read(read_literal<float>(s));
-				case UBJ_FLOAT64: return fix_endianness_read(read_literal<double>(s));
-			}
-			/* Other cases are handled upstream. */
+			if (type == UBJ_FLOAT32)
+				return fix_endianness_read(read_literal<float>(s));
+			else
+				return fix_endianness_read(read_literal<double>(s));
 		}
 		[[nodiscard]] static std::int64_t parse_int(const parse_state &s, ubj_type_t type)
 		{
@@ -175,15 +173,16 @@ namespace sek::adt
 				case UBJ_INT16: return static_cast<std::int64_t>(fix_endianness_read(read_literal<std::int16_t>(s)));
 				case UBJ_INT32: return static_cast<std::int64_t>(fix_endianness_read(read_literal<std::int32_t>(s)));
 				case UBJ_INT64: return fix_endianness_read(read_literal<std::int64_t>(s));
+				default: return 0;
 			}
 			/* Other cases are handled upstream. */
 		}
 		[[nodiscard]] static std::int64_t parse_length(const parse_state &s)
 		{
-			if (auto token = ubj_spec12_type_table[s.read_token()]; !(token & UBJ_INT_MASK)) [[unlikely]]
+			auto token = sek_ubj_spec12_type_table[static_cast<std::uint8_t>(s.read_token())];
+			if (!(token & UBJ_INT_MASK)) [[unlikely]]
 				throw archive_error(BAD_LENGTH_MSG);
-			else
-				return parse_int(s, token);
+			return parse_int(s, token);
 		}
 		[[nodiscard]] static std::string parse_string(const parse_state &s)
 		{
@@ -298,6 +297,7 @@ namespace sek::adt
 					/* Always expect length after a type. */
 					if (s.peek_token() != '#') [[unlikely]]
 						throw archive_error(BAD_LENGTH_MSG);
+					[[fallthrough]];
 				}
 				case '#':
 				{
@@ -381,17 +381,17 @@ namespace sek::adt
 				case node::state_type::EMPTY: return UBJ_NULL;
 				case node::state_type::CHAR: return UBJ_CHAR;
 				case node::state_type::BOOL: return n.as_bool() ? UBJ_BOOL_TRUE : UBJ_BOOL_FALSE;
-				/*case node::state_type::NUMBER:*/
 				case node::state_type::INT: return s.mode & best_fit ? get_int_type(n.as_int()) : UBJ_INT64;
 				case node::state_type::FLOAT: return s.mode & best_fit ? get_float_type(n.as_float()) : UBJ_FLOAT64;
 				case node::state_type::STRING: return UBJ_STRING;
 				case node::state_type::BINARY: /* Array of int */
 				case node::state_type::ARRAY: return UBJ_ARRAY;
 				case node::state_type::TABLE: return UBJ_OBJECT;
+				default: return UBJ_INVALID;
 			}
 		}
 
-		[[nodiscard]] constexpr static bool do_fix_type(const emitter_state &s) noexcept
+		[[nodiscard]] constexpr static bool use_fixed_type(const emitter_state &s) noexcept
 		{
 			return (s.mode & fixed_type) == fixed_type;
 		}
@@ -443,7 +443,7 @@ namespace sek::adt
 		}
 		static void emit_type_token(const emitter_state &s, ubj_type_t type)
 		{
-			s.write_token(ubj_spec12_token_table[type]);
+			s.write_token(sek_ubj_spec12_token_table[type]);
 		}
 
 		static void emit_int(const emitter_state &s, std::int64_t i, ubj_type_t type)
@@ -455,15 +455,15 @@ namespace sek::adt
 				case UBJ_INT16: emit_literal(s, fix_endianness_write(static_cast<std::int16_t>(i))); break;
 				case UBJ_INT32: emit_literal(s, fix_endianness_write(static_cast<std::int32_t>(i))); break;
 				case UBJ_INT64: emit_literal(s, fix_endianness_write(i)); break;
+				default: break;
 			}
 		}
 		static void emit_float(const emitter_state &s, double f, ubj_type_t type)
 		{
-			switch (type)
-			{
-				case UBJ_FLOAT32: emit_literal(s, fix_endianness_write(static_cast<float>(f))); break;
-				case UBJ_FLOAT64: emit_literal(s, fix_endianness_write(f)); break;
-			}
+			if (type == UBJ_FLOAT64)
+				emit_literal(s, fix_endianness_write(f));
+			else
+				emit_literal(s, fix_endianness_write(static_cast<float>(f)));
 		}
 		static void emit_length(const emitter_state &s, std::int64_t l)
 		{
@@ -501,37 +501,45 @@ namespace sek::adt
 			emit_length(s, l);
 		}
 
+		static void close_array(const emitter_state &s) { s.write_token(']'); }
 		static void emit_binary(const emitter_state &s, const node::binary_type &b)
 		{
-			emit_fixed_type(s, UBJ_UINT8);
-			emit_fixed_length(s, static_cast<std::int64_t>(b.size()));
-			s.write_guarded(b.data(), b.size());
+			if (!b.empty()) [[likely]]
+			{
+				emit_fixed_type(s, UBJ_UINT8);
+				emit_fixed_length(s, static_cast<std::int64_t>(b.size()));
+				s.write_guarded(b.data(), b.size());
+			}
+			else
+				close_array(s);
 		}
 		static void emit_array(const emitter_state &s, const node::sequence_type &seq)
 		{
-			if (ubj_type_t type; do_fix_type(s) && (type = get_array_type(s, seq)) != UBJ_INVALID) [[unlikely]]
+			if (seq.empty()) [[unlikely]]
+				close_array(s);
+			else if (ubj_type_t type; use_fixed_type(s) && (type = get_array_type(s, seq)) != UBJ_INVALID) [[unlikely]]
 			{
 				/* Fixed-type & fixed-size array. */
 				emit_fixed_type(s, type);
 				emit_fixed_length(s, static_cast<std::int64_t>(seq.size()));
 				for (auto &item : seq) emit_node(s, item, type);
 			}
-			else if (s.mode & fixed_size) [[likely]]
-			{
-				/* Fixed-size array. */
-				emit_fixed_length(s, static_cast<std::int64_t>(seq.size()));
-				for (auto &item : seq) emit_node(s, item);
-			}
 			else
 			{
-				/* Fully dynamic array. */
+				bool is_fixed_size = s.mode & fixed_size;
+				if (is_fixed_size) [[likely]]
+					emit_fixed_length(s, static_cast<std::int64_t>(seq.size()));
+
+				/* Emit dynamic-typed nodes. */
 				for (auto &item : seq) emit_node(s, item);
-				s.write_token(']');
 			}
 		}
+		static void close_object(const emitter_state &s) { s.write_token('}'); }
 		static void emit_object(const emitter_state &s, const node::table_type &t)
 		{
-			if (ubj_type_t type; do_fix_type(s) && (type = get_object_type(s, t)) != UBJ_INVALID) [[unlikely]]
+			if (t.empty()) [[unlikely]]
+				close_object(s);
+			else if (ubj_type_t type; use_fixed_type(s) && (type = get_object_type(s, t)) != UBJ_INVALID) [[unlikely]]
 			{
 				/* Fixed-type & fixed-size object. */
 				emit_fixed_type(s, type);
@@ -541,26 +549,22 @@ namespace sek::adt
 					emit_string(s, item.first);
 					emit_node(s, item.second, type);
 				}
-			}
-			else if (s.mode & fixed_size) [[likely]]
-			{
-				/* Fixed-size object. */
-				emit_fixed_length(s, static_cast<std::int64_t>(t.size()));
-				for (auto &item : t)
-				{
-					emit_string(s, item.first);
-					emit_node(s, item.second);
-				}
+				return;
 			}
 			else
 			{
-				/* Fully dynamic object. */
+				bool is_fixed_size = s.mode & fixed_size;
+				if (is_fixed_size) [[likely]]
+					emit_fixed_length(s, static_cast<std::int64_t>(t.size()));
+
 				for (auto &item : t)
 				{
 					emit_string(s, item.first);
 					emit_node(s, item.second);
 				}
-				s.write_token('}');
+
+				if (!is_fixed_size) [[unlikely]]
+					close_object(s);
 			}
 		}
 

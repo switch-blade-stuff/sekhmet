@@ -137,8 +137,13 @@ namespace sek::adt
 		/** Copy-assigns the node. */
 		SEK_ADT_NODE_CONSTEXPR node &operator=(node &&other)
 		{
-			if (state() != other.state()) destroy();
-			move_from(std::forward<node>(other));
+			if (state() != other.state())
+			{
+				destroy();
+				move_from(std::forward<node>(other));
+			}
+			else
+				move_assign_from(std::forward<node>(other));
 			return *this;
 		}
 
@@ -647,10 +652,25 @@ namespace sek::adt
 				case state_type::CHAR:
 				case state_type::INT:
 				case state_type::FLOAT: std::construct_at(&literal_value_storage, other.literal_value_storage); break;
-				case state_type::STRING: std::construct_at(&string_value, other.string_value); break;
-				case state_type::BINARY: std::construct_at(&binary_value, other.binary_value); break;
-				case state_type::ARRAY: std::construct_at(&sequence_value, other.sequence_value); break;
-				case state_type::TABLE: std::construct_at(&table_value, other.table_value); break;
+				case state_type::STRING: std::construct_at(&string_value, std::move(other.string_value)); break;
+				case state_type::BINARY: std::construct_at(&binary_value, std::move(other.binary_value)); break;
+				case state_type::ARRAY: std::construct_at(&sequence_value, std::move(other.sequence_value)); break;
+				case state_type::TABLE: std::construct_at(&table_value, std::move(other.table_value)); break;
+				default: break;
+			}
+		}
+		SEK_ADT_NODE_CONSTEXPR void move_assign_from(node &&other) noexcept
+		{
+			switch (node_state = other.state())
+			{
+				case state_type::BOOL:
+				case state_type::CHAR:
+				case state_type::INT:
+				case state_type::FLOAT: literal_value_storage = other.literal_value_storage; break;
+				case state_type::STRING: string_value = std::move(other.string_value); break;
+				case state_type::BINARY: binary_value = std::move(other.binary_value); break;
+				case state_type::ARRAY: sequence_value = std::move(other.sequence_value); break;
+				case state_type::TABLE: table_value = std::move(other.table_value); break;
 				default: break;
 			}
 		}
