@@ -7,7 +7,6 @@
 #include <bit>
 #include <stdexcept>
 
-#include "type_id.hpp"
 #include "type_info.hpp"
 
 namespace sek
@@ -40,50 +39,68 @@ namespace sek
 	template<typename T>
 	concept is_object_type = std::is_base_of_v<basic_object, T>;
 
+	namespace detail
+	{
+		template<is_object_type To, is_object_type From>
+		constexpr To *object_cast_impl(From * ptr) noexcept requires(is_preserving_cv_cast_v<From, To>)
+		{
+			if (!ptr) [[unlikely]]
+				return nullptr;
+
+			using DecayFrom = std::decay_t<From>;
+			using DecayTo = std::decay_t<To>;
+
+			if constexpr (std::same_as<DecayFrom, DecayTo> || std::is_base_of_v<DecayTo, DecayFrom>)
+				return static_cast<To *>(ptr);
+			else
+			{
+				auto from = static_cast<transfer_cv_t<From, basic_object> *>(ptr);
+				if (from->type().template inherits<DecayTo>()) [[likely]]
+					return static_cast<transfer_cv_t<From, To> *>(from);
+				else
+					return nullptr;
+			}
+		}
+	}	 // namespace detail
+
 	/** @brief Casts `basic_object` from the `From` type to the `To` type.
 	 *
-	 * Object cast from reference of object type `A` (`a`) to object type `B` (`b`) follows these rules:
+	 * Object cast from reference or pointer of object type `A` (`a`) to reference or pointer of object type `B` (`b`)
+	 * follows these rules:
 	 * - Otherwise, if `std::decay_t<B>` is the same as `std::decay_t<A>`, equivalent to `static_cast<decltype(b)>(a)`.
 	 * - Otherwise, if `std::decay_t<B>` is a parent of `std::decay_t<A>`, equivalent to `static_cast<decltype(b)>(a)`.
 	 * - Otherwise, if `std::decay_t<B>` is a parent of the actual type of `a`, returns a pointer/reference to `B`
 	 * referencing the object stored at `a`.
 	 * - Otherwise, the cast is invalid.
 	 *
-	 * @param ptr Pointer to the `From` object.
-	 * @return `ptr` casted to the `To` type, or nullptr if such cast is not possible.
+	 * @param obj Pointer or reference to the `From` object.
+	 * @return `obj` casted to the `To` type. If `obj` is a pointer and such cast is not possible, returns nullptr.
+	 * @throw `object_cast_error` If such cast is not possible and `obj` is a reference type.
 	 * @note `object_cast` can not be used to cast away const-ness or volatility. Use `const_cast` instead. */
-	template<is_object_type To, is_object_type From>
-	constexpr To *object_cast(From *ptr) noexcept requires(is_preserving_cv_cast_v<From, To>)
+	template<typename To, typename From>
+	constexpr To object_cast(From *obj) noexcept
 	{
-		if (!ptr) [[unlikely]]
-			return nullptr;
-
-		using DecayFrom = std::decay_t<From>;
-		using DecayTo = std::decay_t<To>;
-
-		if constexpr (std::same_as<DecayFrom, DecayTo> || std::is_base_of_v<DecayTo, DecayFrom>)
-			return static_cast<To *>(ptr);
-		else
-		{
-			auto from = static_cast<transfer_cv_t<From, basic_object> *>(ptr);
-			auto to = from->type().template inherits<DecayTo>() ? static_cast<transfer_cv_t<To, basic_object> *>(from) : nullptr;
-			return static_cast<To *>(to);
-		}
+		return detail::object_cast_impl<std::remove_pointer_t<To>>(obj);
 	}
-	/** @copybrief object_cast
-	 * @copydetails object_cast
-	 *
-	 * @param ref Reference to the `From` object.
-	 * @return `ref` casted to the `To` type.
-	 * @throw `object_cast_error` If such cast is not possible.
-	 * @note `object_cast` can not be used to cast away const-ness or volatility. Use `const_cast` instead. */
-	template<is_object_type To, is_object_type From>
-	constexpr To &object_cast(From &ptr) noexcept
+	/** @copydoc object_cast */
+	template<typename To, typename From>
+	constexpr To object_cast(From &obj) requires(std::is_lvalue_reference_v<To>)
 	{
-		if (auto result = object_cast<To>(std::addressof(ptr)); !result) [[unlikely]]
+		using U = std::remove_reference_t<To>;
+		if (auto result = object_cast<U *>(std::addressof(obj)); !result) [[unlikely]]
 			throw object_cast_error();
 		else
 			return *result;
+	}
+	/** @copydoc object_cast */
+	template<typename To, typename From>
+	constexpr To object_cast(From &&obj) requires(std::is_rvalue_reference_v<To>)
+	{
+		using U = std::remove_reference_t<To>;
+		if (auto result = object_cast<U *>(std::addressof(obj)); !result) [[unlikely]]
+			throw object_cast_error();
+		else
+			return std::forward<U>(*result);
 	}
 }	 // namespace sek
 

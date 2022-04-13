@@ -4,6 +4,10 @@
 
 #pragma once
 
+#include "meta_containers.hpp"
+#include "meta_util.hpp"
+#include "type_id.hpp"
+
 namespace sek::detail
 {
 	struct type_data

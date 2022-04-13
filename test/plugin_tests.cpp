@@ -79,7 +79,7 @@ TEST(plugin_tests, plugin_object_test)
 	EXPECT_NE((*attribute).data<sek::test::test_attribute>(), nullptr);
 	EXPECT_TRUE((*attribute).data<sek::test::test_attribute>()->b);
 
-	auto test_base = sek::object_cast<sek::test::test_toplevel_base>(obj);
+	auto *test_base = sek::object_cast<sek::test::test_toplevel_base *>(obj);
 	EXPECT_NE(test_base, nullptr);
 	EXPECT_EQ(test_base->i, 90);
 
