@@ -75,17 +75,16 @@ namespace sek
 		template<typename KeyType, typename ValueType, typename KeyExtract>
 		struct hash_table_bucket
 		{
-			constexpr static std::uintptr_t empty_value = 0;
-			constexpr static std::uintptr_t tombstone_value = 1;
+			[[nodiscard]] constexpr static auto tombstone_ptr() noexcept { return std::bit_cast<ValueType *>(1); }
 
 			constexpr hash_table_bucket() noexcept = default;
 			constexpr explicit hash_table_bucket(ValueType *ptr, std::size_t hash) noexcept : hash(hash), data(ptr) {}
 
-			[[nodiscard]] constexpr bool is_empty() const noexcept { return sentinel == empty_value; }
-			[[nodiscard]] constexpr bool is_tombstone() const noexcept { return sentinel == tombstone_value; }
+			[[nodiscard]] constexpr bool is_empty() const noexcept { return data == nullptr; }
+			[[nodiscard]] constexpr bool is_tombstone() const noexcept { return data == tombstone_ptr(); }
 			[[nodiscard]] constexpr bool is_occupied() const noexcept { return !is_empty() && !is_tombstone(); }
-			constexpr void set_empty() noexcept { sentinel = empty_value; }
-			constexpr void set_tombstone() noexcept { sentinel = tombstone_value; }
+			constexpr void set_empty() noexcept { data = nullptr; }
+			constexpr void set_tombstone() noexcept { data = tombstone_ptr(); }
 
 			[[nodiscard]] constexpr ValueType &value() const noexcept { return *data; }
 			[[nodiscard]] constexpr const KeyType &key() const noexcept { return KeyExtract{}(value()); }
@@ -94,16 +93,11 @@ namespace sek
 			{
 				using std::swap;
 				swap(hash, other.hash);
-				swap(sentinel, other.sentinel);
+				swap(data, other.data);
 			}
 
 			std::size_t hash = 0;
-
-			union
-			{
-				std::uintptr_t sentinel = empty_value;
-				ValueType *data;
-			};
+			ValueType *data;
 		};
 
 		template<typename KeyType, typename ValueType, typename KeyHash, typename KeyCompare, typename KeyExtract, typename Allocator>
