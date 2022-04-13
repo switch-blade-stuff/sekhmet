@@ -7,56 +7,11 @@
 #include <bit>
 #include <stdexcept>
 
-#include "meta_containers.hpp"
 #include "type_id.hpp"
+#include "type_info.hpp"
 
 namespace sek
 {
-	namespace detail
-	{
-		struct object_data
-		{
-			struct attribute
-			{
-				template<typename T>
-				constexpr explicit attribute(const T *data) noexcept
-					: name(type_name<T>()), data(static_cast<const void *>(data))
-				{
-				}
-
-				meta_view<char> name;
-				const void *data;
-			};
-
-			template<auto... Vs>
-			[[nodiscard]] constexpr static meta_view<attribute> extract_attributes() noexcept
-			{
-				if constexpr (sizeof...(Vs) != 0)
-				{
-					constexpr auto &values = filter_array_constant<attribute, Vs...>::value;
-					return meta_view<attribute>{values};
-				}
-				else
-					return {};
-			}
-			template<auto... Vs>
-			[[nodiscard]] constexpr static meta_view<meta_view<char>> extract_parents() noexcept
-			{
-				if constexpr (sizeof...(Vs) != 0)
-				{
-					constexpr auto &values = filter_array_constant<meta_view<char>, Vs...>::value;
-					return meta_view<meta_view<char>>{values};
-				}
-				else
-					return {};
-			}
-
-			type_id tid;
-			meta_view<meta_view<char>> parents;
-			meta_view<attribute> attributes;
-		};
-	}	 // namespace detail
-
 	/** @brief Exception thrown on invalid object cast. */
 	class object_cast_error : public std::runtime_error
 	{
@@ -71,55 +26,14 @@ namespace sek
 	{
 		constexpr virtual ~basic_object() = 0;
 
+		/** Returns type info of this object. */
+		[[nodiscard]] type_info type() const noexcept { return internal_get_type_info(); }
 		/** Returns type id of this object. */
-		[[nodiscard]] type_id tid() const noexcept { return internal_get_object_data_instance().tid; }
-
-		/** Returns true if the object inherits from the specified type. */
-		[[nodiscard]] bool inherits(type_id id) const noexcept
-		{
-			auto &data = internal_get_object_data_instance();
-			return std::any_of(data.parents.begin(),
-							   data.parents.end(),
-							   [name = id.name()](auto p) noexcept -> bool
-							   { return std::equal(p.begin(), p.end(), name.begin(), name.end()); });
-		}
-		/** Returns true if the object inherits from `T`. */
-		template<typename T>
-		[[nodiscard]] bool inherits() const noexcept
-		{
-			constexpr auto id = type_id::identify<T>();
-			return inherits(id);
-		}
-
-		/** Returns true if the object has an attribute of a specific type. */
-		[[nodiscard]] bool has_attribute(type_id id) const noexcept { return get_attribute(id) != nullptr; }
-		/** Returns true if the object has an attribute of type `T`. */
-		template<typename T>
-		[[nodiscard]] bool has_attribute() const noexcept
-		{
-			constexpr auto id = type_id::identify<T>();
-			return get_attribute(id);
-		}
-		/** If the type has an attribute of type `T`, returns that attribute, otherwise, returns nullptr. */
-		template<typename T>
-		[[nodiscard]] const T *get_attribute() const noexcept
-		{
-			constexpr auto id = type_id::identify<T>();
-			return static_cast<const T *>(get_attribute(id));
-		}
+		[[nodiscard]] type_id tid() const noexcept { return type().tid(); }
 
 	protected:
-		/** For internal use only! */
-		[[nodiscard]] virtual const detail::object_data &internal_get_object_data_instance() const noexcept = 0;
-
-	private:
-		[[nodiscard]] const void *get_attribute(type_id id) const noexcept
-		{
-			auto name = id.name();
-			for (auto &attr : internal_get_object_data_instance().attributes)
-				if (std::equal(attr.name.begin(), attr.name.end(), name.begin(), name.end())) return attr.data;
-			return nullptr;
-		}
+		/** @warning For internal use only! */
+		[[nodiscard]] virtual type_info internal_get_type_info() const noexcept = 0;
 	};
 	constexpr basic_object::~basic_object() = default;
 
@@ -152,7 +66,7 @@ namespace sek
 		else
 		{
 			auto from = static_cast<transfer_cv_t<From, basic_object> *>(ptr);
-			auto to = from->template inherits<DecayTo>() ? static_cast<transfer_cv_t<To, basic_object> *>(from) : nullptr;
+			auto to = from->type().template inherits<DecayTo>() ? static_cast<transfer_cv_t<To, basic_object> *>(from) : nullptr;
 			return static_cast<To *>(to);
 		}
 	}
@@ -173,33 +87,6 @@ namespace sek
 	}
 }	 // namespace sek
 
-/** Macro used to define an object's parent type for use with `SEK_OBJECT_TYPE`. */
-#define SEK_OBJECT_PARENT(T) sek::meta_view<char>(sek::type_name<T>())
-/** Macro used to define an object's attribute for use with `SEK_OBJECT_TYPE`. */
-#define SEK_OBJECT_ATTRIBUTE(V) sek::detail::object_data::attribute(&sek::auto_constant<V>::value)
-
-/** Macro used to declare object type's body. */
-#define SEK_DECLARE_OBJECT_TYPE                                                                                        \
-public:                                                                                                                \
-	const sek::detail::object_data &internal_get_object_data_instance() const noexcept override;                       \
-                                                                                                                       \
-private:
-
-/** Macro used to define object type.
- * @param T Object type being declared.
- * @param name Name of the object type.
- * Optionally, accepts any amount of `SEK_OBJECT_PARENT` & `SEK_OBJECT_ATTRIBUTE` arguments. */
-#define SEK_DEFINE_OBJECT_TYPE(T, name, ...)                                                                           \
-	SEK_SET_TYPE_ID(T, name)                                                                                           \
-	const sek::detail::object_data &T::internal_get_object_data_instance() const noexcept                              \
-	{                                                                                                                  \
-		constinit static const auto value = []() noexcept -> sek::detail::object_data                                  \
-		{                                                                                                              \
-			return sek::detail::object_data{                                                                           \
-				.tid = type_id::identify<T>(),                                                                         \
-				.parents = sek::detail::object_data::extract_parents<__VA_ARGS__>(),                                   \
-				.attributes = sek::detail::object_data::extract_attributes<__VA_ARGS__>(),                             \
-			};                                                                                                         \
-		}();                                                                                                           \
-		return value;                                                                                                  \
-	}
+/** Macro used to initialize object type's body. */
+#define SEK_OBJECT_BODY                                                                                                \
+	::sek::type_info internal_get_type_info() const noexcept override { return type_info::get<decltype(*this)>(); }

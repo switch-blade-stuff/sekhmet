@@ -6,7 +6,7 @@
 
 #include <algorithm>
 
-#include "../math/detail/util.hpp"
+#include "sekhmet/math/detail/util.hpp"
 #include "alloc_util.hpp"
 #include "assert.hpp"
 #include "ebo_base_helper.hpp"

@@ -6,6 +6,7 @@
 
 #include "sekhmet/object.hpp"
 #include "sekhmet/plugin.hpp"
+#include "sekhmet/type_info.hpp"
 
 #ifdef TEST_PLUGIN_EXPORT
 #define TEST_PLUGIN_API SEK_API_EXPORT
@@ -35,7 +36,7 @@ namespace sek::test
 	};
 	struct test_middle_base : test_toplevel_base
 	{
-		SEK_DECLARE_OBJECT_TYPE
+		SEK_OBJECT_BODY
 
 	public:
 		constexpr test_middle_base() noexcept = default;
@@ -44,7 +45,7 @@ namespace sek::test
 
 	struct test_plugin_object : test_middle_base
 	{
-		SEK_DECLARE_OBJECT_TYPE
+		SEK_OBJECT_BODY
 
 	public:
 		constexpr test_plugin_object() noexcept = default;
@@ -52,9 +53,10 @@ namespace sek::test
 	};
 }	 // namespace sek::test
 
-SEK_DEFINE_OBJECT_TYPE(sek::test::test_middle_base, "test_middle_base")
-SEK_DEFINE_OBJECT_TYPE(sek::test::test_plugin_object,
-					   "test_object",
-					   SEK_OBJECT_PARENT(test_toplevel_base),
-					   SEK_OBJECT_PARENT(test_middle_base),
-					   SEK_OBJECT_ATTRIBUTE(test_attribute{true}))
+SEK_REFLECT_TYPE(sek::test::test_middle_base) { parents<sek::test::test_toplevel_base>(); }
+
+SEK_REFLECT_TYPE(sek::test::test_plugin_object)
+{
+	parents<sek::test::test_middle_base>();
+	attributes<sek::test::test_attribute{true}>();
+}

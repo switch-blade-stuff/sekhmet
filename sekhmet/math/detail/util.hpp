@@ -7,7 +7,7 @@
 #include <cmath>
 #include <limits>
 
-#include "../../detail/define.h"
+#include "sekhmet/detail/define.h"
 #include <type_traits>
 
 namespace sek::math

@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "../../detail/define.h"
+#include "sekhmet/detail/define.h"
 
 namespace sek::math
 {

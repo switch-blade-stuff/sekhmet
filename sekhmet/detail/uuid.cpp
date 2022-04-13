@@ -7,8 +7,8 @@
 #include <chrono>
 #include <random>
 
-#include "../math/detail/sysrandom.hpp"
-#include "../math/detail/xoroshiro.hpp"
+#include "sekhmet/math/detail/sysrandom.hpp"
+#include "sekhmet/math/detail/xoroshiro.hpp"
 
 namespace sek
 {

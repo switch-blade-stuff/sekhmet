@@ -4,7 +4,7 @@
 
 #include "thread_pool.hpp"
 
-#include "../math/detail/util.hpp"
+#include "sekhmet/math/detail/util.hpp"
 #include "assert.hpp"
 
 namespace sek

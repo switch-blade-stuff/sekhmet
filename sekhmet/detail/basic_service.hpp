@@ -6,6 +6,8 @@
 
 #include <atomic>
 
+#include "define.h"
+
 namespace sek
 {
 	/** @brief Base CRTP type for singleton systems.

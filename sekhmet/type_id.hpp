@@ -1,15 +1,7 @@
 //
-// Created by switchblade on 2022-01-26.
+// Created by switch_blade on 2022-04-12.
 //
 
 #pragma once
 
 #include "detail/type_id.hpp"
-
-namespace sek::literals
-{
-	[[nodiscard]] constexpr type_id operator""_tid(const char *str, std::size_t len) noexcept
-	{
-		return type_id{{str, len}};
-	}
-}	 // namespace sek::literals

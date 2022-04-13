@@ -8,10 +8,9 @@
 #include <filesystem>
 #include <vector>
 
-#include "adt/node.hpp"
-#include "adt/serialize_impl.hpp"
 #include "basic_service.hpp"
 #include "filemap.hpp"
+#include "hmap.hpp"
 #include "hset.hpp"
 #include <shared_mutex>
 
@@ -36,9 +35,6 @@ namespace sek
 			virtual ~asset_record_base() = default;
 			[[nodiscard]] virtual filemap map_file(filemap::openmode mode) const = 0;
 
-			virtual void serialize(adt::node &) const = 0;
-			virtual void deserialize(adt::node &&) = 0;
-
 			package_fragment *parent = nullptr;
 
 			std::string id;
@@ -50,9 +46,6 @@ namespace sek
 			~loose_asset_record() final = default;
 			[[nodiscard]] filemap map_file(filemap::openmode mode) const final;
 
-			SEK_API void serialize(adt::node &) const final;
-			SEK_API void deserialize(adt::node &&) final;
-
 			std::filesystem::path file_path;
 			std::filesystem::path metadata_path;
 		};
@@ -61,9 +54,6 @@ namespace sek
 			explicit archive_asset_record(package_fragment *parent) noexcept : asset_record_base(parent) {}
 			~archive_asset_record() final = default;
 			[[nodiscard]] filemap map_file(filemap::openmode mode) const final;
-
-			SEK_API void serialize(adt::node &) const final;
-			SEK_API void deserialize(adt::node &&) final;
 
 			std::ptrdiff_t file_offset = 0;
 			std::size_t file_size = 0;
@@ -90,9 +80,6 @@ namespace sek
 				}
 				constexpr explicit record_handle(asset_record_base *ptr) noexcept : ptr(ptr) {}
 				~record_handle() { delete ptr; }
-
-				void serialize(adt::node &node) const { ptr->serialize(node); }
-				void deserialize(adt::node &&node) const { ptr->deserialize(std::move(node)); }
 
 				asset_record_base *ptr = nullptr;
 			};
@@ -123,9 +110,6 @@ namespace sek
 			virtual void acquire();
 			virtual void release();
 			virtual master_package *get_master() { return master; }
-
-			SEK_API virtual void serialize(adt::node &) const;
-			SEK_API virtual void deserialize(adt::node &&);
 
 			union
 			{
@@ -167,9 +151,6 @@ namespace sek
 					delete this;
 			}
 			master_package *get_master() final { return this; }
-
-			SEK_API void serialize(adt::node &) const final;
-			SEK_API void deserialize(adt::node &&) final;
 
 			package_fragment &add_fragment(std::filesystem::path &&path, flags_t flags)
 			{

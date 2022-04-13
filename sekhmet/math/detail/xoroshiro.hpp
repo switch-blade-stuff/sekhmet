@@ -8,7 +8,7 @@
 #include <bit>
 #include <limits>
 
-#include "../../detail/define.h"
+#include "sekhmet/detail/define.h"
 
 namespace sek::math
 {

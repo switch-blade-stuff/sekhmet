@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "../math/detail/util.hpp"
+#include "sekhmet/math/detail/util.hpp"
 #include "meta_util.hpp"
 
 namespace sek

@@ -168,7 +168,7 @@ namespace sek
 	};
 }	 // namespace sek
 
-namespace sek_impl
+namespace instantiation
 {
 	template<sek::basic_static_string Name>
 	struct plugin_instance : sek::plugin
@@ -207,7 +207,7 @@ namespace sek_impl
 
 		using plugin::plugin;
 	};
-}	 // namespace sek_impl
+}	 // namespace instantiation
 
 /** Declares a new plugin with the specified name and metadata.
  * Metadata (if any) should be specified via `metadata<Value>` template.
@@ -220,25 +220,27 @@ namespace sek_impl
  * 						metadata<my_other_type>
  * 					 )
  * ``` */
-#define SEK_DECLARE_PLUGIN(name, ...)                                                                                  \
-	template<>                                                                                                         \
-	constinit sek_impl::plugin_instance<name> sek_impl::plugin_instance<name>::instance =                              \
-		plugin_instance<name>::instantiate<(__VA_ARGS__)>();                                                           \
-	template<>                                                                                                         \
-	const typename sek_impl::plugin_instance<name>::registrar_t sek_impl::plugin_instance<name>::registrar = {};
+#define SEK_DECLARE_PLUGIN(name, ...)                                                                                   \
+	template<>                                                                                                          \
+	constinit instantiation::plugin_instance<name> instantiation::plugin_instance<name>::instance = \
+		plugin_instance<name>::instantiate<(__VA_ARGS__)>();                                                            \
+	template<>                                                                                                          \
+	const typename instantiation::plugin_instance<name>::registrar_t                                          \
+		instantiation::plugin_instance<name>::registrar = {};
 
 /** Executes the following code when the corresponding execution queue is invoked. */
-#define SEK_ON_PLUGIN_QUEUE(name, queue)                                                                               \
-	namespace sek_impl                                                                                                 \
-	{                                                                                                                  \
-		template<>                                                                                                     \
-		template<>                                                                                                     \
-		const typename plugin_instance<name>::exec_node<queue, __FILE__, __LINE__>                                     \
-			plugin_instance<name>::exec_node<queue, __FILE__, __LINE__>::node_instance = {};                           \
-	}                                                                                                                  \
-	template<>                                                                                                         \
-	template<>                                                                                                         \
-	SEK_API_EXPORT void sek_impl::plugin_instance<name>::exec_node<queue, __FILE__, __LINE__>::operator()() const noexcept
+#define SEK_ON_PLUGIN_QUEUE(name, queue)                                                                                   \
+	namespace instantiation                                                                                      \
+	{                                                                                                                      \
+		template<>                                                                                                         \
+		template<>                                                                                                         \
+		const typename plugin_instance<name>::exec_node<queue, __FILE__, __LINE__>                                         \
+			plugin_instance<name>::exec_node<queue, __FILE__, __LINE__>::node_instance = {};                               \
+	}                                                                                                                      \
+	template<>                                                                                                             \
+	template<>                                                                                                             \
+	SEK_API_EXPORT void instantiation::plugin_instance<name>::exec_node<queue, __FILE__, __LINE__>::operator()() \
+		const noexcept
 
 /** Executes the following code when a plugin is enabled. */
 #define SEK_ON_PLUGIN_ENABLE(name) SEK_ON_PLUGIN_QUEUE(name, 0)
