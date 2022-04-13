@@ -11,12 +11,19 @@ archive & advances to the next entry on success. On failure, it throws `archive_
 the archive being exhausted (no more entries left), entry type mismatch, and any other implementation-defined
 error. `operator>>` simply calls `read`.
 
+Read has 2 overloads: `void read(T &)` uses the passed reference, while `T read()` uses a default-constructed instance &
+returns it.
+
 To attempt a read without causing an exception, `try_read` function is provided. This function attempts to read the next
 entry and returns `true` if read successfully. If the read has failed, `try_read` returns false and the archive state is
 left unmodified.
 
 Input archives can be treated as containers, who's `begin` & `end` member functions return iterators to entries of the
-archive. These iterators can be used to read entries by using `read` & `try_read` functions.
+archive. Entry iterators must implement the `forward_iterator` concept and their `operator*` must return an
+implementation-defined handle to the entry. Entry handles should have `read`, `operator>>` & `try_read` member
+functions, which would preform the corresponding operations on the handle. They should also have a perfect explicit cast
+operator, which preform a read on the entry. It should also be possible to directly call `read`, `operator>>`
+& `try_read` on the entry iterator, which would forward the call to the entry.
 
 ### Modifiers
 
