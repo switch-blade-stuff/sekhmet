@@ -34,6 +34,8 @@ namespace sek::serialization
 
 		std::default_initializable<A>;
 		std::movable<A>;
+		std::constructible_from<A, FILE *>;
+		std::constructible_from<A, const char *, std::size_t>;
 		std::constructible_from<A, std::streambuf *>;
 		std::constructible_from<A, std::istream &>;
 
@@ -54,6 +56,8 @@ namespace sek::serialization
 
 		std::default_initializable<A>;
 		std::movable<A>;
+		std::constructible_from<A, FILE *>;
+		std::constructible_from<A, char *, std::size_t>;
 		std::constructible_from<A, std::streambuf *>;
 		std::constructible_from<A, std::ostream &>;
 
