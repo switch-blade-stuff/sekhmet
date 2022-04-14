@@ -19,11 +19,9 @@ entry and returns `true` if read successfully. If the read has failed, `try_read
 left unmodified.
 
 Input archives can be treated as containers, who's `begin` & `end` member functions return iterators to entries of the
-archive. Entry iterators must implement the `forward_iterator` concept and their `operator*` must return an
-implementation-defined handle to the entry. Entry handles should have `read`, `operator>>` & `try_read` member
-functions, which would preform the corresponding operations on the handle. They should also have a perfect explicit cast
-operator, which preform a read on the entry. It should also be possible to directly call `read`, `operator>>`
-& `try_read` on the entry iterator, which would forward the call to the entry.
+archive. Entry iterators must implement the `forward_iterator` concept and point to an implementation-defined entries.
+Entries should have `read`, `operator>>` & `try_read` member functions, which would preform the corresponding operations
+on the handle. They should also have a perfect explicit cast operator, which preforms a read on the entry.
 
 ### Modifiers
 
@@ -32,18 +30,60 @@ modifiers is defined by the archive's policy.
 
 Following modifiers can be supported by output archives:
 
-* `named_entry(name, value)` - Creates or updates an entry with a given explicit name. Supported only if the archive
+* `named_entry{name, value}` - Creates or updates an entry with a given explicit name. Supported only if the archive
   has `named_entry_policy` entry policy.
-* `sequence(size)` - Starts a sequence (array of entries) with a fixed size. Modifier contains size of the sequence.
+* `sequence{size}` - Starts a sequence (array of entries) with a fixed size. Modifier contains size of the sequence.
   Supported only if the archive has `fixed_sequence_policy` sequence policy.
-* `sequence()` - Starts a sequence (array of entries) with unspecified size. Must be supported by all output archives.
+* `sequence{}` - Starts a sequence (array of entries) with unspecified size. Must be supported by all output archives.
 
 Following modifiers can be supported by input archives:
 
-* `named_entry(name, out_value)` - Seeks & reads an entry with a given explicit name. Fails if such entry is not
-  present. Supported only if the archive has `named_entry_policy` entry policy.
-* `sequence(out_size)` - Reads size of the sequence (array of entries). Fails if the current entry does not have a
-  size (either the entry is not a sequence or it does not have a fixed size). Supported only if the archive
+* `named_entry{name, value}` - Seeks & reads an entry with a given explicit name. Fails if such entry is not present.
+  Supported only if the archive has `named_entry_policy` entry policy.
+* `sequence{size}` - Reads size of the sequence (array of entries). Fails if the current entry does not have a size (
+  either the entry is not a sequence or it does not have a fixed size). Supported only if the archive
   has `fixed_sequence_policy` sequence policy.
 
 Archives may ignore unsupported modifiers.
+
+Modifier types are defined as follows:
+
+* ```cpp
+  template<typename T>
+  struct named_entry
+  {
+    constexpr named_entry(std::string_view name, T &&value) noexcept : name(name), value(std::forward<T>(value)) {}
+    constexpr named_entry(const char *name, T &&value) noexcept : name(name), value(std::forward<T>(value)) {}
+
+    std::string_view name;
+    T value;
+  };
+
+  template<typename T>
+  named_entry(std::string_view name, T &&value) -> named_entry<T>;
+  template<typename T>
+  named_entry(const char *name, T &&value) -> named_entry<T>;
+  ```
+  `named_entry` stores the name of the entry as the `std::string_view name` member and perfectly-forwards value of the
+  entry as the `value` member. This means that a named entry may contain a lvalue reference.
+
+* ```cpp
+  template<typename...>
+  struct sequence;
+  
+  template<>
+  struct sequence<> {};
+  sequence() -> sequence<>;
+
+  template<std::integral T>
+  struct sequence<T>
+  {
+    constexpr explicit sequence(T &&value) noexcept : value(std::forward<T>(value)) {}
+
+    T value;
+  };
+  template<typename T>
+  sequence(T &&value) -> sequence<T>;
+  ```
+  `sequence` may be an empty type, in which case it indicates a dynamic-size sequence, or, in case it is used to
+  indicate a fixed-size sequence, the size is perfectly-forwarded as the `value` member.

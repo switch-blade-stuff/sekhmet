@@ -9,7 +9,7 @@
 
 #include "meta_containers.hpp"
 #include "static_string.hpp"
-#include "type_id.hpp"
+#include "version.hpp"
 
 namespace sek
 {
@@ -45,22 +45,6 @@ namespace sek
 			INITIAL = DISABLED,
 		};
 
-	protected:
-		struct metadata_t
-		{
-			template<auto V, typename T = std::remove_const_t<decltype(V)>>
-			constexpr static metadata_t get() noexcept
-			{
-				return {
-					&sek::auto_constant<V>::value,
-					sek::type_name<T>(),
-				};
-			}
-
-			const void *data;
-			meta_view<char> type_name;
-		};
-
 	private:
 		struct plugin_db_entry
 		{
@@ -87,22 +71,15 @@ namespace sek
 			[[nodiscard]] constexpr operator bool() const noexcept { return !empty(); }
 
 			/** Returns current status of the plugin. */
-			[[nodiscard]] status_t status() const noexcept { return entry->status; }
+			[[nodiscard]] constexpr status_t status() const noexcept { return entry->status; }
 
 			/** Returns name of the plugin. */
 			[[nodiscard]] constexpr std::string_view name() const noexcept { return entry->plugin_ptr->name; }
+			/** Returns version of the plugin. */
+			[[nodiscard]] constexpr version plugin_version() const noexcept { return entry->plugin_ptr->plugin_ver; }
 
-			/** Returns pointer to the specific metadata of the plugin.
-			 * @tparam T Type of the metadata.
-			 * @return Pointer to the corresponding metadata or nullptr if such metadata was not found. */
-			template<typename T>
-			[[nodiscard]] constexpr const T *metadata() const noexcept
-			{
-				for (const auto &meta : entry->plugin_ptr->metadata_view)
-					if (std::string_view{meta.type_name.begin(), meta.type_name.end()} == type_name<T>())
-						return static_cast<const T *>(meta.data);
-				return nullptr;
-			}
+			/** Invokes the corresponding plugin queue.
+			 * @note Negative integers are ignored. */
 
 		private:
 			plugin_db_entry *entry = nullptr;
@@ -145,13 +122,13 @@ namespace sek
 			const exec_t *next;
 		};
 
-		constexpr explicit plugin(meta_view<metadata_t> metadata, std::string_view name) noexcept
-			: metadata_view(metadata), name(name)
+		constexpr explicit plugin(std::string_view name, version plugin_ver) noexcept
+			: name(name), plugin_ver(plugin_ver)
 		{
 		}
 
-		static SEK_API void register_plugin(const plugin *p) noexcept;
-		static SEK_API void drop_plugin(const plugin *p) noexcept;
+		static SEK_API void add_plugin(const plugin *p) noexcept;
+		static SEK_API void remove_plugin(const plugin *p) noexcept;
 
 		const exec_t *exec_queues[queue_count] = {nullptr};
 
@@ -163,8 +140,8 @@ namespace sek
 		void invoke_enable_queue() const noexcept { invoke_queue(0); }
 		void invoke_disable_queue() const noexcept { invoke_queue(1); }
 
-		meta_view<metadata_t> metadata_view = {};
 		std::string_view name = {};
+		version plugin_ver = {};
 	};
 }	 // namespace sek
 
@@ -173,7 +150,7 @@ namespace instantiation
 	template<sek::basic_static_string Name>
 	struct plugin_instance : sek::plugin
 	{
-		template<std::size_t Queue, sek::basic_static_string File, std::size_t Line>
+		template<std::size_t Queue, sek::basic_static_string, std::size_t>
 		struct exec_node final : plugin::exec_t
 		{
 			static const exec_node node_instance;
@@ -186,20 +163,15 @@ namespace instantiation
 
 		struct registrar_t
 		{
-			registrar_t() noexcept { register_plugin(&instance); }
-			~registrar_t() noexcept { drop_plugin(&instance); }
+			registrar_t() noexcept { add_plugin(&instance); }
+			~registrar_t() noexcept { remove_plugin(&instance); }
 		};
 
-		template<auto Value>
-		constexpr static metadata_t metadata = metadata_t::get<Value>();
-
-		template<metadata_t... Args>
-		constexpr static plugin_instance instantiate() noexcept
+		constexpr static plugin_instance instantiate(sek::version plugin_ver) noexcept
 		{
-			constexpr const auto &meta_array = sek::array_constant<metadata_t, Args...>::value;
 			constexpr const auto &name = sek::detail::plugin_name_instance<Name>::value;
 
-			return plugin_instance{{meta_array}, {name.begin(), name.end()}};
+			return plugin_instance{{name.begin(), name.end()}, plugin_ver};
 		}
 
 		constinit static plugin_instance instance;
@@ -209,41 +181,61 @@ namespace instantiation
 	};
 }	 // namespace instantiation
 
-/** Declares a new plugin with the specified name and metadata.
- * Metadata (if any) should be specified via `metadata<Value>` template.
+/** Declares a new plugin with the specified name and version.
+ * Must be placed in a source file to avoid multiple instantiation.
  *
  * @example
- * ```cpp
- * SEK_DECLARE_PLUGIN(
- * 						"my_plugin",
- * 						metadata<my_type>,
- * 						metadata<my_other_type>
- * 					 )
- * ``` */
-#define SEK_DECLARE_PLUGIN(name, ...)                                                                                   \
-	template<>                                                                                                          \
-	constinit instantiation::plugin_instance<name> instantiation::plugin_instance<name>::instance = \
-		plugin_instance<name>::instantiate<(__VA_ARGS__)>();                                                            \
-	template<>                                                                                                          \
-	const typename instantiation::plugin_instance<name>::registrar_t                                          \
-		instantiation::plugin_instance<name>::registrar = {};
+ * @code{.cpp}
+ * SEK_DECLARE_PLUGIN("my_plugin", {0, 0, 1})
+ * @endcode */
+#define SEK_DECLARE_PLUGIN(name, ver)                                                                                  \
+	namespace instantiation                                                                                            \
+	{                                                                                                                  \
+		template<>                                                                                                     \
+		constinit plugin_instance<name> plugin_instance<name>::instance = plugin_instance<name>::instantiate(ver);     \
+		template<>                                                                                                     \
+		const typename plugin_instance<name>::registrar_t plugin_instance<name>::registrar = {};                       \
+	}
 
-/** Executes the following code when the corresponding execution queue is invoked. */
-#define SEK_ON_PLUGIN_QUEUE(name, queue)                                                                                   \
-	namespace instantiation                                                                                      \
-	{                                                                                                                      \
-		template<>                                                                                                         \
-		template<>                                                                                                         \
-		const typename plugin_instance<name>::exec_node<queue, __FILE__, __LINE__>                                         \
-			plugin_instance<name>::exec_node<queue, __FILE__, __LINE__>::node_instance = {};                               \
-	}                                                                                                                      \
-	template<>                                                                                                             \
-	template<>                                                                                                             \
-	SEK_API_EXPORT void instantiation::plugin_instance<name>::exec_node<queue, __FILE__, __LINE__>::operator()() \
-		const noexcept
+#define SEK_DETAIL_ON_PLUGIN_QUEUE(name, queue)                                                                        \
+	namespace instantiation                                                                                            \
+	{                                                                                                                  \
+		template<>                                                                                                     \
+		template<>                                                                                                     \
+		const typename plugin_instance<name>::exec_node<queue, __FILE__, __LINE__>                                     \
+			plugin_instance<name>::exec_node<queue, __FILE__, __LINE__>::node_instance = {};                           \
+	}                                                                                                                  \
+	template<>                                                                                                         \
+	template<>                                                                                                         \
+	SEK_API_EXPORT void instantiation::plugin_instance<name>::exec_node<queue, __FILE__, __LINE__>::operator()() const noexcept
 
-/** Executes the following code when a plugin is enabled. */
-#define SEK_ON_PLUGIN_ENABLE(name) SEK_ON_PLUGIN_QUEUE(name, 0)
-
-/** Executes the following code when a plugin is disabled. */
-#define SEK_ON_PLUGIN_DISABLE(name) SEK_ON_PLUGIN_QUEUE(name, 1)
+/** Executes the following code when a plugin is enabled.
+ *
+ * @example
+ * @code{.cpp}
+ * SEK_ON_PLUGIN_ENABLE("my_plugin")
+ * {
+ * 		std::cout << "initializing \"my_plugin \"...\n";
+ * 		try
+ * 		{
+ * 			initialize_plugin();
+ * 			std::cout << "initialization complete\n";
+ * 		}
+ * 		catch(...)
+ * 		{
+ * 			std::cout << "initialization failed\n";
+ * 		}
+ * }
+ * @endcode */
+#define SEK_ON_PLUGIN_ENABLE(name) SEK_DETAIL_ON_PLUGIN_QUEUE(name, 0)
+/** Executes the following code when a plugin is disabled.
+ *
+ * @example
+ * @code{.cpp}
+ * SEK_ON_PLUGIN_DISABLE("my_plugin")
+ * {
+ * 		std::cout << "finalizing \"my_plugin \"...\n";
+ * 		uninitialize_plugin();
+ * }
+ * @endcode */
+#define SEK_ON_PLUGIN_DISABLE(name) SEK_DETAIL_ON_PLUGIN_QUEUE(name, 1)

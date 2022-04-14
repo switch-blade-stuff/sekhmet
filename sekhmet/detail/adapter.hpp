@@ -138,13 +138,13 @@ namespace sek
 	 * and call signature (minus the instance type).
 	 *
 	 * Ex:
-	 * ```cpp
+	 * @code{.cpp}
 	 * 		struct size_proxy : adapter_proxy<std::size_t()>
 	 * 		{
 	 * 			template<typename T>
 	 * 			std::size_t operator()(const T &ptr) const noexcept { return ptr.size(); }
 	 * 		};
-	 * ```
+	 * @endcode
 	 *
 	 * `adapter` is lightweight, since it only stores a pointer to the bound
 	 * object and a pointer to per-type vtable generated during the binding.

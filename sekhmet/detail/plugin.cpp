@@ -30,7 +30,7 @@ namespace sek
 		};
 	}	 // namespace detail
 
-	void plugin::register_plugin(const plugin *p) noexcept
+	void plugin::add_plugin(const plugin *p) noexcept
 	{
 		SEK_ASSERT(p != nullptr);
 
@@ -39,7 +39,7 @@ namespace sek
 
 		db.plugin_table.try_emplace(p->name, status_t::INITIAL, p);
 	}
-	void plugin::drop_plugin(const plugin *p) noexcept
+	void plugin::remove_plugin(const plugin *p) noexcept
 	{
 		SEK_ASSERT(p != nullptr);
 

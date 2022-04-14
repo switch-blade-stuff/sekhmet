@@ -314,7 +314,7 @@ namespace sek
  * @note Type factory is invoked whenever an instance of `type_data` is instantiated for the type.
  *
  * @example
- * ```cpp
+ * @code{.cpp}
  * // my_type.hpp
  *
  * struct my_type : my_base_type
@@ -325,6 +325,6 @@ namespace sek
  * {
  * 	parents<my_base_type>();
  * }
- * ```*/
+ * @endcode */
 #define SEK_REFLECT_TYPE(...)                                                                                          \
 	SEK_GET_MACRO_2(__VA_ARGS__, SEK_DETAIL_REFLECT_TYPE_2, SEK_DETAIL_REFLECT_TYPE_1)(__VA_ARGS__)
