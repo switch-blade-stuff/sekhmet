@@ -52,8 +52,10 @@ Modifier types are defined as follows:
   template<typename T>
   struct named_entry
   {
-    constexpr named_entry(std::string_view name, T &&value) noexcept : name(name), value(std::forward<T>(value)) {}
-    constexpr named_entry(const char *name, T &&value) noexcept : name(name), value(std::forward<T>(value)) {}
+    constexpr named_entry(std::string_view name, T &&value) noexcept(/* Nothrow value forward */)
+        : name(name), value(std::forward<T>(value)) {}
+    constexpr named_entry(const char *name, T &&value) noexcept(/* Nothrow value forward */) 
+        : name(name), value(std::forward<T>(value)) {}
 
     std::string_view name;
     T value;
