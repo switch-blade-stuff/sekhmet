@@ -41,13 +41,8 @@ TEST(plugin_tests, plugin_db_test)
 	EXPECT_EQ(handle2.status(), sek::plugin::status_t::DISABLED);
 	EXPECT_EQ(test_plugin_data::ctr, 2);
 
-	EXPECT_NE(handle.metadata<test_plugin_data>(), nullptr);
-	EXPECT_EQ(handle.metadata<int>(), nullptr);
-	EXPECT_EQ(handle.metadata<test_plugin_data>()->i, 1);
-
-	EXPECT_NE(handle2.metadata<test_plugin_data>(), nullptr);
-	EXPECT_EQ(handle2.metadata<int>(), nullptr);
-	EXPECT_EQ(handle2.metadata<test_plugin_data>()->i, 2);
+	EXPECT_EQ(handle.ver(), SEK_VERSION(0, 0, 1));
+	EXPECT_EQ(handle2.ver(), SEK_VERSION(0, 0, 1));
 
 	auto loaded_plugins = sek::plugin::all();
 	EXPECT_GE(loaded_plugins.size(), 2);

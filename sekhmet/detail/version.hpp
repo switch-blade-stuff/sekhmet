@@ -270,3 +270,5 @@ struct std::hash<sek::version>
 {
 	[[nodiscard]] constexpr sek::hash_t operator()(const sek::version &v) const noexcept { return sek::hash(v); }
 };
+
+#define SEK_VERSION(major, minor, patch) (::sek::version{(major), (minor), (patch)})

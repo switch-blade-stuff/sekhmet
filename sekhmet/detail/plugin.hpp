@@ -71,15 +71,12 @@ namespace sek
 			[[nodiscard]] constexpr operator bool() const noexcept { return !empty(); }
 
 			/** Returns current status of the plugin. */
-			[[nodiscard]] constexpr status_t status() const noexcept { return entry->status; }
+			[[nodiscard]] status_t status() const noexcept { return entry->status; }
 
 			/** Returns name of the plugin. */
 			[[nodiscard]] constexpr std::string_view name() const noexcept { return entry->plugin_ptr->name; }
 			/** Returns version of the plugin. */
-			[[nodiscard]] constexpr version plugin_version() const noexcept { return entry->plugin_ptr->plugin_ver; }
-
-			/** Invokes the corresponding plugin queue.
-			 * @note Negative integers are ignored. */
+			[[nodiscard]] constexpr version ver() const noexcept { return entry->plugin_ptr->plugin_ver; }
 
 		private:
 			plugin_db_entry *entry = nullptr;
@@ -170,7 +167,6 @@ namespace instantiation
 		constexpr static plugin_instance instantiate(sek::version plugin_ver) noexcept
 		{
 			constexpr const auto &name = sek::detail::plugin_name_instance<Name>::value;
-
 			return plugin_instance{{name.begin(), name.end()}, plugin_ver};
 		}
 

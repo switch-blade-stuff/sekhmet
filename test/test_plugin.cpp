@@ -9,8 +9,8 @@ using namespace sek::test;
 
 TEST_PLUGIN_API int test_plugin_data::ctr = 0;
 
-SEK_DECLARE_PLUGIN("Test Plugin", metadata<test_plugin_data{1}>)
-SEK_DECLARE_PLUGIN("Test Plugin 2", metadata<test_plugin_data{2}>)
+SEK_DECLARE_PLUGIN("Test Plugin", SEK_VERSION(0, 0, 1))
+SEK_DECLARE_PLUGIN("Test Plugin 2", SEK_VERSION(0, 0, 1))
 
 #include "sekhmet/assets.hpp"
 
