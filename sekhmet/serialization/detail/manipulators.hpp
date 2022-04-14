@@ -1,73 +1,14 @@
 //
-// Created by switch_blade on 2022-04-13.
+// Created by switchblade on 2022-04-14.
 //
 
 #pragma once
 
-#include <concepts>
-#include <iosfwd>
-
-#include "sekhmet/detail/define.h"
-#include <string_view>
+#include "archive_traits.hpp"
 
 namespace sek::serialization
 {
-	/** @brief Policy tag used to indicate that an archive supports input operations. */
-	struct input_archive_policy
-	{
-	};
-	/** @brief Policy tag used to indicate that an archive supports output operations. */
-	struct output_archive_policy
-	{
-	};
-	/** @brief Policy tag used to indicate that an archive supports both input and output operations. */
-	struct inout_archive_policy : input_archive_policy, output_archive_policy
-	{
-	};
-
-	/** @brief Concept satisfied only if archive `A` supports reading instances of `T`. */
-	template<typename A, typename T>
-	concept input_archive = requires(A &archive, T &value)
-	{
-		typename A::category_policy;
-		std::is_base_of_v<input_archive_policy, typename A::category_policy>;
-
-		std::default_initializable<A>;
-		std::movable<A>;
-		std::constructible_from<A, FILE *>;
-		std::constructible_from<A, const char *, std::size_t>;
-		std::constructible_from<A, std::streambuf *>;
-		std::constructible_from<A, std::istream &>;
-
-		// clang-format off
-		{ archive >> value } -> std::same_as<A &>;
-		{ archive.read(value) } -> std::same_as<A &>;
-		{ archive.try_read(value) } -> std::same_as<bool>;
-		{ archive.template read<T>() } -> std::same_as<T>;
-		// clang-format on
-	};
-
-	/** @brief Concept satisfied only if archive `A` supports writing instances of `T`. */
-	template<typename A, typename T>
-	concept output_archive = requires(A &archive, const T &value)
-	{
-		typename A::category_policy;
-		std::is_base_of_v<output_archive_policy, typename A::category_policy>;
-
-		std::default_initializable<A>;
-		std::movable<A>;
-		std::constructible_from<A, FILE *>;
-		std::constructible_from<A, char *, std::size_t>;
-		std::constructible_from<A, std::streambuf *>;
-		std::constructible_from<A, std::ostream &>;
-
-		// clang-format off
-		{ archive << value } -> std::same_as<A &>;
-		{ archive.write(value) } -> std::same_as<A &>;
-		// clang-format on
-	};
-
-	/** @brief Archive modifier used to specify an explicit name for an entry. */
+	/** @brief Archive manipulator used to specify an explicit name for an entry. */
 	template<typename T>
 	struct named_entry
 	{
@@ -75,9 +16,11 @@ namespace sek::serialization
 		constexpr static bool noexcept_fwd = noexcept(T(std::forward<T>(std::declval<T &&>())));
 
 	public:
-		/** Constructs a named entry modifier from a name and a perfectly-forwarded value.
+		named_entry() = delete;
+
+		/** Constructs a named entry manipulator from a name and a perfectly-forwarded value.
 		 * @param name Name of the entry.
-		 * @param value Value forwarded by the modifier. */
+		 * @param value Value forwarded by the manipulator. */
 		constexpr named_entry(std::string_view name, T &&value) noexcept(noexcept_fwd)
 			: name(name), value(std::forward<T>(value))
 		{
@@ -111,14 +54,14 @@ namespace sek::serialization
 			std::is_base_of_v<named_entry_policy, typename T::entry_policy>;
 		};
 		template<typename A, typename T>
-		concept named_entry_input = requires(A &archive, T &data)
+		concept named_entry_input = requires(A &archive, std::remove_cvref_t<T> &data)
 		{
 			input_archive<A, T>;
 			input_archive<A, decltype(named_entry{std::declval<std::string_view>(), data})>;
 			input_archive<A, decltype(named_entry{std::declval<const char *>(), data})>;
 		};
 		template<typename A, typename T>
-		concept named_entry_output = requires(A &archive, const T &data)
+		concept named_entry_output = requires(A &archive, const std::remove_cvref_t<T> &data)
 		{
 			output_archive<A, T>;
 			output_archive<A, decltype(named_entry{std::declval<std::string_view>(), data})>;
@@ -134,20 +77,20 @@ namespace sek::serialization
 	template<typename...>
 	struct sequence;
 
-	/** @brief Archive modifier used to switch an archive to sequence IO mode. */
+	/** @brief Archive manipulator used to switch an archive to sequence IO mode. */
 	template<>
 	struct sequence<>
 	{
 	};
 	sequence() -> sequence<>;
 
-	/** @brief Archive modifier used to switch an archive to sequence IO mode and read/write explicit sequence size. */
+	/** @brief Archive manipulator used to switch an archive to sequence IO mode and read/write fixed sequence size. */
 	template<typename T>
 	requires std::integral<std::decay_t<T>>
 	struct sequence<T>
 	{
-		/** Constructs a sequence modifier from a perfectly-forwarded sequence size.
-		 * @param value Size of the sequence forwarded by the modifier. */
+		/** Constructs a sequence manipulator from a perfectly-forwarded sequence size.
+		 * @param value Size of the sequence forwarded by the manipulator. */
 		constexpr explicit sequence(T &&value) noexcept : value(std::forward<T>(value)) {}
 
 		T value;
@@ -155,7 +98,7 @@ namespace sek::serialization
 	template<typename T>
 	sequence(T &&value) -> sequence<T>;
 
-	/** @brief Policy tag used to indicate that an archive supports reading & writing sequences with explicit size. */
+	/** @brief Policy tag used to indicate that an archive supports reading & writing sequences of fixed size. */
 	struct fixed_sequence_policy
 	{
 	};
@@ -184,4 +127,17 @@ namespace sek::serialization
 	template<typename A>
 	concept fixed_sequence_archive = detail::has_fixed_sequence_policy<A> &&
 		(detail::fixed_sequence_input<A> || detail::fixed_sequence_output<A>);
+
+	/** @brief Archive manipulator used to change current pretty-printing mode.
+	 * @note If the archive does not support pretty-printing, this manipulator will be ignored. */
+	struct pretty_print
+	{
+		pretty_print() = delete;
+
+		/** Initializes the modifier to the specific pretty-print mode.
+		 * @param value If set to true, pretty-printing will be enabled, otherwise pretty-printing will be disabled. */
+		constexpr explicit pretty_print(bool value) noexcept : value(value) {}
+
+		bool value;
+	};
 }	 // namespace sek::serialization
