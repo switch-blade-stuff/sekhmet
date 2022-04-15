@@ -140,31 +140,25 @@ namespace sek::serialization::detail
 
 		typedef int entry_flags;
 
-		constexpr static entry_flags flags_offset = 8;
-		constexpr static entry_flags bool_type = 1 << flags_offset;
-		constexpr static entry_flags numeric_type = 2 << flags_offset;
-		constexpr static entry_flags container_type = 4 << flags_offset;
-		constexpr static entry_flags flags_mask = 0xf0;
-		constexpr static entry_flags null_type = 0;
-		constexpr static entry_flags false_type = 0;
-		constexpr static entry_flags false_flag = bool_type | false_type;
-		constexpr static entry_flags true_type = 1;
-		constexpr static entry_flags true_flag = bool_type | true_type;
-		constexpr static entry_flags int_type = 2;
-		constexpr static entry_flags int_flag = numeric_type | int_type;
-		constexpr static entry_flags fp_type = 3;
-		constexpr static entry_flags fp_flag = numeric_type | fp_type;
-		constexpr static entry_flags string_type = 4;
-		constexpr static entry_flags string_flag = string_type;
-		constexpr static entry_flags array_type = 5;
-		constexpr static entry_flags array_flag = container_type | array_type;
-		constexpr static entry_flags object_type = 6;
-		constexpr static entry_flags object_flag = container_type | object_type;
-		constexpr static entry_flags type_mask = 0xf0;
+		enum entry_type : int
+		{
+			NULL_ENTRY = 0,
+			CHAR = 1,
+			INT = 2,
+			FLOAT = 3,
+			STRING = 4,
+
+			BOOL = 8,
+			BOOL_FALSE = BOOL | 0,
+			BOOL_TRUE = BOOL | 1,
+
+			CONTAINER = 16,
+			ARRAY = CONTAINER | 0,
+			OBJECT = CONTAINER | 1,
+		};
 
 		union literal_t
 		{
-			bool boolean;
 			char character;
 			std::uint64_t integer;
 			double floating;
@@ -199,6 +193,131 @@ namespace sek::serialization::detail
 			json_entry(json_entry &&) = delete;
 			json_entry &operator=(json_entry &&) = delete;
 
+			constexpr bool try_read(std::nullptr_t) noexcept { return type == entry_type::NULL_ENTRY; }
+			constexpr archive_frame &read(std::nullptr_t) noexcept
+			{
+				if (!try_read(nullptr)) [[unlikely]]
+				{ /* TODO: Throw archive type exception. */
+				}
+				return *this;
+			}
+			constexpr bool try_read(bool &b) noexcept
+			{
+				if (type & entry_type::BOOL) [[likely]]
+				{
+					b = type & 1;
+					return true;
+				}
+				else
+					return false;
+			}
+			constexpr archive_frame &read(bool &b) noexcept
+			{
+				if (!try_read(b)) [[unlikely]]
+					throw archive_error("Invalid Json type, expected boolean");
+				return *this;
+			}
+			constexpr bool try_read(char &c) noexcept
+			{
+				if (type == entry_type::CHAR) [[likely]]
+				{
+					c = literal.character;
+					return true;
+				}
+				else
+					return false;
+			}
+			constexpr archive_frame &read(char &c) noexcept
+			{
+				if (!try_read(c)) [[unlikely]]
+					throw archive_error("Invalid Json type, expected character");
+				return *this;
+			}
+			template<typename I>
+			constexpr bool try_read(I &value) noexcept requires(std::integral<I> || std::floating_point<I>)
+			{
+				switch (type)
+				{
+					case entry_type::INT: value = static_cast<I>(literal.integer); return true;
+					case entry_type::FLOAT: value = static_cast<I>(literal.floating); return true;
+					default: return false;
+				}
+			}
+			template<typename I>
+			constexpr archive_frame &read(I &value) noexcept requires(std::integral<I> || std::floating_point<I>)
+			{
+				if (!try_read(value)) [[unlikely]]
+					throw archive_error("Invalid Json type, expected number");
+				return *this;
+			}
+
+			constexpr bool try_read(std::basic_string<CharType> &value) noexcept
+			{
+				if (type == entry_type::STRING) [[likely]]
+				{
+					value.assign(string.data, string.size);
+					return true;
+				}
+				else
+					return false;
+			}
+			constexpr archive_frame &read(std::basic_string<CharType> &value) noexcept
+			{
+				if (!try_read(value)) [[unlikely]]
+					throw archive_error("Invalid Json type, expected string");
+				return *this;
+			}
+			constexpr bool try_read(sv_type &value) noexcept
+			{
+				if (type == entry_type::STRING) [[likely]]
+				{
+					value = sv_type{string.data, string.size};
+					return true;
+				}
+				else
+					return false;
+			}
+			constexpr archive_frame &read(sv_type &value) noexcept
+			{
+				if (!try_read(value)) [[unlikely]]
+					throw archive_error("Invalid Json type, expected string");
+				return *this;
+			}
+
+			template<typename I>
+			constexpr bool try_read(I &value) noexcept
+			{
+				if (type & entry_type::CONTAINER) [[likely]]
+				{
+					/* TODO: Enter new archive frame. */
+					return true;
+				}
+				else
+					return false;
+			}
+			template<typename I>
+			constexpr archive_frame &read(I &value) noexcept
+			{
+				if (!(type & entry_type::CONTAINER)) [[unlikely]]
+					throw archive_error("Invalid Json type, expected array or object");
+
+				/* TODO: Enter new archive frame. */
+				return *this;
+			}
+
+			template<typename T>
+			constexpr archive_frame &operator>>(T &value) noexcept
+			{
+				return read(value);
+			}
+			template<std::default_initializable T>
+			constexpr T read() noexcept
+			{
+				T result;
+				read(result);
+				return result;
+			}
+
 		private:
 			union
 			{
@@ -207,7 +326,7 @@ namespace sek::serialization::detail
 				array_t array;
 				object_t object;
 			};
-			entry_flags flags;
+			entry_type type;
 		};
 
 	private:
@@ -451,8 +570,10 @@ namespace sek::serialization::detail
 				return static_cast<size_type>(std::numeric_limits<std::uint32_t>::max());
 			}
 
+			/* Regular reads are forwarded to the entry. */
+
 			template<typename T>
-			constexpr bool try_read(const T &value) noexcept
+			constexpr bool try_read(T &value) noexcept
 			{
 				entry_iterator current{raw.current_ptr, type};
 				if (current->try_read(value)) [[likely]]
@@ -460,7 +581,7 @@ namespace sek::serialization::detail
 				return *this;
 			}
 			template<typename T>
-			constexpr archive_frame &read(const T &value) noexcept
+			constexpr archive_frame &read(T &value) noexcept
 			{
 				entry_iterator current{raw.current_ptr, type};
 				current->read(value);
@@ -468,10 +589,12 @@ namespace sek::serialization::detail
 				return *this;
 			}
 			template<typename T>
-			constexpr archive_frame &operator>>(const T &value) noexcept
+			constexpr archive_frame &operator>>(T &value) noexcept
 			{
 				return read(value);
 			}
+
+			/* Modifier reads are applied directly to the frame. */
 
 			template<typename T>
 			constexpr bool try_read(named_entry<T> value) noexcept requires std::is_reference_v<T>
@@ -542,16 +665,13 @@ namespace sek::serialization::detail
 
 			constexpr json_entry *seek_entry(sv_type key) noexcept
 			{
-				if (type == frame_type::OBJECT) [[likely]]
+				if (auto member_ptr = search_entry(key); member_ptr) [[likely]]
 				{
-					auto member_ptr = search_entry(key);
-					if (member_ptr) [[likely]]
-					{
-						object.current_ptr = member_ptr;
-						return member_ptr->value;
-					}
+					object.current_ptr = member_ptr;
+					return member_ptr->value;
 				}
-				return nullptr;
+				else
+					return nullptr;
 			}
 			constexpr member_t *search_entry(sv_type key) const noexcept
 			{
@@ -560,7 +680,6 @@ namespace sek::serialization::detail
 				return nullptr;
 			}
 
-			/* Array/object values are copied from the entry, since they just contain 2 pointers. */
 			union
 			{
 				raw_ptrs raw = {};

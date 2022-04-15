@@ -6,12 +6,22 @@
 
 #include <concepts>
 #include <iosfwd>
+#include <stdexcept>
 
 #include "sekhmet/detail/define.h"
 #include <string_view>
 
 namespace sek::serialization
 {
+	/** @brief Exception thrown by archives on (de)serialization failure. */
+	struct archive_error : public std::runtime_error
+	{
+	public:
+		archive_error() : std::runtime_error("Unknown archive error") {}
+		explicit archive_error(const char *msg) : std::runtime_error(msg) {}
+		~archive_error() override = default;
+	};
+
 	/** @brief Category tag used to indicate that an archive supports input operations. */
 	struct input_archive_category
 	{
