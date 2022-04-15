@@ -6,9 +6,9 @@
 
 #include <vector>
 
-#include "archive_traits.hpp"
-#include "manipulators.hpp"
-#include "sekhmet/detail/hash.hpp"
+#include "../archive_traits.hpp"
+#include "../manipulators.hpp"
+#include "common.hpp"
 
 namespace sek::serialization
 {

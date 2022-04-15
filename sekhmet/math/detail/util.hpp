@@ -103,10 +103,8 @@ namespace sek::math
 	template<std::integral T>
 	[[nodiscard]] constexpr T align(T num, T mult) noexcept
 	{
-		if (auto rem = num % mult; rem)
-			return num - rem + mult;
-		else
-			return num;
+		auto rem = num % mult;
+		return num - rem + (rem ? mult : 0);
 	}
 
 	template<arithmetic T>

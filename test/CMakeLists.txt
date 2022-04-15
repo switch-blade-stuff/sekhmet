@@ -29,7 +29,8 @@ if (NOT GTEST_MISSING)
             container_tests.cpp
             adapter_tests.cpp
             plugin_tests.cpp
-            math_tests.cpp)
+            math_tests.cpp
+            serialization_tests.cpp)
     sek_init_target_options(${PROJECT_NAME})
     target_link_libraries(${PROJECT_NAME} PUBLIC ${SEK_PROJECT} ${PROJECT_NAME}.plugin gtest)
     if (UNIX)

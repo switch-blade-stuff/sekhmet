@@ -8,9 +8,14 @@
 
 namespace sek::serialization
 {
+	/** @brief Parent struct for archive manipulators. */
+	struct archive_manipulator
+	{
+	};
+
 	/** @brief Archive manipulator used to specify an explicit name for an entry. */
 	template<typename T>
-	struct named_entry
+	struct named_entry : archive_manipulator
 	{
 	private:
 		constexpr static bool noexcept_fwd = noexcept(T(std::forward<T>(std::declval<T &&>())));
@@ -79,7 +84,7 @@ namespace sek::serialization
 
 	/** @brief Archive manipulator used to switch an archive to sequence IO mode. */
 	template<>
-	struct sequence<>
+	struct sequence<> : archive_manipulator
 	{
 	};
 	sequence() -> sequence<>;
@@ -87,7 +92,7 @@ namespace sek::serialization
 	/** @brief Archive manipulator used to switch an archive to sequence IO mode and read/write fixed sequence size. */
 	template<typename T>
 	requires std::integral<std::decay_t<T>>
-	struct sequence<T>
+	struct sequence<T> : archive_manipulator
 	{
 		/** Constructs a sequence manipulator from a perfectly-forwarded sequence size.
 		 * @param value Size of the sequence forwarded by the manipulator. */
@@ -128,9 +133,9 @@ namespace sek::serialization
 	concept fixed_sequence_archive = detail::has_fixed_sequence_policy<A> &&
 		(detail::fixed_sequence_input<A> || detail::fixed_sequence_output<A>);
 
-	/** @brief Archive manipulator used to change current pretty-printing mode.
+	/** @brief Archive manipulator used to change archive's pretty-printing mode.
 	 * @note If the archive does not support pretty-printing, this manipulator will be ignored. */
-	struct pretty_print
+	struct pretty_print : archive_manipulator
 	{
 		pretty_print() = delete;
 
