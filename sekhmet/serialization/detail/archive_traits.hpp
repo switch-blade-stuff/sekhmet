@@ -64,23 +64,6 @@ namespace sek::serialization
 		// clang-format on
 	};
 
-	// clang-format off
-	/** @brief Concept satisfied only if `T` is serializable using archive of type `A`. */
-	template<typename T, typename A>
-	concept serializable_with = requires(A &archive, const T &data) { serialize(archive, data); } ||
-								requires(A &archive, const T &data) {
-									!std::is_pointer_v<T>;
-									data.serialize(archive);
-								};
-	/** @brief Concept satisfied only if `T` is deserializable using archive of type `A`. */
-	template<typename T, typename A>
-	concept deserializable_with = requires(A &archive, T &data) { deserialize(archive, data); } ||
-								  requires(A &archive, T &data) {
-										!std::is_pointer_v<T>;
-										data.deserialize(archive);
-									};
-	// clang-format on
-
 	/** @brief Concept satisfied only if `A` is a container-like archive. */
 	template<typename A>
 	concept container_like_archive = requires(A &a, const A &ca)

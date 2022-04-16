@@ -4,5 +4,4 @@
 
 #pragma once
 
-#include "detail/json/common.hpp"
 #include "detail/json/ubj_archive.hpp"

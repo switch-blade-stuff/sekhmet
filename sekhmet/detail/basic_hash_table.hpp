@@ -75,7 +75,7 @@ namespace sek
 		template<typename KeyType, typename ValueType, typename KeyExtract>
 		struct hash_table_bucket
 		{
-			[[nodiscard]] constexpr static auto tombstone_ptr() noexcept { return std::bit_cast<ValueType *>(1); }
+			[[nodiscard]] constexpr static auto tombstone_ptr() noexcept { return std::bit_cast<ValueType *>(1UL); }
 
 			constexpr hash_table_bucket() noexcept = default;
 			constexpr explicit hash_table_bucket(ValueType *ptr, std::size_t hash) noexcept : hash(hash), data(ptr) {}

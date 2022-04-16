@@ -34,9 +34,9 @@ namespace sek::serialization::detail
 		{
 			struct page_header
 			{
-				const page_header *previous; /* Previous pages are not used for allocation. */
-				std::size_t page_size;		 /* Total size of the page in bytes. */
-				std::size_t used_size;		 /* Amount of data used in bytes. */
+				page_header *previous; /* Previous pages are not used for allocation. */
+				std::size_t page_size; /* Total size of the page in bytes. */
+				std::size_t used_size; /* Amount of data used in bytes. */
 
 				/* Page data follows the header. */
 			};
@@ -78,7 +78,7 @@ namespace sek::serialization::detail
 			void *reallocate(mem_res_type *upstream, void *old, std::size_t old_n, std::size_t n)
 			{
 				if (!old) [[unlikely]]
-					return allocate(n);
+					return allocate(upstream, n);
 
 				/* Do nothing if new size is less or same. */
 				if (n <= old_n) [[unlikely]]
@@ -140,7 +140,7 @@ namespace sek::serialization::detail
 				if (!result) [[unlikely]]
 					return nullptr;
 				/* If the previous main page is empty, deallocate it immediately. */
-				if (!main_page->used_size) [[unlikely]]
+				if (main_page && !main_page->used_size) [[unlikely]]
 					result->previous = release_page(upstream, main_page);
 				else
 					result->previous = main_page;
@@ -184,7 +184,7 @@ namespace sek::serialization::detail
 		};
 		struct string_t
 		{
-			CharType *data;
+			const CharType *data;
 			std::size_t size;
 		};
 		struct array_t
@@ -215,14 +215,14 @@ namespace sek::serialization::detail
 			json_entry(json_entry &&) = delete;
 			json_entry &operator=(json_entry &&) = delete;
 
-			constexpr bool try_read(std::nullptr_t) noexcept { return type == entry_type::NULL_ENTRY; }
-			constexpr read_frame &read(std::nullptr_t)
+			bool try_read(std::nullptr_t) const noexcept { return type == entry_type::NULL_ENTRY; }
+			const json_entry &read(std::nullptr_t) const
 			{
 				if (!try_read(nullptr)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected null");
 				return *this;
 			}
-			constexpr bool try_read(bool &b) noexcept
+			bool try_read(bool &b) const noexcept
 			{
 				if (type & entry_type::BOOL) [[likely]]
 				{
@@ -232,13 +232,13 @@ namespace sek::serialization::detail
 				else
 					return false;
 			}
-			constexpr read_frame &read(bool &b)
+			const json_entry &read(bool &b) const
 			{
 				if (!try_read(b)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected bool");
 				return *this;
 			}
-			constexpr bool try_read(char &c) noexcept
+			bool try_read(char &c) const noexcept
 			{
 				if (type == entry_type::CHAR) [[likely]]
 				{
@@ -248,14 +248,14 @@ namespace sek::serialization::detail
 				else
 					return false;
 			}
-			constexpr read_frame &read(char &c)
+			const json_entry &read(char &c) const
 			{
 				if (!try_read(c)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected char");
 				return *this;
 			}
 			template<typename I>
-			constexpr bool try_read(I &value) noexcept requires(std::integral<I> || std::floating_point<I>)
+			bool try_read(I &value) const noexcept requires(std::integral<I> || std::floating_point<I>)
 			{
 				switch (type)
 				{
@@ -265,14 +265,14 @@ namespace sek::serialization::detail
 				}
 			}
 			template<typename I>
-			constexpr read_frame &read(I &value) requires(std::integral<I> || std::floating_point<I>)
+			const json_entry &read(I &value) const requires(std::integral<I> || std::floating_point<I>)
 			{
 				if (!try_read(value)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected number");
 				return *this;
 			}
 
-			constexpr bool try_read(std::basic_string<CharType> &value)
+			bool try_read(std::basic_string<CharType> &value) const
 			{
 				if (type == entry_type::STRING) [[likely]]
 				{
@@ -282,13 +282,13 @@ namespace sek::serialization::detail
 				else
 					return false;
 			}
-			constexpr read_frame &read(std::basic_string<CharType> &value)
+			const json_entry &read(std::basic_string<CharType> &value) const
 			{
 				if (!try_read(value)) [[unlikely]]
 					throw_string_error();
 				return *this;
 			}
-			constexpr bool try_read(sv_type &value) noexcept
+			bool try_read(sv_type &value) const noexcept
 			{
 				if (type == entry_type::STRING) [[likely]]
 				{
@@ -298,14 +298,14 @@ namespace sek::serialization::detail
 				else
 					return false;
 			}
-			constexpr read_frame &read(sv_type &value)
+			const json_entry &read(sv_type &value) const
 			{
 				if (!try_read(value)) [[unlikely]]
 					throw_string_error();
 				return *this;
 			}
 			template<std::output_iterator<CharType> I>
-			constexpr bool try_read(I &value)
+			bool try_read(I &value) const
 			{
 				if (type == entry_type::STRING) [[likely]]
 				{
@@ -316,14 +316,14 @@ namespace sek::serialization::detail
 					return false;
 			}
 			template<std::output_iterator<CharType> I>
-			constexpr read_frame &read(I &value)
+			const json_entry &read(I &value) const
 			{
 				if (!try_read(value)) [[unlikely]]
 					throw_string_error();
 				return *this;
 			}
 			template<std::output_iterator<CharType> I, std::sentinel_for<I> S>
-			constexpr bool try_read(I &value, S &sent)
+			bool try_read(I &value, S &sent) const
 			{
 				if (type == entry_type::STRING) [[likely]]
 				{
@@ -334,7 +334,7 @@ namespace sek::serialization::detail
 					return false;
 			}
 			template<std::output_iterator<CharType> I, std::sentinel_for<I> S>
-			constexpr read_frame &read(I &value, S &sent)
+			const json_entry &read(I &value, S &sent) const
 			{
 				if (!try_read(value, sent)) [[unlikely]]
 					throw_string_error();
@@ -342,9 +342,9 @@ namespace sek::serialization::detail
 			}
 
 			template<typename T>
-			constexpr read_frame &read(T &&value);
+			const json_entry &read(T &&value) const;
 			template<typename T>
-			constexpr bool try_read(T &&value)
+			bool try_read(T &&value) const
 			{
 				try
 				{
@@ -357,12 +357,12 @@ namespace sek::serialization::detail
 				}
 			}
 			template<typename T>
-			constexpr read_frame &operator>>(T &&value)
+			const json_entry &operator>>(T &&value) const
 			{
 				return read(std::forward<T>(value));
 			}
 			template<std::default_initializable T>
-			constexpr T read()
+			T read() const
 			{
 				T result;
 				read(result);
@@ -409,7 +409,7 @@ namespace sek::serialization::detail
 			typedef std::random_access_iterator_tag iterator_category;
 
 		private:
-			constexpr entry_iterator(void *ptr, read_frame_type type) noexcept : ptr_value(ptr), type(type) {}
+			constexpr entry_iterator(const void *ptr, read_frame_type type) noexcept : ptr_value(ptr), type(type) {}
 
 		public:
 			constexpr entry_iterator() noexcept = default;
@@ -518,7 +518,7 @@ namespace sek::serialization::detail
 			union
 			{
 				/** Pointer used for type-agnostic operations. */
-				void *ptr_value = nullptr;
+				const void *ptr_value = nullptr;
 				/** Pointer into an array container. */
 				json_entry *array_element;
 				/** Pointer into an object container. */
@@ -549,22 +549,27 @@ namespace sek::serialization::detail
 			typedef std::size_t size_type;
 
 		private:
-			constexpr explicit read_frame(const json_entry *entry) noexcept : type(static_cast<read_frame_type>(entry->type))
+			constexpr explicit read_frame(const json_entry *entry) noexcept
+				: type(static_cast<read_frame_type>(entry->type))
 			{
 				switch (type)
 				{
-					case read_frame_type::ARRAY: array = {entry->array.data_begin, entry->array.data_end}; break;
-					case read_frame_type::OBJECT: array = {entry->object->members_begin, entry->object->members_end}; break;
+					case read_frame_type::ARRAY_FRAME:
+						array = array_view{
+							entry->array.data_begin,
+							entry->array.data_end,
+							entry->array.data_begin,
+						};
+						break;
+					case read_frame_type::OBJECT_FRAME:
+						object = object_view{
+							entry->object.members_begin,
+							entry->object.members_end,
+							entry->object.members_begin,
+						};
+						break;
 					default: break;
 				}
-			}
-			constexpr explicit read_frame(const array_t *array) noexcept
-				: array{array->data_begin, array->data_end}, type(read_frame_type::ARRAY)
-			{
-			}
-			constexpr explicit read_frame(const object_t *object) noexcept
-				: object{object->members_begin, object->members_end}, type(read_frame_type::OBJECT)
-			{
 			}
 
 		public:
@@ -603,7 +608,7 @@ namespace sek::serialization::detail
 			 * @param value Value to deserialize from the Json entry.
 			 * @return true if deserialization was successful, false otherwise. */
 			template<typename T>
-			constexpr bool try_read(T &&value)
+			bool try_read(T &&value)
 			{
 				entry_iterator current{raw.current_ptr, type};
 				if (current->try_read(std::forward<T>(value))) [[likely]]
@@ -619,7 +624,7 @@ namespace sek::serialization::detail
 			 * @return Reference to this frame.
 			 * @throw archive_exception On deserialization errors. */
 			template<typename T>
-			constexpr read_frame &read(T &&value)
+			read_frame &read(T &&value)
 			{
 				entry_iterator current{raw.current_ptr, type};
 				current->read(std::forward<T>(value));
@@ -628,7 +633,7 @@ namespace sek::serialization::detail
 			}
 			/** @copydoc read */
 			template<typename T>
-			constexpr read_frame &operator>>(T &&value)
+			read_frame &operator>>(T &&value)
 			{
 				return read(std::forward<T>(value));
 			}
@@ -636,7 +641,7 @@ namespace sek::serialization::detail
 			 * @return Deserialized instance of `T`.
 			 * @throw archive_error On deserialization errors. */
 			template<std::default_initializable T>
-			constexpr T read()
+			T read()
 			{
 				T result;
 				read(result);
@@ -646,9 +651,9 @@ namespace sek::serialization::detail
 			/* Modifier reads are applied directly to the frame. */
 
 			template<typename T>
-			constexpr bool try_read(named_entry<T> value) requires std::is_reference_v<T>
+			bool try_read(named_entry<T> &&value) requires std::is_reference_v<T>
 			{
-				if (type == read_frame_type::OBJECT) [[likely]]
+				if (type == read_frame_type::OBJECT_FRAME) [[likely]]
 				{
 					auto entry = seek_entry(value.name);
 					if (!entry) [[likely]]
@@ -657,40 +662,49 @@ namespace sek::serialization::detail
 				return false;
 			}
 			template<typename T>
-			constexpr read_frame &read(named_entry<T> value) requires std::is_reference_v<T>
+			read_frame &read(named_entry<T> &&value) requires std::is_reference_v<T>
 			{
-				/* TODO: Assert that the frame is an object frame. */
+				if (type != read_frame_type::OBJECT_FRAME) [[unlikely]]
+					throw archive_error("Invalid Json type, expected object");
 
 				if (auto entry = seek_entry(value.name); !entry) [[unlikely]]
-				{ /* TODO: Throw entry not found exception. */
+				{
+					std::string err{"Invalid Json object member \""};
+					err.append(value.name);
+					err.append(1, '\"');
+					throw std::out_of_range(err);
 				}
 				else
 					entry->read(value);
 				return *this;
 			}
 			template<typename T>
-			constexpr read_frame &operator>>(named_entry<T> mod) requires std::is_reference_v<T>
+			read_frame &operator>>(named_entry<T> &&mod) requires std::is_reference_v<T>
 			{
 				return read(mod);
 			}
 
 			template<std::integral I>
-			constexpr bool try_read(sequence<I> mod) const noexcept
+			bool try_read(sequence<I> mod) const noexcept
 			{
 				mod.value = static_cast<I>(size());
 				return true;
 			}
 			template<std::integral I>
-			constexpr read_frame &read(sequence<I> mod) noexcept
+			read_frame &read(sequence<I> mod) noexcept
 			{
 				try_read(mod);
 				return *this;
 			}
 			template<std::integral I>
-			constexpr read_frame &operator>>(sequence<I> mod) noexcept
+			read_frame &operator>>(sequence<I> mod) noexcept
 			{
 				return read(mod);
 			}
+
+			constexpr bool try_read(sequence<>) const noexcept { return true; }
+			constexpr read_frame &read(sequence<>) noexcept { return *this; }
+			constexpr read_frame &operator>>(sequence<>) noexcept { return *this; }
 
 		private:
 			struct raw_ptrs
@@ -767,29 +781,51 @@ namespace sek::serialization::detail
 					member_t *object_data;
 				};
 
-				/* 32-bit integers are used to avoid wasting space on 64-bit.  */
-				std::uint32_t current_capacity = 0; /* Current amortized capacity of the container. */
-				std::uint32_t current_size = 0;		/* Current size of the container. */
+				std::size_t current_capacity = 0; /* Current amortized capacity of the container. */
+				std::size_t current_size = 0;	  /* Current size of the container. */
 
 				parse_state state;
 			};
 
 		public:
-			constexpr explicit parse_event_handler(json_input_archive_base *parent, mem_res_type *res) noexcept
-				: parent(parent), parse_stack(res)
+			constexpr explicit parse_event_handler(json_input_archive_base *parent) noexcept
+				: parent(parent), parse_stack(parent->upstream_alloc)
 			{
 			}
 
-			[[nodiscard]] bool on_null() const
+			template<std::integral S>
+			[[nodiscard]] CharType *on_string_alloc(S len) const
+			{
+				return parent->alloc_string(static_cast<std::size_t>(len));
+			}
+
+			bool on_null() const
 			{
 				return on_value([](auto &entry) { entry.type = entry_type::NULL_ENTRY; });
 			}
-			[[nodiscard]] bool on_bool(bool b) const
+			bool on_bool(bool b) const
 			{
 				return on_value([b](auto &entry) { entry.type = entry_type::BOOL | (b ? 1 : 0); });
 			}
+			bool on_true() const
+			{
+				return on_value([](auto &entry) { entry.type = entry_type::BOOL_TRUE; });
+			}
+			bool on_false() const
+			{
+				return on_value([](auto &entry) { entry.type = entry_type::BOOL_FALSE; });
+			}
+			bool on_char(CharType c) const
+			{
+				return on_value(
+					[c](auto &entry)
+					{
+						entry.type = entry_type::CHAR;
+						entry.literal.character = c;
+					});
+			}
 			template<std::integral I>
-			[[nodiscard]] bool on_int(I i) const
+			bool on_int(I i) const
 			{
 				return on_value(
 					[i](auto &entry)
@@ -799,7 +835,7 @@ namespace sek::serialization::detail
 					});
 			}
 			template<std::floating_point F>
-			[[nodiscard]] bool on_float(F f) const
+			bool on_float(F f) const
 			{
 				return on_value(
 					[f](auto &entry)
@@ -808,40 +844,52 @@ namespace sek::serialization::detail
 						entry.literal.floating = static_cast<double>(f);
 					});
 			}
+
 			template<std::integral S>
-			[[nodiscard]] bool on_string(const CharType *str, S len) const
+			bool on_string(const CharType *str, S len) const
 			{
 				return on_value(
 					[&](auto &entry)
 					{
 						entry.type = entry_type::STRING;
-						entry.string = parent->dup_string(str, static_cast<std::size_t>(len));
+						entry.string = string_t{str, static_cast<std::size_t>(len)};
 					});
 			}
-
-			[[nodiscard]] bool on_object_start(std::size_t n = 0)
+			template<std::integral S>
+			bool on_string_copy(const CharType *str, S len) const
 			{
-				auto do_start_object = [&](json_entry &entry) -> bool
+				auto dest = on_string_alloc(len);
+				*std::copy_n(str, static_cast<std::size_t>(len), dest) = '\0';
+				return on_string(str, len);
+			}
+
+			bool on_object_start(std::size_t n = 0)
+			{
+				auto do_start_object = [&](json_entry &entry)
 				{
 					entry.type = entry_type::OBJECT;
+					current->object_ptr = &entry.object;
 					current->state = parse_state::EXPECT_OBJECT_KEY;
 					if (n) resize_container<member_t>(n);
 				};
 
 				enter_frame();
-				if (parse_stack.empty()) [[unlikely]] /* This is the top-level object. */
-					return do_start_object(parent->alloc_top_level());
+				if (!parent->top_level) [[unlikely]] /* This is the top-level object. */
+				{
+					do_start_object(parent->alloc_top_level());
+					return true;
+				}
 				else
 					return on_value(do_start_object);
 			}
 			template<std::integral S>
-			[[nodiscard]] bool on_object_key(const CharType *str, S len)
+			bool on_object_key(const CharType *str, S len)
 			{
 				switch (current->state)
 				{
 					case parse_state::EXPECT_OBJECT_KEY:
 					{
-						push_element<member_t>().key = parent->dup_string(str, static_cast<std::size_t>(len));
+						push_element<member_t>().key = string_t{str, static_cast<std::size_t>(len)};
 						current->state = parse_state::EXPECT_OBJECT_VALUE; /* Always expect value after key. */
 						return true;
 					}
@@ -849,7 +897,14 @@ namespace sek::serialization::detail
 				}
 			}
 			template<std::integral S>
-			[[nodiscard]] bool on_object_end(S size)
+			bool on_object_key_copy(const CharType *str, S len)
+			{
+				auto dest = on_string_alloc(len);
+				*std::copy_n(str, static_cast<std::size_t>(len), dest) = '\0';
+				return on_object_key(dest, len);
+			}
+			template<std::integral S>
+			bool on_object_end(S size)
 			{
 				switch (current->state)
 				{
@@ -865,31 +920,35 @@ namespace sek::serialization::detail
 				}
 			}
 
-			[[nodiscard]] bool on_array_start(std::size_t n = 0)
+			bool on_array_start(std::size_t n = 0)
 			{
-				auto do_start_array = [&](json_entry &entry) -> bool
+				auto do_start_array = [&](json_entry &entry)
 				{
 					entry.type = entry_type::ARRAY;
+					current->array_ptr = &entry.array;
 					current->state = parse_state::EXPECT_ARRAY_VALUE;
 					if (n) resize_container<json_entry>(n);
 				};
 
 				enter_frame();
-				if (parse_stack.empty()) [[unlikely]] /* This is the top-level array. */
-					return do_start_array(parent->alloc_top_level());
+				if (!parent->top_level) [[unlikely]] /* This is the top-level array. */
+				{
+					do_start_array(parent->alloc_top_level());
+					return true;
+				}
 				else
 					return on_value(do_start_array);
 			}
 			template<std::integral S>
-			[[nodiscard]] bool on_array_end(S size)
+			bool on_array_end(S size)
 			{
 				switch (current->state)
 				{
 					case parse_state::EXPECT_ARRAY_VALUE:
 					{
 						auto *arr = current->array_ptr;
-						arr->members_begin = current->array_data;
-						arr->members_end = current->array_data + static_cast<std::size_t>(size);
+						arr->data_begin = current->array_data;
+						arr->data_end = current->array_data + static_cast<std::size_t>(size);
 						exit_frame();
 						return true;
 					}
@@ -908,8 +967,8 @@ namespace sek::serialization::detail
 			[[nodiscard]] T &push_element() const
 			{
 				auto next_idx = current->current_size;
-				if (current->current_capacity == current->current_size)
-					resize_container<T>(current, ++current->current_size);
+				if (current->current_capacity == current->current_size++)
+					resize_container<T>(current->current_size * 2);
 				return static_cast<T *>(current->data_ptr)[next_idx];
 			}
 
@@ -968,12 +1027,12 @@ namespace sek::serialization::detail
 		~json_input_archive_base() { destroy(); }
 
 		template<typename T>
-		constexpr bool do_try_read(T &&value)
+		bool do_try_read(T &&value)
 		{
 			return top_level->try_read(std::forward<T>(value));
 		}
 		template<typename T>
-		constexpr void do_read(T &&value)
+		void do_read(T &&value)
 		{
 			top_level->read(std::forward<T>(value));
 		}
@@ -1000,7 +1059,7 @@ namespace sek::serialization::detail
 	private:
 		json_entry &alloc_top_level()
 		{
-			top_level = data_pool.allocate(upstream_alloc, sizeof(json_entry));
+			top_level = static_cast<json_entry *>(data_pool.allocate(upstream_alloc, sizeof(json_entry)));
 			if (!top_level) [[unlikely]]
 				throw std::bad_alloc();
 			return *top_level;
@@ -1013,13 +1072,12 @@ namespace sek::serialization::detail
 				throw std::bad_alloc();
 			return static_cast<T *>(new_data);
 		}
-		string_t dup_string(const CharType *str, std::size_t n)
+		CharType *alloc_string(std::size_t n)
 		{
-			auto result = static_cast<CharType *>(string_pool.allocate(upstream_alloc, str, (n + 1) * sizeof(CharType)));
+			auto result = static_cast<CharType *>(string_pool.allocate(upstream_alloc, (n + 1) * sizeof(CharType)));
 			if (!result) [[unlikely]]
 				throw std::bad_alloc();
-			*std::copy_n(str, n, result) = '\0';
-			return {result, n};
+			return result;
 		}
 
 		void destroy()
@@ -1036,7 +1094,7 @@ namespace sek::serialization::detail
 
 	template<typename C>
 	template<typename T>
-	constexpr typename json_input_archive_base<C>::read_frame &json_input_archive_base<C>::json_entry::read(T &&value)
+	const typename json_input_archive_base<C>::json_entry &json_input_archive_base<C>::json_entry::read(T &&value) const
 	{
 		if (!(type & entry_type::CONTAINER)) [[unlikely]]
 			throw archive_error("Invalid Json type, expected array or object");
