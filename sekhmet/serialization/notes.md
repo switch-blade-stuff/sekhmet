@@ -28,6 +28,8 @@ archive. Entry iterators must implement the `forward_iterator` concept and point
 Entries should have `read`, `operator>>` & `try_read` member functions, which would preform the corresponding operations
 on the handle. They should also have a perfect explicit cast operator, which preforms a read on the entry.
 
+Archives may implement container functionality themselves, or through some kind-of intermediate frame/view sub-archive.
+
 Note that entry iterators are not required to preserve the actual order of entries and should not be relied upon for
 ordered entry access. It is, however, guaranteed that entries can be read in the same order as they were written.
 
