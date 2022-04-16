@@ -55,9 +55,9 @@
 #ifndef bswap_16
 #include <bit>
 #include <cstdint>
-constexpr static std::uint16_t bswap_16(std::uint16_t value) noexcept
+constexpr static auto bswap_16(auto value) noexcept
 {
-	auto *data = std::bit_cast<std::uint8_t *>(&value);
+	auto *data = std::bit_cast<std::byte *>(&value);
 	std::swap(data[0], data[1]);
 	return value;
 }

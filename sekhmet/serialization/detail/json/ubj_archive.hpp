@@ -113,6 +113,17 @@ namespace sek::serialization
 			{
 				T value;
 				guarded_read(&value, sizeof(value));
+
+				/* Fix endianness from big endian to machine endianness.
+				 * TODO: Only do this for Spec12 */
+#ifndef SEK_ARCH_BIG_ENDIAN
+				if constexpr (sizeof(T) == sizeof(std::uint16_t))
+					return std::bit_cast<T>(bswap_16(std::bit_cast<std::uint16_t>(value)));
+				else if constexpr (sizeof(T) == sizeof(std::uint32_t))
+					return std::bit_cast<T>(bswap_32(std::bit_cast<std::uint32_t>(value)));
+				else if constexpr (sizeof(T) == sizeof(std::uint64_t))
+					return std::bit_cast<T>(bswap_64(std::bit_cast<std::uint64_t>(value)));
+#endif
 				return value;
 			}
 			[[nodiscard]] std::int64_t read_length()

@@ -68,8 +68,8 @@
 #define SEK_ARCH_UNKNOWN
 #endif
 
-#if defined(__BIG_ENDIAN__) || defined(__BIG_ENDIAN) || defined(_BIG_ENDIAN) ||                                        \
-	(defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__) || defined(SEK_ARCH_POWERPC)
+#if (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__) ||                                             \
+	(defined(__BYTE_ORDER__) && __BYTE_ORDER == __BIG_ENDIAN) || defined(SEK_ARCH_POWERPC)
 #define SEK_ARCH_BIG_ENDIAN
 #else
 #define SEK_ARCH_LITTLE_ENDIAN
