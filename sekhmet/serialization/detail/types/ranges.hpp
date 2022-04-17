@@ -62,7 +62,7 @@ namespace sek::serialization
 		template<typename K, typename M>
 		struct map_entry
 		{
-			void serialize(auto &a) { a << array_entry{2} << key << mapped; }
+			void serialize(auto &a) { a << array_entry{dynamic_size} << key << mapped; }
 			void deserialize(auto &a) { a >> key >> mapped; }
 
 			K key;

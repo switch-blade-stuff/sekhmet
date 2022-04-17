@@ -75,7 +75,8 @@ namespace sek::serialization
 	template<detail::pair_like T, typename A>
 	void serialize(const T &pair, A &archive) requires(!detail::tuple_like<T>)
 	{
-		archive << array_entry{2};
+		/* Treat pairs as dynamic-size arrays, since in most cases using a fixed size will have more overhead (need to store a size). */
+		archive << array_entry{dynamic_size};
 		archive << pair.first << pair.second;
 	}
 	template<detail::pair_like T, typename A>
