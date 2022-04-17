@@ -17,6 +17,131 @@
 
 namespace sek::serialization::detail
 {
+	template<std::size_t PageSize>
+	struct basic_pool_allocator
+	{
+		struct page_header
+		{
+			page_header *previous; /* Previous pages are not used for allocation. */
+			std::size_t page_size; /* Total size of the page in bytes. */
+			std::size_t used_size; /* Amount of data used in bytes. */
+
+			/* Page data follows the header. */
+		};
+
+		constexpr static auto page_size_mult = PageSize;
+
+		basic_pool_allocator(const basic_pool_allocator &) = delete;
+		basic_pool_allocator &operator=(const basic_pool_allocator &) = delete;
+
+		constexpr basic_pool_allocator() noexcept = default;
+		constexpr basic_pool_allocator(basic_pool_allocator &&other) noexcept { swap(other); }
+		constexpr basic_pool_allocator &operator=(basic_pool_allocator &&other) noexcept
+		{
+			swap(other);
+			return *this;
+		}
+
+		void release(std::pmr::memory_resource *upstream)
+		{
+			for (auto *page = main_page; page != nullptr;) page = release_page(upstream, page);
+			main_page = nullptr;
+		}
+		void *allocate(std::pmr::memory_resource *upstream, std::size_t n)
+		{
+			/* Allocate on a new page. */
+			void *result;
+			if (auto new_used = n; !main_page || (new_used += main_page->used_size) > main_page->page_size) [[unlikely]]
+				result = alloc_new_page(upstream, n);
+			else
+			{
+				result = static_cast<void *>(page_data(main_page) + main_page->used_size);
+				main_page->used_size = new_used;
+			}
+			return result;
+		}
+		void *reallocate(std::pmr::memory_resource *upstream, void *old, std::size_t old_n, std::size_t n)
+		{
+			if (!old) [[unlikely]]
+				return allocate(upstream, n);
+
+			/* Do nothing if new size is less or same. */
+			if (n <= old_n) [[unlikely]]
+				return old;
+
+			/* If there is old data, main page should exist. */
+			auto main_page_bytes = page_data(main_page);
+			auto new_used = main_page->used_size + n;
+
+			/* Try to expand if old data is the top allocation and there is enough space for it. */
+			auto old_bytes = static_cast<std::byte *>(old);
+			if (old_bytes + old_n == main_page_bytes + main_page->used_size) [[likely]]
+			{
+				if (new_used -= old_n; new_used <= main_page->page_size) [[likely]]
+				{
+					main_page->used_size = new_used;
+					return old;
+				}
+				goto use_new_page;
+			}
+
+			/* Allocate new block & memcpy. */
+			void *result;
+			if (new_used > main_page->page_size) [[unlikely]]
+			{
+			use_new_page:
+				result = alloc_new_page(upstream, new_used);
+			}
+			else
+			{
+				result = static_cast<void *>(main_page_bytes + main_page->used_size);
+				main_page->used_size = new_used;
+			}
+			std::memcpy(result, old, old_n);
+			return result;
+		}
+
+		void *alloc_new_page(std::pmr::memory_resource *upstream, std::size_t n)
+		{
+			auto page_size = n + sizeof(page_header);
+			auto rem = page_size % page_size_mult;
+			page_size = page_size - rem + (rem ? page_size_mult : 0);
+
+			auto new_page = insert_page(upstream, page_size);
+			new_page->used_size = n;
+			if (!new_page) [[unlikely]]
+				return nullptr;
+			return static_cast<void *>(page_data(new_page));
+		}
+		page_header *release_page(std::pmr::memory_resource *upstream, page_header *page_ptr)
+		{
+			auto previous = page_ptr->previous;
+			upstream->deallocate(page_ptr, sizeof(page_header) + page_ptr->page_size);
+			return previous;
+		}
+		page_header *insert_page(std::pmr::memory_resource *upstream, std::size_t n)
+		{
+			auto result = static_cast<page_header *>(upstream->allocate(n));
+			if (!result) [[unlikely]]
+				return nullptr;
+			/* If the previous main page is empty, deallocate it immediately. */
+			if (main_page && !main_page->used_size) [[unlikely]]
+				result->previous = release_page(upstream, main_page);
+			else
+				result->previous = main_page;
+			result->page_size = 0;
+			return main_page = result;
+		}
+		constexpr std::byte *page_data(page_header *header) noexcept
+		{
+			return std::bit_cast<std::byte *>(header) + sizeof(page_header);
+		}
+
+		constexpr void swap(basic_pool_allocator &other) noexcept { std::swap(main_page, other.main_page); }
+
+		page_header *main_page = nullptr;
+	};
+
 	template<typename CharType = char>
 	class json_input_archive_base
 	{
@@ -29,134 +154,6 @@ namespace sek::serialization::detail
 	private:
 		using mem_res_type = std::pmr::memory_resource;
 		using sv_type = std::basic_string_view<CharType>;
-
-		template<std::size_t PageSize>
-		struct pool_allocator
-		{
-			struct page_header
-			{
-				page_header *previous; /* Previous pages are not used for allocation. */
-				std::size_t page_size; /* Total size of the page in bytes. */
-				std::size_t used_size; /* Amount of data used in bytes. */
-
-				/* Page data follows the header. */
-			};
-
-			constexpr static auto page_size_mult = PageSize;
-
-			pool_allocator(const pool_allocator &) = delete;
-			pool_allocator &operator=(const pool_allocator &) = delete;
-
-			constexpr pool_allocator() noexcept = default;
-			constexpr pool_allocator(pool_allocator &&other) noexcept
-				: main_page(std::exchange(other.main_page, nullptr))
-			{
-			}
-			constexpr pool_allocator &operator=(pool_allocator &&other) noexcept
-			{
-				swap(other);
-				return *this;
-			}
-
-			void release(mem_res_type *upstream)
-			{
-				for (auto *page = main_page; page != nullptr;) page = release_page(upstream, page);
-				main_page = nullptr;
-			}
-			void *allocate(mem_res_type *upstream, std::size_t n)
-			{
-				/* Allocate on a new page. */
-				void *result;
-				if (auto new_used = n; !main_page || (new_used += main_page->used_size) > main_page->page_size) [[unlikely]]
-					result = alloc_new_page(upstream, n);
-				else
-				{
-					result = static_cast<void *>(page_data(main_page) + main_page->used_size);
-					main_page->used_size = new_used;
-				}
-				return result;
-			}
-			void *reallocate(mem_res_type *upstream, void *old, std::size_t old_n, std::size_t n)
-			{
-				if (!old) [[unlikely]]
-					return allocate(upstream, n);
-
-				/* Do nothing if new size is less or same. */
-				if (n <= old_n) [[unlikely]]
-					return old;
-
-				/* If there is old data, main page should exist. */
-				auto main_page_bytes = page_data(main_page);
-				auto new_used = main_page->used_size + n;
-
-				/* Try to expand if old data is the top allocation and there is enough space for it. */
-				auto old_bytes = static_cast<std::byte *>(old);
-				if (old_bytes + old_n == main_page_bytes + main_page->used_size) [[likely]]
-				{
-					if (new_used -= old_n; new_used <= main_page->page_size) [[likely]]
-					{
-						main_page->used_size = new_used;
-						return old;
-					}
-					goto use_new_page;
-				}
-
-				/* Allocate new block & memcpy. */
-				void *result;
-				if (new_used > main_page->page_size) [[unlikely]]
-				{
-				use_new_page:
-					result = alloc_new_page(upstream, new_used);
-				}
-				else
-				{
-					result = static_cast<void *>(main_page_bytes + main_page->used_size);
-					main_page->used_size = new_used;
-				}
-				std::memcpy(result, old, old_n);
-				return result;
-			}
-
-			void *alloc_new_page(mem_res_type *upstream, std::size_t n)
-			{
-				auto page_size = n + sizeof(page_header);
-				auto rem = page_size % page_size_mult;
-				page_size = page_size - rem + (rem ? page_size_mult : 0);
-
-				auto new_page = insert_page(upstream, page_size);
-				new_page->used_size = n;
-				if (!new_page) [[unlikely]]
-					return nullptr;
-				return static_cast<void *>(page_data(new_page));
-			}
-			page_header *release_page(mem_res_type *upstream, page_header *page_ptr)
-			{
-				auto previous = page_ptr->previous;
-				upstream->deallocate(page_ptr, sizeof(page_header) + page_ptr->page_size);
-				return previous;
-			}
-			page_header *insert_page(mem_res_type *upstream, std::size_t n)
-			{
-				auto result = static_cast<page_header *>(upstream->allocate(n));
-				if (!result) [[unlikely]]
-					return nullptr;
-				/* If the previous main page is empty, deallocate it immediately. */
-				if (main_page && !main_page->used_size) [[unlikely]]
-					result->previous = release_page(upstream, main_page);
-				else
-					result->previous = main_page;
-				result->page_size = 0;
-				return main_page = result;
-			}
-			constexpr std::byte *page_data(page_header *header) noexcept
-			{
-				return std::bit_cast<std::byte *>(header) + sizeof(page_header);
-			}
-
-			constexpr void swap(pool_allocator &other) noexcept { std::swap(main_page, other.main_page); }
-
-			page_header *main_page = nullptr;
-		};
 
 		typedef int entry_flags;
 
@@ -1116,10 +1113,10 @@ namespace sek::serialization::detail
 			string_pool.release(upstream_alloc);
 		}
 
-		json_entry *top_level = nullptr;						/* Top-most entry of the Json tree. */
-		mem_res_type *upstream_alloc;							/* Upstream allocator used for memory pools. */
-		pool_allocator<sizeof(json_entry) * 64> data_pool = {}; /* Allocation pool used for entry allocation. */
-		pool_allocator<SEK_KB(1)> string_pool = {};				/* Allocation pool used for string allocation. */
+		json_entry *top_level = nullptr;							  /* Top-most entry of the Json tree. */
+		mem_res_type *upstream_alloc;								  /* Upstream allocator used for memory pools. */
+		basic_pool_allocator<sizeof(json_entry) * 64> data_pool = {}; /* Allocation pool used for entry allocation. */
+		basic_pool_allocator<SEK_KB(1)> string_pool = {};			  /* Allocation pool used for string allocation. */
 	};
 
 	template<typename C>
