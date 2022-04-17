@@ -717,7 +717,7 @@ namespace sek::serialization::detail
 			}
 
 			template<typename T>
-			bool try_read(binary_entry<T> mod) noexcept requires std::same_as<CharType, char>
+			bool try_read(binary_entry<T> mod) noexcept
 			{
 				auto sv = read<sv_type>();
 				return base64_decode(&mod.data, sizeof(std::decay_t<decltype(mod.data)>), sv.data(), sv.size());
