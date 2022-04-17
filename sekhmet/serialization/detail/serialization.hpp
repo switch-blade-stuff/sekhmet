@@ -8,8 +8,36 @@
 #include "types/ranges.hpp"
 #include "types/tuples.hpp"
 
-namespace sek::serialization::detail
+namespace sek::serialization
 {
+	namespace detail
+	{
+		template<typename A, typename T>
+		constexpr void invoke_serialize(T &&value, A &archive)
+		{
+			using sek::serialization::serialize;
+			if constexpr (!std::is_pointer_v<T> && requires { value.serialize(archive); })
+				value.serialize(archive);
+			else
+				serialize(std::forward<T>(value), archive);
+		}
+		template<typename A, typename T>
+		constexpr void invoke_deserialize(T &&value, A &archive)
+		{
+			using sek::serialization::deserialize;
+			if constexpr (!std::is_pointer_v<T> && requires { value.deserialize(archive); })
+				value.deserialize(archive);
+			else
+				deserialize(std::forward<T>(value), archive);
+		}
+	}	 // namespace detail
+
+	/** Decodes base64-encoded string into `dest`.
+	 * @param dest Destination buffer for decoded data.
+	 * @param size Size of the destination buffer.
+	 * @param chars Character buffer containing base64 string.
+	 * @param len Length of the base64 string.
+	 * @return true if the operation was successful, false otherwise. */
 	template<typename C>
 	constexpr bool base64_decode(void *dest, std::size_t size, const C *chars, std::size_t len) noexcept
 	{
@@ -54,6 +82,12 @@ namespace sek::serialization::detail
 		}
 		return true;
 	}
+	/** Encodes input buffer to base64 string.
+	 * @param data Pointer to source data.
+	 * @param size Size of the source data in bytes.
+	 * @param chars Character buffer receiving base64 string.
+	 * @return Amount of characters written to the output string.
+	 * @note To get the required size of the output buffer without doing any encoding, set `chars` to null. */
 	template<typename C>
 	constexpr std::size_t base64_encode(const void *data, std::size_t size, C *chars) noexcept
 	{
@@ -94,23 +128,4 @@ namespace sek::serialization::detail
 		}
 		return dest_len;
 	}
-
-	template<typename A, typename T>
-	constexpr void invoke_serialize(T &&value, A &archive)
-	{
-		using sek::serialization::serialize;
-		if constexpr (!std::is_pointer_v<T> && requires { value.serialize(archive); })
-			value.serialize(archive);
-		else
-			serialize(std::forward<T>(value), archive);
-	}
-	template<typename A, typename T>
-	constexpr void invoke_deserialize(T &&value, A &archive)
-	{
-		using sek::serialization::deserialize;
-		if constexpr (!std::is_pointer_v<T> && requires { value.deserialize(archive); })
-			value.deserialize(archive);
-		else
-			deserialize(std::forward<T>(value), archive);
-	}
-}	 // namespace sek::serialization::detail
+}	 // namespace sek::serialization

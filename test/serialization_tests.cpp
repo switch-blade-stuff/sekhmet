@@ -47,11 +47,11 @@ TEST(serialization_tests, base64_test)
 		float f;
 	} data = {1234, std::numbers::pi_v<float>}, decoded;
 
-	auto len = ser::detail::base64_encode<char16_t>(&data, sizeof(data), nullptr);
+	auto len = ser::base64_encode<char16_t>(&data, sizeof(data), nullptr);
 	auto buff = new char16_t[len];
-	ser::detail::base64_encode(&data, sizeof(data), buff);
+	ser::base64_encode(&data, sizeof(data), buff);
 
-	EXPECT_TRUE(ser::detail::base64_decode(&decoded, sizeof(decoded), buff, len));
+	EXPECT_TRUE(ser::base64_decode(&decoded, sizeof(decoded), buff, len));
 	EXPECT_EQ(decoded, data);
 
 	delete[] buff;

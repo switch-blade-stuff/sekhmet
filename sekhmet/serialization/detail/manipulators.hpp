@@ -87,17 +87,4 @@ namespace sek::serialization
 
 	template<typename T>
 	binary_entry(T &&) -> binary_entry<T>;
-
-	/** @brief Archive manipulator used to change archive's pretty-printing mode.
-	 * @note If the archive does not support pretty-printing, this manipulator will be ignored. */
-	struct pretty_print
-	{
-		pretty_print() = delete;
-
-		/** Initializes the modifier to the specific pretty-print mode.
-		 * @param value If set to true, pretty-printing will be enabled, otherwise pretty-printing will be disabled. */
-		constexpr explicit pretty_print(bool value) noexcept : value(value) {}
-
-		bool value;
-	};
 }	 // namespace sek::serialization
