@@ -720,13 +720,13 @@ namespace sek::serialization::detail
 			bool try_read(binary_entry<T> mod) noexcept requires std::same_as<CharType, char>
 			{
 				auto sv = read<sv_type>();
-				base64_decode(mod.data, sv.data(), sv.size());
-				return true;
+				return base64_decode(&mod.data, sizeof(std::decay_t<decltype(mod.data)>), sv.data(), sv.size());
 			}
 			template<typename T>
 			read_frame &read(binary_entry<T> mod) noexcept
 			{
-				try_read(mod);
+				if (!try_read(mod)) [[unlikely]]
+					throw archive_error("Failed to decode base64 data");
 				return *this;
 			}
 			template<typename T>

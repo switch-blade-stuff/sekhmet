@@ -44,13 +44,14 @@ TEST(serialization_tests, base64_test)
 		float f;
 	} data = {1234, std::numbers::pi_v<float>}, decoded;
 
-	auto len = ser::detail::base64_encode(data, nullptr);
+	auto len = ser::detail::base64_encode(&data, sizeof(data), nullptr);
 	auto buff = new char[len];
-	ser::detail::base64_encode(data, buff);
-	ser::detail::base64_decode(decoded, buff, len);
-	delete[] buff;
+	ser::detail::base64_encode(&data, sizeof(data), buff);
 
+	EXPECT_TRUE(ser::detail::base64_decode(&decoded, sizeof(decoded), buff, len));
 	EXPECT_EQ(decoded, data);
+
+	delete[] buff;
 }
 
 TEST(serialization_tests, ubjson_test)
