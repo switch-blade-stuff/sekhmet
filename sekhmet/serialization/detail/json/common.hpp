@@ -716,6 +716,25 @@ namespace sek::serialization::detail
 				return read(mod);
 			}
 
+			template<typename T>
+			bool try_read(binary_entry<T> mod) noexcept
+			{
+				auto sv = read<sv_type>();
+				base64_decode(mod.data, sv.data(), sv.size());
+				return true;
+			}
+			template<typename T>
+			read_frame &read(binary_entry<T> mod) noexcept
+			{
+				try_read(mod);
+				return *this;
+			}
+			template<typename T>
+			read_frame &operator>>(binary_entry<T> mod) noexcept
+			{
+				return read(mod);
+			}
+
 		private:
 			struct raw_ptrs
 			{
@@ -1111,7 +1130,7 @@ namespace sek::serialization::detail
 			throw archive_error("Invalid Json type, expected array or object");
 
 		read_frame frame{this};
-		detail::invoke_deserialize(frame, std::forward<T>(value));
+		detail::invoke_deserialize(std::forward<T>(value), frame);
 		return *this;
 	}
 }	 // namespace sek::serialization::detail

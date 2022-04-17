@@ -8,25 +8,28 @@
 
 namespace sek::serialization
 {
+	namespace detail
+	{
+		template<typename T>
+		constexpr static bool noexcept_fwd = noexcept(T(std::forward<T>(std::declval<T &&>())));
+	}
+
 	/** @brief Archive manipulator used to specify an explicit name for an entry. */
 	template<typename T>
 	struct named_entry
 	{
-	private:
-		constexpr static bool noexcept_fwd = noexcept(T(std::forward<T>(std::declval<T &&>())));
-
 	public:
 		named_entry() = delete;
 
 		/** Constructs a named entry manipulator from a name and a perfectly-forwarded value.
 		 * @param name Name of the entry.
 		 * @param value Value forwarded by the manipulator. */
-		constexpr named_entry(std::string_view name, T &&value) noexcept(noexcept_fwd)
+		constexpr named_entry(std::string_view name, T &&value) noexcept(detail::noexcept_fwd<T>)
 			: name(name), value(std::forward<T>(value))
 		{
 		}
 		/** @copydoc named_entry */
-		constexpr named_entry(const char *name, T &&value) noexcept(noexcept(noexcept_fwd))
+		constexpr named_entry(const char *name, T &&value) noexcept(detail::noexcept_fwd<T>)
 			: name(name), value(std::forward<T>(value))
 		{
 		}
@@ -36,9 +39,9 @@ namespace sek::serialization
 	};
 
 	template<typename T>
-	named_entry(std::string_view name, T &&value) -> named_entry<T>;
+	named_entry(std::string_view, T &&) -> named_entry<T>;
 	template<typename T>
-	named_entry(const char *name, T &&value) -> named_entry<T>;
+	named_entry(const char *, T &&) -> named_entry<T>;
 
 	namespace detail
 	{
@@ -78,7 +81,7 @@ namespace sek::serialization
 		T value;
 	};
 	template<typename T>
-	array_entry(T &&value) -> array_entry<T>;
+	array_entry(T &&) -> array_entry<T>;
 
 	/** @brief Archive manipulator used to switch an archive to array IO mode and read/write object size.
 	 * @note If the archive does not support fixed-size objects, size will be left unmodified. */
@@ -93,7 +96,7 @@ namespace sek::serialization
 		T value;
 	};
 	template<typename T>
-	object_entry(T &&value) -> object_entry<T>;
+	object_entry(T &&) -> object_entry<T>;
 
 	namespace detail
 	{
@@ -114,6 +117,18 @@ namespace sek::serialization
 	/** @brief Concept satisfied only if archive `A` supports input or output of fixed-size sequences. */
 	template<typename A>
 	concept fixed_size_archive = detail::fixed_size_input<A> || detail::fixed_size_output<A>;
+
+	/** @brief Archive manipulator used to read & write binary data. */
+	template<typename T>
+	struct binary_entry
+	{
+		constexpr explicit binary_entry(T &&data) noexcept(detail::noexcept_fwd<T>) : data(std::forward<T>(data)) {}
+
+		T data;
+	};
+
+	template<typename T>
+	binary_entry(T &&) -> binary_entry<T>;
 
 	/** @brief Archive manipulator used to change archive's pretty-printing mode.
 	 * @note If the archive does not support pretty-printing, this manipulator will be ignored. */

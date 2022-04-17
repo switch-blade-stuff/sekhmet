@@ -34,10 +34,29 @@ struct test_serializable
 	std::pair<int, float> p;
 };
 
+TEST(serialization_tests, base64_test)
+{
+	struct data_t
+	{
+		constexpr bool operator==(const data_t &) const noexcept = default;
+
+		int i;
+		float f;
+	} data = {1234, std::numbers::pi_v<float>}, decoded;
+
+	auto len = ser::detail::base64_encode(data, nullptr);
+	auto buff = new char[len];
+	ser::detail::base64_encode(data, buff);
+	ser::detail::base64_decode(decoded, buff, len);
+	delete[] buff;
+
+	EXPECT_EQ(decoded, data);
+}
+
 TEST(serialization_tests, ubjson_test)
 {
 	const char data[] = "{#i\x05i\x01sSi\x0dHello, world!U\x01iI\x04\x20i\01bTi\01v[$i#i\04\x00\x01\x02\x03"
-						"i\x01p[#i\2i\105d\x43\xd2\x00\x00";
+						"i\x01p[i\105d\x43\xd2\x00\x00]";
 	ser::ubj_input_archive archive(data, sizeof(data) - 1);
 
 	test_serializable serializable;
