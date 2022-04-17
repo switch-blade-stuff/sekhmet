@@ -6,6 +6,7 @@
 
 #include "archive_traits.hpp"
 #include "types/ranges.hpp"
+#include "types/tuples.hpp"
 
 namespace sek::serialization::detail
 {

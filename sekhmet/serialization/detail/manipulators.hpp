@@ -40,19 +40,8 @@ namespace sek::serialization
 	template<typename T>
 	named_entry(const char *name, T &&value) -> named_entry<T>;
 
-	/** @brief Policy tag used to indicate that an archive supports reading & writing entries with explicit names. */
-	struct named_entry_policy
-	{
-	};
-
 	namespace detail
 	{
-		template<typename T>
-		concept has_named_entry_policy = requires
-		{
-			typename T::entry_policy;
-			std::is_base_of_v<named_entry_policy, typename T::entry_policy>;
-		};
 		template<typename A, typename T>
 		concept named_entry_input = requires(A &archive, std::remove_cvref_t<T> &data)
 		{
@@ -71,8 +60,7 @@ namespace sek::serialization
 
 	/** @brief Concept satisfied only if archive `A` supports input or output of named entries of `T`. */
 	template<typename A, typename T>
-	concept named_entry_archive = detail::has_named_entry_policy<A> &&
-		(detail::named_entry_input<A, T> || detail::named_entry_output<A, T>);
+	concept named_entry_archive = detail::named_entry_input<A, T> || detail::named_entry_output<A, T>;
 
 	/** @brief Constant used as a dynamic size value for array & object entry manipulators. */
 	constexpr auto dynamic_size = std::numeric_limits<std::size_t>::max();
@@ -107,19 +95,8 @@ namespace sek::serialization
 	template<typename T>
 	object_entry(T &&value) -> object_entry<T>;
 
-	/** @brief Policy tag used to indicate that an archive supports reading & writing arrays & objects of fixed size. */
-	struct fixed_size_policy
-	{
-	};
-
 	namespace detail
 	{
-		template<typename T>
-		concept has_fixed_size_policy = requires
-		{
-			typename T::sequence_policy;
-			std::is_base_of_v<fixed_size_policy, typename T::sequence_policy>;
-		};
 		template<typename A>
 		concept fixed_size_input = requires(A &archive, std::size_t &size)
 		{
@@ -136,8 +113,7 @@ namespace sek::serialization
 
 	/** @brief Concept satisfied only if archive `A` supports input or output of fixed-size sequences. */
 	template<typename A>
-	concept fixed_size_archive = detail::has_fixed_size_policy<A> &&
-		(detail::fixed_size_input<A> || detail::fixed_size_output<A>);
+	concept fixed_size_archive = detail::fixed_size_input<A> || detail::fixed_size_output<A>;
 
 	/** @brief Archive manipulator used to change archive's pretty-printing mode.
 	 * @note If the archive does not support pretty-printing, this manipulator will be ignored. */

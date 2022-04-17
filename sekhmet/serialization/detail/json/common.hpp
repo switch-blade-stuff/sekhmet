@@ -9,7 +9,7 @@
 #include <cstring>
 
 #include "../manipulators.hpp"
-#include "../util.hpp"
+#include "../serialization.hpp"
 #include "sekhmet/detail/assert.hpp"
 #include "sekhmet/detail/define.h"
 #include "sekhmet/detail/hash.hpp"
@@ -538,8 +538,6 @@ namespace sek::serialization::detail
 
 		public:
 			typedef input_archive_category archive_category;
-			typedef fixed_size_policy sequence_policy;
-			typedef named_entry_policy entry_policy;
 
 			typedef entry_iterator iterator;
 			typedef entry_iterator const_iterator;

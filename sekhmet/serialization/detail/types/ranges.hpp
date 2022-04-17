@@ -11,6 +11,17 @@
 
 namespace sek::serialization
 {
+	namespace detail
+	{
+		template<typename R>
+		concept map_like = requires
+		{
+			typename R::key_type;
+			typename R::mapped_type;
+			typename R::value_type;
+		};
+	}	 // namespace detail
+
 	template<typename A, std::ranges::forward_range R>
 	void serialize(const R &range, A &archive)
 	{
