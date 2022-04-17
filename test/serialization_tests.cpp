@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 
-#include "sekhmet/serialization/json_archive.hpp"
+#include "sekhmet/serialization/ubjson.hpp"
 
 namespace ser = sek::serialization;
 
