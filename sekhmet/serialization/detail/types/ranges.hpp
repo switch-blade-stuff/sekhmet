@@ -11,44 +11,36 @@
 
 namespace sek::serialization
 {
-	template<typename R>
-	concept back_insertable_range = requires(R &r, std::ranges::range_value_t<R> &value)
-	{
-		r.push_back(value);
-	};
-
 	template<typename A, std::ranges::forward_range R>
-	void serialize(A &archive, const R &range)
+	void serialize(const R &range, A &archive)
 	{
 		if constexpr (std::ranges::sized_range<R>)
-			archive << sequence{std::ranges::size(range)};
+			archive << array_entry{std::ranges::size(range)};
 		else
-			archive << sequence{};
+			archive << array_entry{dynamic_size};
 		for (auto &item : range) archive << item;
 	}
 
-	template<typename A, back_insertable_range R>
-	void deserialize(A &archive, R &range)
+	template<typename A, std::ranges::forward_range R>
+	void deserialize(R &r, A &a) requires(requires(std::ranges::range_value_t<R> &value) { r.push_back(value); })
 	{
-		if constexpr (fixed_sequence_archive<A> && requires { range.reserve(std::ranges::range_size_t<R>{}); })
+		if constexpr (fixed_size_archive<A> && requires { r.reserve(std::ranges::range_size_t<R>{}); })
 		{
 			std::ranges::range_size_t<R> size;
-			archive >> sequence{size};
-			range.reserve(size);
+			a >> array_entry{size};
+			r.reserve(size);
 		}
-		else
-			archive >> sequence{};
 
-		auto inserter = std::back_inserter(range);
+		using V = std::ranges::range_value_t<R>;
+		auto inserter = std::back_inserter(r);
 		if constexpr (container_like_archive<A>)
-			for (auto &entry : archive) entry >> *inserter;
+			for (auto &entry : a) *inserter = entry.template read<V>();
 		else
 			for (;;)
 			{
-				using V = std::ranges::range_value_t<R>;
 
 				V value;
-				if (!archive.try_read(value)) [[unlikely]]
+				if (!a.try_read(value)) [[unlikely]]
 					break;
 
 				if constexpr (std::movable<V>)
@@ -58,9 +50,8 @@ namespace sek::serialization
 			}
 	}
 	template<typename A, std::ranges::forward_range R>
-	void deserialize(A &archive, R &range)
+	void deserialize(R &range, A &archive)
 	{
-		archive >> sequence{};
 		auto range_item = std::ranges::begin(range), range_end = std::ranges::end(range);
 		if constexpr (container_like_archive<A>)
 		{
@@ -76,10 +67,8 @@ namespace sek::serialization
 			}
 	}
 	template<typename A, typename T, std::size_t N>
-	void deserialize(A &archive, T (&data)[N])
+	void deserialize(T (&data)[N], A &archive)
 	{
-		archive >> sequence{};
-
 		auto data_item = std::ranges::begin(data), data_end = std::ranges::end(data);
 		if constexpr (container_like_archive<A>)
 		{

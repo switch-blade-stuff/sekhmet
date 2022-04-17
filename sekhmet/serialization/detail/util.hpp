@@ -16,7 +16,7 @@ namespace sek::serialization::detail
 		if constexpr (!std::is_pointer_v<T> && requires { value.serialize(archive); })
 			value.serialize(archive);
 		else
-			serialize(archive, std::forward<T>(value));
+			serialize(std::forward<T>(value), archive);
 	}
 	template<typename A, typename T>
 	constexpr void invoke_deserialize(A &archive, T &&value)
@@ -25,6 +25,6 @@ namespace sek::serialization::detail
 		if constexpr (!std::is_pointer_v<T> && requires { value.deserialize(archive); })
 			value.deserialize(archive);
 		else
-			deserialize(archive, std::forward<T>(value));
+			deserialize(std::forward<T>(value), archive);
 	}
 }	 // namespace sek::serialization::detail

@@ -8,14 +8,9 @@
 
 namespace sek::serialization
 {
-	/** @brief Parent struct for archive manipulators. */
-	struct archive_manipulator
-	{
-	};
-
 	/** @brief Archive manipulator used to specify an explicit name for an entry. */
 	template<typename T>
-	struct named_entry : archive_manipulator
+	struct named_entry
 	{
 	private:
 		constexpr static bool noexcept_fwd = noexcept(T(std::forward<T>(std::declval<T &&>())));
@@ -79,63 +74,74 @@ namespace sek::serialization
 	concept named_entry_archive = detail::has_named_entry_policy<A> &&
 		(detail::named_entry_input<A, T> || detail::named_entry_output<A, T>);
 
-	template<typename...>
-	struct sequence;
+	/** @brief Constant used as a dynamic size value for array & object entry manipulators. */
+	constexpr auto dynamic_size = std::numeric_limits<std::size_t>::max();
 
-	/** @brief Archive manipulator used to switch an archive to sequence IO mode. */
-	template<>
-	struct sequence<> : archive_manipulator
-	{
-	};
-	sequence() -> sequence<>;
-
-	/** @brief Archive manipulator used to switch an archive to sequence IO mode and read/write fixed sequence size. */
+	/** @brief Archive manipulator used to switch an archive to array IO mode and read/write array size.
+	 * @note If the archive does not support fixed-size arrays, size will be left unmodified. */
 	template<typename T>
 	requires std::integral<std::decay_t<T>>
-	struct sequence<T> : archive_manipulator
+	struct array_entry
 	{
-		/** Constructs a sequence manipulator from a perfectly-forwarded sequence size.
-		 * @param value Size of the sequence forwarded by the manipulator. */
-		constexpr explicit sequence(T &&value) noexcept : value(std::forward<T>(value)) {}
+		/** Constructs an array entry manipulator from a perfectly-forwarded array size.
+		 * @param value Size of the array forwarded by the manipulator. */
+		constexpr explicit array_entry(T &&value) noexcept : value(std::forward<T>(value)) {}
 
 		T value;
 	};
 	template<typename T>
-	sequence(T &&value) -> sequence<T>;
+	array_entry(T &&value) -> array_entry<T>;
 
-	/** @brief Policy tag used to indicate that an archive supports reading & writing sequences of fixed size. */
-	struct fixed_sequence_policy
+	/** @brief Archive manipulator used to switch an archive to array IO mode and read/write object size.
+	 * @note If the archive does not support fixed-size objects, size will be left unmodified. */
+	template<typename T>
+	requires std::integral<std::decay_t<T>>
+	struct object_entry
+	{
+		/** Constructs an array entry manipulator from a perfectly-forwarded array size.
+		 * @param value Size of the array forwarded by the manipulator. */
+		constexpr explicit object_entry(T &&value) noexcept : value(std::forward<T>(value)) {}
+
+		T value;
+	};
+	template<typename T>
+	object_entry(T &&value) -> object_entry<T>;
+
+	/** @brief Policy tag used to indicate that an archive supports reading & writing arrays & objects of fixed size. */
+	struct fixed_size_policy
 	{
 	};
 
 	namespace detail
 	{
 		template<typename T>
-		concept has_fixed_sequence_policy = requires
+		concept has_fixed_size_policy = requires
 		{
 			typename T::sequence_policy;
-			std::is_base_of_v<fixed_sequence_policy, typename T::sequence_policy>;
+			std::is_base_of_v<fixed_size_policy, typename T::sequence_policy>;
 		};
 		template<typename A>
-		concept fixed_sequence_input = requires(A &archive, std::size_t &size)
+		concept fixed_size_input = requires(A &archive, std::size_t &size)
 		{
-			input_archive<A, decltype(sequence{size})>;
+			input_archive<A, decltype(array_entry{size})>;
+			input_archive<A, decltype(object_entry{size})>;
 		};
 		template<typename A>
-		concept fixed_sequence_output = requires(A &archive, const std::size_t &size)
+		concept fixed_size_output = requires(A &archive, const std::size_t &size)
 		{
-			output_archive<A, decltype(sequence{size})>;
+			output_archive<A, decltype(array_entry{size})>;
+			output_archive<A, decltype(object_entry{size})>;
 		};
 	}	 // namespace detail
 
 	/** @brief Concept satisfied only if archive `A` supports input or output of fixed-size sequences. */
 	template<typename A>
-	concept fixed_sequence_archive = detail::has_fixed_sequence_policy<A> &&
-		(detail::fixed_sequence_input<A> || detail::fixed_sequence_output<A>);
+	concept fixed_size_archive = detail::has_fixed_size_policy<A> &&
+		(detail::fixed_size_input<A> || detail::fixed_size_output<A>);
 
 	/** @brief Archive manipulator used to change archive's pretty-printing mode.
 	 * @note If the archive does not support pretty-printing, this manipulator will be ignored. */
-	struct pretty_print : archive_manipulator
+	struct pretty_print
 	{
 		pretty_print() = delete;
 

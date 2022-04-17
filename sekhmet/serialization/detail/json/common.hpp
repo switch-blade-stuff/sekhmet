@@ -30,6 +30,7 @@ namespace sek::serialization::detail
 		using mem_res_type = std::pmr::memory_resource;
 		using sv_type = std::basic_string_view<CharType>;
 
+		template<std::size_t PageSize>
 		struct pool_allocator
 		{
 			struct page_header
@@ -41,7 +42,7 @@ namespace sek::serialization::detail
 				/* Page data follows the header. */
 			};
 
-			constexpr static auto page_size_mult = SEK_KB(1);
+			constexpr static auto page_size_mult = PageSize;
 
 			pool_allocator(const pool_allocator &) = delete;
 			pool_allocator &operator=(const pool_allocator &) = delete;
@@ -475,11 +476,12 @@ namespace sek::serialization::detail
 
 			[[nodiscard]] friend constexpr difference_type operator-(entry_iterator a, entry_iterator b) noexcept
 			{
-				SEK_ASSERT(a.type != b.type);
+				SEK_ASSERT(a.type == b.type);
 				switch (a.type)
 				{
 					case read_frame_type::ARRAY_FRAME: return a.array_element - b.array_element;
 					case read_frame_type::OBJECT_FRAME: return a.object_element - b.object_element;
+					default: return 0;
 				}
 			}
 			[[nodiscard]] friend constexpr entry_iterator operator+(difference_type n, entry_iterator a) noexcept
@@ -512,6 +514,7 @@ namespace sek::serialization::detail
 				{
 					case read_frame_type::ARRAY_FRAME: array_element += n; break;
 					case read_frame_type::OBJECT_FRAME: object_element += n; break;
+					default: break;
 				}
 			}
 
@@ -535,7 +538,7 @@ namespace sek::serialization::detail
 
 		public:
 			typedef input_archive_category archive_category;
-			typedef fixed_sequence_policy sequence_policy;
+			typedef fixed_size_policy sequence_policy;
 			typedef named_entry_policy entry_policy;
 
 			typedef entry_iterator iterator;
@@ -602,8 +605,6 @@ namespace sek::serialization::detail
 				return static_cast<size_type>(std::numeric_limits<std::uint32_t>::max());
 			}
 
-			/* Regular reads are forwarded to the entry. */
-
 			/** Attempts to deserialize the next Json entry of the archive & advance the entry.
 			 * @param value Value to deserialize from the Json entry.
 			 * @return true if deserialization was successful, false otherwise. */
@@ -648,26 +649,23 @@ namespace sek::serialization::detail
 				return result;
 			}
 
-			/* Modifier reads are applied directly to the frame. */
-
 			template<typename T>
-			bool try_read(named_entry<T> &&value) requires std::is_reference_v<T>
+			bool try_read(named_entry<T> value) requires std::is_reference_v<T>
 			{
 				if (type == read_frame_type::OBJECT_FRAME) [[likely]]
 				{
-					auto entry = seek_entry(value.name);
-					if (!entry) [[likely]]
-						return entry->try_read(value);
+					if (seek_entry(value.name)) [[likely]]
+						return try_read(std::forward<T>(value.value));
 				}
 				return false;
 			}
 			template<typename T>
-			read_frame &read(named_entry<T> &&value) requires std::is_reference_v<T>
+			read_frame &read(named_entry<T> value) requires std::is_reference_v<T>
 			{
 				if (type != read_frame_type::OBJECT_FRAME) [[unlikely]]
 					throw archive_error("Invalid Json type, expected object");
 
-				if (auto entry = seek_entry(value.name); !entry) [[unlikely]]
+				if (!seek_entry(value.name)) [[unlikely]]
 				{
 					std::string err{"Invalid Json object member \""};
 					err.append(value.name);
@@ -675,36 +673,50 @@ namespace sek::serialization::detail
 					throw std::out_of_range(err);
 				}
 				else
-					entry->read(value);
+					read(std::forward<T>(value.value));
 				return *this;
 			}
 			template<typename T>
-			read_frame &operator>>(named_entry<T> &&mod) requires std::is_reference_v<T>
+			read_frame &operator>>(named_entry<T> mod) requires std::is_reference_v<T>
 			{
-				return read(mod);
+				return read(std::forward<named_entry<T>>(mod));
 			}
 
-			template<std::integral I>
-			bool try_read(sequence<I> mod) const noexcept
+			template<typename I>
+			bool try_read(array_entry<I> mod) noexcept
 			{
-				mod.value = static_cast<I>(size());
+				mod.value = static_cast<std::decay_t<I>>(size());
 				return true;
 			}
-			template<std::integral I>
-			read_frame &read(sequence<I> mod) noexcept
+			template<typename I>
+			read_frame &read(array_entry<I> mod) noexcept
 			{
 				try_read(mod);
 				return *this;
 			}
-			template<std::integral I>
-			read_frame &operator>>(sequence<I> mod) noexcept
+			template<typename I>
+			read_frame &operator>>(array_entry<I> mod) noexcept
 			{
 				return read(mod);
 			}
 
-			constexpr bool try_read(sequence<>) const noexcept { return true; }
-			constexpr read_frame &read(sequence<>) noexcept { return *this; }
-			constexpr read_frame &operator>>(sequence<>) noexcept { return *this; }
+			template<typename I>
+			bool try_read(object_entry<I> mod) noexcept
+			{
+				mod.value = static_cast<I>(size());
+				return true;
+			}
+			template<typename I>
+			read_frame &read(object_entry<I> mod) noexcept
+			{
+				try_read(mod);
+				return *this;
+			}
+			template<typename I>
+			read_frame &operator>>(object_entry<I> mod) noexcept
+			{
+				return read(mod);
+			}
 
 		private:
 			struct raw_ptrs
@@ -726,19 +738,19 @@ namespace sek::serialization::detail
 				const member_t *current_ptr;
 			};
 
-			constexpr json_entry *seek_entry(sv_type key) noexcept
+			constexpr const json_entry *seek_entry(sv_type key) noexcept
 			{
 				if (auto member_ptr = search_entry(key); member_ptr) [[likely]]
 				{
 					object.current_ptr = member_ptr;
-					return member_ptr->value;
+					return &member_ptr->value;
 				}
 				else
 					return nullptr;
 			}
-			constexpr member_t *search_entry(sv_type key) const noexcept
+			constexpr const member_t *search_entry(sv_type key) const noexcept
 			{
-				for (auto member = object.members_begin; member < object.members_end; ++member)
+				for (auto member = object.begin_ptr; member < object.end_ptr; ++member)
 					if (key == sv_type{member->key.data, member->key.size}) return member;
 				return nullptr;
 			}
@@ -867,13 +879,13 @@ namespace sek::serialization::detail
 			{
 				auto do_start_object = [&](json_entry &entry)
 				{
+					enter_frame();
 					entry.type = entry_type::OBJECT;
 					current->object_ptr = &entry.object;
 					current->state = parse_state::EXPECT_OBJECT_KEY;
 					if (n) resize_container<member_t>(n);
 				};
 
-				enter_frame();
 				if (!parent->top_level) [[unlikely]] /* This is the top-level object. */
 				{
 					do_start_object(parent->alloc_top_level());
@@ -924,13 +936,13 @@ namespace sek::serialization::detail
 			{
 				auto do_start_array = [&](json_entry &entry)
 				{
+					enter_frame();
 					entry.type = entry_type::ARRAY;
 					current->array_ptr = &entry.array;
 					current->state = parse_state::EXPECT_ARRAY_VALUE;
 					if (n) resize_container<json_entry>(n);
 				};
 
-				enter_frame();
 				if (!parent->top_level) [[unlikely]] /* This is the top-level array. */
 				{
 					do_start_array(parent->alloc_top_level());
@@ -985,7 +997,8 @@ namespace sek::serialization::detail
 					case parse_state::EXPECT_OBJECT_VALUE:
 					{
 						/* Size is updated by the key event. */
-						entry = &(current->object_data[current->current_size].value);
+						entry = &(current->object_data[current->current_size - 1].value);
+						current->state = parse_state::EXPECT_OBJECT_KEY;
 						break;
 					}
 					default: return false;
@@ -1027,12 +1040,12 @@ namespace sek::serialization::detail
 		~json_input_archive_base() { destroy(); }
 
 		template<typename T>
-		bool do_try_read(T &&value)
+		bool do_try_read(T &&value) const
 		{
 			return top_level->try_read(std::forward<T>(value));
 		}
 		template<typename T>
-		void do_read(T &&value)
+		void do_read(T &&value) const
 		{
 			top_level->read(std::forward<T>(value));
 		}
@@ -1086,10 +1099,10 @@ namespace sek::serialization::detail
 			string_pool.release(upstream_alloc);
 		}
 
-		json_entry *top_level = nullptr; /* Top-most entry of the Json tree. */
-		mem_res_type *upstream_alloc;	 /* Upstream allocator used for memory pools. */
-		pool_allocator data_pool = {};	 /* Allocation pool used for entry allocation. */
-		pool_allocator string_pool = {}; /* Allocation pool used for string allocation. */
+		json_entry *top_level = nullptr;						/* Top-most entry of the Json tree. */
+		mem_res_type *upstream_alloc;							/* Upstream allocator used for memory pools. */
+		pool_allocator<sizeof(json_entry) * 64> data_pool = {}; /* Allocation pool used for entry allocation. */
+		pool_allocator<SEK_KB(1)> string_pool = {};				/* Allocation pool used for string allocation. */
 	};
 
 	template<typename C>

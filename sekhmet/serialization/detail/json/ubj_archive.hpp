@@ -128,7 +128,8 @@ namespace sek::serialization
 			}
 			[[nodiscard]] std::int64_t read_length()
 			{
-				switch (read_token())
+				auto token = read_token();
+				switch (token)
 				{
 					case detail::ubj_token::UBJ_UINT8: return static_cast<std::int64_t>(read_literal<std::uint8_t>());
 					case detail::ubj_token::UBJ_INT8: return static_cast<std::int64_t>(read_literal<std::int8_t>());
@@ -423,7 +424,7 @@ namespace sek::serialization
 		 * @param value Value to deserialize from the Json entry.
 		 * @return true if deserialization was successful, false otherwise. */
 		template<typename T>
-		bool try_read(T &&value)
+		bool try_read(T &&value) const
 		{
 			return base_t::do_try_read(std::forward<T>(value));
 		}
@@ -432,14 +433,14 @@ namespace sek::serialization
 		 * @return Reference to this archive.
 		 * @throw archive_error On deserialization errors. */
 		template<typename T>
-		basic_ubj_input_archive &read(T &&value)
+		const basic_ubj_input_archive &read(T &&value) const
 		{
 			base_t::do_read(std::forward<T>(value));
 			return *this;
 		}
 		/** @copydoc read */
 		template<typename T>
-		basic_ubj_input_archive &operator>>(T &&value)
+		const basic_ubj_input_archive &operator>>(T &&value) const
 		{
 			return read(std::forward<T>(value));
 		}
@@ -447,7 +448,7 @@ namespace sek::serialization
 		 * @return Deserialized instance of `T`.
 		 * @throw archive_error On deserialization errors. */
 		template<std::default_initializable T>
-		T read()
+		T read() const
 		{
 			T result;
 			read(result);
