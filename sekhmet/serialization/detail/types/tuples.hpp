@@ -61,7 +61,7 @@ namespace sek::serialization
 	{
 		if constexpr (std::tuple_size_v<T> != 0)
 		{
-			archive << array_entry{std::tuple_size_v<T>};
+			archive << array_mode() << container_size(std::tuple_size_v<T>);
 			tuple_serialize_unwrap(tuple, archive, std::make_index_sequence<std::tuple_size_v<T>>{});
 		}
 	}
@@ -76,8 +76,7 @@ namespace sek::serialization
 	void serialize(const T &pair, A &archive) requires(!detail::tuple_like<T>)
 	{
 		/* Treat pairs as dynamic-size arrays, since in most cases using a fixed size will have more overhead (need to store a size). */
-		archive << array_entry{dynamic_size};
-		archive << pair.first << pair.second;
+		archive << array_mode() << pair.first << pair.second;
 	}
 	template<detail::pair_like T, typename A>
 	void deserialize(T &pair, A &archive) requires(!detail::tuple_like<T>)

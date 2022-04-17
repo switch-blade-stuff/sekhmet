@@ -14,77 +14,99 @@ namespace sek::serialization
 		constexpr static bool noexcept_fwd = noexcept(T(std::forward<T>(std::declval<T &&>())));
 	}
 
-	/** @brief Archive manipulator used to specify an explicit name for an entry. */
-	template<typename T>
-	struct named_entry
+	/** @brief Archive manipulator used to read or write an entry with explicit name. */
+	template<typename C, typename T>
+	struct named_entry_t
 	{
-	public:
-		named_entry() = delete;
-
-		/** Constructs a named entry manipulator from a name and a perfectly-forwarded value.
-		 * @param name Name of the entry.
-		 * @param value Value forwarded by the manipulator. */
-		constexpr named_entry(std::string_view name, T &&value) noexcept(detail::noexcept_fwd<T>)
-			: name(name), value(std::forward<T>(value))
-		{
-		}
-		/** @copydoc named_entry */
-		constexpr named_entry(const char *name, T &&value) noexcept(detail::noexcept_fwd<T>)
-			: name(name), value(std::forward<T>(value))
-		{
-		}
-
-		std::string_view name;
+		std::basic_string_view<C> name;
 		T value;
 	};
-
-	template<typename T>
-	named_entry(std::string_view, T &&) -> named_entry<T>;
-	template<typename T>
-	named_entry(const char *, T &&) -> named_entry<T>;
-
-	/** @brief Constant used as a dynamic size value for array & object entry manipulators. */
-	constexpr auto dynamic_size = std::numeric_limits<std::size_t>::max();
-
-	/** @brief Archive manipulator used to switch an archive to array IO mode and read/write array size.
-	 * @note If the archive does not support fixed-size arrays, size will be left unmodified. */
-	template<typename T>
-	requires std::integral<std::decay_t<T>>
-	struct array_entry
+	/** Reads or writes an entry with an explicit name.
+	 * @param name Name of the entry.
+	 * @param value Value to be read or written, forwarded by the manipulator.
+	 * @note If the current entry (entry of the object being deserialized) is an array entry,
+	 * specifying an explicit entry names will have no effect.  */
+	template<typename C, typename T>
+	constexpr named_entry_t<C, T> named_entry(std::basic_string_view<C> name, T &&value) noexcept(detail::noexcept_fwd<T>)
 	{
-		/** Constructs an array entry manipulator from a perfectly-forwarded array size.
-		 * @param value Size of the array forwarded by the manipulator. */
-		constexpr explicit array_entry(T &&value) noexcept : value(std::forward<T>(value)) {}
-
-		T value;
-	};
-	template<typename T>
-	array_entry(T &&) -> array_entry<T>;
-
-	/** @brief Archive manipulator used to switch an archive to array IO mode and read/write object size.
-	 * @note If the archive does not support fixed-size objects, size will be left unmodified. */
-	template<typename T>
-	requires std::integral<std::decay_t<T>>
-	struct object_entry
+		return named_entry_t<C, T>{name, std::forward<T>(value)};
+	}
+	/** @copydoc named_entry */
+	template<typename C, typename T>
+	constexpr named_entry_t<C, T> named_entry(const C *name, T &&value) noexcept(detail::noexcept_fwd<T>)
 	{
-		/** Constructs an array entry manipulator from a perfectly-forwarded array size.
-		 * @param value Size of the array forwarded by the manipulator. */
-		constexpr explicit object_entry(T &&value) noexcept : value(std::forward<T>(value)) {}
-
-		T value;
-	};
-	template<typename T>
-	object_entry(T &&) -> object_entry<T>;
+		return named_entry_t<C, T>{name, std::forward<T>(value)};
+	}
 
 	/** @brief Archive manipulator used to read & write binary data. */
-	template<typename T>
-	struct binary_entry
+	struct binary_entry_t
 	{
-		constexpr explicit binary_entry(T &&data) noexcept(detail::noexcept_fwd<T>) : data(std::forward<T>(data)) {}
-
-		T data;
+		union
+		{
+			const void *data_in;
+			void *data_out;
+		};
+		std::size_t size;
 	};
 
+	/** Reads a binary entry into a memory buffer.
+	 * @param buff Pointer to the output memory buffer.
+	 * @param size Size of the memory buffer. */
+	constexpr binary_entry_t read_binary(void *buff, std::size_t size) noexcept { return {{buff}, size}; }
+	/** Writes a memory buffer to a binary entry.
+	 * @param buff Pointer to the input memory buffer.
+	 * @param size Size of the memory buffer. */
+	constexpr binary_entry_t write_binary(const void *buff, std::size_t size) noexcept { return {{buff}, size}; }
+	/** Reads an object from a binary entry.
+	 * @param value Reference to the value to be read from a binary entry. */
 	template<typename T>
-	binary_entry(T &&) -> binary_entry<T>;
+	constexpr binary_entry_t read_binary(T &value) noexcept requires std::is_trivially_copyable_v<T>
+	{
+		return {{static_cast<void *>(&value)}, sizeof(T)};
+	}
+	/** Writes an object to a binary entry.
+	 * @param value Reference to the value to be written to a binary entry. */
+	template<typename T>
+	constexpr binary_entry_t write_binary(T &value) noexcept requires std::is_trivially_copyable_v<T>
+	{
+		return {{static_cast<const void *>(&value)}, sizeof(T)};
+	}
+	/** Writes an object to a binary entry.
+	 * @param value Value to be written to a binary entry. */
+	template<typename T>
+	constexpr binary_entry_t write_binary(T value) noexcept requires std::is_trivially_copyable_v<T>
+	{
+		return {{static_cast<const void *>(&value)}, sizeof(T)};
+	}
+
+	/** @brief Archive manipulator used read or write size of the current container.
+	 * @note If the archive does not support fixed-size containers, size will be left unmodified. */
+	template<typename T>
+	struct container_size_t
+	{
+		T value;
+	};
+	/** Reads or writes size of the current container entry.
+	 * @param size Size of the container, forwarded by the manipulator.
+	 * @note If the archive does not support fixed-size containers, size will be left unmodified. */
+	template<typename T>
+	constexpr container_size_t<T> container_size(T &&size) noexcept requires std::integral<std::decay_t<T>>
+	{
+		return container_size_t<T>{std::forward<T>(size)};
+	}
+
+	/** @brief Archive manipulator used to switch the archive to array output mode.
+	 *
+	 * By default archives serialize types as table-like entries.
+	 * This manipulator is used to switch an archive to array output mode.
+	 *
+	 * @note Entries written to an array will not be accessible via a name.
+	 * @warning Switching an archive to array output mode after multiple entries have already been
+	 * written leads to undefined behavior. */
+	struct array_mode_t
+	{
+	};
+	/** Switches archive to array output mode.
+	 * @copydetails array_mode_t */
+	constexpr array_mode_t array_mode() noexcept { return {}; }
 }	 // namespace sek::serialization

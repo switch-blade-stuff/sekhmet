@@ -645,7 +645,7 @@ namespace sek::serialization::detail
 			}
 
 			template<typename T>
-			bool try_read(named_entry<T> value) requires std::is_reference_v<T>
+			bool try_read(named_entry_t<CharType, T> value) requires std::is_reference_v<T>
 			{
 				if (type == read_frame_type::OBJECT_FRAME) [[likely]]
 				{
@@ -655,7 +655,7 @@ namespace sek::serialization::detail
 				return false;
 			}
 			template<typename T>
-			read_frame &read(named_entry<T> value) requires std::is_reference_v<T>
+			read_frame &read(named_entry_t<CharType, T> value) requires std::is_reference_v<T>
 			{
 				if (type != read_frame_type::OBJECT_FRAME) [[unlikely]]
 					throw archive_error("Invalid Json type, expected object");
@@ -672,64 +672,45 @@ namespace sek::serialization::detail
 				return *this;
 			}
 			template<typename T>
-			read_frame &operator>>(named_entry<T> mod) requires std::is_reference_v<T>
+			read_frame &operator>>(named_entry_t<CharType, T> value) requires std::is_reference_v<T>
 			{
-				return read(std::forward<named_entry<T>>(mod));
+				return read(value);
 			}
 
-			template<typename I>
-			bool try_read(array_entry<I> mod) noexcept
-			{
-				mod.value = static_cast<std::decay_t<I>>(size());
-				return true;
-			}
-			template<typename I>
-			read_frame &read(array_entry<I> mod) noexcept
-			{
-				try_read(mod);
-				return *this;
-			}
-			template<typename I>
-			read_frame &operator>>(array_entry<I> mod) noexcept
-			{
-				return read(mod);
-			}
-
-			template<typename I>
-			bool try_read(object_entry<I> mod) noexcept
-			{
-				mod.value = static_cast<I>(size());
-				return true;
-			}
-			template<typename I>
-			read_frame &read(object_entry<I> mod) noexcept
-			{
-				try_read(mod);
-				return *this;
-			}
-			template<typename I>
-			read_frame &operator>>(object_entry<I> mod) noexcept
-			{
-				return read(mod);
-			}
-
-			template<typename T>
-			bool try_read(binary_entry<T> mod) noexcept
+			bool try_read(binary_entry_t value) noexcept
 			{
 				auto sv = read<sv_type>();
-				return base64_decode(&mod.data, sizeof(std::decay_t<decltype(mod.data)>), sv.data(), sv.size());
+				return base64_decode(value.data_out, value.size, sv.data(), sv.size());
 			}
 			template<typename T>
-			read_frame &read(binary_entry<T> mod) noexcept
+			read_frame &read(binary_entry_t value) noexcept
 			{
-				if (!try_read(mod)) [[unlikely]]
+				if (!try_read(value)) [[unlikely]]
 					throw archive_error("Failed to decode base64 data");
 				return *this;
 			}
 			template<typename T>
-			read_frame &operator>>(binary_entry<T> mod) noexcept
+			read_frame &operator>>(binary_entry_t value) noexcept
 			{
-				return read(mod);
+				return read(value);
+			}
+
+			template<typename I>
+			bool try_read(container_size_t<I> value) noexcept
+			{
+				value.value = static_cast<std::decay_t<I>>(size());
+				return true;
+			}
+			template<typename I>
+			read_frame &read(container_size_t<I> value) noexcept
+			{
+				try_read(value);
+				return *this;
+			}
+			template<typename I>
+			read_frame &operator>>(container_size_t<I> value) noexcept
+			{
+				return read(value);
 			}
 
 		private:

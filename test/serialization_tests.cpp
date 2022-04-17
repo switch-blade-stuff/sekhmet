@@ -13,19 +13,19 @@ struct test_serializable
 	template<typename A>
 	void serialize(A &archive)
 	{
-		archive << ser::named_entry{"s", s};
-		archive << ser::named_entry{"i", i};
-		archive << ser::named_entry{"m", m};
-		archive << ser::named_entry{"b", b};
+		archive << ser::named_entry("s", s);
+		archive << ser::named_entry("i", i);
+		archive << ser::named_entry("m", m);
+		archive << ser::named_entry("b", b);
 		archive << v << p;
 	}
 	template<typename A>
 	void deserialize(A &archive)
 	{
-		archive >> ser::named_entry{"s", s};
-		archive >> ser::named_entry{"i", i};
-		archive >> ser::named_entry{"m", m};
-		archive >> ser::named_entry{"b", b};
+		archive >> ser::named_entry("s", s);
+		archive >> ser::named_entry("i", i);
+		archive >> ser::named_entry("m", m);
+		archive >> ser::named_entry("b", b);
 		archive >> v >> p;
 	}
 

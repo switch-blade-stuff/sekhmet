@@ -29,9 +29,9 @@ namespace sek::serialization
 		{
 			if constexpr (requires { r.reserve(std::ranges::range_size_t<R>{}); })
 			{
-				std::ranges::range_size_t<R> size;
-				a >> array_entry{size};
-				if (size != dynamic_size) r.reserve(size);
+				std::ranges::range_size_t<R> size = 0;
+				a >> container_size(size);
+				r.reserve(size);
 			}
 		}
 
@@ -62,7 +62,7 @@ namespace sek::serialization
 		template<typename K, typename M>
 		struct map_entry
 		{
-			void serialize(auto &a) { a << array_entry{dynamic_size} << key << mapped; }
+			void serialize(auto &a) { a << array_mode() << key << mapped; }
 			void deserialize(auto &a) { a >> key >> mapped; }
 
 			K key;
@@ -73,10 +73,8 @@ namespace sek::serialization
 	template<typename A, std::ranges::forward_range R>
 	void serialize(const R &range, A &archive)
 	{
-		if constexpr (std::ranges::sized_range<R>)
-			archive << array_entry{std::ranges::size(range)};
-		else
-			archive << array_entry{dynamic_size};
+		archive << array_mode();
+		if constexpr (std::ranges::sized_range<R>) archive << container_size(std::ranges::size(range));
 		for (auto &item : range) archive << item;
 	}
 
