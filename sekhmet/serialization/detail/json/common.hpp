@@ -735,13 +735,14 @@ namespace sek::serialization::detail
 
 			constexpr const json_entry *seek_entry(sv_type key) noexcept
 			{
-				if (auto member_ptr = search_entry(key); member_ptr) [[likely]]
+				if (key != sv_type{object.current_ptr->key.data, object.current_ptr->key.size})
 				{
-					object.current_ptr = member_ptr;
-					return &member_ptr->value;
+					if (auto member_ptr = search_entry(key); !member_ptr) [[unlikely]]
+						return nullptr;
+					else
+						object.current_ptr = member_ptr;
 				}
-				else
-					return nullptr;
+				return &object.current_ptr->value;
 			}
 			constexpr const member_t *search_entry(sv_type key) const noexcept
 			{

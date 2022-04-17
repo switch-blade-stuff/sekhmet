@@ -59,14 +59,13 @@ TEST(serialization_tests, base64_test)
 
 TEST(serialization_tests, ubjson_test)
 {
-
 	const char data[] = "{#i\x06"
-						"i\x01sSi\x0dHello, world!"
-						"i\x01iI\x04\x20"
 						"i\01bT"
 						"i\01v[$i#i\04\x00\x01\x02\x03"
 						"i\x01p[i\105d\x43\xd2\x00\x00]"
-						"i\x01m[$[#i\2Si\2i1i\1]Si\2i2i\2]";
+						"i\x01m[$[#i\2Si\2i1i\1]Si\2i2i\2]"
+						"i\x01sSi\x0dHello, world!"
+						"i\x01iI\x04\x20";
 	ser::ubj_input_archive archive(data, sizeof(data) - 1);
 
 	test_serializable serializable;
