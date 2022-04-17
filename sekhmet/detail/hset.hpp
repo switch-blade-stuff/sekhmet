@@ -46,7 +46,7 @@ namespace sek
 		typedef typename table_type::bucket_allocator_type bucket_allocator_type;
 		typedef typename table_type::hash_type hash_type;
 
-		typedef typename table_type::iterator iterator;
+		typedef typename table_type::const_iterator iterator;
 		typedef typename table_type::const_iterator const_iterator;
 		typedef typename table_type::node_handle node_handle;
 

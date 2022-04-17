@@ -43,28 +43,6 @@ namespace sek::serialization
 	template<typename T>
 	named_entry(const char *, T &&) -> named_entry<T>;
 
-	namespace detail
-	{
-		template<typename A, typename T>
-		concept named_entry_input = requires(A &archive, std::remove_cvref_t<T> &data)
-		{
-			input_archive<A, T>;
-			input_archive<A, decltype(named_entry{std::declval<std::string_view>(), data})>;
-			input_archive<A, decltype(named_entry{std::declval<const char *>(), data})>;
-		};
-		template<typename A, typename T>
-		concept named_entry_output = requires(A &archive, const std::remove_cvref_t<T> &data)
-		{
-			output_archive<A, T>;
-			output_archive<A, decltype(named_entry{std::declval<std::string_view>(), data})>;
-			output_archive<A, decltype(named_entry{std::declval<const char *>(), data})>;
-		};
-	}	 // namespace detail
-
-	/** @brief Concept satisfied only if archive `A` supports input or output of named entries of `T`. */
-	template<typename A, typename T>
-	concept named_entry_archive = detail::named_entry_input<A, T> || detail::named_entry_output<A, T>;
-
 	/** @brief Constant used as a dynamic size value for array & object entry manipulators. */
 	constexpr auto dynamic_size = std::numeric_limits<std::size_t>::max();
 
@@ -97,26 +75,6 @@ namespace sek::serialization
 	};
 	template<typename T>
 	object_entry(T &&) -> object_entry<T>;
-
-	namespace detail
-	{
-		template<typename A>
-		concept fixed_size_input = requires(A &archive, std::size_t &size)
-		{
-			input_archive<A, decltype(array_entry{size})>;
-			input_archive<A, decltype(object_entry{size})>;
-		};
-		template<typename A>
-		concept fixed_size_output = requires(A &archive, const std::size_t &size)
-		{
-			output_archive<A, decltype(array_entry{size})>;
-			output_archive<A, decltype(object_entry{size})>;
-		};
-	}	 // namespace detail
-
-	/** @brief Concept satisfied only if archive `A` supports input or output of fixed-size sequences. */
-	template<typename A>
-	concept fixed_size_archive = detail::fixed_size_input<A> || detail::fixed_size_output<A>;
 
 	/** @brief Archive manipulator used to read & write binary data. */
 	template<typename T>
