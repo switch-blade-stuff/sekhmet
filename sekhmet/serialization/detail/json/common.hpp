@@ -1039,7 +1039,8 @@ namespace sek::serialization::detail
 			void exit_frame()
 			{
 				parse_stack.pop_back();
-				current = &parse_stack.back();
+				if (!parse_stack.empty()) [[likely]]
+					current = &parse_stack.back();
 			}
 
 			json_input_archive_base *parent;
