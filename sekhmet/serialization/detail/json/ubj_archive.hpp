@@ -814,7 +814,7 @@ namespace sek::serialization::ubj
 			[[nodiscard]] sv_type get_next_key(sv_type key) const { return copy_string(key); }
 			[[nodiscard]] sv_type get_next_key() const
 			{
-				constexpr CharType prefix[] = "value_";
+				constexpr CharType prefix[] = "_";
 				constexpr auto prefix_size = SEK_ARRAY_SIZE(prefix) - 1;
 
 				/* Format the current index into the buffer. */
