@@ -94,7 +94,10 @@ namespace sek::serialization::ubj
 			constexpr static auto bad_size_msg = "UBJson: Invalid input, expected container size";
 
 			parser_base() = delete;
-			constexpr explicit parser_base(basic_input_archive *archive) noexcept : base_handler(archive) {}
+			constexpr explicit parser_base(basic_input_archive *archive, std::pmr::memory_resource *res) noexcept
+				: base_handler(archive, res)
+			{
+			}
 
 			void guarded_read(void *dest, std::size_t n)
 			{
@@ -304,8 +307,8 @@ namespace sek::serialization::ubj
 
 		struct buffer_parser final : parser_base
 		{
-			constexpr buffer_parser(basic_input_archive *archive, const void *buff, std::size_t n) noexcept
-				: parser_base(archive), curr(static_cast<const std::byte *>(buff)), end(curr + n)
+			constexpr buffer_parser(basic_input_archive *archive, std::pmr::memory_resource *res, const void *buff, std::size_t n) noexcept
+				: parser_base(archive, res), curr(static_cast<const std::byte *>(buff)), end(curr + n)
 			{
 			}
 
@@ -337,7 +340,8 @@ namespace sek::serialization::ubj
 		};
 		struct file_parser final : parser_base
 		{
-			constexpr file_parser(basic_input_archive *archive, FILE *file) noexcept : parser_base(archive), file(file)
+			constexpr file_parser(basic_input_archive *archive, std::pmr::memory_resource *res, FILE *file) noexcept
+				: parser_base(archive, res), file(file)
 			{
 			}
 
@@ -367,8 +371,8 @@ namespace sek::serialization::ubj
 		};
 		struct streambuf_parser final : parser_base
 		{
-			constexpr streambuf_parser(basic_input_archive *archive, std::streambuf *buff) noexcept
-				: parser_base(archive), buff(buff)
+			constexpr streambuf_parser(basic_input_archive *archive, std::pmr::memory_resource *res, std::streambuf *buff) noexcept
+				: parser_base(archive, res), buff(buff)
 			{
 			}
 
@@ -400,27 +404,32 @@ namespace sek::serialization::ubj
 		/** Reads UBJson from a memory buffer.
 		 * @param buff Pointer to the memory buffer containing UBJson data.
 		 * @param len Size of the memory buffer. */
-		basic_input_archive(const void *buff, std::size_t len) : base_t() { parse(buff, len); }
+		basic_input_archive(const void *buff, std::size_t len)
+			: basic_input_archive(buff, len, std::pmr::get_default_resource())
+		{
+		}
 		/** @copydoc basic_input_archive
 		 * @param res PMR memory resource used for internal allocation. */
 		basic_input_archive(const void *buff, std::size_t len, std::pmr::memory_resource *res) : base_t(res)
 		{
-			parse(buff, len);
+			parse(buff, len, res);
 		}
 		/** Reads UBJson from a file.
 		 * @param file Pointer to the UBJson file.
 		 * @note File must be opened in binary mode. */
-		explicit basic_input_archive(FILE *file) : base_t() { parse(file); }
+		explicit basic_input_archive(FILE *file) : basic_input_archive(file, std::pmr::get_default_resource()) {}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(FILE *file, std::pmr::memory_resource *res) : base_t(res) { parse(file); }
+		basic_input_archive(FILE *file, std::pmr::memory_resource *res) : base_t(res) { parse(file, res); }
 		/** Reads UBJson from a stream buffer.
 		 * @param buff Pointer to the stream buffer.
 		 * @note Stream buffer must be a binary stream buffer. */
-		explicit basic_input_archive(std::streambuf *buff) : base_t() { parse(buff); }
+		explicit basic_input_archive(std::streambuf *buff) : basic_input_archive(buff, std::pmr::get_default_resource())
+		{
+		}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(std::streambuf *buff, std::pmr::memory_resource *res) : base_t(res) { parse(buff); }
+		basic_input_archive(std::streambuf *buff, std::pmr::memory_resource *res) : base_t(res) { parse(buff, res); }
 		/** Reads UBJson from an input stream.
 		 * @param is Reference to the input stream.
 		 * @note Stream must be a binary stream. */
@@ -468,19 +477,19 @@ namespace sek::serialization::ubj
 		friend constexpr void swap(basic_input_archive &a, basic_input_archive &b) noexcept { a.swap(b); }
 
 	private:
-		void parse(const void *buff, std::size_t len)
+		void parse(const void *buff, std::size_t len, std::pmr::memory_resource *res)
 		{
-			buffer_parser parser{this, buff, len};
+			buffer_parser parser{this, res, buff, len};
 			parser.parse_entry();
 		}
-		void parse(FILE *file)
+		void parse(FILE *file, std::pmr::memory_resource *res)
 		{
-			file_parser parser{this, file};
+			file_parser parser{this, res, file};
 			parser.parse_entry();
 		}
-		void parse(std::streambuf *buff)
+		void parse(std::streambuf *buff, std::pmr::memory_resource *res)
 		{
-			streambuf_parser parser{this, buff};
+			streambuf_parser parser{this, res, buff};
 			parser.parse_entry();
 		}
 	};
@@ -790,7 +799,7 @@ namespace sek::serialization::ubj
 			[[nodiscard]] CharType *alloc_string(std::size_t n) const
 			{
 				auto bytes = (n + 1) * sizeof(CharType);
-				auto result = static_cast<CharType *>(parent.string_pool.allocate(parent.upstream, bytes));
+				auto result = static_cast<CharType *>(parent.string_pool.allocate(bytes));
 				if (!result) [[unlikely]]
 					throw std::bad_alloc();
 				return result;
@@ -833,7 +842,7 @@ namespace sek::serialization::ubj
 				auto *old_data = current.container.data_ptr;
 				auto old_cap = current.container.capacity * sizeof(T), new_cap = n * sizeof(T);
 
-				auto *new_data = parent.entry_pool.reallocate(parent.upstream, old_data, old_cap, new_cap);
+				auto *new_data = parent.entry_pool.reallocate(old_data, old_cap, new_cap);
 				if (!new_data) [[unlikely]]
 					throw std::bad_alloc();
 
@@ -1158,7 +1167,7 @@ namespace sek::serialization::ubj
 		/** @copydoc basic_output_archive
 		 * @param res PMR memory resource used for internal state allocation. */
 		basic_output_archive(void *buff, std::size_t size, std::pmr::memory_resource *res)
-			: buffer_emitter(buff, size), upstream(res)
+			: buffer_emitter(buff, size), entry_pool(res), string_pool(res)
 		{
 		}
 		/** Initialized output archive for file writing.
@@ -1167,7 +1176,10 @@ namespace sek::serialization::ubj
 		explicit basic_output_archive(FILE *file) : basic_output_archive(file, std::pmr::get_default_resource()) {}
 		/** @copydoc basic_output_archive
 		 * @param res PMR memory resource used for internal state allocation. */
-		basic_output_archive(FILE *file, std::pmr::memory_resource *res) : file_emitter(file), upstream(res) {}
+		basic_output_archive(FILE *file, std::pmr::memory_resource *res)
+			: file_emitter(file), entry_pool(res), string_pool(res)
+		{
+		}
 		/** Initialized output archive for stream buffer writing.
 		 * @param buff Stream buffer to write UBJson data to.
 		 * @note Stream buffer must be a binary stream buffer. */
@@ -1178,7 +1190,7 @@ namespace sek::serialization::ubj
 		/** @copydoc basic_output_archive
 		 * @param res PMR memory resource used for internal state allocation. */
 		basic_output_archive(std::streambuf *buff, std::pmr::memory_resource *res)
-			: streambuf_emitter(buff), upstream(res)
+			: streambuf_emitter(buff), entry_pool(res), string_pool(res)
 		{
 		}
 		/** Initialized output archive for stream writing.
@@ -1194,7 +1206,7 @@ namespace sek::serialization::ubj
 		~basic_output_archive()
 		{
 			if (top_level) [[likely]]
-				flush_impl();
+				emitter.emit_entry(*top_level);
 		}
 
 		/** Serialized the forwarded value to UBJson. Flushes previous uncommitted state.
@@ -1206,10 +1218,9 @@ namespace sek::serialization::ubj
 		basic_output_archive &write(T &&value)
 		{
 			/* Flush uncommitted changes before initializing a new emit tree. */
-			if (top_level) [[unlikely]]
-				flush_impl();
+			flush();
 
-			auto *entry = static_cast<entry_t *>(entry_pool.allocate(upstream, sizeof(entry_t)));
+			auto *entry = static_cast<entry_t *>(entry_pool.allocate(sizeof(entry_t)));
 			if (!entry) [[unlikely]]
 				throw std::bad_alloc();
 			top_level = std::construct_at(entry);
@@ -1230,7 +1241,9 @@ namespace sek::serialization::ubj
 		{
 			if (top_level) [[likely]]
 			{
-				flush_impl();
+				emitter.emit_entry(*top_level);
+				entry_pool.release();
+				string_pool.release();
 				top_level = nullptr;
 			}
 		}
@@ -1248,21 +1261,14 @@ namespace sek::serialization::ubj
 		friend constexpr void swap(basic_output_archive &a, basic_output_archive &b) noexcept { a.swap(b); }
 
 	private:
-		void flush_impl()
-		{
-			emitter.emit_entry(*top_level);
-			entry_pool.release(upstream);
-			string_pool.release(upstream);
-		}
-
 		union
 		{
+			std::byte emitter_padding[sizeof(buffer_emitter_t)] = {};
+
 			emitter_base emitter;
 			file_emitter_t file_emitter;
 			buffer_emitter_t buffer_emitter;
 			streambuf_emitter_t streambuf_emitter;
-
-			std::byte emitter_padding[sizeof(buffer_emitter_t)];
 		};
 
 		const entry_t *top_level = nullptr; /* Top-level entry of the entry tree. */

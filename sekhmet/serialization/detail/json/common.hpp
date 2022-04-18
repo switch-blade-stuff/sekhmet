@@ -31,10 +31,11 @@ namespace sek::serialization::detail
 
 		constexpr static auto page_size_mult = PageSize;
 
+		basic_pool_allocator() = delete;
 		basic_pool_allocator(const basic_pool_allocator &) = delete;
 		basic_pool_allocator &operator=(const basic_pool_allocator &) = delete;
 
-		constexpr basic_pool_allocator() noexcept = default;
+		constexpr basic_pool_allocator(std::pmr::memory_resource *upstream) noexcept : upstream(upstream) {}
 		constexpr basic_pool_allocator(basic_pool_allocator &&other) noexcept { swap(other); }
 		constexpr basic_pool_allocator &operator=(basic_pool_allocator &&other) noexcept
 		{
@@ -42,17 +43,19 @@ namespace sek::serialization::detail
 			return *this;
 		}
 
-		void release(std::pmr::memory_resource *upstream)
+		~basic_pool_allocator() { release(); }
+
+		void release()
 		{
-			for (auto *page = main_page; page != nullptr;) page = release_page(upstream, page);
+			for (auto *page = main_page; page != nullptr;) page = release_page(page);
 			main_page = nullptr;
 		}
-		void *allocate(std::pmr::memory_resource *upstream, std::size_t n)
+		void *allocate(std::size_t n)
 		{
 			/* Allocate on a new page. */
 			void *result;
 			if (auto new_used = n; !main_page || (new_used += main_page->used_size) > main_page->page_size) [[unlikely]]
-				result = alloc_new_page(upstream, n);
+				result = alloc_new_page(n);
 			else
 			{
 				result = static_cast<void *>(page_data(main_page) + main_page->used_size);
@@ -60,10 +63,10 @@ namespace sek::serialization::detail
 			}
 			return result;
 		}
-		void *reallocate(std::pmr::memory_resource *upstream, void *old, std::size_t old_n, std::size_t n)
+		void *reallocate(void *old, std::size_t old_n, std::size_t n)
 		{
 			if (!old) [[unlikely]]
-				return allocate(upstream, n);
+				return allocate(n);
 
 			/* Do nothing if new size is less or same. */
 			if (n <= old_n) [[unlikely]]
@@ -90,7 +93,7 @@ namespace sek::serialization::detail
 			if (new_used > main_page->page_size) [[unlikely]]
 			{
 			use_new_page:
-				result = alloc_new_page(upstream, new_used);
+				result = alloc_new_page(new_used);
 			}
 			else
 			{
@@ -101,32 +104,32 @@ namespace sek::serialization::detail
 			return result;
 		}
 
-		void *alloc_new_page(std::pmr::memory_resource *upstream, std::size_t n)
+		void *alloc_new_page(std::size_t n)
 		{
 			auto page_size = n + sizeof(page_header);
 			auto rem = page_size % page_size_mult;
 			page_size = page_size - rem + (rem ? page_size_mult : 0);
 
-			auto new_page = insert_page(upstream, page_size);
+			auto new_page = insert_page(page_size);
 			new_page->used_size = n;
 			if (!new_page) [[unlikely]]
 				return nullptr;
 			return static_cast<void *>(page_data(new_page));
 		}
-		page_header *release_page(std::pmr::memory_resource *upstream, page_header *page_ptr)
+		page_header *release_page(page_header *page_ptr)
 		{
 			auto previous = page_ptr->previous;
 			upstream->deallocate(page_ptr, sizeof(page_header) + page_ptr->page_size);
 			return previous;
 		}
-		page_header *insert_page(std::pmr::memory_resource *upstream, std::size_t n)
+		page_header *insert_page(std::size_t n)
 		{
 			auto result = static_cast<page_header *>(upstream->allocate(n));
 			if (!result) [[unlikely]]
 				return nullptr;
 			/* If the previous main page is empty, deallocate it immediately. */
 			if (main_page && !main_page->used_size) [[unlikely]]
-				result->previous = release_page(upstream, main_page);
+				result->previous = release_page(main_page);
 			else
 				result->previous = main_page;
 			result->page_size = 0;
@@ -139,6 +142,7 @@ namespace sek::serialization::detail
 
 		constexpr void swap(basic_pool_allocator &other) noexcept { std::swap(main_page, other.main_page); }
 
+		std::pmr::memory_resource *upstream;
 		page_header *main_page = nullptr;
 	};
 
@@ -827,8 +831,8 @@ namespace sek::serialization::detail
 			};
 
 		public:
-			constexpr explicit parse_event_handler(json_input_archive_base *parent) noexcept
-				: parent(parent), parse_stack(parent->upstream)
+			constexpr explicit parse_event_handler(json_input_archive_base *parent, mem_res_type *upstream) noexcept
+				: parent(parent), parse_stack(upstream)
 			{
 			}
 
@@ -836,7 +840,7 @@ namespace sek::serialization::detail
 			[[nodiscard]] CharType *on_string_alloc(S len) const
 			{
 				auto size = (static_cast<std::size_t>(len) + 1) * sizeof(CharType);
-				auto result = static_cast<CharType *>(parent->string_pool.allocate(parent->upstream, size));
+				auto result = static_cast<CharType *>(parent->string_pool.allocate(size));
 				if (!result) [[unlikely]]
 					throw std::bad_alloc();
 				return result;
@@ -1006,7 +1010,7 @@ namespace sek::serialization::detail
 				auto *old_data = current->data_ptr;
 				auto old_cap = current->current_capacity * sizeof(T), new_cap = n * sizeof(T);
 
-				auto *new_data = parent->data_pool.reallocate(parent->upstream, old_data, old_cap, new_cap);
+				auto *new_data = parent->entry_pool.reallocate(old_data, old_cap, new_cap);
 				if (!new_data) [[unlikely]]
 					throw std::bad_alloc();
 
@@ -1058,15 +1062,14 @@ namespace sek::serialization::detail
 		};
 
 	public:
+		json_input_archive_base() = delete;
 		json_input_archive_base(const json_input_archive_base &) = delete;
 		json_input_archive_base &operator=(const json_input_archive_base &) = delete;
 
-		json_input_archive_base() : upstream(std::pmr::get_default_resource()) {}
-		constexpr explicit json_input_archive_base(mem_res_type *res) : upstream(res) {}
+		constexpr explicit json_input_archive_base(mem_res_type *res) : entry_pool(res), string_pool(res) {}
 		constexpr json_input_archive_base(json_input_archive_base &&other) noexcept
 			: top_level(std::exchange(other.top_level, nullptr)),
-			  upstream(std::exchange(other.upstream, nullptr)),
-			  data_pool(std::move(other.data_pool)),
+			  entry_pool(std::move(other.entry_pool)),
 			  string_pool(std::move(other.string_pool))
 		{
 		}
@@ -1090,27 +1093,28 @@ namespace sek::serialization::detail
 
 		void reset()
 		{
-			destroy();
+			entry_pool.release();
+			string_pool.release();
 			top_level = nullptr;
 		}
 		void reset(mem_res_type *res)
 		{
-			reset();
-			upstream = res;
+			entry_pool = {res};
+			string_pool = {res};
+			top_level = nullptr;
 		}
 
 		constexpr void swap(json_input_archive_base &other) noexcept
 		{
 			std::swap(top_level, other.top_level);
-			std::swap(upstream, other.upstream);
-			data_pool.swap(other.data_pool);
+			entry_pool.swap(other.entry_pool);
 			string_pool.swap(other.string_pool);
 		}
 
 	private:
 		json_entry &alloc_top_level()
 		{
-			top_level = static_cast<json_entry *>(data_pool.allocate(upstream, sizeof(json_entry)));
+			top_level = static_cast<json_entry *>(entry_pool.allocate(sizeof(json_entry)));
 			if (!top_level) [[unlikely]]
 				throw std::bad_alloc();
 			return *top_level;
@@ -1118,14 +1122,13 @@ namespace sek::serialization::detail
 
 		void destroy()
 		{
-			data_pool.release(upstream);
-			string_pool.release(upstream);
+			entry_pool.release();
+			string_pool.release();
 		}
 
-		json_entry *top_level = nullptr;							  /* Top-most entry of the Json tree. */
-		mem_res_type *upstream;										  /* Upstream allocator used for memory pools. */
-		basic_pool_allocator<sizeof(json_entry) * 64> data_pool = {}; /* Allocation pool used for entry allocation. */
-		basic_pool_allocator<SEK_KB(1)> string_pool = {};			  /* Allocation pool used for string allocation. */
+		json_entry *top_level = nullptr;						  /* Top-most entry of the Json tree. */
+		basic_pool_allocator<sizeof(json_entry) * 64> entry_pool; /* Allocation pool used for entry allocation. */
+		basic_pool_allocator<SEK_KB(1)> string_pool;			  /* Allocation pool used for string allocation. */
 	};
 
 	template<typename C>
