@@ -33,8 +33,7 @@ namespace sek
 		std::unique_lock<std::mutex> l(pool_mtx);
 
 		state = new_state;
-		worker_cv.notify_all(); /* Notify all workers to let them know of a
-								   state change. */
+		worker_cv.notify_all(); /* Notify all workers to let them know of a state change. */
 	}
 
 	const thread_pool::work_node *thread_pool::wait_for_work_or_exit()

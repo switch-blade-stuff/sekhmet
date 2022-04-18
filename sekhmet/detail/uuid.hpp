@@ -71,7 +71,7 @@ namespace sek
 		/** Writes 36 characters of UUID string representation to the output iterator.
 		 * @tparam C Character type of the output sequence.
 		 * @param out Iterator to write the characters to.
-		 * @param upper If set to true, hex digits would be written using uppercase letters.
+		 * @param upper If set to `true`, hex digits would be written using uppercase letters.
 		 * @note Output must have space for 36 characters. */
 		template<typename C, std::output_iterator<C> Iter>
 		constexpr void to_string(Iter out, bool upper = false) const
@@ -80,7 +80,7 @@ namespace sek
 		}
 		/** Writes 36 characters of UUID string representation to the output iterator.
 		 * @param out Iterator to write the characters to.
-		 * @param upper If set to true, hex digits would be written using uppercase letters.
+		 * @param upper If set to `true`, hex digits would be written using uppercase letters.
 		 * @note Output must have space for 36 characters. */
 		template<std::forward_iterator Iter>
 		constexpr void to_string(Iter out, bool upper = false) const

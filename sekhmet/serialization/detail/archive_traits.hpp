@@ -43,8 +43,8 @@ namespace sek::serialization
 		std::is_base_of_v<input_archive_category, typename A::archive_category>;
 
 		// clang-format off
-		{ archive >> value } -> std::common_reference_with<A>;
-		{ archive.read(value) } -> std::common_reference_with<A>;
+		{ archive >> value } -> std::convertible_to<A &>;
+		{ archive.read(value) } -> std::convertible_to<A &>;
 		{ archive.try_read(value) } -> std::convertible_to<bool>;
 		{ archive.template read<T>() } -> std::convertible_to<T>;
 		// clang-format on
@@ -58,8 +58,8 @@ namespace sek::serialization
 		std::is_base_of_v<output_archive_category, typename A::archive_category>;
 
 		// clang-format off
-		{ archive << value } -> std::common_reference_with<A>;
-		{ archive.write(value) } -> std::common_reference_with<A>;
+		{ archive << value } -> std::convertible_to<A &>;
+		{ archive.write(value) } -> std::convertible_to<A &>;
 		{ archive.flush() };
 		// clang-format on
 	};

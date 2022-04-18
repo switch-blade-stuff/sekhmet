@@ -176,25 +176,25 @@ namespace sek::serialization::detail
 
 		union literal_t
 		{
-			char character;
+			CharType character;
 			std::uint64_t integer;
 			double floating;
 		};
-		struct string_t
-		{
-			const CharType *data;
-			std::size_t size;
-		};
-		struct array_t
-		{
-			json_entry *data_begin;
-			json_entry *data_end;
-		};
 		struct member_t;
-		struct object_t
+		struct container_t
 		{
-			member_t *members_begin;
-			member_t *members_end;
+			union
+			{
+				void *begin_ptr = nullptr;
+				json_entry *array_begin;
+				member_t *object_begin;
+			};
+			union
+			{
+				void *end_ptr = nullptr;
+				json_entry *array_end;
+				member_t *object_end;
+			};
 		};
 
 	public:
@@ -213,13 +213,18 @@ namespace sek::serialization::detail
 			json_entry(json_entry &&) = delete;
 			json_entry &operator=(json_entry &&) = delete;
 
+			/** Reads a null value from the entry. Returns `true` if the entry contains a null value, `false` otherwise. */
 			bool try_read(std::nullptr_t) const noexcept { return type == entry_type::NULL_ENTRY; }
+			/** Reads a null value from the entry.
+			 * @throw archive_error If the entry does not contain a null value. */
 			const json_entry &read(std::nullptr_t) const
 			{
 				if (!try_read(nullptr)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected null");
 				return *this;
 			}
+
+			/** Reads a bool from the entry. Returns `true` if the entry contains a bool, `false` otherwise. */
 			bool try_read(bool &b) const noexcept
 			{
 				if (type & entry_type::BOOL) [[likely]]
@@ -230,13 +235,17 @@ namespace sek::serialization::detail
 				else
 					return false;
 			}
+			/** Reads a bool from the entry.
+			 * @throw archive_error If the entry does not contain a bool. */
 			const json_entry &read(bool &b) const
 			{
 				if (!try_read(b)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected bool");
 				return *this;
 			}
-			bool try_read(char &c) const noexcept
+
+			/** Reads a character from the entry. Returns `true` if the entry contains a bool, `false` otherwise. */
+			bool try_read(CharType &c) const noexcept
 			{
 				if (type == entry_type::CHAR) [[likely]]
 				{
@@ -246,12 +255,16 @@ namespace sek::serialization::detail
 				else
 					return false;
 			}
-			const json_entry &read(char &c) const
+			/** Reads a character from the entry.
+			 * @throw archive_error If the entry does not contain a character. */
+			const json_entry &read(CharType &c) const
 			{
 				if (!try_read(c)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected char");
 				return *this;
 			}
+
+			/** Reads a number from the entry. Returns `true` if the entry contains a number, `false` otherwise. */
 			template<typename I>
 			bool try_read(I &value) const noexcept requires(std::integral<I> || std::floating_point<I>)
 			{
@@ -262,6 +275,8 @@ namespace sek::serialization::detail
 					default: return false;
 				}
 			}
+			/** Reads a number from the entry.
+			 * @throw archive_error If the entry does not contain a number. */
 			template<typename I>
 			const json_entry &read(I &value) const requires(std::integral<I> || std::floating_point<I>)
 			{
@@ -270,56 +285,50 @@ namespace sek::serialization::detail
 				return *this;
 			}
 
+			/** Reads a string from the entry.
+			 * @param value STL string to assign the string value to.
+			 * @copydoc `true` if the entry contains a string, `false` otherwise. */
 			bool try_read(std::basic_string<CharType> &value) const
 			{
 				if (type == entry_type::STRING) [[likely]]
 				{
-					value.assign(string.data, string.size);
+					value.assign(string);
 					return true;
 				}
 				else
 					return false;
 			}
-			const json_entry &read(std::basic_string<CharType> &value) const
-			{
-				if (!try_read(value)) [[unlikely]]
-					throw_string_error();
-				return *this;
-			}
+			/** Reads a string from the entry.
+			 * @param value STL string view to assign the string value to.
+			 * @copydoc `true` if the entry contains a string, `false` otherwise. */
 			bool try_read(sv_type &value) const noexcept
 			{
 				if (type == entry_type::STRING) [[likely]]
 				{
-					value = sv_type{string.data, string.size};
+					value = string;
 					return true;
 				}
 				else
 					return false;
 			}
-			const json_entry &read(sv_type &value) const
-			{
-				if (!try_read(value)) [[unlikely]]
-					throw_string_error();
-				return *this;
-			}
+			/** Reads a string from the entry.
+			 * @param value Output iterator used to write the string value to.
+			 * @copydoc `true` if the entry contains a string, `false` otherwise. */
 			template<std::output_iterator<CharType> I>
 			bool try_read(I &value) const
 			{
 				if (type == entry_type::STRING) [[likely]]
 				{
-					std::copy_n(string.data, string.size, value);
+					std::copy_n(string.data(), string.size(), value);
 					return true;
 				}
 				else
 					return false;
 			}
-			template<std::output_iterator<CharType> I>
-			const json_entry &read(I &value) const
-			{
-				if (!try_read(value)) [[unlikely]]
-					throw_string_error();
-				return *this;
-			}
+			/** Reads a string from the entry.
+			 * @param value Output iterator used to write the string value to.
+			 * @param sent Sentinel for the output iterator.
+			 * @copydoc `true` if the entry contains a string, `false` otherwise. */
 			template<std::output_iterator<CharType> I, std::sentinel_for<I> S>
 			bool try_read(I &value, S &sent) const
 			{
@@ -331,6 +340,43 @@ namespace sek::serialization::detail
 				else
 					return false;
 			}
+
+			/** Reads a string from the entry.
+			 * @param value STL string to assign the string value to.
+			 * @return Reference to this entry.
+			 * @throw archive_error If the entry does not contain a string. */
+			const json_entry &read(std::basic_string<CharType> &value) const
+			{
+				if (!try_read(value)) [[unlikely]]
+					throw_string_error();
+				return *this;
+			}
+			/** Reads a string from the entry.
+			 * @param value STL string view to assign the string value to.
+			 * @return Reference to this entry.
+			 * @throw archive_error If the entry does not contain a string. */
+			const json_entry &read(sv_type &value) const
+			{
+				if (!try_read(value)) [[unlikely]]
+					throw_string_error();
+				return *this;
+			}
+			/** Reads a string from the entry.
+			 * @param value Output iterator used to write the string value to.
+			 * @return Reference to this entry.
+			 * @throw archive_error If the entry does not contain a string. */
+			template<std::output_iterator<CharType> I>
+			const json_entry &read(I &value) const
+			{
+				if (!try_read(value)) [[unlikely]]
+					throw_string_error();
+				return *this;
+			}
+			/** Reads a string from the entry.
+			 * @param value Output iterator used to write the string value to.
+			 * @param sent Sentinel for the output iterator.
+			 * @return Reference to this entry.
+			 * @throw archive_error If the entry does not contain a string. */
 			template<std::output_iterator<CharType> I, std::sentinel_for<I> S>
 			const json_entry &read(I &value, S &sent) const
 			{
@@ -339,8 +385,21 @@ namespace sek::serialization::detail
 				return *this;
 			}
 
+			/** Reads an object or array from the entry.
+			 * @param value Forwarded value to be read from the entry.
+			 * @return Reference to this entry.
+			 * @throw archive_error If the entry does not contain an object or array. */
 			template<typename T>
 			const json_entry &read(T &&value) const;
+			/** @copydoc read */
+			template<typename T>
+			const json_entry &operator>>(T &&value) const
+			{
+				return read(std::forward<T>(value));
+			}
+			/** Attempts to read an object or array from the entry.
+			 * @param value Forwarded value to be read from the entry.
+			 * @return `true` if read successfully, `false` otherwise. */
 			template<typename T>
 			bool try_read(T &&value) const
 			{
@@ -354,11 +413,8 @@ namespace sek::serialization::detail
 					return false;
 				}
 			}
-			template<typename T>
-			const json_entry &operator>>(T &&value) const
-			{
-				return read(std::forward<T>(value));
-			}
+
+			/** Reads a default-initialized instance of `T` from the entry. */
 			template<std::default_initializable T>
 			T read() const
 			{
@@ -371,9 +427,8 @@ namespace sek::serialization::detail
 			union
 			{
 				literal_t literal;
-				string_t string;
-				array_t array;
-				object_t object;
+				sv_type string;
+				container_t container;
 			};
 			entry_type type;
 		};
@@ -382,7 +437,7 @@ namespace sek::serialization::detail
 		struct member_t
 		{
 			json_entry value;
-			string_t key;
+			sv_type key;
 		};
 
 		enum read_frame_type : int
@@ -547,36 +602,36 @@ namespace sek::serialization::detail
 			typedef std::size_t size_type;
 
 		private:
+			struct frame_view_t
+			{
+				const void *begin_ptr = nullptr;
+				const void *current_ptr = nullptr;
+				const void *end_ptr = nullptr;
+			};
+
 			constexpr explicit read_frame(const json_entry *entry) noexcept
 				: type(static_cast<read_frame_type>(entry->type))
 			{
-				switch (type)
-				{
-					case read_frame_type::ARRAY_FRAME:
-						array = array_view{
-							entry->array.data_begin,
-							entry->array.data_end,
-							entry->array.data_begin,
-						};
-						break;
-					case read_frame_type::OBJECT_FRAME:
-						object = object_view{
-							entry->object.members_begin,
-							entry->object.members_end,
-							entry->object.members_begin,
-						};
-						break;
-					default: break;
-				}
+				frame_view = {
+					.begin_ptr = entry->container.begin_ptr,
+					.current_ptr = entry->container.begin_ptr,
+					.end_ptr = entry->container.end_ptr,
+				};
 			}
 
 		public:
+			read_frame() = delete;
+			read_frame(const read_frame &) = delete;
+			read_frame &operator=(const read_frame &) = delete;
+			read_frame(read_frame &&) = delete;
+			read_frame &operator=(read_frame &&) = delete;
+
 			/** Returns iterator to the first entry of the currently read object or array. */
-			[[nodiscard]] constexpr entry_iterator begin() const noexcept { return {raw.begin_ptr, type}; }
+			[[nodiscard]] constexpr entry_iterator begin() const noexcept { return {frame_view.begin_ptr, type}; }
 			/** @copydoc begin */
 			[[nodiscard]] constexpr entry_iterator cbegin() const noexcept { return begin(); }
 			/** Returns iterator one past the last entry of the currently read object or array. */
-			[[nodiscard]] constexpr entry_iterator end() const noexcept { return {raw.end_ptr, type}; }
+			[[nodiscard]] constexpr entry_iterator end() const noexcept { return {frame_view.end_ptr, type}; }
 			/** @copydoc end */
 			[[nodiscard]] constexpr entry_iterator cend() const noexcept { return end(); }
 
@@ -606,10 +661,10 @@ namespace sek::serialization::detail
 			template<typename T>
 			bool try_read(T &&value)
 			{
-				entry_iterator current{raw.current_ptr, type};
+				entry_iterator current{frame_view.current_ptr, type};
 				if (current->try_read(std::forward<T>(value))) [[likely]]
 				{
-					raw.current_ptr = (current + 1).ptr_value;
+					frame_view.current_ptr = (current + 1).ptr_value;
 					return true;
 				}
 				else
@@ -622,9 +677,9 @@ namespace sek::serialization::detail
 			template<typename T>
 			read_frame &read(T &&value)
 			{
-				entry_iterator current{raw.current_ptr, type};
+				entry_iterator current{frame_view.current_ptr, type};
 				current->read(std::forward<T>(value));
-				raw.current_ptr = (current + 1).ptr_value;
+				frame_view.current_ptr = (current + 1).ptr_value;
 				return *this;
 			}
 			/** @copydoc read */
@@ -714,50 +769,31 @@ namespace sek::serialization::detail
 			}
 
 		private:
-			struct raw_ptrs
-			{
-				const void *begin_ptr = nullptr;
-				const void *end_ptr = nullptr;
-				const void *current_ptr = nullptr;
-			};
-			struct array_view
-			{
-				const json_entry *begin_ptr;
-				const json_entry *end_ptr;
-				const json_entry *current_ptr;
-			};
-			struct object_view
-			{
-				const member_t *begin_ptr;
-				const member_t *end_ptr;
-				const member_t *current_ptr;
-			};
-
 			constexpr const json_entry *seek_entry(sv_type key) noexcept
 			{
-				if (key != sv_type{object.current_ptr->key.data, object.current_ptr->key.size})
+				auto mem_current = static_cast<const member_t *>(frame_view.current_ptr),
+					 mem_end = static_cast<const member_t *>(frame_view.end_ptr);
+
+				if (mem_current >= mem_end || key != mem_current->key)
 				{
 					if (auto member_ptr = search_entry(key); !member_ptr) [[unlikely]]
 						return nullptr;
 					else
-						object.current_ptr = member_ptr;
+						frame_view.current_ptr = member_ptr;
 				}
-				return &object.current_ptr->value;
+				return &static_cast<const member_t *>(frame_view.current_ptr)->value;
 			}
 			constexpr const member_t *search_entry(sv_type key) const noexcept
 			{
-				for (auto member = object.begin_ptr; member < object.end_ptr; ++member)
-					if (key == sv_type{member->key.data, member->key.size}) return member;
+				auto mem_begin = static_cast<const member_t *>(frame_view.begin_ptr),
+					 mem_end = static_cast<const member_t *>(frame_view.end_ptr);
+
+				for (auto member = mem_begin; member != mem_end; ++member)
+					if (key == member->key) return member;
 				return nullptr;
 			}
 
-			union
-			{
-				raw_ptrs raw = {};
-				array_view array;
-				object_view object;
-			};
-
+			frame_view_t frame_view = {};
 			read_frame_type type;
 		};
 
@@ -775,12 +811,7 @@ namespace sek::serialization::detail
 			struct parse_frame
 			{
 				/* Pointer to the actual container being parsed. */
-				union
-				{
-					void *container_ptr = nullptr;
-					array_t *array_ptr;
-					object_t *object_ptr;
-				};
+				container_t *container_ptr = nullptr;
 				/* Pointer to container's data. */
 				union
 				{
@@ -797,14 +828,18 @@ namespace sek::serialization::detail
 
 		public:
 			constexpr explicit parse_event_handler(json_input_archive_base *parent) noexcept
-				: parent(parent), parse_stack(parent->upstream_alloc)
+				: parent(parent), parse_stack(parent->upstream)
 			{
 			}
 
 			template<std::integral S>
 			[[nodiscard]] CharType *on_string_alloc(S len) const
 			{
-				return parent->alloc_string(static_cast<std::size_t>(len));
+				auto size = (static_cast<std::size_t>(len) + 1) * sizeof(CharType);
+				auto result = static_cast<CharType *>(parent->string_pool.allocate(parent->upstream, size));
+				if (!result) [[unlikely]]
+					throw std::bad_alloc();
+				return result;
 			}
 
 			bool on_null() const
@@ -860,7 +895,7 @@ namespace sek::serialization::detail
 					[&](auto &entry)
 					{
 						entry.type = entry_type::STRING;
-						entry.string = string_t{str, static_cast<std::size_t>(len)};
+						entry.string = sv_type{str, static_cast<std::size_t>(len)};
 					});
 			}
 			template<std::integral S>
@@ -877,7 +912,7 @@ namespace sek::serialization::detail
 				{
 					enter_frame();
 					entry.type = entry_type::OBJECT;
-					current->object_ptr = &entry.object;
+					current->container_ptr = &entry.container;
 					current->state = parse_state::EXPECT_OBJECT_KEY;
 					if (n) resize_container<member_t>(n);
 				};
@@ -897,7 +932,7 @@ namespace sek::serialization::detail
 				{
 					case parse_state::EXPECT_OBJECT_KEY:
 					{
-						push_element<member_t>().key = string_t{str, static_cast<std::size_t>(len)};
+						push_container<member_t>().key = sv_type{str, static_cast<std::size_t>(len)};
 						current->state = parse_state::EXPECT_OBJECT_VALUE; /* Always expect value after key. */
 						return true;
 					}
@@ -918,9 +953,9 @@ namespace sek::serialization::detail
 				{
 					case parse_state::EXPECT_OBJECT_KEY:
 					{
-						auto *obj = current->object_ptr;
-						obj->members_begin = current->object_data;
-						obj->members_end = current->object_data + static_cast<std::size_t>(size);
+						auto *obj = current->container_ptr;
+						obj->object_begin = current->object_data;
+						obj->object_end = current->object_data + static_cast<std::size_t>(size);
 						exit_frame();
 						return true;
 					}
@@ -934,7 +969,7 @@ namespace sek::serialization::detail
 				{
 					enter_frame();
 					entry.type = entry_type::ARRAY;
-					current->array_ptr = &entry.array;
+					current->container_ptr = &entry.container;
 					current->state = parse_state::EXPECT_ARRAY_VALUE;
 					if (n) resize_container<json_entry>(n);
 				};
@@ -954,9 +989,9 @@ namespace sek::serialization::detail
 				{
 					case parse_state::EXPECT_ARRAY_VALUE:
 					{
-						auto *arr = current->array_ptr;
-						arr->data_begin = current->array_data;
-						arr->data_end = current->array_data + static_cast<std::size_t>(size);
+						auto *arr = current->container_ptr;
+						arr->array_begin = current->array_data;
+						arr->array_end = current->array_data + static_cast<std::size_t>(size);
 						exit_frame();
 						return true;
 					}
@@ -968,11 +1003,18 @@ namespace sek::serialization::detail
 			template<typename T>
 			void resize_container(std::size_t n) const
 			{
-				current->data_ptr = parent->realloc_data<T>(current->data_ptr, current->current_capacity, n);
+				auto *old_data = current->data_ptr;
+				auto old_cap = current->current_capacity * sizeof(T), new_cap = n * sizeof(T);
+
+				auto *new_data = parent->data_pool.reallocate(parent->upstream, old_data, old_cap, new_cap);
+				if (!new_data) [[unlikely]]
+					throw std::bad_alloc();
+
+				current->data_ptr = new_data;
 				current->current_capacity = n;
 			}
 			template<typename T>
-			[[nodiscard]] T &push_element() const
+			[[nodiscard]] T &push_container() const
 			{
 				auto next_idx = current->current_size;
 				if (current->current_capacity == current->current_size++)
@@ -987,7 +1029,7 @@ namespace sek::serialization::detail
 				{
 					case parse_state::EXPECT_ARRAY_VALUE:
 					{
-						entry = &push_element<json_entry>();
+						entry = &push_container<json_entry>();
 						break;
 					}
 					case parse_state::EXPECT_OBJECT_VALUE:
@@ -1019,11 +1061,11 @@ namespace sek::serialization::detail
 		json_input_archive_base(const json_input_archive_base &) = delete;
 		json_input_archive_base &operator=(const json_input_archive_base &) = delete;
 
-		json_input_archive_base() : upstream_alloc(std::pmr::get_default_resource()) {}
-		constexpr explicit json_input_archive_base(mem_res_type *res) : upstream_alloc(res) {}
+		json_input_archive_base() : upstream(std::pmr::get_default_resource()) {}
+		constexpr explicit json_input_archive_base(mem_res_type *res) : upstream(res) {}
 		constexpr json_input_archive_base(json_input_archive_base &&other) noexcept
 			: top_level(std::exchange(other.top_level, nullptr)),
-			  upstream_alloc(std::exchange(other.upstream_alloc, nullptr)),
+			  upstream(std::exchange(other.upstream, nullptr)),
 			  data_pool(std::move(other.data_pool)),
 			  string_pool(std::move(other.string_pool))
 		{
@@ -1054,13 +1096,13 @@ namespace sek::serialization::detail
 		void reset(mem_res_type *res)
 		{
 			reset();
-			upstream_alloc = res;
+			upstream = res;
 		}
 
 		constexpr void swap(json_input_archive_base &other) noexcept
 		{
 			std::swap(top_level, other.top_level);
-			std::swap(upstream_alloc, other.upstream_alloc);
+			std::swap(upstream, other.upstream);
 			data_pool.swap(other.data_pool);
 			string_pool.swap(other.string_pool);
 		}
@@ -1068,35 +1110,20 @@ namespace sek::serialization::detail
 	private:
 		json_entry &alloc_top_level()
 		{
-			top_level = static_cast<json_entry *>(data_pool.allocate(upstream_alloc, sizeof(json_entry)));
+			top_level = static_cast<json_entry *>(data_pool.allocate(upstream, sizeof(json_entry)));
 			if (!top_level) [[unlikely]]
 				throw std::bad_alloc();
 			return *top_level;
 		}
-		template<typename T>
-		T *realloc_data(void *data, std::size_t old_cap, std::size_t new_cap)
-		{
-			auto *new_data = data_pool.reallocate(upstream_alloc, data, old_cap * sizeof(T), new_cap * sizeof(T));
-			if (!new_data) [[unlikely]]
-				throw std::bad_alloc();
-			return static_cast<T *>(new_data);
-		}
-		CharType *alloc_string(std::size_t n)
-		{
-			auto result = static_cast<CharType *>(string_pool.allocate(upstream_alloc, (n + 1) * sizeof(CharType)));
-			if (!result) [[unlikely]]
-				throw std::bad_alloc();
-			return result;
-		}
 
 		void destroy()
 		{
-			data_pool.release(upstream_alloc);
-			string_pool.release(upstream_alloc);
+			data_pool.release(upstream);
+			string_pool.release(upstream);
 		}
 
 		json_entry *top_level = nullptr;							  /* Top-most entry of the Json tree. */
-		mem_res_type *upstream_alloc;								  /* Upstream allocator used for memory pools. */
+		mem_res_type *upstream;										  /* Upstream allocator used for memory pools. */
 		basic_pool_allocator<sizeof(json_entry) * 64> data_pool = {}; /* Allocation pool used for entry allocation. */
 		basic_pool_allocator<SEK_KB(1)> string_pool = {};			  /* Allocation pool used for string allocation. */
 	};

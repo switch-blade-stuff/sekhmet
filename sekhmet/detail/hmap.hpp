@@ -253,7 +253,7 @@ namespace sek
 		 * @param key Key for which to insert the value.
 		 * @param args Arguments used to construct the mapped object.
 		 * @return Pair where first element is the iterator to the potentially inserted element
-		 * and second is boolean indicating whether the element was inserted (true if inserted, false otherwise). */
+		 * and second is boolean indicating whether the element was inserted (`true` if inserted, `false` otherwise). */
 		template<typename... Args>
 		constexpr std::pair<iterator, bool> try_emplace(key_type &&key, Args &&...args)
 		{
@@ -269,7 +269,7 @@ namespace sek
 		 * If a value for the constructed key is already present within the map, replaces that value.
 		 * @param args Arguments used to construct the value object.
 		 * @return Pair where first element is the iterator to the inserted element
-		 * and second is boolean indicating whether the element was inserted or replace (true if inserted new, false if replaced). */
+		 * and second is boolean indicating whether the element was inserted or replace (`true` if inserted new, `false` if replaced). */
 		template<typename... Args>
 		constexpr std::pair<iterator, bool> emplace(Args &&...args)
 		{
@@ -280,7 +280,7 @@ namespace sek
 		 * If a value with the same key is already present within the map, does not replace it.
 		 * @param value Value to insert.
 		 * @return Pair where first element is the iterator to the potentially inserted element
-		 * and second is boolean indicating whether the element was inserted (true if inserted, false otherwise). */
+		 * and second is boolean indicating whether the element was inserted (`true` if inserted, `false` otherwise). */
 		constexpr std::pair<iterator, bool> try_insert(value_type &&value)
 		{
 			return data_table.try_insert(std::forward<value_type>(value));
@@ -324,7 +324,7 @@ namespace sek
 		 * If a value with the same key is already present within the map, replaces that value.
 		 * @param value Value to insert.
 		 * @return Pair where first element is the iterator to the inserted element
-		 * and second is boolean indicating whether the element was inserted or replaced (true if inserted new, false if replaced). */
+		 * and second is boolean indicating whether the element was inserted or replaced (`true` if inserted new, `false` if replaced). */
 		constexpr std::pair<iterator, bool> insert(value_type &&value)
 		{
 			return data_table.insert(std::forward<value_type>(value));
@@ -375,7 +375,7 @@ namespace sek
 		constexpr iterator erase(const_iterator first, const_iterator last) { return data_table.erase(first, last); }
 		/** Removes element mapped to the specified key from the map if it is present.
 		 * @param key Key of the target element.
-		 * @return true if the element was removed, false otherwise. */
+		 * @return `true` if the element was removed, `false` otherwise. */
 		constexpr bool erase(const key_type &key)
 		{
 			if (auto target = data_table.find(key); target != data_table.end())
@@ -406,7 +406,7 @@ namespace sek
 		 * If a value with the same key is already present within the map, replaces that value.
 		 * @param node Node to insert.
 		 * @return Pair where first element is the iterator to the inserted node
-		 * and second is boolean indicating whether the node was inserted or replaced (true if inserted new, false if replaced). */
+		 * and second is boolean indicating whether the node was inserted or replaced (`true` if inserted new, `false` if replaced). */
 		constexpr std::pair<iterator, bool> insert(node_handle &&node)
 		{
 			return data_table.insert_node(std::forward<node_handle>(node));
@@ -425,7 +425,7 @@ namespace sek
 		 * not replace it.
 		 * @param node Node to insert.
 		 * @return Pair where first element is the iterator to the potentially inserted node
-		 * and second is boolean indicating whether the node was inserted (true if inserted, false otherwise). */
+		 * and second is boolean indicating whether the node was inserted (`true` if inserted, `false` otherwise). */
 		constexpr std::pair<iterator, bool> try_insert(node_handle &&node)
 		{
 			return data_table.try_insert_node(std::forward<node_handle>(node));

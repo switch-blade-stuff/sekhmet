@@ -37,7 +37,7 @@ namespace sek::serialization
 	 * @param size Size of the destination buffer.
 	 * @param chars Character buffer containing base64 string.
 	 * @param len Length of the base64 string.
-	 * @return true if the operation was successful, false otherwise. */
+	 * @return `true` if the operation was successful, `false` otherwise. */
 	template<typename C>
 	constexpr bool base64_decode(void *dest, std::size_t size, const C *chars, std::size_t len) noexcept
 	{

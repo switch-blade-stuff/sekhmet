@@ -62,7 +62,7 @@ namespace sek::serialization
 	 * of serializable types.
 	 *
 	 * @tparam CharType Character type used for Json. */
-	template<typename CharType = char>
+	template<typename CharType>
 	class basic_ubj_input_archive : detail::json_input_archive_base<CharType>
 	{
 		using base_t = detail::json_input_archive_base<CharType>;
@@ -491,9 +491,425 @@ namespace sek::serialization
 	static_assert(container_like_archive<ubj_input_archive::archive_frame>);
 
 	/** @details Archive used to write UBJson data. */
-	class ubj_output_archive
+	template<typename CharType>
+	class basic_ubj_output_archive
 	{
+	private:
+		using mem_res_type = std::pmr::memory_resource;
+		using sv_type = std::basic_string_view<CharType>;
+
+		struct emitter_node;
+		struct member_t;
+
+		struct literal_t
+		{
+			union
+			{
+				CharType character;
+
+				std::uint8_t uint8;
+				std::int8_t int8;
+				std::int16_t int16;
+				std::int32_t int32;
+				std::int64_t int64;
+
+				float float32;
+				double float64;
+			};
+		};
+		struct container_t
+		{
+			union
+			{
+				void *data_ptr = nullptr;
+				emitter_node *array_data;
+				member_t *object_data;
+			};
+			std::size_t size;
+			std::size_t capacity;
+			detail::ubj_token value_type;
+		};
+		struct emitter_node
+		{
+			union
+			{
+				literal_t literal;
+				container_t container;
+				sv_type string;
+			};
+			detail::ubj_token type;
+		};
+		struct member_t
+		{
+			emitter_node value;
+			sv_type key;
+		};
+
+		struct emitter_base
+		{
+			emitter_base() = delete;
+
+			void write_guarded(const void *src, std::size_t n)
+			{
+				if (write(src, n) != n) [[unlikely]]
+					throw archive_error("UBJson: Emitter write failure");
+			}
+			void write_token(detail::ubj_token token) { write_guarded(&token, sizeof(token)); }
+			template<typename T>
+			void write_literal(T value)
+			{
+				/* Fix endianness from machine endianness to big endian.
+				 * TODO: Only do this for Spec12 */
+#ifndef SEK_ARCH_BIG_ENDIAN
+				if constexpr (sizeof(T) == sizeof(std::uint16_t))
+				{
+					auto temp = bswap_16(std::bit_cast<std::uint16_t>(value));
+					write_guarded(static_cast<const void *>(&temp), sizeof(temp));
+				}
+				else if constexpr (sizeof(T) == sizeof(std::uint32_t))
+				{
+					auto temp = bswap_32(std::bit_cast<std::uint32_t>(value));
+					write_guarded(static_cast<const void *>(&temp), sizeof(temp));
+				}
+				else if constexpr (sizeof(T) == sizeof(std::uint64_t))
+				{
+					auto temp = bswap_64(std::bit_cast<std::uint64_t>(value));
+					write_guarded(static_cast<const void *>(&temp), sizeof(temp));
+				}
+				else
+#endif
+					write_guarded(static_cast<const void *>(&value), sizeof(value));
+			}
+
+			void emit_length(std::int64_t length)
+			{
+				if (length > std::numeric_limits<std::int32_t>::max()) [[unlikely]]
+				{
+					write_token(detail::ubj_token::UBJ_INT64);
+					write_literal(length);
+				}
+				else if (length > std::numeric_limits<std::int16_t>::max())
+				{
+					write_token(detail::ubj_token::UBJ_INT32);
+					write_literal(static_cast<std::int32_t>(length));
+				}
+				else if (length > std::numeric_limits<std::uint8_t>::max())
+				{
+					write_token(detail::ubj_token::UBJ_INT16);
+					write_literal(static_cast<std::uint16_t>(length));
+				}
+				else if (length > std::numeric_limits<std::int8_t>::max())
+				{
+					write_token(detail::ubj_token::UBJ_UINT8);
+					write_literal(static_cast<std::uint8_t>(length));
+				}
+				else
+				{
+					write_token(detail::ubj_token::UBJ_INT8);
+					write_literal(static_cast<std::int8_t>(length));
+				}
+			}
+			void emit_string(sv_type str)
+			{
+				emit_length(static_cast<std::int64_t>(str.size()));
+				write_guarded(static_cast<const void *>(str.data()), str.size() * sizeof(CharType));
+			}
+
+			std::pair<bool, bool> emit_container_attributes(const container_t &container)
+			{
+				std::pair<bool, bool> result = {};
+
+				/* TODO: Add toggle for dynamic-type preference. */
+				if (container.value_type != detail::ubj_token::UBJ_INVALID_TOKEN)
+				{
+					write_token(detail::ubj_token::UBJ_CONTAINER_TYPE);
+					write_token(container.value_type);
+					result.first = true;
+				}
+
+				/* TODO: Add toggle for dynamic-size preference. */
+				write_token(detail::ubj_token::UBJ_CONTAINER_SIZE);
+				emit_length(static_cast<std::int64_t>(container.size));
+				result.second = true;
+
+				return result;
+			}
+			void emit_array(const container_t &array)
+			{
+				auto [fixed_type, fixed_size] = emit_container_attributes(array);
+
+				if (fixed_type) [[likely]] /* Expect that arrays are fixed-type. */
+					for (std::size_t i = 0; i < array.size; ++i) emit_data(array.array_data[i]);
+				else
+					for (std::size_t i = 0; i < array.size; ++i) emit_node(array.array_data[i]);
+
+				if (!fixed_size) [[unlikely]]
+					write_token(detail::ubj_token::UBJ_ARRAY_END);
+			}
+			void emit_object(const container_t &object)
+			{
+				auto [fixed_type, fixed_size] = emit_container_attributes(object);
+
+				if (fixed_type) [[unlikely]] /* Expect that objects are dynamic-type. */
+					for (std::size_t i = 0; i < object.size; ++i)
+					{
+						auto &member = object.object_data[i];
+						emit_string(member.key);
+						emit_data(member.value);
+					}
+				else
+					for (std::size_t i = 0; i < object.size; ++i)
+					{
+						auto &member = object.object_data[i];
+						emit_string(member.key);
+						emit_node(member.value);
+					}
+
+				if (!fixed_size) [[unlikely]]
+					write_token(detail::ubj_token::UBJ_OBJECT_END);
+			}
+			void emit_data(const emitter_node &node)
+			{
+				switch (node.type)
+				{
+					case detail::ubj_token::UBJ_CHAR: write_literal(node.literal.character); break;
+					case detail::ubj_token::UBJ_UINT8: write_literal(node.literal.uint8); break;
+					case detail::ubj_token::UBJ_INT8: write_literal(node.literal.int8); break;
+					case detail::ubj_token::UBJ_INT16: write_literal(node.literal.int16); break;
+					case detail::ubj_token::UBJ_INT32: write_literal(node.literal.int32); break;
+					case detail::ubj_token::UBJ_INT64: write_literal(node.literal.int64); break;
+					case detail::ubj_token::UBJ_FLOAT32: write_literal(node.literal.float32); break;
+					case detail::ubj_token::UBJ_FLOAT64: write_literal(node.literal.float64); break;
+
+					case detail::ubj_token::UBJ_HIGHP: /* TODO: Implement high-precision number writing via a manipulator. */
+					case detail::ubj_token::UBJ_STRING: emit_string(node.string); break;
+
+					case detail::ubj_token::UBJ_ARRAY_START: emit_array(node.container); break;
+					case detail::ubj_token::UBJ_OBJECT_START: emit_object(node.container); break;
+
+					default: break;
+				}
+			}
+			void emit_node(const emitter_node &node)
+			{
+				write_token(node.type);
+				emit_data(node);
+			}
+
+			[[nodiscard]] virtual std::size_t write(const void *, std::size_t) = 0;
+			[[nodiscard]] virtual std::size_t size_of() const noexcept = 0;
+		};
+		struct file_emitter final : emitter_base
+		{
+			constexpr explicit file_emitter(FILE *file) noexcept : file(file) {}
+
+			[[nodiscard]] std::size_t write(const void *src, std::size_t n) final { return fwrite(src, 1, n, file); }
+			[[nodiscard]] std::size_t size_of() const noexcept final { return sizeof(file_emitter); }
+
+			FILE *file;
+		};
+		struct buffer_emitter final : emitter_base
+		{
+			constexpr buffer_emitter(void *buff, std::size_t n) noexcept
+				: curr(static_cast<std::byte *>(buff)), end(curr + n)
+			{
+			}
+
+			[[nodiscard]] std::size_t write(const void *src, std::size_t n) noexcept final
+			{
+				if (curr + n > end) [[unlikely]]
+					n = end - curr;
+				curr = std::copy_n(static_cast<const std::byte *>(src), n, curr);
+				return n;
+			}
+			[[nodiscard]] std::size_t size_of() const noexcept final { return sizeof(buffer_emitter); }
+
+			std::byte *curr;
+			std::byte *end;
+		};
+		struct streambuf_emitter final : emitter_base
+		{
+			constexpr explicit streambuf_emitter(std::streambuf *buff) noexcept : buff(buff) {}
+
+			[[nodiscard]] std::size_t write(const void *src, std::size_t n) noexcept final
+			{
+				auto ptr = static_cast<const std::streambuf::char_type *>(src);
+				return static_cast<std::size_t>(buff->sputn(ptr, static_cast<std::streamsize>(n)));
+			}
+			[[nodiscard]] std::size_t size_of() const noexcept final { return sizeof(streambuf_emitter); }
+
+			std::streambuf *buff;
+		};
+
+		class write_frame
+		{
+			friend class basic_ubj_output_archive;
+
+			constexpr write_frame(basic_ubj_output_archive *parent, emitter_node *node) noexcept
+				: parent(parent), current(node)
+			{
+			}
+
+		public:
+			write_frame() = delete;
+			write_frame(const write_frame &) = delete;
+			write_frame &operator=(const write_frame &) = delete;
+			write_frame(write_frame &&) = delete;
+			write_frame &operator=(write_frame &&) = delete;
+
+			/** Serialized the forwarded value to UBJson.
+			 * @param value Value to serialize as UBJson.
+			 * @return Reference to this frame. */
+			template<typename T>
+			write_frame &write(T &&value)
+			{
+				write_impl(std::forward<T>(value));
+				return *this;
+			}
+			/** @copydoc write */
+			template<typename T>
+			write_frame &operator<<(T &&value)
+			{
+				return write(std::forward<T>(value));
+			}
+
+		private:
+			template<typename T>
+			void write_impl(T &&value)
+			{
+			}
+
+			basic_ubj_output_archive *parent;
+			emitter_node *current;
+		};
+
+	public:
+		basic_ubj_output_archive() = delete;
+		basic_ubj_output_archive(const basic_ubj_output_archive &) = delete;
+		basic_ubj_output_archive &operator=(const basic_ubj_output_archive &) = delete;
+
+		constexpr basic_ubj_output_archive(basic_ubj_output_archive &&other) noexcept
+			: emitter(nullptr), upstream(nullptr)
+		{
+			swap(other);
+		}
+		constexpr basic_ubj_output_archive &operator=(basic_ubj_output_archive &&other) noexcept
+		{
+			swap(other);
+			return *this;
+		}
+
+		basic_ubj_output_archive(FILE *file, mem_res_type *upstream) : upstream(upstream)
+		{
+			init_emitter<file_emitter>(file);
+		}
+		explicit basic_ubj_output_archive(FILE *file) : basic_ubj_output_archive(file, std::pmr::get_default_resource())
+		{
+		}
+		basic_ubj_output_archive(void *buff, std::size_t size, mem_res_type *upstream) : upstream(upstream)
+		{
+			init_emitter<buffer_emitter>(buff, size);
+		}
+		basic_ubj_output_archive(void *buff, std::size_t size)
+			: basic_ubj_output_archive(buff, size, std::pmr::get_default_resource())
+		{
+		}
+		basic_ubj_output_archive(std::streambuf *buff, mem_res_type *upstream) : upstream(upstream)
+		{
+			init_emitter<streambuf_emitter>(buff);
+		}
+		explicit basic_ubj_output_archive(std::streambuf *buff)
+			: basic_ubj_output_archive(buff, std::pmr::get_default_resource())
+		{
+		}
+
+		~basic_ubj_output_archive()
+		{
+			if (flush_impl()) [[likely]]
+				upstream->deallocate(emitter, emitter->size_of());
+		}
+
+		/** Serialized the forwarded value to UBJson. Flushes previous uncommitted state.
+		 * @param value Value to serialize as UBJson.
+		 * @return Reference to this archive.
+		 * @note Serialized data is kept inside the archive's internal state and will be written to the output once the
+		 * archive is destroyed or `flush` is called. */
+		template<typename T>
+		basic_ubj_output_archive &write(T &&value)
+		{
+			auto top_frame = init_write_frame();
+			top_frame.write(std::forward<T>(value));
+			return *this;
+		}
+		/** @copydoc write */
+		template<typename T>
+		basic_ubj_output_archive &operator<<(T &&value)
+		{
+			return write(std::forward<T>(value));
+		}
+
+		/** Flushes the internal state & writes UBJson to the output. */
+		void flush()
+		{
+			flush_impl();
+			top_level = nullptr;
+		}
+
+		constexpr void swap(basic_ubj_output_archive &other) noexcept
+		{
+			using std::swap;
+			swap(emitter, other.emitter);
+			swap(top_level, other.top_level);
+			swap(upstream, other.upstream);
+
+			node_pool.swap(other.node_pool);
+			string_pool.swap(other.string_pool);
+		}
+		friend constexpr void swap(basic_ubj_output_archive &a, basic_ubj_output_archive &b) noexcept { a.swap(b); }
+
+	private:
+		template<typename T, typename... Args>
+		void init_emitter(Args &&...args)
+		{
+			auto *new_emitter = static_cast<T *>(upstream->allocate(sizeof(T)));
+			if (!new_emitter) [[unlikely]]
+				throw std::bad_cast();
+			std::construct_at(new_emitter, std::forward<Args>(args)...);
+			emitter = static_cast<emitter_base *>(new_emitter);
+		}
+		bool flush_impl()
+		{
+			if (emitter && top_level) [[likely]]
+			{
+				emitter->emit_node(*top_level);
+				node_pool.release(upstream);
+				string_pool.release(upstream);
+				return true;
+			}
+			return false;
+		}
+		[[nodiscard]] write_frame init_write_frame()
+		{
+			/* Flush uncommitted changes before initializing a new emit tree. */
+			flush_impl();
+
+			auto *node = static_cast<emitter_node *>(node_pool.allocate(upstream, sizeof(emitter_node)));
+			if (!node) [[unlikely]]
+				throw std::bad_alloc();
+			top_level = node;
+			return write_frame{this, node};
+		}
+
+		emitter_base *emitter;					 /* Emitter used for writing. Allocated from the upstream allocator. */
+		const emitter_node *top_level = nullptr; /* Top-level node of the node tree. */
+
+		mem_res_type *upstream; /* Upstream allocator used for memory pools. */
+
+		detail::basic_pool_allocator<sizeof(emitter_node) * 64> node_pool; /* Pool used for the node tree. */
+		detail::basic_pool_allocator<SEK_KB(1)> string_pool; /* Pool used to allocate copies of output strings. */
 	};
+
+	typedef basic_ubj_output_archive<char> ubj_output_archive;
 
 	//	static_assert(output_archive<ubj_output_archive, bool>);
 	//	static_assert(output_archive<ubj_output_archive, char>);
