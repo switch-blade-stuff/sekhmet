@@ -64,18 +64,7 @@ namespace
 
 TEST(serialization_tests, ubjson_test)
 {
-	constexpr auto print_ubc_data = [](const char *bytes, std::size_t n) noexcept -> void
-	{
-		for (std::size_t i = 0; i < n; ++i)
-		{
-			auto c = bytes[i];
-			if (isprint(c))
-				putc(c, stdout);
-			else
-				printf("\\x%02x", c);
-		}
-		putc('\n', stdout);
-	};
+	namespace ubj = sek::serialization::ubj;
 
 	const serializable_t data = {
 		.s = "Hello, world!",
@@ -89,18 +78,16 @@ TEST(serialization_tests, ubjson_test)
 	std::string ubj_string;
 	{
 		std::stringstream ss;
-		ser::ubj::output_archive archive{ss};
+		ubj::basic_output_archive<ubj::pack_integers | ubj::fixed_type> archive{ss};
 		archive << data;
 
 		archive.flush();
 		ubj_string = ss.str();
 	}
-	print_ubc_data(ubj_string.data(), ubj_string.size());
 	serializable_t deserialized;
 	{
-		ser::ubj::input_archive archive{ubj_string.data(), ubj_string.size()};
+		ubj::input_archive archive{ubj_string.data(), ubj_string.size()};
 		archive >> deserialized;
 	}
-
 	EXPECT_EQ(data, deserialized);
 }

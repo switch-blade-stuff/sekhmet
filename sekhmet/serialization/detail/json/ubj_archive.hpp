@@ -19,7 +19,7 @@ namespace sek::serialization::ubj
 
 		enum token_t : std::int8_t
 		{
-			INVALID_TOKEN = 0,
+			INVALID_TYPE = 0,
 			DYNAMIC_TYPE = INT8_MAX,
 
 			NULL_ENTRY = 'Z',
@@ -74,7 +74,7 @@ namespace sek::serialization::ubj
 	 * of serializable types.
 	 *
 	 * @tparam CharType Character type used for Json. */
-	template<config_flags Config, typename CharType>
+	template<config_flags Config, typename CharType = char>
 	class basic_input_archive : detail::json_input_archive_base<CharType>
 	{
 		using base_t = serialization::detail::json_input_archive_base<CharType>;
@@ -500,7 +500,7 @@ namespace sek::serialization::ubj
 	static_assert(serialization::container_like_archive<input_archive::archive_frame>);
 
 	/** @details Archive used to write UBJson data. */
-	template<config_flags Config, typename CharType>
+	template<config_flags Config, typename CharType = char>
 	class basic_output_archive
 	{
 	private:
@@ -532,11 +532,11 @@ namespace sek::serialization::ubj
 			};
 			std::size_t size = 0;
 			std::size_t capacity = 0;
-			detail::token_t value_type = detail::token_t::DYNAMIC_TYPE;
+			detail::token_t value_type = detail::token_t::INVALID_TYPE;
 		};
 		struct entry_t
 		{
-			constexpr entry_t() noexcept : container(), type(detail::token_t::INVALID_TOKEN) {}
+			constexpr entry_t() noexcept : container(), type(detail::token_t::INVALID_TYPE) {}
 
 			union
 			{
@@ -624,7 +624,7 @@ namespace sek::serialization::ubj
 			{
 				std::pair<bool, bool> result = {};
 
-				if constexpr (Config & fixed_type)
+				if constexpr ((Config & fixed_type) == fixed_type)
 					if (container.value_type != detail::token_t::DYNAMIC_TYPE)
 					{
 						write_token(detail::token_t::CONTAINER_TYPE);
@@ -1075,6 +1075,15 @@ namespace sek::serialization::ubj
 				auto entry = next_entry();
 				SEK_ASSERT(entry != nullptr);
 				write_value(*entry, std::forward<T>(value));
+
+				if constexpr ((Config & fixed_type) == fixed_type)
+					if (current.container.value_type != entry->type) [[likely]]
+					{
+						if (current.container.value_type == detail::token_t::INVALID_TYPE)
+							current.container.value_type = entry->type;
+						else
+							current.container.value_type = detail::token_t::DYNAMIC_TYPE;
+					}
 			}
 
 			template<typename T>
