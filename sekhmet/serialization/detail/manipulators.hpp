@@ -38,47 +38,6 @@ namespace sek::serialization
 		return named_entry_t<C, T>{name, std::forward<T>(value)};
 	}
 
-	/** @brief Archive manipulator used to read & write binary data. */
-	struct binary_entry_t
-	{
-		union
-		{
-			const void *data_in;
-			void *data_out;
-		};
-		std::size_t size;
-	};
-
-	/** Reads a binary entry into a memory buffer.
-	 * @param buff Pointer to the output memory buffer.
-	 * @param size Size of the memory buffer. */
-	constexpr binary_entry_t read_binary(void *buff, std::size_t size) noexcept { return {{buff}, size}; }
-	/** Writes a memory buffer to a binary entry.
-	 * @param buff Pointer to the input memory buffer.
-	 * @param size Size of the memory buffer. */
-	constexpr binary_entry_t write_binary(const void *buff, std::size_t size) noexcept { return {{buff}, size}; }
-	/** Reads an object from a binary entry.
-	 * @param value Reference to the value to be read from a binary entry. */
-	template<typename T>
-	constexpr binary_entry_t read_binary(T &value) noexcept requires std::is_trivially_copyable_v<T>
-	{
-		return {{static_cast<void *>(&value)}, sizeof(T)};
-	}
-	/** Writes an object to a binary entry.
-	 * @param value Reference to the value to be written to a binary entry. */
-	template<typename T>
-	constexpr binary_entry_t write_binary(T &value) noexcept requires std::is_trivially_copyable_v<T>
-	{
-		return {{static_cast<const void *>(&value)}, sizeof(T)};
-	}
-	/** Writes an object to a binary entry.
-	 * @param value Value to be written to a binary entry. */
-	template<typename T>
-	constexpr binary_entry_t write_binary(T value) noexcept requires std::is_trivially_copyable_v<T>
-	{
-		return {{static_cast<const void *>(&value)}, sizeof(T)};
-	}
-
 	/** @brief Archive manipulator used read or write size of the current container.
 	 * @note If the archive does not support fixed-size containers, size will be left unmodified. */
 	template<typename T>

@@ -4,6 +4,8 @@
 
 #include <gtest/gtest.h>
 
+#include <numbers>
+
 #include "sekhmet/serialization/ubjson.hpp"
 
 namespace ser = sek::serialization;

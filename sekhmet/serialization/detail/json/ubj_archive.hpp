@@ -82,6 +82,8 @@ namespace sek::serialization::ubj
 	public:
 		typedef typename base_t::read_frame archive_frame;
 		typedef typename archive_frame::archive_category archive_category;
+		typedef typename archive_frame::char_type char_type;
+		typedef typename archive_frame::size_type size_type;
 
 	private:
 		struct parser_base : base_t::parse_event_handler
@@ -281,9 +283,9 @@ namespace sek::serialization::ubj
 					case detail::token_t::FLOAT64: base_handler::on_float(read_literal<double>()); break;
 					case detail::token_t::HIGHP:
 					{
-						if constexpr (Config & highp_error)
+						if constexpr ((Config & highp_error) == highp_error)
 							throw archive_error("High-precision number support is disabled");
-						else if constexpr (Config & highp_skip)
+						else if constexpr ((Config & highp_skip) == highp_skip)
 							break;
 						[[fallthrough]];
 					}
@@ -640,7 +642,7 @@ namespace sek::serialization::ubj
 						write_token(container.value_type);
 						result.first = true;
 					}
-				if constexpr (Config & fixed_size)
+				if constexpr ((Config & fixed_size) == fixed_size)
 				{
 					write_token(detail::token_t::CONTAINER_SIZE);
 					emit_length(static_cast<std::int64_t>(container.size));
@@ -765,6 +767,8 @@ namespace sek::serialization::ubj
 
 		public:
 			typedef output_archive_category archive_category;
+			typedef CharType char_type;
+			typedef std::size_t size_type;
 
 		private:
 			constexpr write_frame(basic_output_archive &parent, entry_t &entry) noexcept
@@ -1021,7 +1025,7 @@ namespace sek::serialization::ubj
 			{
 				std::decay_t<I> value = i;
 
-				if constexpr (Config & pack_integers)
+				if constexpr ((Config & pack_integers) == pack_integers)
 					write_int_packed(entry, value);
 				else
 					write_int_fast(entry, value);
@@ -1144,6 +1148,8 @@ namespace sek::serialization::ubj
 	public:
 		typedef write_frame archive_frame;
 		typedef typename archive_frame::archive_category archive_category;
+		typedef typename archive_frame::char_type char_type;
+		typedef typename archive_frame::size_type size_type;
 
 	public:
 		basic_output_archive() = delete;

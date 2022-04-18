@@ -40,6 +40,8 @@ namespace sek::serialization
 	concept input_archive = requires(A &archive, T &value)
 	{
 		typename A::archive_category;
+		typename A::char_type;
+		typename A::size_type;
 		std::is_base_of_v<input_archive_category, typename A::archive_category>;
 
 		// clang-format off
@@ -55,6 +57,8 @@ namespace sek::serialization
 	concept output_archive = requires(A &archive, const T &value)
 	{
 		typename A::archive_category;
+		typename A::char_type;
+		typename A::size_type;
 		std::is_base_of_v<output_archive_category, typename A::archive_category>;
 
 		// clang-format off

@@ -437,17 +437,20 @@ namespace sek::serialization::detail
 			entry_type type;
 		};
 
+#ifndef _MSC_VER /* MSVC bug - cannot access private member from a nested type. */
+	private:
+#endif
+		enum read_frame_type : int
+		{
+			ARRAY_FRAME = entry_type::ARRAY,   /* Parsing/reading array. */
+			OBJECT_FRAME = entry_type::OBJECT, /* Parsing/reading object. */
+		};
+
 	private:
 		struct member_t
 		{
 			json_entry value;
 			sv_type key;
-		};
-
-		enum read_frame_type : int
-		{
-			ARRAY_FRAME = entry_type::ARRAY,   /* Parsing/reading array. */
-			OBJECT_FRAME = entry_type::OBJECT, /* Parsing/reading object. */
 		};
 
 	public:
@@ -594,6 +597,7 @@ namespace sek::serialization::detail
 
 		public:
 			typedef input_archive_category archive_category;
+			typedef CharType char_type;
 
 			typedef entry_iterator iterator;
 			typedef entry_iterator const_iterator;
@@ -732,24 +736,6 @@ namespace sek::serialization::detail
 			}
 			template<typename T>
 			read_frame &operator>>(named_entry_t<CharType, T> value)
-			{
-				return read(value);
-			}
-
-			bool try_read(binary_entry_t value) noexcept
-			{
-				auto sv = read<sv_type>();
-				return base64_decode(value.data_out, value.size, sv.data(), sv.size());
-			}
-			template<typename T>
-			read_frame &read(binary_entry_t value) noexcept
-			{
-				if (!try_read(value)) [[unlikely]]
-					throw archive_error("Failed to decode base64 data");
-				return *this;
-			}
-			template<typename T>
-			read_frame &operator>>(binary_entry_t value) noexcept
 			{
 				return read(value);
 			}
