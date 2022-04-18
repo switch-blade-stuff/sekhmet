@@ -720,8 +720,8 @@ namespace sek::serialization::detail
 			template<typename T>
 			read_frame &read(named_entry_t<CharType, T> value)
 			{
-				if (type != read_frame_type::OBJECT_FRAME) [[unlikely]]
-					throw archive_error("Invalid Json type, expected object");
+				if (type == read_frame_type::ARRAY_FRAME) [[unlikely]]
+					throw archive_error("Named entry modifier cannot be applied to an array entry");
 
 				if (!seek_entry(value.name)) [[unlikely]]
 				{

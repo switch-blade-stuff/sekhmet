@@ -1102,12 +1102,16 @@ namespace sek::serialization::ubj
 			template<typename T>
 			void write_impl(T &&value)
 			{
-				next_key = get_next_key();
+				if (current.type != detail::token_t::ARRAY_START) [[likely]]
+					next_key = get_next_key();
 				write_value(std::forward<T>(value));
 			}
 			template<typename T>
 			void write_impl(named_entry_t<CharType, T> value)
 			{
+				if (current.type == detail::token_t::ARRAY_START) [[unlikely]]
+					throw archive_error("Named entry modifier cannot be applied to array entry");
+
 				next_key = get_next_key(value.name);
 				write_value(std::forward<T>(value.value));
 			}
