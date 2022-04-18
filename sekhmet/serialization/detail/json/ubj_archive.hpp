@@ -285,8 +285,6 @@ namespace sek::serialization
 
 		struct buffer_parser final : parser_base
 		{
-			using handler_t = typename base_t::parse_event_handler;
-
 			constexpr buffer_parser(basic_ubj_input_archive *archive, const void *buff, std::size_t n) noexcept
 				: parser_base(archive), curr(static_cast<const std::byte *>(buff)), end(curr + n)
 			{
@@ -320,8 +318,6 @@ namespace sek::serialization
 		};
 		struct file_parser final : parser_base
 		{
-			using handler_t = typename base_t::parse_event_handler;
-
 			constexpr file_parser(basic_ubj_input_archive *archive, FILE *file) noexcept
 				: parser_base(archive), file(file)
 			{
@@ -353,8 +349,6 @@ namespace sek::serialization
 		};
 		struct streambuf_parser final : parser_base
 		{
-			using handler_t = typename base_t::parse_event_handler;
-
 			constexpr streambuf_parser(basic_ubj_input_archive *archive, std::streambuf *buff) noexcept
 				: parser_base(archive), buff(buff)
 			{
@@ -498,7 +492,7 @@ namespace sek::serialization
 		using mem_res_type = std::pmr::memory_resource;
 		using sv_type = std::basic_string_view<CharType>;
 
-		struct emitter_node;
+		struct node_t;
 		struct member_t;
 
 		struct literal_t
@@ -521,15 +515,15 @@ namespace sek::serialization
 		{
 			union
 			{
-				void *data_ptr = nullptr;
-				emitter_node *array_data;
+				void *data_ptr;
+				node_t *array_data;
 				member_t *object_data;
 			};
 			std::size_t size;
 			std::size_t capacity;
 			detail::ubj_token value_type;
 		};
-		struct emitter_node
+		struct node_t
 		{
 			union
 			{
@@ -541,7 +535,7 @@ namespace sek::serialization
 		};
 		struct member_t
 		{
-			emitter_node value;
+			node_t value;
 			sv_type key;
 		};
 
@@ -668,7 +662,7 @@ namespace sek::serialization
 				if (!fixed_size) [[unlikely]]
 					write_token(detail::ubj_token::UBJ_OBJECT_END);
 			}
-			void emit_data(const emitter_node &node)
+			void emit_data(const node_t &node)
 			{
 				switch (node.type)
 				{
@@ -690,7 +684,7 @@ namespace sek::serialization
 					default: break;
 				}
 			}
-			void emit_node(const emitter_node &node)
+			void emit_node(const node_t &node)
 			{
 				write_token(node.type);
 				emit_data(node);
@@ -745,7 +739,7 @@ namespace sek::serialization
 		{
 			friend class basic_ubj_output_archive;
 
-			constexpr write_frame(basic_ubj_output_archive *parent, emitter_node *node) noexcept
+			constexpr write_frame(basic_ubj_output_archive *parent, node_t *node) noexcept
 				: parent(parent), current(node)
 			{
 			}
@@ -780,7 +774,7 @@ namespace sek::serialization
 			}
 
 			basic_ubj_output_archive *parent;
-			emitter_node *current;
+			node_t *current;
 		};
 
 	public:
@@ -799,28 +793,30 @@ namespace sek::serialization
 			return *this;
 		}
 
+		explicit basic_ubj_output_archive(FILE *file) : basic_ubj_output_archive(file, std::pmr::get_default_resource())
+		{
+		}
 		basic_ubj_output_archive(FILE *file, mem_res_type *upstream) : upstream(upstream)
 		{
 			init_emitter<file_emitter>(file);
 		}
-		explicit basic_ubj_output_archive(FILE *file) : basic_ubj_output_archive(file, std::pmr::get_default_resource())
+
+		basic_ubj_output_archive(void *buff, std::size_t size)
+			: basic_ubj_output_archive(buff, size, std::pmr::get_default_resource())
 		{
 		}
 		basic_ubj_output_archive(void *buff, std::size_t size, mem_res_type *upstream) : upstream(upstream)
 		{
 			init_emitter<buffer_emitter>(buff, size);
 		}
-		basic_ubj_output_archive(void *buff, std::size_t size)
-			: basic_ubj_output_archive(buff, size, std::pmr::get_default_resource())
+
+		explicit basic_ubj_output_archive(std::streambuf *buff)
+			: basic_ubj_output_archive(buff, std::pmr::get_default_resource())
 		{
 		}
 		basic_ubj_output_archive(std::streambuf *buff, mem_res_type *upstream) : upstream(upstream)
 		{
 			init_emitter<streambuf_emitter>(buff);
-		}
-		explicit basic_ubj_output_archive(std::streambuf *buff)
-			: basic_ubj_output_archive(buff, std::pmr::get_default_resource())
-		{
 		}
 
 		~basic_ubj_output_archive()
@@ -893,19 +889,19 @@ namespace sek::serialization
 			/* Flush uncommitted changes before initializing a new emit tree. */
 			flush_impl();
 
-			auto *node = static_cast<emitter_node *>(node_pool.allocate(upstream, sizeof(emitter_node)));
+			auto *node = static_cast<node_t *>(node_pool.allocate(upstream, sizeof(node_t)));
 			if (!node) [[unlikely]]
 				throw std::bad_alloc();
 			top_level = node;
 			return write_frame{this, node};
 		}
 
-		emitter_base *emitter;					 /* Emitter used for writing. Allocated from the upstream allocator. */
-		const emitter_node *top_level = nullptr; /* Top-level node of the node tree. */
+		emitter_base *emitter;			   /* Emitter used for writing. Allocated from the upstream allocator. */
+		const node_t *top_level = nullptr; /* Top-level node of the node tree. */
 
 		mem_res_type *upstream; /* Upstream allocator used for memory pools. */
 
-		detail::basic_pool_allocator<sizeof(emitter_node) * 64> node_pool; /* Pool used for the node tree. */
+		detail::basic_pool_allocator<sizeof(node_t) * 64> node_pool; /* Pool used for the node tree. */
 		detail::basic_pool_allocator<SEK_KB(1)> string_pool; /* Pool used to allocate copies of output strings. */
 	};
 
