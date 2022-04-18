@@ -34,10 +34,10 @@ namespace
 	{
 		void serialize(auto &archive) const
 		{
+			archive << ser::named_entry("m", m);
 			archive << ser::named_entry("n", nullptr);
 			archive << ser::named_entry("s", s);
 			archive << ser::named_entry("i", i);
-			archive << ser::named_entry("m", m);
 			archive << ser::named_entry("b", b);
 			archive << v << p;
 		}

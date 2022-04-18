@@ -51,13 +51,21 @@ namespace sek::serialization::ubj
 
 	typedef int config_flags;
 
-	/** Enables fixed-size containers. */
+	/** Enables fixed-size container output. */
 	constexpr static config_flags fixed_size = 1;
-	/** Enables fixed-type containers. Implies `fixed_size`. */
+	/** Enables fixed-type containers output. Implies `fixed_size`. */
 	constexpr static config_flags fixed_type = 2 | fixed_size;
 	/** Enables integer size packing (will use smallest integer size possible to represent any integral value).
-	 * @note Decreases performance since every integer's size will need to be checked at runtime. */
+	 * @note Decreases performance since every integer's size will need to be checked at runtime.
+	 * @note Container sizes will always be packed. */
 	constexpr static config_flags pack_integers = 4;
+
+	/** Treat high-precision numbers as input errors. */
+	constexpr static config_flags highp_error = 8;
+	/** Parse high-precision numbers as strings. */
+	constexpr static config_flags highp_as_string = 16;
+	/** Skip high-precision numbers (not recommended). */
+	constexpr static config_flags highp_skip = 32;
 
 	/** @details Archive used to read UBJson data.
 	 *
@@ -66,7 +74,7 @@ namespace sek::serialization::ubj
 	 * of serializable types.
 	 *
 	 * @tparam CharType Character type used for Json. */
-	template<typename CharType>
+	template<config_flags Config, typename CharType>
 	class basic_input_archive : detail::json_input_archive_base<CharType>
 	{
 		using base_t = serialization::detail::json_input_archive_base<CharType>;
@@ -269,7 +277,13 @@ namespace sek::serialization::ubj
 					case detail::token_t::FLOAT32: base_handler::on_float(read_literal<float>()); break;
 					case detail::token_t::FLOAT64: base_handler::on_float(read_literal<double>()); break;
 					case detail::token_t::HIGHP:
-						/* TODO: Handle different high-precision modes. */
+					{
+						if constexpr (Config & highp_error)
+							throw archive_error("High-precision number support is disabled");
+						else if constexpr (Config & highp_skip)
+							break;
+						[[fallthrough]];
+					}
 					case detail::token_t::STRING:
 					{
 						auto [str, len] = read_string();
@@ -471,7 +485,7 @@ namespace sek::serialization::ubj
 		}
 	};
 
-	typedef basic_input_archive<char> input_archive;
+	typedef basic_input_archive<highp_error, char> input_archive;
 
 	static_assert(serialization::input_archive<input_archive::archive_frame, bool>);
 	static_assert(serialization::input_archive<input_archive::archive_frame, char>);
