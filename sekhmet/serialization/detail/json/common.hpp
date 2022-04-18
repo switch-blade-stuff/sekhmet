@@ -818,8 +818,13 @@ namespace sek::serialization::detail
 
 		public:
 			constexpr explicit parse_event_handler(json_input_archive_base *parent, mem_res_type *upstream) noexcept
-				: parent(parent), parse_stack(upstream)
+				: parent(parent), stack_allocator(upstream)
 			{
+			}
+			~parse_event_handler()
+			{
+				if (parse_stack) [[likely]]
+					stack_allocator->deallocate(parse_stack, stack_capacity * sizeof(parse_frame));
 			}
 
 			template<std::integral S>
@@ -1035,17 +1040,39 @@ namespace sek::serialization::detail
 				f(*entry);
 				return true;
 			}
-			void enter_frame() { current = &parse_stack.emplace_back(); }
-			void exit_frame()
+			void enter_frame()
 			{
-				parse_stack.pop_back();
-				if (!parse_stack.empty()) [[likely]]
-					current = &parse_stack.back();
+				if (!parse_stack) [[unlikely]]
+				{
+					auto new_stack = static_cast<parse_frame *>(stack_allocator->allocate(4 * sizeof(parse_frame)));
+					if (!new_stack) [[unlikely]]
+						throw std::bad_alloc();
+					current = parse_stack = new_stack;
+					stack_capacity = 4;
+				}
+				else if (auto pos = ++current - parse_stack; pos == stack_capacity) [[unlikely]]
+				{
+					auto new_cap = stack_capacity * 2;
+					auto new_stack = static_cast<parse_frame *>(stack_allocator->allocate(new_cap * sizeof(parse_frame)));
+					if (!new_stack) [[unlikely]]
+						throw std::bad_alloc();
+
+					current = std::copy_n(parse_stack, pos, new_stack);
+
+					stack_allocator->deallocate(parse_stack, stack_capacity * sizeof(parse_frame));
+					parse_stack = new_stack;
+					stack_capacity = new_cap;
+				}
+				std::construct_at(current);
 			}
+			void exit_frame() { --current; }
 
 			json_input_archive_base *parent;
-			std::pmr::vector<parse_frame> parse_stack;
+
+			std::pmr::memory_resource *stack_allocator;
+			parse_frame *parse_stack = nullptr;
 			parse_frame *current = nullptr;
+			std::size_t stack_capacity = 0;
 		};
 
 	public:
