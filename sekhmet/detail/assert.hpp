@@ -12,7 +12,7 @@
 namespace sek::detail
 {
 	[[maybe_unused]] constexpr void assert_impl(
-		bool condition, const char *condition_str, const char *file, std::size_t line, const char *func, const char *msg = nullptr)
+		bool condition, const char *condition_str, const char *file, std::size_t line, const char *func, const char *msg)
 	{
 		if (!condition) [[unlikely]]
 		{
@@ -25,7 +25,7 @@ namespace sek::detail
 	}
 }	 // namespace sek::detail
 
-#define SEK_ASSERT_2(cond, msg) sek::detail::assert_impl(cond, #cond, SEK_FILE, SEK_LINE, SEK_PRETTY_FUNC, msg)
+#define SEK_ASSERT_2(cond, msg) sek::detail::assert_impl((cond), (#cond), (SEK_FILE), (SEK_LINE), (SEK_PRETTY_FUNC), (msg))
 #define SEK_ASSERT_1(cond) SEK_ASSERT_2(cond, nullptr)
 
 /** Same as regular SEK_ASSERT, except applies even when SEK_NO_DEBUG_ASSERT is defined. */

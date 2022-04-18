@@ -1135,7 +1135,7 @@ namespace sek::serialization::ubj
 			}
 			void write_impl(array_mode_t)
 			{
-				SEK_ASSERT(current.type != detail::token_t::OBJECT_START, "Array modifier modifier applied to object entry");
+				SEK_ASSERT(current.type != detail::token_t::OBJECT_START, "Array mode modifier applied to object entry");
 				current.type = detail::token_t::ARRAY_START;
 			}
 
