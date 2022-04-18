@@ -88,7 +88,7 @@ namespace sek::serialization
 	};
 	/** Reads or writes size of the current container entry.
 	 * @param size Size of the container, forwarded by the manipulator.
-	 * @note If the archive does not support fixed-size containers, size will be left unmodified. */
+	 * @note If the archive does not support fixed-size containers, size will be left unmodified.*/
 	template<typename T>
 	constexpr container_size_t<T> container_size(T &&size) noexcept requires std::integral<std::decay_t<T>>
 	{
@@ -102,7 +102,7 @@ namespace sek::serialization
 	 *
 	 * @note Entries written to an array will not be accessible via a name.
 	 * @warning Switching an archive to array output mode after multiple entries have already been
-	 * written leads to undefined behavior. */
+	 * written or after the container size was specified, leads to undefined behavior. */
 	struct array_mode_t
 	{
 	};

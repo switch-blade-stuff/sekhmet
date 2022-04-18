@@ -16,7 +16,7 @@ namespace sek::serialization
 		constexpr void invoke_serialize(T &&value, A &archive)
 		{
 			using sek::serialization::serialize;
-			if constexpr (!std::is_pointer_v<T> && requires { value.serialize(archive); })
+			if constexpr (requires { value.serialize(archive); })
 				value.serialize(archive);
 			else
 				serialize(std::forward<T>(value), archive);
@@ -25,7 +25,7 @@ namespace sek::serialization
 		constexpr void invoke_deserialize(T &&value, A &archive)
 		{
 			using sek::serialization::deserialize;
-			if constexpr (!std::is_pointer_v<T> && requires { value.deserialize(archive); })
+			if constexpr (requires { value.deserialize(archive); })
 				value.deserialize(archive);
 			else
 				deserialize(std::forward<T>(value), archive);

@@ -62,14 +62,14 @@ namespace sek::serialization
 		if constexpr (std::tuple_size_v<T> != 0)
 		{
 			archive << array_mode() << container_size(std::tuple_size_v<T>);
-			tuple_serialize_unwrap(tuple, archive, std::make_index_sequence<std::tuple_size_v<T>>{});
+			detail::tuple_serialize_unwrap(tuple, archive, std::make_index_sequence<std::tuple_size_v<T>>{});
 		}
 	}
 	template<detail::tuple_like T, typename A>
 	void deserialize(T &tuple, A &archive)
 	{
 		if constexpr (std::tuple_size_v<T> != 0)
-			tuple_deserialize_unwrap(tuple, archive, std::make_index_sequence<std::tuple_size_v<T>>{});
+			detail::tuple_deserialize_unwrap(tuple, archive, std::make_index_sequence<std::tuple_size_v<T>>{});
 	}
 
 	template<detail::pair_like T, typename A>

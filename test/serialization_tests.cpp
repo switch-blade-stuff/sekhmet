@@ -8,35 +8,6 @@
 
 namespace ser = sek::serialization;
 
-struct test_serializable
-{
-	template<typename A>
-	void serialize(A &archive)
-	{
-		archive << ser::named_entry("s", s);
-		archive << ser::named_entry("i", i);
-		archive << ser::named_entry("m", m);
-		archive << ser::named_entry("b", b);
-		archive << v << p;
-	}
-	template<typename A>
-	void deserialize(A &archive)
-	{
-		archive >> ser::named_entry("s", s);
-		archive >> ser::named_entry("i", i);
-		archive >> ser::named_entry("m", m);
-		archive >> ser::named_entry("b", b);
-		archive >> v >> p;
-	}
-
-	std::string s;
-	int i;
-	bool b;
-	std::vector<int> v;
-	std::pair<int, float> p;
-	std::map<std::string, int> m;
-};
-
 TEST(serialization_tests, base64_test)
 {
 	struct data_t
@@ -57,23 +28,79 @@ TEST(serialization_tests, base64_test)
 	delete[] buff;
 }
 
+namespace
+{
+	struct serializable_t
+	{
+		void serialize(auto &archive) const
+		{
+			archive << ser::named_entry("n", nullptr);
+			archive << ser::named_entry("s", s);
+			archive << ser::named_entry("i", i);
+			archive << ser::named_entry("m", m);
+			archive << ser::named_entry("b", b);
+			archive << v << p;
+		}
+		void deserialize(auto &archive)
+		{
+			archive >> ser::named_entry("n", nullptr);
+			archive >> ser::named_entry("s", s);
+			archive >> ser::named_entry("i", i);
+			archive >> ser::named_entry("m", m);
+			archive >> ser::named_entry("b", b);
+			archive >> v >> p;
+		}
+
+		bool operator==(const serializable_t &) const noexcept = default;
+
+		std::string s;
+		int i;
+		bool b;
+		std::vector<int> v;
+		std::pair<int, float> p;
+		std::map<std::string, int> m;
+	};
+}	 // namespace
+
 TEST(serialization_tests, ubjson_test)
 {
-	const char data[] = "{#i\x06"
-						"i\01bT"
-						"i\01v[$i#i\04\x00\x01\x02\x03"
-						"i\x01p[i\105d\x43\xd2\x00\x00]"
-						"i\x01m[$[#i\2Si\2i1i\1]Si\2i2i\2]"
-						"i\x01sSi\x0dHello, world!"
-						"i\x01iI\x04\x20";
-	ser::ubj_input_archive archive(data, sizeof(data) - 1);
+	constexpr auto print_ubc_data = [](const char *bytes, std::size_t n) noexcept -> void
+	{
+		for (std::size_t i = 0; i < n; ++i)
+		{
+			auto c = bytes[i];
+			if (isprint(c))
+				putc(c, stdout);
+			else
+				printf("\\x%02x", c);
+		}
+		putc('\n', stdout);
+	};
 
-	test_serializable serializable;
-	archive >> serializable;
-	EXPECT_EQ(serializable.s, "Hello, world!");
-	EXPECT_EQ(serializable.i, 0x420);
-	EXPECT_EQ(serializable.b, true);
-	EXPECT_EQ(serializable.v, (std::vector{0, 1, 2, 3}));
-	EXPECT_EQ(serializable.p, (std::pair<int, float>{69, 420.0}));
-	EXPECT_EQ(serializable.m, (std::map<std::string, int>{{"i1", 1}, {"i2", 2}}));
+	const serializable_t data = {
+		.s = "Hello, world!",
+		.i = 0x420,
+		.b = true,
+		.v = {0, 1, 2, 3},
+		.p = {69, 420.0f},
+		.m = {{"i1", 1}, {"i2", 2}},
+	};
+
+	std::string ubj_string;
+	{
+		std::stringstream ss;
+		ser::ubj::output_archive archive{ss};
+		archive << data;
+
+		archive.flush();
+		ubj_string = ss.str();
+	}
+	print_ubc_data(ubj_string.data(), ubj_string.size());
+	serializable_t deserialized;
+	{
+		ser::ubj::input_archive archive{ubj_string.data(), ubj_string.size()};
+		archive >> deserialized;
+	}
+
+	EXPECT_EQ(data, deserialized);
 }

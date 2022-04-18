@@ -700,7 +700,7 @@ namespace sek::serialization::detail
 			}
 
 			template<typename T>
-			bool try_read(named_entry_t<CharType, T> value) requires std::is_reference_v<T>
+			bool try_read(named_entry_t<CharType, T> value)
 			{
 				if (type == read_frame_type::OBJECT_FRAME) [[likely]]
 				{
@@ -710,7 +710,7 @@ namespace sek::serialization::detail
 				return false;
 			}
 			template<typename T>
-			read_frame &read(named_entry_t<CharType, T> value) requires std::is_reference_v<T>
+			read_frame &read(named_entry_t<CharType, T> value)
 			{
 				if (type != read_frame_type::OBJECT_FRAME) [[unlikely]]
 					throw archive_error("Invalid Json type, expected object");
@@ -727,7 +727,7 @@ namespace sek::serialization::detail
 				return *this;
 			}
 			template<typename T>
-			read_frame &operator>>(named_entry_t<CharType, T> value) requires std::is_reference_v<T>
+			read_frame &operator>>(named_entry_t<CharType, T> value)
 			{
 				return read(value);
 			}

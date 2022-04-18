@@ -11,49 +11,53 @@
 #include "common.hpp"
 #include "sekhmet/detail/bswap.hpp"
 
-namespace sek::serialization
+namespace sek::serialization::ubj
 {
 	namespace detail
 	{
-		enum ubj_token : std::int8_t
+		using namespace serialization::detail;
+
+		enum token_t : std::int8_t
 		{
-			UBJ_INVALID_TOKEN = 0,
-			UBJ_NULL = 'Z',
-			UBJ_NOOP = 'N',
-			UBJ_BOOL_TRUE = 'T',
-			UBJ_BOOL_FALSE = 'F',
-			UBJ_CHAR = 'C',
+			INVALID_TOKEN = 0,
+			DYNAMIC_TYPE = INT8_MAX,
 
-			UBJ_UINT8 = 'U',
-			UBJ_INT8 = 'i',
-			UBJ_INT16 = 'I',
-			UBJ_INT32 = 'l',
-			UBJ_INT64 = 'L',
+			NULL_ENTRY = 'Z',
+			NOOP = 'N',
+			BOOL_TRUE = 'T',
+			BOOL_FALSE = 'F',
+			CHAR = 'C',
 
-			UBJ_FLOAT32 = 'd',
-			UBJ_FLOAT64 = 'D',
+			UINT8 = 'U',
+			INT8 = 'i',
+			INT16 = 'I',
+			INT32 = 'l',
+			INT64 = 'L',
 
-			UBJ_STRING = 'S',
-			UBJ_HIGHP = 'H',
+			FLOAT32 = 'd',
+			FLOAT64 = 'D',
 
-			UBJ_CONTAINER_TYPE = '$',
-			UBJ_CONTAINER_SIZE = '#',
-			UBJ_OBJECT_START = '{',
-			UBJ_OBJECT_END = '}',
-			UBJ_ARRAY_START = '[',
-			UBJ_ARRAY_END = ']',
-		};
-		enum ubj_version : int
-		{
-			UBJ_SPEC12 = 0,
-		};
-		enum ubj_highp_mode : int
-		{
-			UBJ_HIGHP_STRING = 0,
-			UBJ_HIGHP_THROW = 1,
-			UBJ_HIGHP_SKIP = 2,
+			STRING = 'S',
+			HIGHP = 'H',
+
+			CONTAINER_TYPE = '$',
+			CONTAINER_SIZE = '#',
+			OBJECT_START = '{',
+			OBJECT_END = '}',
+			ARRAY_START = '[',
+			ARRAY_END = ']',
 		};
 	}	 // namespace detail
+
+	typedef int config_flags;
+
+	/** Enables fixed-size containers. */
+	constexpr static config_flags fixed_size = 1;
+	/** Enables fixed-type containers. Implies `fixed_size`. */
+	constexpr static config_flags fixed_type = 2 | fixed_size;
+	/** Enables integer size packing (will use smallest integer size possible to represent any integral value).
+	 * @note Decreases performance since every integer's size will need to be checked at runtime. */
+	constexpr static config_flags pack_integers = 4;
 
 	/** @details Archive used to read UBJson data.
 	 *
@@ -63,12 +67,13 @@ namespace sek::serialization
 	 *
 	 * @tparam CharType Character type used for Json. */
 	template<typename CharType>
-	class basic_ubj_input_archive : detail::json_input_archive_base<CharType>
+	class basic_input_archive : detail::json_input_archive_base<CharType>
 	{
-		using base_t = detail::json_input_archive_base<CharType>;
+		using base_t = serialization::detail::json_input_archive_base<CharType>;
 
 	public:
 		typedef typename base_t::read_frame archive_frame;
+		typedef typename archive_frame::archive_category archive_category;
 
 	private:
 		struct parser_base : base_t::parse_event_handler
@@ -81,7 +86,7 @@ namespace sek::serialization
 			constexpr static auto bad_size_msg = "UBJson: Invalid input, expected container size";
 
 			parser_base() = delete;
-			constexpr explicit parser_base(basic_ubj_input_archive *archive) noexcept : base_handler(archive) {}
+			constexpr explicit parser_base(basic_input_archive *archive) noexcept : base_handler(archive) {}
 
 			void guarded_read(void *dest, std::size_t n)
 			{
@@ -93,20 +98,20 @@ namespace sek::serialization
 				if (bump(n) != n) [[unlikely]]
 					throw archive_error(eof_msg);
 			}
-			detail::ubj_token read_token()
+			detail::token_t read_token()
 			{
-				detail::ubj_token token;
-				guarded_read(&token, sizeof(detail::ubj_token));
+				detail::token_t token;
+				guarded_read(&token, sizeof(detail::token_t));
 				return token;
 			}
-			detail::ubj_token peek_token()
+			detail::token_t peek_token()
 			{
 				if (auto c = peek(); c == EOF) [[unlikely]]
 					throw archive_error(eof_msg);
 				else
-					return static_cast<detail::ubj_token>(c);
+					return static_cast<detail::token_t>(c);
 			}
-			void bump_token() { guarded_bump(sizeof(detail::ubj_token)); }
+			void bump_token() { guarded_bump(sizeof(detail::token_t)); }
 
 			template<typename T>
 			[[nodiscard]] T read_literal()
@@ -131,11 +136,11 @@ namespace sek::serialization
 				auto token = read_token();
 				switch (token)
 				{
-					case detail::ubj_token::UBJ_UINT8: return static_cast<std::int64_t>(read_literal<std::uint8_t>());
-					case detail::ubj_token::UBJ_INT8: return static_cast<std::int64_t>(read_literal<std::int8_t>());
-					case detail::ubj_token::UBJ_INT16: return static_cast<std::int64_t>(read_literal<std::int16_t>());
-					case detail::ubj_token::UBJ_INT32: return static_cast<std::int64_t>(read_literal<std::int32_t>());
-					case detail::ubj_token::UBJ_INT64: return read_literal<std::int64_t>();
+					case detail::token_t::UINT8: return static_cast<std::int64_t>(read_literal<std::uint8_t>());
+					case detail::token_t::INT8: return static_cast<std::int64_t>(read_literal<std::int8_t>());
+					case detail::token_t::INT16: return static_cast<std::int64_t>(read_literal<std::int16_t>());
+					case detail::token_t::INT32: return static_cast<std::int64_t>(read_literal<std::int32_t>());
+					case detail::token_t::INT64: return read_literal<std::int64_t>();
 					default: throw archive_error(bad_length_msg);
 				}
 			}
@@ -148,24 +153,24 @@ namespace sek::serialization
 				return {str, len};
 			}
 
-			[[nodiscard]] std::pair<detail::ubj_token, std::int64_t> parse_container_attributes()
+			[[nodiscard]] std::pair<detail::token_t, std::int64_t> parse_container_attributes()
 			{
-				std::pair<detail::ubj_token, std::int64_t> result = {detail::ubj_token::UBJ_INVALID_TOKEN, -1};
+				std::pair<detail::token_t, std::int64_t> result = {detail::token_t::DYNAMIC_TYPE, -1};
 
 				switch (auto token = peek_token(); token)
 				{
-					case detail::ubj_token::UBJ_CONTAINER_TYPE:
+					case detail::token_t::CONTAINER_TYPE:
 					{
 						/* Consume the token & read type. */
 						bump_token();
 						result.first = read_token();
 
 						/* Container size always follows the type. */
-						if ((token = peek_token()) != detail::ubj_token::UBJ_CONTAINER_SIZE) [[unlikely]]
+						if ((token = peek_token()) != detail::token_t::CONTAINER_SIZE) [[unlikely]]
 							throw archive_error(bad_size_msg);
 						[[fallthrough]];
 					}
-					case detail::ubj_token::UBJ_CONTAINER_SIZE:
+					case detail::token_t::CONTAINER_SIZE:
 					{
 						bump_token();
 						result.second = read_length();
@@ -186,7 +191,7 @@ namespace sek::serialization
 					for (size = 0;; ++size)
 					{
 						auto token = read_token();
-						if (token == detail::ubj_token::UBJ_ARRAY_END) [[unlikely]]
+						if (token == detail::token_t::ARRAY_END) [[unlikely]]
 							break;
 						parse_entry(token);
 					}
@@ -194,7 +199,7 @@ namespace sek::serialization
 				else /* Fixed-size array. */
 				{
 					base_handler::on_array_start(static_cast<std::size_t>(size));
-					if (data_type != detail::ubj_token::UBJ_INVALID_TOKEN) [[likely]] /* Fixed-type array. */
+					if (data_type != detail::token_t::DYNAMIC_TYPE) [[likely]] /* Fixed-type array. */
 						for (auto i = size; i != 0; --i) parse_entry(data_type);
 					else /* Dynamic-type array. */
 						for (auto i = size; i != 0; --i) parse_entry();
@@ -217,7 +222,7 @@ namespace sek::serialization
 					for (size = 0;; ++size)
 					{
 						auto token = peek_token();
-						if (token == detail::ubj_token::UBJ_OBJECT_END) [[unlikely]]
+						if (token == detail::token_t::OBJECT_END) [[unlikely]]
 						{
 							bump_token();
 							break;
@@ -230,7 +235,7 @@ namespace sek::serialization
 				else /* Fixed-size object. */
 				{
 					base_handler::on_object_start(static_cast<std::size_t>(size));
-					if (value_type != detail::ubj_token::UBJ_INVALID_TOKEN) [[likely]] /* Fixed-type object. */
+					if (value_type != detail::token_t::DYNAMIC_TYPE) [[likely]] /* Fixed-type object. */
 						for (auto i = size; i != 0; --i)
 						{
 							read_key();
@@ -245,34 +250,34 @@ namespace sek::serialization
 				}
 				base_handler::on_object_end(static_cast<std::size_t>(size));
 			}
-			void parse_entry(detail::ubj_token token)
+			void parse_entry(detail::token_t token)
 			{
 				switch (token)
 				{
-					case detail::ubj_token::UBJ_NOOP: break;
-					case detail::ubj_token::UBJ_NULL: base_handler::on_null(); break;
-					case detail::ubj_token::UBJ_BOOL_TRUE: base_handler::on_true(); break;
-					case detail::ubj_token::UBJ_BOOL_FALSE: base_handler::on_false(); break;
-					case detail::ubj_token::UBJ_CHAR:
+					case detail::token_t::NOOP: break;
+					case detail::token_t::NULL_ENTRY: base_handler::on_null(); break;
+					case detail::token_t::BOOL_TRUE: base_handler::on_true(); break;
+					case detail::token_t::BOOL_FALSE: base_handler::on_false(); break;
+					case detail::token_t::CHAR:
 						base_handler::on_char(static_cast<CharType>(read_literal<char>()));
 						break;
-					case detail::ubj_token::UBJ_UINT8: base_handler::on_int(read_literal<std::uint8_t>()); break;
-					case detail::ubj_token::UBJ_INT8: base_handler::on_int(read_literal<std::int8_t>()); break;
-					case detail::ubj_token::UBJ_INT16: base_handler::on_int(read_literal<std::int16_t>()); break;
-					case detail::ubj_token::UBJ_INT32: base_handler::on_int(read_literal<std::int32_t>()); break;
-					case detail::ubj_token::UBJ_INT64: base_handler::on_int(read_literal<std::int64_t>()); break;
-					case detail::ubj_token::UBJ_FLOAT32: base_handler::on_float(read_literal<float>()); break;
-					case detail::ubj_token::UBJ_FLOAT64: base_handler::on_float(read_literal<double>()); break;
-					case detail::ubj_token::UBJ_HIGHP:
+					case detail::token_t::UINT8: base_handler::on_int(read_literal<std::uint8_t>()); break;
+					case detail::token_t::INT8: base_handler::on_int(read_literal<std::int8_t>()); break;
+					case detail::token_t::INT16: base_handler::on_int(read_literal<std::int16_t>()); break;
+					case detail::token_t::INT32: base_handler::on_int(read_literal<std::int32_t>()); break;
+					case detail::token_t::INT64: base_handler::on_int(read_literal<std::int64_t>()); break;
+					case detail::token_t::FLOAT32: base_handler::on_float(read_literal<float>()); break;
+					case detail::token_t::FLOAT64: base_handler::on_float(read_literal<double>()); break;
+					case detail::token_t::HIGHP:
 						/* TODO: Handle different high-precision modes. */
-					case detail::ubj_token::UBJ_STRING:
+					case detail::token_t::STRING:
 					{
 						auto [str, len] = read_string();
 						base_handler::on_string(str, len);
 						break;
 					}
-					case detail::ubj_token::UBJ_ARRAY_START: parse_array(); break;
-					case detail::ubj_token::UBJ_OBJECT_START: parse_object(); break;
+					case detail::token_t::ARRAY_START: parse_array(); break;
+					case detail::token_t::OBJECT_START: parse_object(); break;
 					default: throw archive_error(data_msg);
 				}
 			}
@@ -285,7 +290,7 @@ namespace sek::serialization
 
 		struct buffer_parser final : parser_base
 		{
-			constexpr buffer_parser(basic_ubj_input_archive *archive, const void *buff, std::size_t n) noexcept
+			constexpr buffer_parser(basic_input_archive *archive, const void *buff, std::size_t n) noexcept
 				: parser_base(archive), curr(static_cast<const std::byte *>(buff)), end(curr + n)
 			{
 			}
@@ -318,8 +323,7 @@ namespace sek::serialization
 		};
 		struct file_parser final : parser_base
 		{
-			constexpr file_parser(basic_ubj_input_archive *archive, FILE *file) noexcept
-				: parser_base(archive), file(file)
+			constexpr file_parser(basic_input_archive *archive, FILE *file) noexcept : parser_base(archive), file(file)
 			{
 			}
 
@@ -349,7 +353,7 @@ namespace sek::serialization
 		};
 		struct streambuf_parser final : parser_base
 		{
-			constexpr streambuf_parser(basic_ubj_input_archive *archive, std::streambuf *buff) noexcept
+			constexpr streambuf_parser(basic_input_archive *archive, std::streambuf *buff) noexcept
 				: parser_base(archive), buff(buff)
 			{
 			}
@@ -372,47 +376,44 @@ namespace sek::serialization
 		};
 
 	public:
-		basic_ubj_input_archive() = delete;
-		basic_ubj_input_archive(const basic_ubj_input_archive &) = delete;
-		basic_ubj_input_archive &operator=(const basic_ubj_input_archive &) = delete;
+		basic_input_archive() = delete;
+		basic_input_archive(const basic_input_archive &) = delete;
+		basic_input_archive &operator=(const basic_input_archive &) = delete;
 
-		constexpr basic_ubj_input_archive(basic_ubj_input_archive &&) noexcept = default;
-		constexpr basic_ubj_input_archive &operator=(basic_ubj_input_archive &&) noexcept = default;
+		constexpr basic_input_archive(basic_input_archive &&) noexcept = default;
+		constexpr basic_input_archive &operator=(basic_input_archive &&) noexcept = default;
 
 		/** Reads UBJson from a memory buffer.
 		 * @param buff Pointer to the memory buffer containing UBJson data.
 		 * @param len Size of the memory buffer. */
-		basic_ubj_input_archive(const void *buff, std::size_t len) : base_t() { parse(buff, len); }
-		/** @copydoc basic_ubj_input_archive
-		 * @param res Memory resource used for internal allocation. */
-		basic_ubj_input_archive(const void *buff, std::size_t len, std::pmr::memory_resource *res) : base_t(res)
+		basic_input_archive(const void *buff, std::size_t len) : base_t() { parse(buff, len); }
+		/** @copydoc basic_input_archive
+		 * @param res PMR memory resource used for internal allocation. */
+		basic_input_archive(const void *buff, std::size_t len, std::pmr::memory_resource *res) : base_t(res)
 		{
 			parse(buff, len);
 		}
 		/** Reads UBJson from a file.
 		 * @param file Pointer to the UBJson file.
 		 * @note File must be opened in binary mode. */
-		explicit basic_ubj_input_archive(FILE *file) : base_t() { parse(file); }
-		/** @copydoc basic_ubj_input_archive
+		explicit basic_input_archive(FILE *file) : base_t() { parse(file); }
+		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_ubj_input_archive(FILE *file, std::pmr::memory_resource *res) : base_t(res) { parse(file); }
+		basic_input_archive(FILE *file, std::pmr::memory_resource *res) : base_t(res) { parse(file); }
 		/** Reads UBJson from a stream buffer.
 		 * @param buff Pointer to the stream buffer.
 		 * @note Stream buffer must be a binary stream buffer. */
-		explicit basic_ubj_input_archive(std::streambuf *buff) : base_t() { parse(buff); }
-		/** @copydoc basic_ubj_input_archive
+		explicit basic_input_archive(std::streambuf *buff) : base_t() { parse(buff); }
+		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_ubj_input_archive(std::streambuf *buff, std::pmr::memory_resource *res) : base_t(res) { parse(buff); }
+		basic_input_archive(std::streambuf *buff, std::pmr::memory_resource *res) : base_t(res) { parse(buff); }
 		/** Reads UBJson from an input stream.
 		 * @param is Reference to the input stream.
 		 * @note Stream must be a binary stream. */
-		explicit basic_ubj_input_archive(std::istream &is) : basic_ubj_input_archive(is.rdbuf()) {}
-		/** @copydoc basic_ubj_input_archive
+		explicit basic_input_archive(std::istream &is) : basic_input_archive(is.rdbuf()) {}
+		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_ubj_input_archive(std::istream &is, std::pmr::memory_resource *res)
-			: basic_ubj_input_archive(is.rdbuf(), res)
-		{
-		}
+		basic_input_archive(std::istream &is, std::pmr::memory_resource *res) : basic_input_archive(is.rdbuf(), res) {}
 
 		/** Attempts to deserialize the top-level Json entry of the archive.
 		 * @param value Value to deserialize from the Json entry.
@@ -427,14 +428,14 @@ namespace sek::serialization
 		 * @return Reference to this archive.
 		 * @throw archive_error On deserialization errors. */
 		template<typename T>
-		const basic_ubj_input_archive &read(T &&value) const
+		const basic_input_archive &read(T &&value) const
 		{
 			base_t::do_read(std::forward<T>(value));
 			return *this;
 		}
 		/** @copydoc read */
 		template<typename T>
-		const basic_ubj_input_archive &operator>>(T &&value) const
+		const basic_input_archive &operator>>(T &&value) const
 		{
 			return read(std::forward<T>(value));
 		}
@@ -449,8 +450,8 @@ namespace sek::serialization
 			return result;
 		}
 
-		constexpr void swap(basic_ubj_input_archive &other) noexcept { base_t::swap(other); }
-		friend constexpr void swap(basic_ubj_input_archive &a, basic_ubj_input_archive &b) noexcept { a.swap(b); }
+		constexpr void swap(basic_input_archive &other) noexcept { base_t::swap(other); }
+		friend constexpr void swap(basic_input_archive &a, basic_input_archive &b) noexcept { a.swap(b); }
 
 	private:
 		void parse(const void *buff, std::size_t len)
@@ -470,85 +471,81 @@ namespace sek::serialization
 		}
 	};
 
-	typedef basic_ubj_input_archive<char> ubj_input_archive;
+	typedef basic_input_archive<char> input_archive;
 
-	static_assert(input_archive<ubj_input_archive::archive_frame, bool>);
-	static_assert(input_archive<ubj_input_archive::archive_frame, char>);
-	static_assert(input_archive<ubj_input_archive::archive_frame, std::uint8_t>);
-	static_assert(input_archive<ubj_input_archive::archive_frame, std::int8_t>);
-	static_assert(input_archive<ubj_input_archive::archive_frame, std::int16_t>);
-	static_assert(input_archive<ubj_input_archive::archive_frame, std::int32_t>);
-	static_assert(input_archive<ubj_input_archive::archive_frame, std::int64_t>);
-	static_assert(input_archive<ubj_input_archive::archive_frame, float>);
-	static_assert(input_archive<ubj_input_archive::archive_frame, double>);
-	static_assert(input_archive<ubj_input_archive::archive_frame, std::string>);
-	static_assert(container_like_archive<ubj_input_archive::archive_frame>);
+	static_assert(serialization::input_archive<input_archive::archive_frame, bool>);
+	static_assert(serialization::input_archive<input_archive::archive_frame, char>);
+	static_assert(serialization::input_archive<input_archive::archive_frame, std::uint8_t>);
+	static_assert(serialization::input_archive<input_archive::archive_frame, std::int8_t>);
+	static_assert(serialization::input_archive<input_archive::archive_frame, std::int16_t>);
+	static_assert(serialization::input_archive<input_archive::archive_frame, std::int32_t>);
+	static_assert(serialization::input_archive<input_archive::archive_frame, std::int64_t>);
+	static_assert(serialization::input_archive<input_archive::archive_frame, float>);
+	static_assert(serialization::input_archive<input_archive::archive_frame, double>);
+	static_assert(serialization::input_archive<input_archive::archive_frame, std::string>);
+	static_assert(serialization::container_like_archive<input_archive::archive_frame>);
 
 	/** @details Archive used to write UBJson data. */
-	template<typename CharType>
-	class basic_ubj_output_archive
+	template<config_flags Config, typename CharType>
+	class basic_output_archive
 	{
 	private:
-		using mem_res_type = std::pmr::memory_resource;
 		using sv_type = std::basic_string_view<CharType>;
 
-		struct node_t;
+		struct entry_t;
 		struct member_t;
 
-		struct literal_t
+		union literal_t
 		{
-			union
-			{
-				CharType character;
+			CharType character;
 
-				std::uint8_t uint8;
-				std::int8_t int8;
-				std::int16_t int16;
-				std::int32_t int32;
-				std::int64_t int64;
+			std::uint8_t uint8;
+			std::int8_t int8;
+			std::int16_t int16;
+			std::int32_t int32;
+			std::int64_t int64;
 
-				float float32;
-				double float64;
-			};
+			float float32;
+			double float64;
 		};
 		struct container_t
 		{
 			union
 			{
-				void *data_ptr;
-				node_t *array_data;
+				void *data_ptr = nullptr;
+				entry_t *array_data;
 				member_t *object_data;
 			};
-			std::size_t size;
-			std::size_t capacity;
-			detail::ubj_token value_type;
+			std::size_t size = 0;
+			std::size_t capacity = 0;
+			detail::token_t value_type = detail::token_t::DYNAMIC_TYPE;
 		};
-		struct node_t
+		struct entry_t
 		{
+			constexpr entry_t() noexcept : container(), type(detail::token_t::INVALID_TOKEN) {}
+
 			union
 			{
 				literal_t literal;
-				container_t container;
 				sv_type string;
+				container_t container;
 			};
-			detail::ubj_token type;
+			detail::token_t type;
 		};
 		struct member_t
 		{
-			node_t value;
+			entry_t value;
 			sv_type key;
 		};
 
 		struct emitter_base
 		{
-			emitter_base() = delete;
-
 			void write_guarded(const void *src, std::size_t n)
 			{
-				if (write(src, n) != n) [[unlikely]]
+				if (write(this, src, n) != n) [[unlikely]]
 					throw archive_error("UBJson: Emitter write failure");
 			}
-			void write_token(detail::ubj_token token) { write_guarded(&token, sizeof(token)); }
+			void write_token(detail::token_t token) { write_guarded(&token, sizeof(token)); }
 			template<typename T>
 			void write_literal(T value)
 			{
@@ -579,27 +576,27 @@ namespace sek::serialization
 			{
 				if (length > std::numeric_limits<std::int32_t>::max()) [[unlikely]]
 				{
-					write_token(detail::ubj_token::UBJ_INT64);
+					write_token(detail::token_t::INT64);
 					write_literal(length);
 				}
 				else if (length > std::numeric_limits<std::int16_t>::max())
 				{
-					write_token(detail::ubj_token::UBJ_INT32);
+					write_token(detail::token_t::INT32);
 					write_literal(static_cast<std::int32_t>(length));
 				}
 				else if (length > std::numeric_limits<std::uint8_t>::max())
 				{
-					write_token(detail::ubj_token::UBJ_INT16);
+					write_token(detail::token_t::INT16);
 					write_literal(static_cast<std::uint16_t>(length));
 				}
 				else if (length > std::numeric_limits<std::int8_t>::max())
 				{
-					write_token(detail::ubj_token::UBJ_UINT8);
+					write_token(detail::token_t::UINT8);
 					write_literal(static_cast<std::uint8_t>(length));
 				}
 				else
 				{
-					write_token(detail::ubj_token::UBJ_INT8);
+					write_token(detail::token_t::INT8);
 					write_literal(static_cast<std::int8_t>(length));
 				}
 			}
@@ -613,38 +610,39 @@ namespace sek::serialization
 			{
 				std::pair<bool, bool> result = {};
 
-				/* TODO: Add toggle for dynamic-type preference. */
-				if (container.value_type != detail::ubj_token::UBJ_INVALID_TOKEN)
+				if constexpr (Config & fixed_type)
+					if (container.value_type != detail::token_t::DYNAMIC_TYPE)
+					{
+						write_token(detail::token_t::CONTAINER_TYPE);
+						write_token(container.value_type);
+						result.first = true;
+					}
+				if constexpr (Config & fixed_size)
 				{
-					write_token(detail::ubj_token::UBJ_CONTAINER_TYPE);
-					write_token(container.value_type);
-					result.first = true;
+					write_token(detail::token_t::CONTAINER_SIZE);
+					emit_length(static_cast<std::int64_t>(container.size));
+					result.second = true;
 				}
-
-				/* TODO: Add toggle for dynamic-size preference. */
-				write_token(detail::ubj_token::UBJ_CONTAINER_SIZE);
-				emit_length(static_cast<std::int64_t>(container.size));
-				result.second = true;
 
 				return result;
 			}
 			void emit_array(const container_t &array)
 			{
-				auto [fixed_type, fixed_size] = emit_container_attributes(array);
+				auto [is_fixed_type, is_fixed_size] = emit_container_attributes(array);
 
-				if (fixed_type) [[likely]] /* Expect that arrays are fixed-type. */
+				if (is_fixed_type) [[likely]] /* Expect that arrays are fixed-type. */
 					for (std::size_t i = 0; i < array.size; ++i) emit_data(array.array_data[i]);
 				else
-					for (std::size_t i = 0; i < array.size; ++i) emit_node(array.array_data[i]);
+					for (std::size_t i = 0; i < array.size; ++i) emit_entry(array.array_data[i]);
 
-				if (!fixed_size) [[unlikely]]
-					write_token(detail::ubj_token::UBJ_ARRAY_END);
+				if (!is_fixed_size) [[unlikely]]
+					write_token(detail::token_t::ARRAY_END);
 			}
 			void emit_object(const container_t &object)
 			{
-				auto [fixed_type, fixed_size] = emit_container_attributes(object);
+				auto [is_fixed_type, is_fixed_size] = emit_container_attributes(object);
 
-				if (fixed_type) [[unlikely]] /* Expect that objects are dynamic-type. */
+				if (is_fixed_type) [[unlikely]] /* Expect that objects are dynamic-type. */
 					for (std::size_t i = 0; i < object.size; ++i)
 					{
 						auto &member = object.object_data[i];
@@ -656,91 +654,98 @@ namespace sek::serialization
 					{
 						auto &member = object.object_data[i];
 						emit_string(member.key);
-						emit_node(member.value);
+						emit_entry(member.value);
 					}
 
-				if (!fixed_size) [[unlikely]]
-					write_token(detail::ubj_token::UBJ_OBJECT_END);
+				if (!is_fixed_size) [[unlikely]]
+					write_token(detail::token_t::OBJECT_END);
 			}
-			void emit_data(const node_t &node)
+			void emit_data(const entry_t &entry)
 			{
-				switch (node.type)
+				switch (entry.type)
 				{
-					case detail::ubj_token::UBJ_CHAR: write_literal(node.literal.character); break;
-					case detail::ubj_token::UBJ_UINT8: write_literal(node.literal.uint8); break;
-					case detail::ubj_token::UBJ_INT8: write_literal(node.literal.int8); break;
-					case detail::ubj_token::UBJ_INT16: write_literal(node.literal.int16); break;
-					case detail::ubj_token::UBJ_INT32: write_literal(node.literal.int32); break;
-					case detail::ubj_token::UBJ_INT64: write_literal(node.literal.int64); break;
-					case detail::ubj_token::UBJ_FLOAT32: write_literal(node.literal.float32); break;
-					case detail::ubj_token::UBJ_FLOAT64: write_literal(node.literal.float64); break;
+					case detail::token_t::CHAR: write_literal(entry.literal.character); break;
+					case detail::token_t::UINT8: write_literal(entry.literal.uint8); break;
+					case detail::token_t::INT8: write_literal(entry.literal.int8); break;
+					case detail::token_t::INT16: write_literal(entry.literal.int16); break;
+					case detail::token_t::INT32: write_literal(entry.literal.int32); break;
+					case detail::token_t::INT64: write_literal(entry.literal.int64); break;
+					case detail::token_t::FLOAT32: write_literal(entry.literal.float32); break;
+					case detail::token_t::FLOAT64: write_literal(entry.literal.float64); break;
 
-					case detail::ubj_token::UBJ_HIGHP: /* TODO: Implement high-precision number writing via a manipulator. */
-					case detail::ubj_token::UBJ_STRING: emit_string(node.string); break;
+					case detail::token_t::HIGHP: /* TODO: Implement high-precision number output support. */
+					case detail::token_t::STRING: emit_string(entry.string); break;
 
-					case detail::ubj_token::UBJ_ARRAY_START: emit_array(node.container); break;
-					case detail::ubj_token::UBJ_OBJECT_START: emit_object(node.container); break;
+					case detail::token_t::ARRAY_START: emit_array(entry.container); break;
+					case detail::token_t::OBJECT_START: emit_object(entry.container); break;
 
 					default: break;
 				}
 			}
-			void emit_node(const node_t &node)
+			void emit_entry(const entry_t &entry)
 			{
-				write_token(node.type);
-				emit_data(node);
+				write_token(entry.type);
+				emit_data(entry);
 			}
 
-			[[nodiscard]] virtual std::size_t write(const void *, std::size_t) = 0;
-			[[nodiscard]] virtual std::size_t size_of() const noexcept = 0;
+			std::size_t (*write)(void *, const void *, std::size_t);
 		};
-		struct file_emitter final : emitter_base
+		struct file_emitter_t final : emitter_base
 		{
-			constexpr explicit file_emitter(FILE *file) noexcept : file(file) {}
+			constexpr explicit file_emitter_t(FILE *file) noexcept : file(file)
+			{
+				emitter_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
+				{
+					auto emitter = static_cast<file_emitter_t *>(ptr);
+					return fwrite(src, 1, n, emitter->file);
+				};
+			}
 
-			[[nodiscard]] std::size_t write(const void *src, std::size_t n) final { return fwrite(src, 1, n, file); }
-			[[nodiscard]] std::size_t size_of() const noexcept final { return sizeof(file_emitter); }
-
-			FILE *file;
+			FILE *file = nullptr;
 		};
-		struct buffer_emitter final : emitter_base
+		struct buffer_emitter_t final : emitter_base
 		{
-			constexpr buffer_emitter(void *buff, std::size_t n) noexcept
+			constexpr buffer_emitter_t(void *buff, std::size_t n) noexcept
 				: curr(static_cast<std::byte *>(buff)), end(curr + n)
 			{
+				emitter_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
+				{
+					auto emitter = static_cast<buffer_emitter_t *>(ptr);
+					if (emitter->curr + n > emitter->end) [[unlikely]]
+						n = emitter->end - emitter->curr;
+					emitter->curr = std::copy_n(static_cast<const std::byte *>(src), n, emitter->curr);
+					return n;
+				};
 			}
 
-			[[nodiscard]] std::size_t write(const void *src, std::size_t n) noexcept final
-			{
-				if (curr + n > end) [[unlikely]]
-					n = end - curr;
-				curr = std::copy_n(static_cast<const std::byte *>(src), n, curr);
-				return n;
-			}
-			[[nodiscard]] std::size_t size_of() const noexcept final { return sizeof(buffer_emitter); }
-
-			std::byte *curr;
-			std::byte *end;
+			std::byte *curr = nullptr;
+			std::byte *end = nullptr;
 		};
-		struct streambuf_emitter final : emitter_base
+		struct streambuf_emitter_t final : emitter_base
 		{
-			constexpr explicit streambuf_emitter(std::streambuf *buff) noexcept : buff(buff) {}
-
-			[[nodiscard]] std::size_t write(const void *src, std::size_t n) noexcept final
+			constexpr explicit streambuf_emitter_t(std::streambuf *buff) noexcept : buff(buff)
 			{
-				auto ptr = static_cast<const std::streambuf::char_type *>(src);
-				return static_cast<std::size_t>(buff->sputn(ptr, static_cast<std::streamsize>(n)));
+				emitter_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
+				{
+					auto emitter = static_cast<streambuf_emitter_t *>(ptr);
+					auto data = static_cast<const std::streambuf::char_type *>(src);
+					return static_cast<std::size_t>(emitter->buff->sputn(data, static_cast<std::streamsize>(n)));
+				};
 			}
-			[[nodiscard]] std::size_t size_of() const noexcept final { return sizeof(streambuf_emitter); }
 
-			std::streambuf *buff;
+			std::streambuf *buff = nullptr;
 		};
 
 		class write_frame
 		{
-			friend class basic_ubj_output_archive;
+			friend class basic_output_archive;
 
-			constexpr write_frame(basic_ubj_output_archive *parent, node_t *node) noexcept
-				: parent(parent), current(node)
+		public:
+			typedef output_archive_category archive_category;
+
+		private:
+			constexpr write_frame(basic_output_archive &parent, entry_t &entry) noexcept
+				: parent(parent), current(entry)
 			{
 			}
 
@@ -768,61 +773,405 @@ namespace sek::serialization
 			}
 
 		private:
+			[[nodiscard]] CharType *alloc_string(std::size_t n) const
+			{
+				auto bytes = (n + 1) * sizeof(CharType);
+				auto result = static_cast<CharType *>(parent.string_pool.allocate(parent.upstream, bytes));
+				if (!result) [[unlikely]]
+					throw std::bad_alloc();
+				return result;
+			}
+			[[nodiscard]] sv_type copy_string(sv_type str) const
+			{
+				auto result = alloc_string(str.size());
+				*std::copy_n(str.data(), str.size(), result) = '\0';
+				return {result, str.size()};
+			}
+
+			[[nodiscard]] sv_type get_next_key(sv_type key) const { return copy_string(key); }
+			[[nodiscard]] sv_type get_next_key() const
+			{
+				constexpr CharType prefix[] = "value_";
+				constexpr auto prefix_size = SEK_ARRAY_SIZE(prefix) - 1;
+
+				/* Format the current index into the buffer. */
+				CharType buffer[20];
+				std::size_t i = 20;
+				for (auto idx = current.container.size;;) /* Write index digits to the buffer. */
+				{
+					buffer[--i] = static_cast<CharType>('0') + static_cast<CharType>(idx % 10);
+					if (!(idx = idx / 10)) break;
+				}
+
+				auto key_size = SEK_ARRAY_SIZE(buffer) - i + prefix_size;
+				auto key_str = alloc_string(key_size);
+
+				std::copy_n(prefix, SEK_ARRAY_SIZE(prefix) - 1, key_str);					   /* Copy prefix. */
+				std::copy(buffer + i, buffer + SEK_ARRAY_SIZE(buffer), key_str + prefix_size); /* Copy digits. */
+				key_str[key_size] = '\0';
+
+				return {key_str, key_size};
+			}
+
+			template<typename T>
+			void resize_container(std::size_t n) const
+			{
+				auto *old_data = current.container.data_ptr;
+				auto old_cap = current.container.capacity * sizeof(T), new_cap = n * sizeof(T);
+
+				auto *new_data = parent.entry_pool.reallocate(parent.upstream, old_data, old_cap, new_cap);
+				if (!new_data) [[unlikely]]
+					throw std::bad_alloc();
+
+				current.container.data_ptr = new_data;
+				current.container.capacity = n;
+			}
+			template<typename T>
+			[[nodiscard]] T *push_container() const
+			{
+				auto next_idx = current.container.size;
+				if (current.container.capacity == current.container.size++)
+					resize_container<T>(current.container.size * 2);
+				return static_cast<T *>(current.container.data_ptr) + next_idx;
+			}
+			[[nodiscard]] entry_t *next_entry() const
+			{
+				entry_t *entry;
+				switch (current.type)
+				{
+					default:
+					{
+						current.type = detail::token_t::OBJECT_START;
+						[[fallthrough]];
+					}
+					case detail::token_t::OBJECT_START:
+					{
+						auto member = push_container<member_t>();
+						member->key = next_key;
+						entry = &member->value;
+						break;
+					}
+					case detail::token_t::ARRAY_START:
+					{
+						entry = push_container<entry_t>();
+						break;
+					}
+				}
+				return std::construct_at(entry);
+			}
+
+			template<typename T>
+			void write_value(entry_t &entry, T &&value) const
+			{
+				write_frame frame{parent, entry};
+				detail::invoke_serialize(std::forward<T>(value), frame);
+			}
+
+			void write_value(entry_t &entry, std::nullptr_t) const { entry.type = detail::token_t::NULL_ENTRY; }
+			void write_value(entry_t &entry, bool b) const
+			{
+				entry.type = b ? detail::token_t::BOOL_TRUE : detail::token_t::BOOL_FALSE;
+			}
+			void write_value(entry_t &entry, CharType c) const
+			{
+				entry.type = detail::token_t::CHAR;
+				entry.literal.character = c;
+			}
+
+			template<std::unsigned_integral I>
+			void write_int_packed(entry_t &entry, I i) const
+			{
+				if (i > static_cast<I>(std::numeric_limits<std::int32_t>::max()))
+				{
+					entry.type = detail::token_t::INT64;
+					entry.literal.int64 = static_cast<std::int64_t>(i);
+				}
+				else if (i > static_cast<I>(std::numeric_limits<std::int16_t>::max()))
+				{
+					entry.type = detail::token_t::INT32;
+					entry.literal.int32 = static_cast<std::int32_t>(i);
+				}
+				else if (i > static_cast<I>(std::numeric_limits<std::uint8_t>::max()))
+				{
+					entry.type = detail::token_t::INT16;
+					entry.literal.int16 = static_cast<std::int16_t>(i);
+				}
+				else if (i > static_cast<I>(std::numeric_limits<std::int8_t>::max()))
+				{
+					entry.type = detail::token_t::UINT8;
+					entry.literal.uint8 = static_cast<std::uint8_t>(i);
+				}
+				else
+				{
+					entry.type = detail::token_t::INT8;
+					entry.literal.int8 = static_cast<std::int8_t>(i);
+				}
+			}
+			template<std::signed_integral I>
+			void write_int_packed(entry_t &entry, I i) const
+			{
+				if (i < 0)
+				{
+					if (i < static_cast<I>(std::numeric_limits<std::int32_t>::min()))
+					{
+						entry.type = detail::token_t::INT64;
+						entry.literal.int64 = static_cast<std::int64_t>(i);
+					}
+					else if (i < static_cast<I>(std::numeric_limits<std::int16_t>::min()))
+					{
+						entry.type = detail::token_t::INT32;
+						entry.literal.int32 = static_cast<std::int32_t>(i);
+					}
+					else if (i < static_cast<I>(std::numeric_limits<std::int8_t>::min()))
+					{
+						entry.type = detail::token_t::INT16;
+						entry.literal.int16 = static_cast<std::int16_t>(i);
+					}
+					else
+					{
+						entry.type = detail::token_t::INT8;
+						entry.literal.int8 = static_cast<std::int8_t>(i);
+					}
+				}
+				else
+					write_int_packed(entry, static_cast<std::make_unsigned_t<I>>(i));
+			}
+			template<std::unsigned_integral I>
+			void write_int_fast(entry_t &entry, I i) const
+			{
+				if constexpr (std::numeric_limits<I>::max() > static_cast<I>(std::numeric_limits<std::int32_t>::max()))
+				{
+					entry.type = detail::token_t::INT64;
+					entry.literal.int64 = static_cast<std::int64_t>(i);
+				}
+				else if constexpr (std::numeric_limits<I>::max() > static_cast<I>(std::numeric_limits<std::int16_t>::max()))
+				{
+					entry.type = detail::token_t::INT32;
+					entry.literal.int32 = static_cast<std::int32_t>(i);
+				}
+				else if constexpr (std::numeric_limits<I>::max() > static_cast<I>(std::numeric_limits<std::uint8_t>::max()))
+				{
+					entry.type = detail::token_t::INT16;
+					entry.literal.int16 = static_cast<std::int16_t>(i);
+				}
+				else if constexpr (std::numeric_limits<I>::max() > static_cast<I>(std::numeric_limits<std::int8_t>::max()))
+				{
+					entry.type = detail::token_t::UINT8;
+					entry.literal.uint8 = static_cast<std::uint8_t>(i);
+				}
+				else
+				{
+					entry.type = detail::token_t::INT8;
+					entry.literal.int8 = static_cast<std::int8_t>(i);
+				}
+			}
+			template<std::signed_integral I>
+			void write_int_fast(entry_t &entry, I i) const
+			{
+				if constexpr (std::numeric_limits<I>::max() > static_cast<I>(std::numeric_limits<std::int32_t>::max()) ||
+							  std::numeric_limits<I>::min() < static_cast<I>(std::numeric_limits<std::int32_t>::min()))
+				{
+					entry.type = detail::token_t::INT64;
+					entry.literal.int64 = static_cast<std::int64_t>(i);
+				}
+				else if constexpr (std::numeric_limits<I>::max() > static_cast<I>(std::numeric_limits<std::int16_t>::max()) ||
+								   std::numeric_limits<I>::min() < static_cast<I>(std::numeric_limits<std::int16_t>::min()))
+				{
+					entry.type = detail::token_t::INT32;
+					entry.literal.int32 = static_cast<std::int32_t>(i);
+				}
+				else if constexpr (std::numeric_limits<I>::max() > static_cast<I>(std::numeric_limits<std::int8_t>::max()) ||
+								   std::numeric_limits<I>::min() < static_cast<I>(std::numeric_limits<std::int8_t>::min()))
+				{
+					entry.type = detail::token_t::INT16;
+					entry.literal.int16 = static_cast<std::int16_t>(i);
+				}
+				else
+				{
+					entry.type = detail::token_t::INT8;
+					entry.literal.int8 = static_cast<std::int8_t>(i);
+				}
+			}
+
+			template<typename I>
+			void write_value(entry_t &entry, I &&i) const requires std::integral<std::decay_t<I>>
+			{
+				std::decay_t<I> value = i;
+
+				if constexpr (Config & pack_integers)
+					write_int_packed(entry, value);
+				else
+					write_int_fast(entry, value);
+			}
+
+			void write_value(entry_t &entry, float f) const
+			{
+				entry.type = detail::token_t::FLOAT32;
+				entry.literal.float32 = f;
+			}
+			void write_value(entry_t &entry, double d) const
+			{
+				entry.type = detail::token_t::FLOAT64;
+				entry.literal.float64 = d;
+			}
+			template<std::floating_point T>
+			void write_value(entry_t &entry, T f) const
+			{
+				if constexpr (std::numeric_limits<T>::max() > static_cast<T>(std::numeric_limits<float>::max()) &&
+							  std::numeric_limits<T>::min() < static_cast<T>(std::numeric_limits<float>::min()))
+					write_value(entry, static_cast<double>(f));
+				else
+					write_value(entry, static_cast<float>(f));
+			}
+
+			void write_value(entry_t &entry, sv_type sv) const
+			{
+				entry.type = detail::token_t::STRING;
+				entry.string = copy_string(sv);
+			}
+			void write_value(entry_t &entry, const CharType *str) const { write_value(entry, sv_type{str}); }
+			template<typename Traits>
+			void write_value(entry_t &entry, std::basic_string<CharType, Traits> &&str) const
+			{
+				write_value(entry, sv_type{str});
+			}
+			template<typename Traits>
+			void write_value(entry_t &entry, std::basic_string<CharType, Traits> &str) const
+			{
+				write_value(entry, sv_type{str});
+			}
+			template<typename Traits>
+			void write_value(entry_t &entry, const std::basic_string<CharType, Traits> &str) const
+			{
+				write_value(entry, sv_type{str});
+			}
+			template<typename T>
+			void write_value(entry_t &entry, T &&str) const requires std::constructible_from<sv_type, T>
+			{
+				write_value(entry, sv_type{std::forward<T>(str)});
+			}
+			template<typename T>
+			void write_value(entry_t &entry, T &&str) const requires std::convertible_to<T, const CharType *>
+			{
+				write_value(entry, static_cast<const CharType *>(str));
+			}
+			template<typename T>
+			void write_value(T &&value) const
+			{
+				auto entry = next_entry();
+				SEK_ASSERT(entry != nullptr);
+				write_value(*entry, std::forward<T>(value));
+			}
+
 			template<typename T>
 			void write_impl(T &&value)
 			{
+				next_key = get_next_key();
+				write_value(std::forward<T>(value));
+			}
+			template<typename T>
+			void write_impl(named_entry_t<CharType, T> value)
+			{
+				next_key = get_next_key(value.name);
+				write_value(std::forward<T>(value.value));
+			}
+			template<typename T>
+			void write_impl(container_size_t<T> size)
+			{
+				switch (current.type)
+				{
+					default:
+					{
+						current.type = detail::token_t::OBJECT_START;
+						[[fallthrough]];
+					}
+					case detail::token_t::OBJECT_START:
+					{
+						resize_container<member_t>(static_cast<std::size_t>(size.value));
+						break;
+					}
+					case detail::token_t::ARRAY_START:
+					{
+						resize_container<entry_t>(static_cast<std::size_t>(size.value));
+						break;
+					}
+				}
+			}
+			void write_impl(array_mode_t)
+			{
+				SEK_ASSERT(current.type != detail::token_t::OBJECT_START, "Array modifier modifier applied to object entry");
+				current.type = detail::token_t::ARRAY_START;
 			}
 
-			basic_ubj_output_archive *parent;
-			node_t *current;
+			basic_output_archive &parent;
+			entry_t &current;
+
+			sv_type next_key = {};
 		};
 
 	public:
-		basic_ubj_output_archive() = delete;
-		basic_ubj_output_archive(const basic_ubj_output_archive &) = delete;
-		basic_ubj_output_archive &operator=(const basic_ubj_output_archive &) = delete;
+		typedef write_frame archive_frame;
+		typedef typename archive_frame::archive_category archive_category;
 
-		constexpr basic_ubj_output_archive(basic_ubj_output_archive &&other) noexcept
-			: emitter(nullptr), upstream(nullptr)
-		{
-			swap(other);
-		}
-		constexpr basic_ubj_output_archive &operator=(basic_ubj_output_archive &&other) noexcept
+	public:
+		basic_output_archive() = delete;
+		basic_output_archive(const basic_output_archive &) = delete;
+		basic_output_archive &operator=(const basic_output_archive &) = delete;
+
+		constexpr basic_output_archive(basic_output_archive &&other) noexcept { swap(other); }
+		constexpr basic_output_archive &operator=(basic_output_archive &&other) noexcept
 		{
 			swap(other);
 			return *this;
 		}
 
-		explicit basic_ubj_output_archive(FILE *file) : basic_ubj_output_archive(file, std::pmr::get_default_resource())
+		/** Initialized output archive for buffer writing.
+		 * @param buff Memory buffer to write UBJson data to.
+		 * @param size Size of the memory buffer. */
+		basic_output_archive(void *buff, std::size_t size)
+			: basic_output_archive(buff, size, std::pmr::get_default_resource())
 		{
 		}
-		basic_ubj_output_archive(FILE *file, mem_res_type *upstream) : upstream(upstream)
+		/** @copydoc basic_output_archive
+		 * @param res PMR memory resource used for internal state allocation. */
+		basic_output_archive(void *buff, std::size_t size, std::pmr::memory_resource *res)
+			: buffer_emitter(buff, size), upstream(res)
 		{
-			init_emitter<file_emitter>(file);
+		}
+		/** Initialized output archive for file writing.
+		 * @param file File to write UBJson data to.
+		 * @note File must be opened in binary mode. */
+		explicit basic_output_archive(FILE *file) : basic_output_archive(file, std::pmr::get_default_resource()) {}
+		/** @copydoc basic_output_archive
+		 * @param res PMR memory resource used for internal state allocation. */
+		basic_output_archive(FILE *file, std::pmr::memory_resource *res) : file_emitter(file), upstream(res) {}
+		/** Initialized output archive for stream buffer writing.
+		 * @param buff Stream buffer to write UBJson data to.
+		 * @note Stream buffer must be a binary stream buffer. */
+		explicit basic_output_archive(std::streambuf *buff)
+			: basic_output_archive(buff, std::pmr::get_default_resource())
+		{
+		}
+		/** @copydoc basic_output_archive
+		 * @param res PMR memory resource used for internal state allocation. */
+		basic_output_archive(std::streambuf *buff, std::pmr::memory_resource *res)
+			: streambuf_emitter(buff), upstream(res)
+		{
+		}
+		/** Initialized output archive for stream writing.
+		 * @param os Output stream to write UBJson data to.
+		 * @note Stream must be a binary stream. */
+		explicit basic_output_archive(std::ostream &os) : basic_output_archive(os.rdbuf()) {}
+		/** @copydoc basic_output_archive
+		 * @param res PMR memory resource used for internal state allocation. */
+		basic_output_archive(std::ostream &os, std::pmr::memory_resource *res) : basic_output_archive(os.rdbuf(), res)
+		{
 		}
 
-		basic_ubj_output_archive(void *buff, std::size_t size)
-			: basic_ubj_output_archive(buff, size, std::pmr::get_default_resource())
+		~basic_output_archive()
 		{
-		}
-		basic_ubj_output_archive(void *buff, std::size_t size, mem_res_type *upstream) : upstream(upstream)
-		{
-			init_emitter<buffer_emitter>(buff, size);
-		}
-
-		explicit basic_ubj_output_archive(std::streambuf *buff)
-			: basic_ubj_output_archive(buff, std::pmr::get_default_resource())
-		{
-		}
-		basic_ubj_output_archive(std::streambuf *buff, mem_res_type *upstream) : upstream(upstream)
-		{
-			init_emitter<streambuf_emitter>(buff);
-		}
-
-		~basic_ubj_output_archive()
-		{
-			if (flush_impl()) [[likely]]
-				upstream->deallocate(emitter, emitter->size_of());
+			if (top_level) [[likely]]
+				flush_impl();
 		}
 
 		/** Serialized the forwarded value to UBJson. Flushes previous uncommitted state.
@@ -831,15 +1180,24 @@ namespace sek::serialization
 		 * @note Serialized data is kept inside the archive's internal state and will be written to the output once the
 		 * archive is destroyed or `flush` is called. */
 		template<typename T>
-		basic_ubj_output_archive &write(T &&value)
+		basic_output_archive &write(T &&value)
 		{
-			auto top_frame = init_write_frame();
-			top_frame.write(std::forward<T>(value));
+			/* Flush uncommitted changes before initializing a new emit tree. */
+			if (top_level) [[unlikely]]
+				flush_impl();
+
+			auto *entry = static_cast<entry_t *>(entry_pool.allocate(upstream, sizeof(entry_t)));
+			if (!entry) [[unlikely]]
+				throw std::bad_alloc();
+			top_level = std::construct_at(entry);
+
+			write_frame frame{*this, *entry};
+			detail::invoke_serialize(std::forward<T>(value), frame);
 			return *this;
 		}
 		/** @copydoc write */
 		template<typename T>
-		basic_ubj_output_archive &operator<<(T &&value)
+		basic_output_archive &operator<<(T &&value)
 		{
 			return write(std::forward<T>(value));
 		}
@@ -847,74 +1205,61 @@ namespace sek::serialization
 		/** Flushes the internal state & writes UBJson to the output. */
 		void flush()
 		{
-			flush_impl();
-			top_level = nullptr;
+			if (top_level) [[likely]]
+			{
+				flush_impl();
+				top_level = nullptr;
+			}
 		}
 
-		constexpr void swap(basic_ubj_output_archive &other) noexcept
+		constexpr void swap(basic_output_archive &other) noexcept
 		{
 			using std::swap;
-			swap(emitter, other.emitter);
+			swap(emitter_padding, other.emitter_padding);
 			swap(top_level, other.top_level);
 			swap(upstream, other.upstream);
 
-			node_pool.swap(other.node_pool);
+			entry_pool.swap(other.entry_pool);
 			string_pool.swap(other.string_pool);
 		}
-		friend constexpr void swap(basic_ubj_output_archive &a, basic_ubj_output_archive &b) noexcept { a.swap(b); }
+		friend constexpr void swap(basic_output_archive &a, basic_output_archive &b) noexcept { a.swap(b); }
 
 	private:
-		template<typename T, typename... Args>
-		void init_emitter(Args &&...args)
+		void flush_impl()
 		{
-			auto *new_emitter = static_cast<T *>(upstream->allocate(sizeof(T)));
-			if (!new_emitter) [[unlikely]]
-				throw std::bad_cast();
-			std::construct_at(new_emitter, std::forward<Args>(args)...);
-			emitter = static_cast<emitter_base *>(new_emitter);
-		}
-		bool flush_impl()
-		{
-			if (emitter && top_level) [[likely]]
-			{
-				emitter->emit_node(*top_level);
-				node_pool.release(upstream);
-				string_pool.release(upstream);
-				return true;
-			}
-			return false;
-		}
-		[[nodiscard]] write_frame init_write_frame()
-		{
-			/* Flush uncommitted changes before initializing a new emit tree. */
-			flush_impl();
-
-			auto *node = static_cast<node_t *>(node_pool.allocate(upstream, sizeof(node_t)));
-			if (!node) [[unlikely]]
-				throw std::bad_alloc();
-			top_level = node;
-			return write_frame{this, node};
+			emitter.emit_entry(*top_level);
+			entry_pool.release(upstream);
+			string_pool.release(upstream);
 		}
 
-		emitter_base *emitter;			   /* Emitter used for writing. Allocated from the upstream allocator. */
-		const node_t *top_level = nullptr; /* Top-level node of the node tree. */
+		union
+		{
+			emitter_base emitter;
+			file_emitter_t file_emitter;
+			buffer_emitter_t buffer_emitter;
+			streambuf_emitter_t streambuf_emitter;
 
-		mem_res_type *upstream; /* Upstream allocator used for memory pools. */
+			std::byte emitter_padding[sizeof(buffer_emitter_t)];
+		};
 
-		detail::basic_pool_allocator<sizeof(node_t) * 64> node_pool; /* Pool used for the node tree. */
-		detail::basic_pool_allocator<SEK_KB(1)> string_pool; /* Pool used to allocate copies of output strings. */
+		const entry_t *top_level = nullptr; /* Top-level entry of the entry tree. */
+
+		std::pmr::memory_resource *upstream = nullptr;				   /* Upstream allocator used for memory pools. */
+		detail::basic_pool_allocator<sizeof(entry_t) * 64> entry_pool; /* Pool used for the entry tree. */
+		detail::basic_pool_allocator<SEK_KB(1)> string_pool;		   /* Pool used to buffer output strings. */
 	};
 
-	typedef basic_ubj_output_archive<char> ubj_output_archive;
+	typedef basic_output_archive<fixed_type, char> output_archive;
 
-	//	static_assert(output_archive<ubj_output_archive, bool>);
-	//	static_assert(output_archive<ubj_output_archive, char>);
-	//	static_assert(output_archive<ubj_output_archive, std::uint8_t>);
-	//	static_assert(output_archive<ubj_output_archive, std::int8_t>);
-	//	static_assert(output_archive<ubj_output_archive, std::int16_t>);
-	//	static_assert(output_archive<ubj_output_archive, std::int32_t>);
-	//	static_assert(output_archive<ubj_output_archive, std::int64_t>);
-	//	static_assert(output_archive<ubj_output_archive, float>);
-	//	static_assert(output_archive<ubj_output_archive, double>);
-	//	static_assert(output_archive<ubj_output_archive, std::string>);
-}	 // namespace sek::serialization
+	static_assert(serialization::output_archive<output_archive, std::nullptr_t>);
+	static_assert(serialization::output_archive<output_archive, bool>);
+	static_assert(serialization::output_archive<output_archive, char>);
+	static_assert(serialization::output_archive<output_archive, std::uint8_t>);
+	static_assert(serialization::output_archive<output_archive, std::int8_t>);
+	static_assert(serialization::output_archive<output_archive, std::int16_t>);
+	static_assert(serialization::output_archive<output_archive, std::int32_t>);
+	static_assert(serialization::output_archive<output_archive, std::int64_t>);
+	static_assert(serialization::output_archive<output_archive, float>);
+	static_assert(serialization::output_archive<output_archive, double>);
+	static_assert(serialization::output_archive<output_archive, std::string>);
+}	 // namespace sek::serialization::ubj
