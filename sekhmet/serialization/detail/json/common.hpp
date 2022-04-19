@@ -1175,7 +1175,7 @@ namespace sek::serialization::detail
 			template<typename T>
 			void write_value(entry_t &entry, T &&b) const requires(std::same_as<std::decay_t<T>, bool>)
 			{
-				entry.type = static_cast<entry_type>(BOOL | (!!b));
+				entry.type = static_cast<entry_type>(BOOL | static_cast<int>(!!b));
 			}
 			template<typename T>
 			void write_value(entry_t &entry, T &&c) const requires(std::same_as<std::decay_t<T>, CharType>)

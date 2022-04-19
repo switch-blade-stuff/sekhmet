@@ -56,8 +56,8 @@ namespace sek::serialization
 		}
 	}	 // namespace detail
 
-	template<detail::tuple_like T, typename A>
-	void serialize(const T &tuple, A &archive) requires(!std::ranges::forward_range<T>)
+	template<typename T, typename A>
+	void serialize(const T &tuple, A &archive) requires(!std::ranges::forward_range<T> && detail::tuple_like<T>)
 	{
 		if constexpr (std::tuple_size_v<T> != 0)
 		{
@@ -65,8 +65,8 @@ namespace sek::serialization
 			detail::tuple_serialize_unwrap(tuple, archive, std::make_index_sequence<std::tuple_size_v<T>>{});
 		}
 	}
-	template<detail::tuple_like T, typename A>
-	void deserialize(T &tuple, A &archive) requires(!std::ranges::forward_range<T>)
+	template<typename T, typename A>
+	void deserialize(T &tuple, A &archive) requires(!std::ranges::forward_range<T> && detail::tuple_like<T>)
 	{
 		if constexpr (std::tuple_size_v<T> != 0)
 			detail::tuple_deserialize_unwrap(tuple, archive, std::make_index_sequence<std::tuple_size_v<T>>{});
