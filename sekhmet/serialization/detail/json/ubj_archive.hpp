@@ -75,9 +75,9 @@ namespace sek::serialization::ubj
 	 *
 	 * @tparam CharType Character type used for Json. */
 	template<config_flags Config, typename CharType = char>
-	class basic_input_archive : detail::json_input_archive_base<CharType>
+	class basic_input_archive : detail::json_archive_base<CharType>
 	{
-		using base_t = serialization::detail::json_input_archive_base<CharType>;
+		using base_t = serialization::detail::json_archive_base<CharType>;
 
 	public:
 		typedef typename base_t::read_frame archive_frame;
@@ -86,9 +86,9 @@ namespace sek::serialization::ubj
 		typedef typename archive_frame::size_type size_type;
 
 	private:
-		struct parser_base : base_t::parse_event_handler
+		struct parser_base : base_t::parse_event_receiver
 		{
-			using base_handler = typename base_t::parse_event_handler;
+			using base_handler = typename base_t::parse_event_receiver;
 
 			constexpr static auto eof_msg = "UBJson: Unexpected end of input";
 			constexpr static auto data_msg = "UBJson: Invalid input";
@@ -96,10 +96,7 @@ namespace sek::serialization::ubj
 			constexpr static auto bad_size_msg = "UBJson: Invalid input, expected container size";
 
 			parser_base() = delete;
-			constexpr explicit parser_base(basic_input_archive *archive, std::pmr::memory_resource *res) noexcept
-				: base_handler(archive, res)
-			{
-			}
+			constexpr explicit parser_base(basic_input_archive &archive) noexcept : base_handler(archive) {}
 
 			void guarded_read(void *dest, std::size_t n)
 			{
@@ -309,8 +306,8 @@ namespace sek::serialization::ubj
 
 		struct buffer_parser final : parser_base
 		{
-			constexpr buffer_parser(basic_input_archive *archive, std::pmr::memory_resource *res, const void *buff, std::size_t n) noexcept
-				: parser_base(archive, res), curr(static_cast<const std::byte *>(buff)), end(curr + n)
+			constexpr buffer_parser(basic_input_archive &archive, const void *buff, std::size_t n) noexcept
+				: parser_base(archive), curr(static_cast<const std::byte *>(buff)), end(curr + n)
 			{
 			}
 
@@ -342,8 +339,7 @@ namespace sek::serialization::ubj
 		};
 		struct file_parser final : parser_base
 		{
-			constexpr file_parser(basic_input_archive *archive, std::pmr::memory_resource *res, FILE *file) noexcept
-				: parser_base(archive, res), file(file)
+			constexpr file_parser(basic_input_archive &archive, FILE *file) noexcept : parser_base(archive), file(file)
 			{
 			}
 
@@ -373,8 +369,8 @@ namespace sek::serialization::ubj
 		};
 		struct streambuf_parser final : parser_base
 		{
-			constexpr streambuf_parser(basic_input_archive *archive, std::pmr::memory_resource *res, std::streambuf *buff) noexcept
-				: parser_base(archive, res), buff(buff)
+			constexpr streambuf_parser(basic_input_archive &archive, std::streambuf *buff) noexcept
+				: parser_base(archive), buff(buff)
 			{
 			}
 
@@ -414,7 +410,7 @@ namespace sek::serialization::ubj
 		 * @param res PMR memory resource used for internal allocation. */
 		basic_input_archive(const void *buff, std::size_t len, std::pmr::memory_resource *res) : base_t(res)
 		{
-			parse(buff, len, res);
+			parse(buff, len);
 		}
 		/** Reads UBJson from a file.
 		 * @param file Pointer to the UBJson file.
@@ -422,7 +418,7 @@ namespace sek::serialization::ubj
 		explicit basic_input_archive(FILE *file) : basic_input_archive(file, std::pmr::get_default_resource()) {}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(FILE *file, std::pmr::memory_resource *res) : base_t(res) { parse(file, res); }
+		basic_input_archive(FILE *file, std::pmr::memory_resource *res) : base_t(res) { parse(file); }
 		/** Reads UBJson from a stream buffer.
 		 * @param buff Pointer to the stream buffer.
 		 * @note Stream buffer must be a binary stream buffer. */
@@ -431,20 +427,20 @@ namespace sek::serialization::ubj
 		}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(std::streambuf *buff, std::pmr::memory_resource *res) : base_t(res) { parse(buff, res); }
+		basic_input_archive(std::streambuf *buff, std::pmr::memory_resource *res) : base_t(res) { parse(buff); }
 		/** Reads UBJson from an input stream.
 		 * @param is Reference to the input stream.
 		 * @note Stream must be a binary stream. */
 		explicit basic_input_archive(std::istream &is) : basic_input_archive(is.rdbuf()) {}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(std::istream &is, std::pmr::memory_resource *res) : basic_input_archive(is.rdbuf(), res) {}
+		basic_input_archive(std::istream &is, std::pmr::memory_resource *res) : basic_input_archive(is.rdbuf()) {}
 
 		/** Attempts to deserialize the top-level Json entry of the archive.
 		 * @param value Value to deserialize from the Json entry.
 		 * @return true if deserialization was successful, false otherwise. */
 		template<typename T>
-		bool try_read(T &&value) const
+		bool try_read(T &&value)
 		{
 			return base_t::do_try_read(std::forward<T>(value));
 		}
@@ -453,14 +449,14 @@ namespace sek::serialization::ubj
 		 * @return Reference to this archive.
 		 * @throw archive_error On deserialization errors. */
 		template<typename T>
-		const basic_input_archive &read(T &&value) const
+		basic_input_archive &read(T &&value)
 		{
 			base_t::do_read(std::forward<T>(value));
 			return *this;
 		}
 		/** @copydoc read */
 		template<typename T>
-		const basic_input_archive &operator>>(T &&value) const
+		basic_input_archive &operator>>(T &&value)
 		{
 			return read(std::forward<T>(value));
 		}
@@ -479,19 +475,19 @@ namespace sek::serialization::ubj
 		friend constexpr void swap(basic_input_archive &a, basic_input_archive &b) noexcept { a.swap(b); }
 
 	private:
-		void parse(const void *buff, std::size_t len, std::pmr::memory_resource *res)
+		void parse(const void *buff, std::size_t len)
 		{
-			buffer_parser parser{this, res, buff, len};
+			buffer_parser parser{*this, buff, len};
 			parser.parse_entry();
 		}
-		void parse(FILE *file, std::pmr::memory_resource *res)
+		void parse(FILE *file)
 		{
-			file_parser parser{this, res, file};
+			file_parser parser{*this, file};
 			parser.parse_entry();
 		}
-		void parse(std::streambuf *buff, std::pmr::memory_resource *res)
+		void parse(std::streambuf *buff)
 		{
-			streambuf_parser parser{this, res, buff};
+			streambuf_parser parser{*this, buff};
 			parser.parse_entry();
 		}
 	};
@@ -1283,9 +1279,9 @@ namespace sek::serialization::ubj
 
 		const entry_t *top_level = nullptr; /* Top-level entry of the entry tree. */
 
-		std::pmr::memory_resource *upstream = nullptr;				   /* Upstream allocator used for memory pools. */
-		detail::basic_pool_allocator<sizeof(entry_t) * 64> entry_pool; /* Pool used for the entry tree. */
-		detail::basic_pool_allocator<SEK_KB(1)> string_pool;		   /* Pool used to buffer output strings. */
+		std::pmr::memory_resource *upstream = nullptr;				  /* Upstream allocator used for memory pools. */
+		detail::basic_pool_resource<sizeof(entry_t) * 64> entry_pool; /* Pool used for the entry tree. */
+		detail::basic_pool_resource<SEK_KB(1)> string_pool;			  /* Pool used to buffer output strings. */
 	};
 
 	typedef basic_output_archive<fixed_type, char> output_archive;
