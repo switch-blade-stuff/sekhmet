@@ -19,8 +19,7 @@ namespace sek::serialization::ubj
 
 		enum token_t : std::int8_t
 		{
-			INVALID_TYPE = 0,
-			DYNAMIC_TYPE = INT8_MAX,
+			INVALID = 0,
 
 			NULL_ENTRY = 'Z',
 			NOOP = 'N',
@@ -77,7 +76,7 @@ namespace sek::serialization::ubj
 	template<config_flags Config, typename CharType = char>
 	class basic_input_archive : detail::json_archive_base<CharType>
 	{
-		using base_t = serialization::detail::json_archive_base<CharType>;
+		using base_t = detail::json_archive_base<CharType>;
 
 	public:
 		typedef typename base_t::read_frame archive_frame;
@@ -86,18 +85,13 @@ namespace sek::serialization::ubj
 		typedef typename archive_frame::size_type size_type;
 
 	private:
-		struct parser_base : base_t::parser_base
+		constexpr static auto eof_msg = "UBJson: Unexpected end of input";
+		constexpr static auto data_msg = "UBJson: Invalid input";
+		constexpr static auto bad_length_msg = "UBJson: Invalid input, expected integer type";
+		constexpr static auto bad_size_msg = "UBJson: Invalid input, expected container size";
+
+		struct reader_base
 		{
-			using base_handler = typename base_t::parser_base;
-
-			constexpr static auto eof_msg = "UBJson: Unexpected end of input";
-			constexpr static auto data_msg = "UBJson: Invalid input";
-			constexpr static auto bad_length_msg = "UBJson: Invalid input, expected integer type";
-			constexpr static auto bad_size_msg = "UBJson: Invalid input, expected container size";
-
-			parser_base() = delete;
-			constexpr explicit parser_base(basic_input_archive &archive) noexcept : base_handler(archive) {}
-
 			void guarded_read(void *dest, std::size_t n)
 			{
 				if (read(dest, n) != n) [[unlikely]]
@@ -123,191 +117,15 @@ namespace sek::serialization::ubj
 			}
 			void bump_token() { guarded_bump(sizeof(detail::token_t)); }
 
-			template<typename T>
-			[[nodiscard]] T read_literal()
-			{
-				T value;
-				guarded_read(&value, sizeof(value));
-
-				/* Fix endianness from big endian to machine endianness.
-				 * TODO: Only do this for Spec12 */
-#ifndef SEK_ARCH_BIG_ENDIAN
-				if constexpr (sizeof(T) == sizeof(std::uint16_t))
-					return std::bit_cast<T>(bswap_16(std::bit_cast<std::uint16_t>(value)));
-				else if constexpr (sizeof(T) == sizeof(std::uint32_t))
-					return std::bit_cast<T>(bswap_32(std::bit_cast<std::uint32_t>(value)));
-				else if constexpr (sizeof(T) == sizeof(std::uint64_t))
-					return std::bit_cast<T>(bswap_64(std::bit_cast<std::uint64_t>(value)));
-#endif
-				return value;
-			}
-			[[nodiscard]] std::int64_t read_length()
-			{
-				auto token = read_token();
-				switch (token)
-				{
-					case detail::token_t::UINT8: return static_cast<std::int64_t>(read_literal<std::uint8_t>());
-					case detail::token_t::INT8: return static_cast<std::int64_t>(read_literal<std::int8_t>());
-					case detail::token_t::INT16: return static_cast<std::int64_t>(read_literal<std::int16_t>());
-					case detail::token_t::INT32: return static_cast<std::int64_t>(read_literal<std::int32_t>());
-					case detail::token_t::INT64: return read_literal<std::int64_t>();
-					default: throw archive_error(bad_length_msg);
-				}
-			}
-			[[nodiscard]] std::pair<const CharType *, std::size_t> read_string()
-			{
-				auto len = static_cast<std::size_t>(read_length());
-				auto *str = base_handler::on_string_alloc(len);
-				guarded_read(str, len * sizeof(CharType));
-				str[len] = '\0';
-				return {str, len};
-			}
-
-			[[nodiscard]] std::pair<detail::token_t, std::int64_t> parse_container_attributes()
-			{
-				std::pair<detail::token_t, std::int64_t> result = {detail::token_t::DYNAMIC_TYPE, -1};
-
-				switch (auto token = peek_token(); token)
-				{
-					case detail::token_t::CONTAINER_TYPE:
-					{
-						/* Consume the token & read type. */
-						bump_token();
-						result.first = read_token();
-
-						/* Container size always follows the type. */
-						if ((token = peek_token()) != detail::token_t::CONTAINER_SIZE) [[unlikely]]
-							throw archive_error(bad_size_msg);
-						[[fallthrough]];
-					}
-					case detail::token_t::CONTAINER_SIZE:
-					{
-						bump_token();
-						result.second = read_length();
-						[[fallthrough]];
-					}
-					default: break;
-				}
-
-				return result;
-			}
-			void parse_array()
-			{
-				auto [data_type, size] = parse_container_attributes();
-
-				if (size == -1) [[unlikely]] /* Fully dynamic array. */
-				{
-					base_handler::on_array_start();
-					for (size = 0;; ++size)
-					{
-						auto token = read_token();
-						if (token == detail::token_t::ARRAY_END) [[unlikely]]
-							break;
-						parse_entry(token);
-					}
-				}
-				else /* Fixed-size array. */
-				{
-					base_handler::on_array_start(static_cast<std::size_t>(size));
-					if (data_type != detail::token_t::DYNAMIC_TYPE) [[likely]] /* Fixed-type array. */
-						for (auto i = size; i != 0; --i) parse_entry(data_type);
-					else /* Dynamic-type array. */
-						for (auto i = size; i != 0; --i) parse_entry();
-				}
-
-				base_handler::on_array_end(static_cast<std::size_t>(size));
-			}
-			void parse_object()
-			{
-				auto read_key = [&]()
-				{
-					auto [key_str, key_len] = read_string();
-					base_handler::on_object_key(key_str, key_len);
-				};
-				auto [value_type, size] = parse_container_attributes();
-
-				if (size == -1) [[unlikely]] /* Fully dynamic object. */
-				{
-					base_handler::on_object_start();
-					for (size = 0;; ++size)
-					{
-						auto token = peek_token();
-						if (token == detail::token_t::OBJECT_END) [[unlikely]]
-						{
-							bump_token();
-							break;
-						}
-
-						read_key();
-						parse_entry();
-					}
-				}
-				else /* Fixed-size object. */
-				{
-					base_handler::on_object_start(static_cast<std::size_t>(size));
-					if (value_type != detail::token_t::DYNAMIC_TYPE) [[likely]] /* Fixed-type object. */
-						for (auto i = size; i != 0; --i)
-						{
-							read_key();
-							parse_entry(value_type);
-						}
-					else /* Dynamic-type object. */
-						for (auto i = size; i != 0; --i)
-						{
-							read_key();
-							parse_entry();
-						}
-				}
-				base_handler::on_object_end(static_cast<std::size_t>(size));
-			}
-			void parse_entry(detail::token_t token)
-			{
-				switch (token)
-				{
-					case detail::token_t::NOOP: break;
-					case detail::token_t::NULL_ENTRY: base_handler::on_null(); break;
-					case detail::token_t::BOOL_TRUE: base_handler::on_true(); break;
-					case detail::token_t::BOOL_FALSE: base_handler::on_false(); break;
-					case detail::token_t::CHAR:
-						base_handler::on_char(static_cast<CharType>(read_literal<char>()));
-						break;
-					case detail::token_t::UINT8: base_handler::on_int(read_literal<std::uint8_t>()); break;
-					case detail::token_t::INT8: base_handler::on_int(read_literal<std::int8_t>()); break;
-					case detail::token_t::INT16: base_handler::on_int(read_literal<std::int16_t>()); break;
-					case detail::token_t::INT32: base_handler::on_int(read_literal<std::int32_t>()); break;
-					case detail::token_t::INT64: base_handler::on_int(read_literal<std::int64_t>()); break;
-					case detail::token_t::FLOAT32: base_handler::on_float(read_literal<float>()); break;
-					case detail::token_t::FLOAT64: base_handler::on_float(read_literal<double>()); break;
-					case detail::token_t::HIGHP:
-					{
-						if constexpr ((Config & highp_error) == highp_error)
-							throw archive_error("High-precision number support is disabled");
-						else if constexpr ((Config & highp_skip) == highp_skip)
-							break;
-						[[fallthrough]];
-					}
-					case detail::token_t::STRING:
-					{
-						auto [str, len] = read_string();
-						base_handler::on_string(str, len);
-						break;
-					}
-					case detail::token_t::ARRAY_START: parse_array(); break;
-					case detail::token_t::OBJECT_START: parse_object(); break;
-					default: throw archive_error(data_msg);
-				}
-			}
-			void parse_entry() { parse_entry(read_token()); }
-
 			virtual std::size_t read(void *, std::size_t) = 0;
 			virtual std::size_t bump(std::size_t) = 0;
 			virtual int peek() = 0;
 		};
 
-		struct buffer_parser final : parser_base
+		struct buffer_reader final : reader_base
 		{
-			constexpr buffer_parser(basic_input_archive &archive, const void *buff, std::size_t n) noexcept
-				: parser_base(archive), curr(static_cast<const std::byte *>(buff)), end(curr + n)
+			constexpr buffer_reader(const void *buff, std::size_t n) noexcept
+				: curr(static_cast<const std::byte *>(buff)), end(curr + n)
 			{
 			}
 
@@ -337,11 +155,9 @@ namespace sek::serialization::ubj
 			const std::byte *curr;
 			const std::byte *end;
 		};
-		struct file_parser final : parser_base
+		struct file_reader final : reader_base
 		{
-			constexpr file_parser(basic_input_archive &archive, FILE *file) noexcept : parser_base(archive), file(file)
-			{
-			}
+			constexpr explicit file_reader(FILE *file) noexcept : file(file) {}
 
 			std::size_t read(void *dest, std::size_t n) noexcept final { return fread(dest, 1, n, file); }
 			std::size_t bump(std::size_t n) noexcept final
@@ -367,12 +183,9 @@ namespace sek::serialization::ubj
 
 			FILE *file;
 		};
-		struct streambuf_parser final : parser_base
+		struct streambuf_reader final : reader_base
 		{
-			constexpr streambuf_parser(basic_input_archive &archive, std::streambuf *buff) noexcept
-				: parser_base(archive), buff(buff)
-			{
-			}
+			constexpr explicit streambuf_reader(std::streambuf *buff) noexcept : buff(buff) {}
 
 			std::size_t read(void *dest, std::size_t n) noexcept final
 			{
@@ -389,6 +202,192 @@ namespace sek::serialization::ubj
 			int peek() noexcept final { return static_cast<int>(buff->sgetc()); }
 
 			std::streambuf *buff;
+		};
+
+		struct parser_spec12 : base_t::parser_base
+		{
+			using base_handler = typename base_t::parser_base;
+
+			constexpr parser_spec12(basic_input_archive &archive, reader_base *reader) noexcept
+				: base_handler(archive), reader(reader)
+			{
+			}
+
+			template<typename T>
+			[[nodiscard]] T parse_literal()
+			{
+				T value;
+				reader->guarded_read(&value, sizeof(value));
+
+				/* Fix endianness from big endian to machine endianness. */
+#ifndef SEK_ARCH_BIG_ENDIAN
+				if constexpr (sizeof(T) == sizeof(std::uint16_t))
+					return std::bit_cast<T>(bswap_16(std::bit_cast<std::uint16_t>(value)));
+				else if constexpr (sizeof(T) == sizeof(std::uint32_t))
+					return std::bit_cast<T>(bswap_32(std::bit_cast<std::uint32_t>(value)));
+				else if constexpr (sizeof(T) == sizeof(std::uint64_t))
+					return std::bit_cast<T>(bswap_64(std::bit_cast<std::uint64_t>(value)));
+#endif
+				return value;
+			}
+			[[nodiscard]] std::int64_t parse_length()
+			{
+				auto token = reader->read_token();
+				switch (token)
+				{
+					case detail::token_t::UINT8: return static_cast<std::int64_t>(parse_literal<std::uint8_t>());
+					case detail::token_t::INT8: return static_cast<std::int64_t>(parse_literal<std::int8_t>());
+					case detail::token_t::INT16: return static_cast<std::int64_t>(parse_literal<std::int16_t>());
+					case detail::token_t::INT32: return static_cast<std::int64_t>(parse_literal<std::int32_t>());
+					case detail::token_t::INT64: return parse_literal<std::int64_t>();
+					default: throw archive_error(bad_length_msg);
+				}
+			}
+			[[nodiscard]] std::pair<const CharType *, std::size_t> parse_string()
+			{
+				auto len = static_cast<std::size_t>(parse_length());
+				auto *str = base_handler::on_string_alloc(len);
+				reader->guarded_read(str, len * sizeof(CharType));
+				str[len] = '\0';
+				return {str, len};
+			}
+			[[nodiscard]] std::pair<detail::token_t, std::int64_t> parse_container()
+			{
+				std::pair<detail::token_t, std::int64_t> result = {detail::token_t::INVALID, -1};
+
+				switch (auto token = reader->peek_token(); token)
+				{
+					case detail::token_t::CONTAINER_TYPE:
+					{
+						/* Consume the token & read type. */
+						reader->bump_token();
+						result.first = reader->read_token();
+
+						/* Container size always follows the type. */
+						if ((token = reader->peek_token()) != detail::token_t::CONTAINER_SIZE) [[unlikely]]
+							throw archive_error(bad_size_msg);
+						[[fallthrough]];
+					}
+					case detail::token_t::CONTAINER_SIZE:
+					{
+						reader->bump_token();
+						result.second = parse_length();
+						[[fallthrough]];
+					}
+					default: break;
+				}
+
+				return result;
+			}
+			void parse_array()
+			{
+				auto [data_type, size] = parse_container();
+
+				if (size == -1) [[unlikely]] /* Fully dynamic array. */
+				{
+					base_handler::on_array_start();
+					for (size = 0;; ++size)
+					{
+						auto token = reader->read_token();
+						if (token == detail::token_t::ARRAY_END) [[unlikely]]
+							break;
+						parse_entry(token);
+					}
+				}
+				else /* Fixed-size array. */
+				{
+					base_handler::on_array_start(static_cast<std::size_t>(size));
+					if (data_type != detail::token_t::INVALID) [[likely]] /* Fixed-type array. */
+						for (auto i = size; i != 0; --i) parse_entry(data_type);
+					else /* Dynamic-type array. */
+						for (auto i = size; i != 0; --i) parse_entry();
+				}
+
+				base_handler::on_array_end(static_cast<std::size_t>(size));
+			}
+			void parse_object()
+			{
+				auto read_key = [&]()
+				{
+					auto [key_str, key_len] = parse_string();
+					base_handler::on_object_key(key_str, key_len);
+				};
+				auto [value_type, size] = parse_container();
+
+				if (size == -1) [[unlikely]] /* Fully dynamic object. */
+				{
+					base_handler::on_object_start();
+					for (size = 0;; ++size)
+					{
+						auto token = reader->peek_token();
+						if (token == detail::token_t::OBJECT_END) [[unlikely]]
+						{
+							reader->bump_token();
+							break;
+						}
+
+						read_key();
+						parse_entry();
+					}
+				}
+				else /* Fixed-size object. */
+				{
+					base_handler::on_object_start(static_cast<std::size_t>(size));
+					if (value_type != detail::token_t::INVALID) [[likely]] /* Fixed-type object. */
+						for (auto i = size; i != 0; --i)
+						{
+							read_key();
+							parse_entry(value_type);
+						}
+					else /* Dynamic-type object. */
+						for (auto i = size; i != 0; --i)
+						{
+							read_key();
+							parse_entry();
+						}
+				}
+				base_handler::on_object_end(static_cast<std::size_t>(size));
+			}
+			void parse_entry(detail::token_t token)
+			{
+				switch (token)
+				{
+					case detail::token_t::NOOP: break;
+					case detail::token_t::NULL_ENTRY: base_handler::on_null(); break;
+					case detail::token_t::BOOL_TRUE: base_handler::on_true(); break;
+					case detail::token_t::BOOL_FALSE: base_handler::on_false(); break;
+					case detail::token_t::CHAR:
+						base_handler::on_char(static_cast<CharType>(parse_literal<char>()));
+						break;
+					case detail::token_t::UINT8: base_handler::on_int(parse_literal<std::uint8_t>()); break;
+					case detail::token_t::INT8: base_handler::on_int(parse_literal<std::int8_t>()); break;
+					case detail::token_t::INT16: base_handler::on_int(parse_literal<std::int16_t>()); break;
+					case detail::token_t::INT32: base_handler::on_int(parse_literal<std::int32_t>()); break;
+					case detail::token_t::INT64: base_handler::on_int(parse_literal<std::int64_t>()); break;
+					case detail::token_t::FLOAT32: base_handler::on_float(parse_literal<float>()); break;
+					case detail::token_t::FLOAT64: base_handler::on_float(parse_literal<double>()); break;
+					case detail::token_t::HIGHP:
+					{
+						if constexpr ((Config & highp_error) == highp_error)
+							throw archive_error("High-precision number support is disabled");
+						else if constexpr ((Config & highp_skip) == highp_skip)
+							break;
+						[[fallthrough]];
+					}
+					case detail::token_t::STRING:
+					{
+						auto [str, len] = parse_string();
+						base_handler::on_string(str, len);
+						break;
+					}
+					case detail::token_t::ARRAY_START: parse_array(); break;
+					case detail::token_t::OBJECT_START: parse_object(); break;
+					default: throw archive_error(data_msg);
+				}
+			}
+			void parse_entry() { parse_entry(reader->read_token()); }
+
+			reader_base *reader;
 		};
 
 	public:
@@ -475,20 +474,25 @@ namespace sek::serialization::ubj
 		friend constexpr void swap(basic_input_archive &a, basic_input_archive &b) noexcept { a.swap(b); }
 
 	private:
+		void parse(reader_base *reader)
+		{
+			parser_spec12 parser{*this, reader};
+			parser.parse_entry();
+		}
 		void parse(const void *buff, std::size_t len)
 		{
-			buffer_parser parser{*this, buff, len};
-			parser.parse_entry();
+			buffer_reader reader{buff, len};
+			parse(&reader);
 		}
 		void parse(FILE *file)
 		{
-			file_parser parser{*this, file};
-			parser.parse_entry();
+			file_reader reader{*this, file};
+			parse(&reader);
 		}
 		void parse(std::streambuf *buff)
 		{
-			streambuf_parser parser{*this, buff};
-			parser.parse_entry();
+			streambuf_reader reader{*this, buff};
+			parse(&reader);
 		}
 	};
 
@@ -508,245 +512,50 @@ namespace sek::serialization::ubj
 
 	/** @details Archive used to write UBJson data. */
 	template<config_flags Config, typename CharType = char>
-	class basic_output_archive
+	class basic_output_archive : detail::json_archive_base<CharType>
 	{
+		using base_t = detail::json_archive_base<CharType>;
+		using entry_type = typename base_t::entry_type;
+
+	public:
+		typedef typename base_t::write_frame archive_frame;
+		typedef typename archive_frame::archive_category archive_category;
+		typedef typename archive_frame::char_type char_type;
+		typedef typename archive_frame::size_type size_type;
+
 	private:
-		using sv_type = std::basic_string_view<CharType>;
-
-		struct entry_t;
-		struct member_t;
-
-		union literal_t
+		struct writer_base
 		{
-			CharType character;
-
-			std::uint8_t uint8;
-			std::int8_t int8;
-			std::int16_t int16;
-			std::int32_t int32;
-			std::int64_t int64;
-
-			float float32;
-			double float64;
-		};
-		struct container_t
-		{
-			union
-			{
-				void *data_ptr = nullptr;
-				entry_t *array_data;
-				member_t *object_data;
-			};
-			std::size_t size = 0;
-			std::size_t capacity = 0;
-			detail::token_t value_type = detail::token_t::INVALID_TYPE;
-		};
-		struct entry_t
-		{
-			constexpr entry_t() noexcept : container(), type(detail::token_t::INVALID_TYPE) {}
-
-			union
-			{
-				literal_t literal;
-				sv_type string;
-				container_t container;
-			};
-			detail::token_t type;
-		};
-		struct member_t
-		{
-			entry_t value;
-			sv_type key;
-		};
-
-		struct emitter_base
-		{
-			struct frame_t
-			{
-				void on_string(const CharType *str, std::size_t n)
-				{
-
-				}
-				void on_true()
-				{
-				}
-
-				detail::token_t fixed_type;
-			};
-
 			void write_guarded(const void *src, std::size_t n)
 			{
 				if (write(this, src, n) != n) [[unlikely]]
 					throw archive_error("UBJson: Emitter write failure");
 			}
 			void write_token(detail::token_t token) { write_guarded(&token, sizeof(token)); }
-			template<typename T>
-			void write_literal(T value)
-			{
-				/* Fix endianness from machine endianness to big endian.
-				 * TODO: Only do this for Spec12 */
-#ifndef SEK_ARCH_BIG_ENDIAN
-				if constexpr (sizeof(T) == sizeof(std::uint16_t))
-				{
-					auto temp = bswap_16(std::bit_cast<std::uint16_t>(value));
-					write_guarded(static_cast<const void *>(&temp), sizeof(temp));
-				}
-				else if constexpr (sizeof(T) == sizeof(std::uint32_t))
-				{
-					auto temp = bswap_32(std::bit_cast<std::uint32_t>(value));
-					write_guarded(static_cast<const void *>(&temp), sizeof(temp));
-				}
-				else if constexpr (sizeof(T) == sizeof(std::uint64_t))
-				{
-					auto temp = bswap_64(std::bit_cast<std::uint64_t>(value));
-					write_guarded(static_cast<const void *>(&temp), sizeof(temp));
-				}
-				else
-#endif
-					write_guarded(static_cast<const void *>(&value), sizeof(value));
-			}
 
-			void emit_length(std::int64_t length)
-			{
-				if (length > std::numeric_limits<std::int32_t>::max()) [[unlikely]]
-				{
-					write_token(detail::token_t::INT64);
-					write_literal(length);
-				}
-				else if (length > std::numeric_limits<std::int16_t>::max())
-				{
-					write_token(detail::token_t::INT32);
-					write_literal(static_cast<std::int32_t>(length));
-				}
-				else if (length > std::numeric_limits<std::uint8_t>::max())
-				{
-					write_token(detail::token_t::INT16);
-					write_literal(static_cast<std::uint16_t>(length));
-				}
-				else if (length > std::numeric_limits<std::int8_t>::max())
-				{
-					write_token(detail::token_t::UINT8);
-					write_literal(static_cast<std::uint8_t>(length));
-				}
-				else
-				{
-					write_token(detail::token_t::INT8);
-					write_literal(static_cast<std::int8_t>(length));
-				}
-			}
-
-			void emit_string(sv_type str)
-			{
-				emit_length(static_cast<std::int64_t>(str.size()));
-				write_guarded(static_cast<const void *>(str.data()), str.size() * sizeof(CharType));
-			}
-
-			std::pair<bool, bool> emit_container_attributes(const container_t &container)
-			{
-				std::pair<bool, bool> result = {};
-
-				if constexpr ((Config & fixed_type) == fixed_type)
-					if (container.value_type != detail::token_t::DYNAMIC_TYPE)
-					{
-						write_token(detail::token_t::CONTAINER_TYPE);
-						write_token(container.value_type);
-						result.first = true;
-					}
-				if constexpr ((Config & fixed_size) == fixed_size)
-				{
-					write_token(detail::token_t::CONTAINER_SIZE);
-					emit_length(static_cast<std::int64_t>(container.size));
-					result.second = true;
-				}
-
-				return result;
-			}
-			void emit_array(const container_t &array)
-			{
-				auto [is_fixed_type, is_fixed_size] = emit_container_attributes(array);
-
-				if (is_fixed_type) [[likely]] /* Expect that arrays are fixed-type. */
-					for (std::size_t i = 0; i < array.size; ++i) emit_data(array.array_data[i]);
-				else
-					for (std::size_t i = 0; i < array.size; ++i) emit_entry(array.array_data[i]);
-
-				if (!is_fixed_size) [[unlikely]]
-					write_token(detail::token_t::ARRAY_END);
-			}
-			void emit_object(const container_t &object)
-			{
-				auto [is_fixed_type, is_fixed_size] = emit_container_attributes(object);
-
-				if (is_fixed_type) [[unlikely]] /* Expect that objects are dynamic-type. */
-					for (std::size_t i = 0; i < object.size; ++i)
-					{
-						auto &member = object.object_data[i];
-						emit_string(member.key);
-						emit_data(member.value);
-					}
-				else
-					for (std::size_t i = 0; i < object.size; ++i)
-					{
-						auto &member = object.object_data[i];
-						emit_string(member.key);
-						emit_entry(member.value);
-					}
-
-				if (!is_fixed_size) [[unlikely]]
-					write_token(detail::token_t::OBJECT_END);
-			}
-			void emit_data(const entry_t &entry)
-			{
-				switch (entry.type)
-				{
-					case detail::token_t::CHAR: write_literal(entry.literal.character); break;
-					case detail::token_t::UINT8: write_literal(entry.literal.uint8); break;
-					case detail::token_t::INT8: write_literal(entry.literal.int8); break;
-					case detail::token_t::INT16: write_literal(entry.literal.int16); break;
-					case detail::token_t::INT32: write_literal(entry.literal.int32); break;
-					case detail::token_t::INT64: write_literal(entry.literal.int64); break;
-					case detail::token_t::FLOAT32: write_literal(entry.literal.float32); break;
-					case detail::token_t::FLOAT64: write_literal(entry.literal.float64); break;
-
-					case detail::token_t::HIGHP: /* TODO: Implement high-precision number output support. */
-					case detail::token_t::STRING: emit_string(entry.string); break;
-
-					case detail::token_t::ARRAY_START: emit_array(entry.container); break;
-					case detail::token_t::OBJECT_START: emit_object(entry.container); break;
-
-					default: break;
-				}
-			}
-			void emit_entry(const entry_t &entry)
-			{
-				write_token(entry.type);
-				emit_data(entry);
-			}
-
-			frame_t frame;
 			std::size_t (*write)(void *, const void *, std::size_t);
 		};
-		struct file_emitter_t final : emitter_base
+		struct file_writer_t final : writer_base
 		{
-			constexpr explicit file_emitter_t(FILE *file) noexcept : file(file)
+			constexpr explicit file_writer_t(FILE *file) noexcept : file(file)
 			{
-				emitter_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
+				writer_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
 				{
-					auto emitter = static_cast<file_emitter_t *>(ptr);
+					auto emitter = static_cast<file_writer_t *>(ptr);
 					return fwrite(src, 1, n, emitter->file);
 				};
 			}
 
 			FILE *file = nullptr;
 		};
-		struct buffer_emitter_t final : emitter_base
+		struct buffer_writer_t final : writer_base
 		{
-			constexpr buffer_emitter_t(void *buff, std::size_t n) noexcept
+			constexpr buffer_writer_t(void *buff, std::size_t n) noexcept
 				: curr(static_cast<std::byte *>(buff)), end(curr + n)
 			{
-				emitter_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
+				writer_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
 				{
-					auto emitter = static_cast<buffer_emitter_t *>(ptr);
+					auto emitter = static_cast<buffer_writer_t *>(ptr);
 					if (emitter->curr + n > emitter->end) [[unlikely]]
 						n = emitter->end - emitter->curr;
 					emitter->curr = std::copy_n(static_cast<const std::byte *>(src), n, emitter->curr);
@@ -757,13 +566,13 @@ namespace sek::serialization::ubj
 			std::byte *curr = nullptr;
 			std::byte *end = nullptr;
 		};
-		struct streambuf_emitter_t final : emitter_base
+		struct streambuf_writer_t final : writer_base
 		{
-			constexpr explicit streambuf_emitter_t(std::streambuf *buff) noexcept : buff(buff)
+			constexpr explicit streambuf_writer_t(std::streambuf *buff) noexcept : buff(buff)
 			{
-				emitter_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
+				writer_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
 				{
-					auto emitter = static_cast<streambuf_emitter_t *>(ptr);
+					auto emitter = static_cast<streambuf_writer_t *>(ptr);
 					auto data = static_cast<const std::streambuf::char_type *>(src);
 					return static_cast<std::size_t>(emitter->buff->sputn(data, static_cast<std::streamsize>(n)));
 				};
@@ -772,399 +581,204 @@ namespace sek::serialization::ubj
 			std::streambuf *buff = nullptr;
 		};
 
-		class write_frame
+		struct emitter_spec12
 		{
-			friend class basic_output_archive;
-
-		public:
-			typedef output_archive_category archive_category;
-			typedef CharType char_type;
-			typedef std::size_t size_type;
-
-		private:
-			constexpr write_frame(basic_output_archive &parent, entry_t &entry) noexcept
-				: parent(parent), current(entry)
+			struct frame_t
 			{
-			}
+				void (*emit_type_token)(writer_base *, detail::token_t);
+			};
 
-		public:
-			write_frame() = delete;
-			write_frame(const write_frame &) = delete;
-			write_frame &operator=(const write_frame &) = delete;
-			write_frame(write_frame &&) = delete;
-			write_frame &operator=(write_frame &&) = delete;
+			static void emit_fixed_type(writer_base *, detail::token_t) {}
+			static void emit_dynamic_type(writer_base *writer, detail::token_t token) { writer->write_token(token); }
 
-			/** Serialized the forwarded value to UBJson.
-			 * @param value Value to serialize as UBJson.
-			 * @return Reference to this frame. */
-			template<typename T>
-			write_frame &write(T &&value)
+			constexpr static detail::token_t get_type_token(entry_type type) noexcept
 			{
-				write_impl(std::forward<T>(value));
-				return *this;
-			}
-			/** @copydoc write */
-			template<typename T>
-			write_frame &operator<<(T &&value)
-			{
-				return write(std::forward<T>(value));
-			}
-
-		private:
-			[[nodiscard]] CharType *alloc_string(std::size_t n) const
-			{
-				auto bytes = (n + 1) * sizeof(CharType);
-				auto result = static_cast<CharType *>(parent.string_pool.allocate(bytes));
-				if (!result) [[unlikely]]
-					throw std::bad_alloc();
-				return result;
-			}
-			[[nodiscard]] sv_type copy_string(sv_type str) const
-			{
-				auto result = alloc_string(str.size());
-				*std::copy_n(str.data(), str.size(), result) = '\0';
-				return {result, str.size()};
-			}
-
-			[[nodiscard]] sv_type get_next_key(sv_type key) const { return copy_string(key); }
-			[[nodiscard]] sv_type get_next_key() const
-			{
-				constexpr CharType prefix[] = "_";
-				constexpr auto prefix_size = SEK_ARRAY_SIZE(prefix) - 1;
-
-				/* Format the current index into the buffer. */
-				CharType buffer[20];
-				std::size_t i = 20;
-				for (auto idx = current.container.size;;) /* Write index digits to the buffer. */
+				switch (type)
 				{
-					buffer[--i] = static_cast<CharType>('0') + static_cast<CharType>(idx % 10);
-					if (!(idx = idx / 10)) break;
+					case entry_type::NULL_VALUE: return detail::token_t::NULL_ENTRY;
+					case entry_type::BOOL_FALSE: return detail::token_t::BOOL_FALSE;
+					case entry_type::BOOL_TRUE: return detail::token_t::BOOL_TRUE;
+					case entry_type::CHAR: return detail::token_t::CHAR;
+
+					case entry_type::INT_S8: return detail::token_t::INT8;
+					case entry_type::INT_U8: return detail::token_t::UINT8;
+					case entry_type::INT_S16: [[fallthrough]];
+					case entry_type::INT_U16: return detail::token_t::INT16;
+					case entry_type::INT_S32: [[fallthrough]];
+					case entry_type::INT_U32: return detail::token_t::INT32;
+					case entry_type::INT_S64: [[fallthrough]];
+					case entry_type::INT_U64: return detail::token_t::INT64;
+
+					case entry_type::FLOAT32: return detail::token_t::FLOAT32;
+					case entry_type::FLOAT64: return detail::token_t::FLOAT64;
+
+					case entry_type::STRING: return detail::token_t::STRING;
+					case entry_type::ARRAY: return detail::token_t::ARRAY_START;
+					case entry_type::OBJECT: return detail::token_t::OBJECT_START;
+					default: return detail::token_t::INVALID;
 				}
-
-				auto key_size = SEK_ARRAY_SIZE(buffer) - i + prefix_size;
-				auto key_str = alloc_string(key_size);
-
-				std::copy_n(prefix, SEK_ARRAY_SIZE(prefix) - 1, key_str);					   /* Copy prefix. */
-				std::copy(buffer + i, buffer + SEK_ARRAY_SIZE(buffer), key_str + prefix_size); /* Copy digits. */
-				key_str[key_size] = '\0';
-
-				return {key_str, key_size};
 			}
+
+			constexpr explicit emitter_spec12(writer_base *writer) noexcept : writer(writer) {}
 
 			template<typename T>
-			void resize_container(std::size_t n) const
+			void emit_literal(T value)
 			{
-				auto *old_data = current.container.data_ptr;
-				auto old_cap = current.container.capacity * sizeof(T), new_cap = n * sizeof(T);
-
-				auto *new_data = parent.entry_pool.reallocate(old_data, old_cap, new_cap);
-				if (!new_data) [[unlikely]]
-					throw std::bad_alloc();
-
-				current.container.data_ptr = new_data;
-				current.container.capacity = n;
-			}
-			template<typename T>
-			[[nodiscard]] T *push_container() const
-			{
-				auto next_idx = current.container.size;
-				if (current.container.capacity == current.container.size++)
-					resize_container<T>(current.container.size * 2);
-				return static_cast<T *>(current.container.data_ptr) + next_idx;
-			}
-			[[nodiscard]] entry_t *next_entry() const
-			{
-				entry_t *entry;
-				switch (current.type)
+				/* Fix endianness from machine endianness to big endian. */
+#ifndef SEK_ARCH_BIG_ENDIAN
+				if constexpr (sizeof(T) == sizeof(std::uint16_t))
 				{
+					auto temp = bswap_16(std::bit_cast<std::uint16_t>(value));
+					writer->write_guarded(static_cast<const void *>(&temp), sizeof(temp));
+				}
+				else if constexpr (sizeof(T) == sizeof(std::uint32_t))
+				{
+					auto temp = bswap_32(std::bit_cast<std::uint32_t>(value));
+					writer->write_guarded(static_cast<const void *>(&temp), sizeof(temp));
+				}
+				else if constexpr (sizeof(T) == sizeof(std::uint64_t))
+				{
+					auto temp = bswap_64(std::bit_cast<std::uint64_t>(value));
+					writer->write_guarded(static_cast<const void *>(&temp), sizeof(temp));
+				}
+				else
+#endif
+					writer->write_guarded(static_cast<const void *>(&value), sizeof(value));
+			}
+			void emit_type(detail::token_t type) { frame.emit_type_token(writer, type); }
+			void emit_length(std::size_t value)
+			{
+				/* << 1 is used to make sure sizes are within signed range. */
+				switch (detail::int_size_category(value << 1))
+				{
+					case 0:
+						writer->write_token(detail::token_t::INT8);
+						emit_literal(static_cast<std::int8_t>(value));
+						break;
+					case 1:
+						writer->write_token(detail::token_t::INT16);
+						emit_literal(static_cast<std::uint16_t>(value));
+						break;
+					case 2:
+						writer->write_token(detail::token_t::INT32);
+						emit_literal(static_cast<std::uint32_t>(value));
+						break;
+					case 3:
 					default:
-					{
-						current.type = detail::token_t::OBJECT_START;
-						[[fallthrough]];
-					}
-					case detail::token_t::OBJECT_START:
-					{
-						auto member = push_container<member_t>();
-						member->key = next_key;
-						entry = &member->value;
+						writer->write_token(detail::token_t::INT64);
+						emit_literal(static_cast<std::uint64_t>(value));
 						break;
-					}
-					case detail::token_t::ARRAY_START:
-					{
-						entry = push_container<entry_t>();
-						break;
-					}
-				}
-				return std::construct_at(entry);
-			}
-
-			template<typename T>
-			void write_value(entry_t &entry, T &&value) const
-			{
-				write_frame frame{parent, entry};
-				detail::invoke_serialize(std::forward<T>(value), frame);
-			}
-
-			void write_value(entry_t &entry, std::nullptr_t) const { entry.type = detail::token_t::NULL_ENTRY; }
-			void write_value(entry_t &entry, bool b) const
-			{
-				entry.type = b ? detail::token_t::BOOL_TRUE : detail::token_t::BOOL_FALSE;
-			}
-			void write_value(entry_t &entry, CharType c) const
-			{
-				entry.type = detail::token_t::CHAR;
-				entry.literal.character = c;
-			}
-
-			template<std::unsigned_integral I>
-			void write_int_packed(entry_t &entry, I i) const
-			{
-				if (i > static_cast<I>(std::numeric_limits<std::int32_t>::max()))
-				{
-					entry.type = detail::token_t::INT64;
-					entry.literal.int64 = static_cast<std::int64_t>(i);
-				}
-				else if (i > static_cast<I>(std::numeric_limits<std::int16_t>::max()))
-				{
-					entry.type = detail::token_t::INT32;
-					entry.literal.int32 = static_cast<std::int32_t>(i);
-				}
-				else if (i > static_cast<I>(std::numeric_limits<std::uint8_t>::max()))
-				{
-					entry.type = detail::token_t::INT16;
-					entry.literal.int16 = static_cast<std::int16_t>(i);
-				}
-				else if (i > static_cast<I>(std::numeric_limits<std::int8_t>::max()))
-				{
-					entry.type = detail::token_t::UINT8;
-					entry.literal.uint8 = static_cast<std::uint8_t>(i);
-				}
-				else
-				{
-					entry.type = detail::token_t::INT8;
-					entry.literal.int8 = static_cast<std::int8_t>(i);
 				}
 			}
-			template<std::signed_integral I>
-			void write_int_packed(entry_t &entry, I i) const
+			void emit_string(const CharType *str, std::size_t size)
 			{
-				if (i < 0)
-				{
-					if (i < static_cast<I>(std::numeric_limits<std::int32_t>::min()))
-					{
-						entry.type = detail::token_t::INT64;
-						entry.literal.int64 = static_cast<std::int64_t>(i);
-					}
-					else if (i < static_cast<I>(std::numeric_limits<std::int16_t>::min()))
-					{
-						entry.type = detail::token_t::INT32;
-						entry.literal.int32 = static_cast<std::int32_t>(i);
-					}
-					else if (i < static_cast<I>(std::numeric_limits<std::int8_t>::min()))
-					{
-						entry.type = detail::token_t::INT16;
-						entry.literal.int16 = static_cast<std::int16_t>(i);
-					}
-					else
-					{
-						entry.type = detail::token_t::INT8;
-						entry.literal.int8 = static_cast<std::int8_t>(i);
-					}
-				}
-				else
-					write_int_packed(entry, static_cast<std::make_unsigned_t<I>>(i));
+				emit_length(size);
+				writer->write_guarded(str, size * sizeof(CharType));
 			}
-			template<std::unsigned_integral I>
-			void write_int_fast(entry_t &entry, I i) const
+			void emit_container(std::size_t size, entry_type value_type)
 			{
-				if constexpr (std::numeric_limits<I>::max() > static_cast<I>(std::numeric_limits<std::int32_t>::max()))
-				{
-					entry.type = detail::token_t::INT64;
-					entry.literal.int64 = static_cast<std::int64_t>(i);
-				}
-				else if constexpr (std::numeric_limits<I>::max() > static_cast<I>(std::numeric_limits<std::int16_t>::max()))
-				{
-					entry.type = detail::token_t::INT32;
-					entry.literal.int32 = static_cast<std::int32_t>(i);
-				}
-				else if constexpr (std::numeric_limits<I>::max() > static_cast<I>(std::numeric_limits<std::uint8_t>::max()))
-				{
-					entry.type = detail::token_t::INT16;
-					entry.literal.int16 = static_cast<std::int16_t>(i);
-				}
-				else if constexpr (std::numeric_limits<I>::max() > static_cast<I>(std::numeric_limits<std::int8_t>::max()))
-				{
-					entry.type = detail::token_t::UINT8;
-					entry.literal.uint8 = static_cast<std::uint8_t>(i);
-				}
-				else
-				{
-					entry.type = detail::token_t::INT8;
-					entry.literal.int8 = static_cast<std::int8_t>(i);
-				}
-			}
-			template<std::signed_integral I>
-			void write_int_fast(entry_t &entry, I i) const
-			{
-				if constexpr (std::numeric_limits<I>::max() > static_cast<I>(std::numeric_limits<std::int32_t>::max()) ||
-							  std::numeric_limits<I>::min() < static_cast<I>(std::numeric_limits<std::int32_t>::min()))
-				{
-					entry.type = detail::token_t::INT64;
-					entry.literal.int64 = static_cast<std::int64_t>(i);
-				}
-				else if constexpr (std::numeric_limits<I>::max() > static_cast<I>(std::numeric_limits<std::int16_t>::max()) ||
-								   std::numeric_limits<I>::min() < static_cast<I>(std::numeric_limits<std::int16_t>::min()))
-				{
-					entry.type = detail::token_t::INT32;
-					entry.literal.int32 = static_cast<std::int32_t>(i);
-				}
-				else if constexpr (std::numeric_limits<I>::max() > static_cast<I>(std::numeric_limits<std::int8_t>::max()) ||
-								   std::numeric_limits<I>::min() < static_cast<I>(std::numeric_limits<std::int8_t>::min()))
-				{
-					entry.type = detail::token_t::INT16;
-					entry.literal.int16 = static_cast<std::int16_t>(i);
-				}
-				else
-				{
-					entry.type = detail::token_t::INT8;
-					entry.literal.int8 = static_cast<std::int8_t>(i);
-				}
-			}
-
-			template<typename I>
-			void write_value(entry_t &entry, I &&i) const requires std::integral<std::decay_t<I>>
-			{
-				std::decay_t<I> value = i;
-
-				if constexpr ((Config & pack_integers) == pack_integers)
-					write_int_packed(entry, value);
-				else
-					write_int_fast(entry, value);
-			}
-
-			void write_value(entry_t &entry, float f) const
-			{
-				entry.type = detail::token_t::FLOAT32;
-				entry.literal.float32 = f;
-			}
-			void write_value(entry_t &entry, double d) const
-			{
-				entry.type = detail::token_t::FLOAT64;
-				entry.literal.float64 = d;
-			}
-			template<std::floating_point T>
-			void write_value(entry_t &entry, T f) const
-			{
-				if constexpr (std::numeric_limits<T>::max() > static_cast<T>(std::numeric_limits<float>::max()) &&
-							  std::numeric_limits<T>::min() < static_cast<T>(std::numeric_limits<float>::min()))
-					write_value(entry, static_cast<double>(f));
-				else
-					write_value(entry, static_cast<float>(f));
-			}
-
-			void write_value(entry_t &entry, sv_type sv) const
-			{
-				entry.type = detail::token_t::STRING;
-				entry.string = copy_string(sv);
-			}
-			void write_value(entry_t &entry, const CharType *str) const { write_value(entry, sv_type{str}); }
-			template<typename Traits>
-			void write_value(entry_t &entry, std::basic_string<CharType, Traits> &&str) const
-			{
-				write_value(entry, sv_type{str});
-			}
-			template<typename Traits>
-			void write_value(entry_t &entry, std::basic_string<CharType, Traits> &str) const
-			{
-				write_value(entry, sv_type{str});
-			}
-			template<typename Traits>
-			void write_value(entry_t &entry, const std::basic_string<CharType, Traits> &str) const
-			{
-				write_value(entry, sv_type{str});
-			}
-			template<typename T>
-			void write_value(entry_t &entry, T &&str) const requires std::constructible_from<sv_type, T>
-			{
-				write_value(entry, sv_type{std::forward<T>(str)});
-			}
-			template<typename T>
-			void write_value(entry_t &entry, T &&str) const requires std::convertible_to<T, const CharType *>
-			{
-				write_value(entry, static_cast<const CharType *>(str));
-			}
-			template<typename T>
-			void write_value(T &&value) const
-			{
-				auto entry = next_entry();
-				SEK_ASSERT(entry != nullptr);
-				write_value(*entry, std::forward<T>(value));
-
+				frame.emit_type_token = emit_dynamic_type;
 				if constexpr ((Config & fixed_type) == fixed_type)
-					if (current.container.value_type != entry->type) [[likely]]
+					if (value_type != entry_type::DYNAMIC)
 					{
-						if (current.container.value_type == detail::token_t::INVALID_TYPE)
-							current.container.value_type = entry->type;
-						else
-							current.container.value_type = detail::token_t::DYNAMIC_TYPE;
+						writer->write_token(detail::token_t::CONTAINER_TYPE);
+						writer->write_token(get_type_token(value_type));
+						frame.emit_type_token = emit_fixed_type;
 					}
-			}
-
-			template<typename T>
-			void write_impl(T &&value)
-			{
-				if (current.type != detail::token_t::ARRAY_START) [[likely]]
-					next_key = get_next_key();
-				write_value(std::forward<T>(value));
-			}
-			template<typename T>
-			void write_impl(named_entry_t<CharType, T> value)
-			{
-				if (current.type == detail::token_t::ARRAY_START) [[unlikely]]
-					throw archive_error("Named entry modifier cannot be applied to array entry");
-
-				next_key = get_next_key(value.name);
-				write_value(std::forward<T>(value.value));
-			}
-			template<typename T>
-			void write_impl(container_size_t<T> size)
-			{
-				switch (current.type)
+				if constexpr ((Config & fixed_size) == fixed_size)
 				{
-					default:
-					{
-						current.type = detail::token_t::OBJECT_START;
-						[[fallthrough]];
-					}
-					case detail::token_t::OBJECT_START:
-					{
-						resize_container<member_t>(static_cast<std::size_t>(size.value));
-						break;
-					}
-					case detail::token_t::ARRAY_START:
-					{
-						resize_container<entry_t>(static_cast<std::size_t>(size.value));
-						break;
-					}
+					writer->write_token(detail::token_t::CONTAINER_SIZE);
+					emit_length(size);
 				}
 			}
-			void write_impl(array_mode_t)
+
+			void on_null() { emit_type(detail::token_t::NULL_ENTRY); }
+			void on_true() { emit_type(detail::token_t::BOOL_TRUE); }
+			void on_false() { emit_type(detail::token_t::BOOL_FALSE); }
+			void on_char(CharType value)
 			{
-				SEK_ASSERT(current.type != detail::token_t::OBJECT_START, "Array mode modifier applied to object entry");
-				current.type = detail::token_t::ARRAY_START;
+				emit_type(detail::token_t::CHAR);
+				emit_literal(value);
 			}
 
-			basic_output_archive &parent;
-			entry_t &current;
+			void on_int8(std::int8_t value)
+			{
+				emit_type(detail::token_t::INT8);
+				emit_literal(value);
+			}
+			void on_uint8(std::uint8_t value)
+			{
+				emit_type(detail::token_t::UINT8);
+				emit_literal(value);
+			}
+			void on_int16(std::int16_t value)
+			{
+				emit_type(detail::token_t::INT16);
+				emit_literal(value);
+			}
+			void on_uint16(std::uint16_t value) { on_int16(static_cast<std::int16_t>(value)); }
+			void on_int32(std::int32_t value)
+			{
+				emit_type(detail::token_t::INT32);
+				emit_literal(value);
+			}
+			void on_uint32(std::uint32_t value) { on_int32(static_cast<std::int32_t>(value)); }
+			void on_int64(std::int64_t value)
+			{
+				emit_type(detail::token_t::INT64);
+				emit_literal(value);
+			}
+			void on_uint64(std::uint64_t value) { on_int64(static_cast<std::int64_t>(value)); }
 
-			sv_type next_key = {};
+			void on_float32(float value)
+			{
+				emit_type(detail::token_t::FLOAT32);
+				emit_literal(value);
+			}
+			void on_float64(double value)
+			{
+				emit_type(detail::token_t::FLOAT64);
+				emit_literal(value);
+			}
+
+			void on_string(const CharType *str, std::size_t size)
+			{
+				emit_type(detail::token_t::STRING);
+				emit_string(str, size);
+			}
+
+			void on_array_start(std::size_t size, entry_type value_type)
+			{
+				emit_type(detail::token_t::ARRAY_START);
+				emit_container(size, value_type);
+			}
+			void on_array_end()
+			{
+				// clang-format off
+				if constexpr ((Config & fixed_size) != fixed_size)
+					writer->write_token(detail::token_t::ARRAY_END);
+				// clang-format on
+			}
+			void on_object_start(std::size_t size, entry_type value_type)
+			{
+				emit_type(detail::token_t::OBJECT_START);
+				emit_container(size, value_type);
+			}
+			void on_object_key(const CharType *str, std::size_t size) { emit_string(str, size); }
+			void on_object_end()
+			{
+				// clang-format off
+				if constexpr ((Config & fixed_size) != fixed_size)
+					writer->write_token(detail::token_t::OBJECT_END);
+				// clang-format on
+			}
+
+			frame_t enter_frame() { return frame; }
+			void exit_frame(frame_t old) { frame = old; }
+
+			frame_t frame = {emit_dynamic_type};
+			writer_base *writer;
 		};
-
-	public:
-		typedef write_frame archive_frame;
-		typedef typename archive_frame::archive_category archive_category;
-		typedef typename archive_frame::char_type char_type;
-		typedef typename archive_frame::size_type size_type;
 
 	public:
 		basic_output_archive() = delete;
@@ -1188,7 +802,7 @@ namespace sek::serialization::ubj
 		/** @copydoc basic_output_archive
 		 * @param res PMR memory resource used for internal state allocation. */
 		basic_output_archive(void *buff, std::size_t size, std::pmr::memory_resource *res)
-			: buffer_emitter(buff, size), entry_pool(res), string_pool(res)
+			: base_t(res), buffer_writer(buff, size)
 		{
 		}
 		/** Initialized output archive for file writing.
@@ -1197,10 +811,7 @@ namespace sek::serialization::ubj
 		explicit basic_output_archive(FILE *file) : basic_output_archive(file, std::pmr::get_default_resource()) {}
 		/** @copydoc basic_output_archive
 		 * @param res PMR memory resource used for internal state allocation. */
-		basic_output_archive(FILE *file, std::pmr::memory_resource *res)
-			: file_emitter(file), entry_pool(res), string_pool(res)
-		{
-		}
+		basic_output_archive(FILE *file, std::pmr::memory_resource *res) : base_t(res), file_writer(file) {}
 		/** Initialized output archive for stream buffer writing.
 		 * @param buff Stream buffer to write UBJson data to.
 		 * @note Stream buffer must be a binary stream buffer. */
@@ -1210,8 +821,7 @@ namespace sek::serialization::ubj
 		}
 		/** @copydoc basic_output_archive
 		 * @param res PMR memory resource used for internal state allocation. */
-		basic_output_archive(std::streambuf *buff, std::pmr::memory_resource *res)
-			: streambuf_emitter(buff), entry_pool(res), string_pool(res)
+		basic_output_archive(std::streambuf *buff, std::pmr::memory_resource *res) : base_t(res), streambuf_writer(buff)
 		{
 		}
 		/** Initialized output archive for stream writing.
@@ -1224,11 +834,7 @@ namespace sek::serialization::ubj
 		{
 		}
 
-		~basic_output_archive()
-		{
-			if (top_level) [[likely]]
-				emitter.emit_entry(*top_level);
-		}
+		~basic_output_archive() { flush_impl(); }
 
 		/** Serialized the forwarded value to UBJson. Flushes previous uncommitted state.
 		 * @param value Value to serialize as UBJson.
@@ -1240,14 +846,7 @@ namespace sek::serialization::ubj
 		{
 			/* Flush uncommitted changes before initializing a new emit tree. */
 			flush();
-
-			auto *entry = static_cast<entry_t *>(entry_pool.allocate(sizeof(entry_t)));
-			if (!entry) [[unlikely]]
-				throw std::bad_alloc();
-			top_level = std::construct_at(entry);
-
-			write_frame frame{*this, *entry};
-			detail::invoke_serialize(std::forward<T>(value), frame);
+			base_t::do_write(std::forward<T>(value));
 			return *this;
 		}
 		/** @copydoc write */
@@ -1260,43 +859,34 @@ namespace sek::serialization::ubj
 		/** Flushes the internal state & writes UBJson to the output. */
 		void flush()
 		{
-			if (top_level) [[likely]]
-			{
-				emitter.emit_entry(*top_level);
-				entry_pool.release();
-				string_pool.release();
-				top_level = nullptr;
-			}
+			flush_impl();
+			base_t::reset();
 		}
 
 		constexpr void swap(basic_output_archive &other) noexcept
 		{
-			using std::swap;
-			swap(emitter_padding, other.emitter_padding);
-			swap(top_level, other.top_level);
-			swap(upstream, other.upstream);
-
-			entry_pool.swap(other.entry_pool);
-			string_pool.swap(other.string_pool);
+			base_t::swap(other);
+			std::swap(writer_padding, other.writer_padding);
 		}
 		friend constexpr void swap(basic_output_archive &a, basic_output_archive &b) noexcept { a.swap(b); }
 
 	private:
+		void flush_impl()
+		{
+			emitter_spec12 emitter{&writer};
+			base_t::do_flush(emitter);
+		}
+
 		union
 		{
-			std::byte emitter_padding[sizeof(buffer_emitter_t)] = {};
+			std::byte writer_padding[sizeof(buffer_writer_t)] = {};
 
-			emitter_base emitter;
-			file_emitter_t file_emitter;
-			buffer_emitter_t buffer_emitter;
-			streambuf_emitter_t streambuf_emitter;
+			writer_base writer;
+			file_writer_t file_writer;
+			buffer_writer_t buffer_writer;
+			streambuf_writer_t streambuf_writer;
 		};
-
-		const entry_t *top_level = nullptr; /* Top-level entry of the entry tree. */
-
-		std::pmr::memory_resource *upstream = nullptr;				  /* Upstream allocator used for memory pools. */
-		detail::basic_pool_resource<sizeof(entry_t) * 64> entry_pool; /* Pool used for the entry tree. */
-		detail::basic_pool_resource<SEK_KB(1)> string_pool;			  /* Pool used to buffer output strings. */
+		bool need_flush = false;
 	};
 
 	typedef basic_output_archive<fixed_type, char> output_archive;

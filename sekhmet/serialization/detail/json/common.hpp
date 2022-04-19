@@ -5,7 +5,7 @@
 #pragma once
 
 #include "../manipulators.hpp"
-#include "../serialization.hpp"
+#include "../util.hpp"
 #include "sekhmet/detail/assert.hpp"
 #include "sekhmet/detail/define.h"
 #include "sekhmet/detail/pool_resource.hpp"
@@ -27,7 +27,7 @@ namespace sek::serialization::detail
 		enum entry_type : int
 		{
 			NO_TYPE = 0,
-			DYNAMIC_TYPE = 1,
+			DYNAMIC = 1,
 
 			BOOL = 2,
 			BOOL_FALSE = BOOL | 0,
@@ -39,21 +39,53 @@ namespace sek::serialization::detail
 
 			NULL_VALUE = 8,
 			CHAR = 9,
-			FLOAT = 10,
-			STRING = 11,
+			STRING = 10,
 
-			SIGN_MASK = 16,
-			INT_MASK = 32,
+			INT_MASK = 16,
+			INT_SIGN_BIT = 32,
 			INT_U = INT_MASK,
-			INT_S = INT_MASK | SIGN_MASK,
+			INT_S = INT_MASK | INT_SIGN_BIT,
+			INT_SIZE_OFFSET = 6,
+			INT_SIZE_MASK = 0xf << INT_SIZE_OFFSET,
+			INT_8 = 0 << INT_SIZE_OFFSET,
+			INT_16 = 1 << INT_SIZE_OFFSET,
+			INT_32 = 2 << INT_SIZE_OFFSET,
+			INT_64 = 3 << INT_SIZE_OFFSET,
+
+			INT_U8 = INT_U | INT_8,
+			INT_U16 = INT_U | INT_16,
+			INT_U32 = INT_U | INT_32,
+			INT_U64 = INT_U | INT_64,
+			INT_S8 = INT_S | INT_8,
+			INT_S16 = INT_S | INT_16,
+			INT_S32 = INT_S | INT_32,
+			INT_S64 = INT_S | INT_64,
+
+			FLOAT_MASK = 1024,
+			FLOAT32 = FLOAT_MASK | 0,
+			FLOAT64 = FLOAT_MASK | 1,
 		};
 
 		union literal_t
 		{
 			CharType c;
+
+			/* Used for input. */
 			std::intmax_t si;
 			std::uintmax_t ui;
 			double fp;
+
+			/* Used for output. */
+			std::int8_t i8;
+			std::uint8_t u8;
+			std::int16_t i16;
+			std::uint16_t u16;
+			std::int32_t i32;
+			std::uint32_t u32;
+			std::int64_t i64;
+			std::uint64_t u64;
+			float f32;
+			double f64;
 		};
 		struct member_t;
 		struct container_t
@@ -66,7 +98,7 @@ namespace sek::serialization::detail
 			};
 			std::size_t size = 0;
 			std::size_t capacity = 0;
-			entry_type value_type = entry_type::NO_TYPE;
+			entry_type value_type = NO_TYPE;
 		};
 
 		/** @brief Structure used to represent a Json entry. */
@@ -82,7 +114,7 @@ namespace sek::serialization::detail
 			static void throw_string_error() { throw archive_error("Invalid Json type, expected string"); }
 
 			/* Must only be accessible from friends. */
-			constexpr entry_t() noexcept : container{}, type(entry_type::NO_TYPE) {}
+			constexpr entry_t() noexcept : container{}, type(NO_TYPE) {}
 
 		public:
 			entry_t(const entry_t &) = delete;
@@ -91,7 +123,7 @@ namespace sek::serialization::detail
 			entry_t &operator=(entry_t &&) = delete;
 
 			/** Reads a null value from the entry. Returns `true` if the entry contains a null value, `false` otherwise. */
-			bool try_read(std::nullptr_t) const noexcept { return type == entry_type::NULL_VALUE; }
+			bool try_read(std::nullptr_t) const noexcept { return type == NULL_VALUE; }
 			/** Reads a null value from the entry.
 			 * @throw archive_error If the entry does not contain a null value. */
 			const entry_t &read(std::nullptr_t) const
@@ -104,7 +136,7 @@ namespace sek::serialization::detail
 			/** Reads a bool from the entry. Returns `true` if the entry contains a bool, `false` otherwise. */
 			bool try_read(bool &b) const noexcept
 			{
-				if (type & entry_type::BOOL) [[likely]]
+				if (type & BOOL) [[likely]]
 				{
 					b = type & 1;
 					return true;
@@ -124,7 +156,7 @@ namespace sek::serialization::detail
 			/** Reads a character from the entry. Returns `true` if the entry contains a bool, `false` otherwise. */
 			bool try_read(CharType &c) const noexcept
 			{
-				if (type == entry_type::CHAR) [[likely]]
+				if (type == CHAR) [[likely]]
 				{
 					c = literal.c;
 					return true;
@@ -145,13 +177,21 @@ namespace sek::serialization::detail
 			template<typename I>
 			bool try_read(I &value) const noexcept requires(std::integral<I> || std::floating_point<I>)
 			{
-				switch (type)
+				if (type & INT_MASK)
 				{
-					case entry_type::INT_S: value = static_cast<I>(literal.si); return true;
-					case entry_type::INT_U: value = static_cast<I>(literal.ui); return true;
-					case entry_type::FLOAT: value = static_cast<I>(literal.fp); return true;
-					default: return false;
+					if (type & INT_SIGN_BIT)
+						value = static_cast<I>(literal.si);
+					else
+						value = static_cast<I>(literal.ui);
+					return true;
 				}
+				else if (type & FLOAT_MASK)
+				{
+					value = static_cast<I>(literal.fp);
+					return true;
+				}
+				else
+					return false;
 			}
 			/** Reads a number from the entry.
 			 * @throw archive_error If the entry does not contain a number. */
@@ -168,7 +208,7 @@ namespace sek::serialization::detail
 			 * @copydoc `true` if the entry contains a string, `false` otherwise. */
 			bool try_read(std::basic_string<CharType> &value) const
 			{
-				if (type == entry_type::STRING) [[likely]]
+				if (type == STRING) [[likely]]
 				{
 					value.assign(string);
 					return true;
@@ -181,7 +221,7 @@ namespace sek::serialization::detail
 			 * @copydoc `true` if the entry contains a string, `false` otherwise. */
 			bool try_read(std::basic_string_view<CharType> &value) const noexcept
 			{
-				if (type == entry_type::STRING) [[likely]]
+				if (type == STRING) [[likely]]
 				{
 					value = string;
 					return true;
@@ -195,7 +235,7 @@ namespace sek::serialization::detail
 			template<std::output_iterator<CharType> I>
 			bool try_read(I &value) const
 			{
-				if (type == entry_type::STRING) [[likely]]
+				if (type == STRING) [[likely]]
 				{
 					std::copy_n(string.data(), string.size(), value);
 					return true;
@@ -210,7 +250,7 @@ namespace sek::serialization::detail
 			template<std::output_iterator<CharType> I, std::sentinel_for<I> S>
 			bool try_read(I &value, S &sent) const
 			{
-				if (type == entry_type::STRING) [[likely]]
+				if (type == STRING) [[likely]]
 				{
 					for (std::size_t i = 0; i != string.size && value != sent; ++i, ++value) *value = string.data[i];
 					return true;
@@ -306,55 +346,65 @@ namespace sek::serialization::detail
 			{
 				switch (type)
 				{
-					case NULL_VALUE: emitter->on_null(); break;
+					case NULL_VALUE: emitter.on_null(); break;
 					case BOOL_FALSE:
 					{
-						if constexpr (requires { emitter->on_false(); })
-							emitter->on_false();
+						if constexpr (requires { emitter.on_false(); })
+							emitter.on_false();
 						else
-							emitter->on_bool(false);
+							emitter.on_bool(false);
 						break;
 					}
 					case BOOL_TRUE:
 					{
-						if constexpr (requires { emitter->on_true(); })
-							emitter->on_true();
+						if constexpr (requires { emitter.on_true(); })
+							emitter.on_true();
 						else
-							emitter->on_bool(true);
+							emitter.on_bool(true);
 						break;
 					}
-					case CHAR: emitter->on_char(literal.c); break;
-					case INT_S: emitter->on_int(literal.si); break;
-					case INT_U: emitter->on_uint(literal.ui); break;
-					case FLOAT: emitter->on_float(literal.fp); break;
-					case STRING: emitter->on_string(string.data(), string.size()); break;
+					case CHAR: emitter.on_char(literal.c); break;
+
+					case INT_S8: emitter.on_int8(literal.i8); break;
+					case INT_U8: emitter.on_uint8(literal.u8); break;
+					case INT_S16: emitter.on_int16(literal.i16); break;
+					case INT_U16: emitter.on_uint16(literal.u16); break;
+					case INT_S32: emitter.on_int32(literal.i32); break;
+					case INT_U32: emitter.on_uint32(literal.u32); break;
+					case INT_S64: emitter.on_int64(literal.i64); break;
+					case INT_U64: emitter.on_uint64(literal.u64); break;
+
+					case FLOAT32: emitter.on_float32(literal.f32); break;
+					case FLOAT64: emitter.on_float64(literal.f64); break;
+
+					case STRING: emitter.on_string(string.data(), string.size()); break;
 					case ARRAY:
 					{
-						auto frame = emitter->enter_frame();
+						auto frame = emitter.enter_frame();
 						auto &array = container;
 
-						emitter->on_array_start(array.size, array.value_type);
+						emitter.on_array_start(array.size, array.value_type);
 						for (auto value = array.array_data, end = value + array.size; value != end; ++value)
-							value.emit(emitter);
-						emitter->on_array_end();
+							value->emit(emitter);
+						emitter.on_array_end();
 
-						emitter->exit_frame(frame);
+						emitter.exit_frame(frame);
 						break;
 					}
 					case OBJECT:
 					{
-						auto frame = emitter->enter_frame();
+						auto frame = emitter.enter_frame();
 						auto &object = container;
 
-						emitter->on_object_start(object.size, object.value_type);
+						emitter.on_object_start(object.size, object.value_type);
 						for (auto member = object.object_data, end = member + object.size; member != end; ++member)
 						{
-							emitter->on_object_key(member->key.data(), member->key.size());
+							emitter.on_object_key(member->key.data(), member->key.size());
 							member->value.emit(emitter);
 						}
-						emitter->on_object_end();
+						emitter.on_object_end();
 
-						emitter->exit_frame(frame);
+						emitter.exit_frame(frame);
 						break;
 					}
 					default: break;
@@ -385,7 +435,6 @@ namespace sek::serialization::detail
 				EXPECT_ARRAY_VALUE,
 			};
 
-			/** @brief Frame used for container parsing. */
 			struct parse_frame
 			{
 				container_t *container = nullptr; /* Pointer to the actual container being parsed. */
@@ -421,46 +470,47 @@ namespace sek::serialization::detail
 
 			bool on_null() const
 			{
-				return on_value([](entry_t &entry) { entry.type = entry_type::NULL_VALUE; });
+				return on_value([](entry_t &entry) { entry.type = NULL_VALUE; });
 			}
 			bool on_bool(bool b) const
 			{
-				return on_value([b](entry_t &entry) { entry.type = entry_type::BOOL | (b ? 1 : 0); });
+				return on_value([b](entry_t &entry) { entry.type = BOOL | (b ? 1 : 0); });
 			}
 			bool on_true() const
 			{
-				return on_value([](entry_t &entry) { entry.type = entry_type::BOOL_TRUE; });
+				return on_value([](entry_t &entry) { entry.type = BOOL_TRUE; });
 			}
 			bool on_false() const
 			{
-				return on_value([](entry_t &entry) { entry.type = entry_type::BOOL_FALSE; });
+				return on_value([](entry_t &entry) { entry.type = BOOL_FALSE; });
 			}
 			bool on_char(CharType c) const
 			{
 				return on_value(
 					[c](entry_t &entry)
 					{
-						entry.type = entry_type::CHAR;
+						entry.type = CHAR;
 						entry.literal.c = c;
 					});
 			}
 			template<std::integral I>
 			bool on_int(I i) const
 			{
-				return on_value(
-					[i](entry_t &entry)
+				auto do_set_int = [i](entry_t &entry)
+				{
+					if constexpr (std::is_signed_v<I>)
 					{
-						if constexpr (std::is_signed_v<I>)
-						{
-							entry.type = entry_type::INT_S;
-							entry.literal.si = static_cast<std::intmax_t>(i);
-						}
-						else
-						{
-							entry.type = entry_type::INT_U;
-							entry.literal.ui = static_cast<std::uintmax_t>(i);
-						}
-					});
+						entry.type = INT_S;
+						entry.literal.si = static_cast<std::intmax_t>(i);
+					}
+					else
+					{
+						entry.type = INT_U;
+						entry.literal.ui = static_cast<std::uintmax_t>(i);
+					}
+				};
+
+				return on_value(do_set_int);
 			}
 			template<std::floating_point F>
 			bool on_float(F f) const
@@ -468,7 +518,7 @@ namespace sek::serialization::detail
 				return on_value(
 					[f](entry_t &entry)
 					{
-						entry.type = entry_type::FLOAT;
+						entry.type = FLOAT_MASK;
 						entry.literal.fp = static_cast<double>(f);
 					});
 			}
@@ -479,7 +529,7 @@ namespace sek::serialization::detail
 				return on_value(
 					[&](entry_t &entry)
 					{
-						entry.type = entry_type::STRING;
+						entry.type = STRING;
 						entry.string = std::basic_string_view<CharType>{str, static_cast<std::size_t>(len)};
 					});
 			}
@@ -496,7 +546,7 @@ namespace sek::serialization::detail
 				auto do_start_object = [&](entry_t &entry)
 				{
 					enter_frame();
-					entry.type = entry_type::OBJECT;
+					entry.type = OBJECT;
 					current->container = &entry.container;
 					current->state = parse_state::EXPECT_OBJECT_KEY;
 					if (n) resize_container<member_t>(n);
@@ -553,7 +603,7 @@ namespace sek::serialization::detail
 				auto do_start_array = [&](entry_t &entry)
 				{
 					enter_frame();
-					entry.type = entry_type::ARRAY;
+					entry.type = ARRAY;
 					current->container = &entry.container;
 					current->state = parse_state::EXPECT_ARRAY_VALUE;
 					if (n) resize_container<entry_t>(n);
@@ -746,8 +796,8 @@ namespace sek::serialization::detail
 				SEK_ASSERT(a.type == b.type);
 				switch (a.type)
 				{
-					case entry_type::ARRAY: return a.array_data - b.array_data;
-					case entry_type::OBJECT: return a.object_data - b.object_data;
+					case ARRAY: return a.array_data - b.array_data;
+					case OBJECT: return a.object_data - b.object_data;
 					default: return 0;
 				}
 			}
@@ -770,8 +820,8 @@ namespace sek::serialization::detail
 			{
 				switch (type)
 				{
-					case entry_type::ARRAY: return array_data;
-					case entry_type::OBJECT: return &object_data->value;
+					case ARRAY: return array_data;
+					case OBJECT: return &object_data->value;
 					default: return nullptr;
 				}
 			}
@@ -779,8 +829,8 @@ namespace sek::serialization::detail
 			{
 				switch (type)
 				{
-					case entry_type::ARRAY: array_data += n; break;
-					case entry_type::OBJECT: object_data += n; break;
+					case ARRAY: array_data += n; break;
+					case OBJECT: object_data += n; break;
 					default: break;
 				}
 			}
@@ -846,7 +896,7 @@ namespace sek::serialization::detail
 					.end_ptr = entry.container.data_ptr,
 				};
 
-				if (entry.type == entry_type::OBJECT) [[likely]]
+				if (entry.type == OBJECT) [[likely]]
 					frame_view.end_ptr = entry.container.object_data + entry.container.size;
 				else
 					frame_view.end_ptr = entry.container.array_data + entry.container.size;
@@ -938,7 +988,7 @@ namespace sek::serialization::detail
 			template<typename T>
 			bool try_read(named_entry_t<CharType, T> value)
 			{
-				if (type == entry_type::OBJECT) [[likely]]
+				if (type == OBJECT) [[likely]]
 				{
 					if (seek_entry(value.name)) [[likely]]
 						return try_read(std::forward<T>(value.value));
@@ -952,7 +1002,7 @@ namespace sek::serialization::detail
 			template<typename T>
 			read_frame &read(named_entry_t<CharType, T> value)
 			{
-				if (type == entry_type::ARRAY) [[unlikely]]
+				if (type == ARRAY) [[unlikely]]
 					throw archive_error("Named entry modifier cannot be applied to an array entry");
 
 				if (!seek_entry(value.name)) [[unlikely]]
@@ -1074,34 +1124,6 @@ namespace sek::serialization::detail
 				return {result, str.size()};
 			}
 
-			[[nodiscard]] std::basic_string_view<CharType> get_next_key(std::basic_string_view<CharType> key) const
-			{
-				return copy_string(key);
-			}
-			[[nodiscard]] std::basic_string_view<CharType> get_next_key() const
-			{
-				constexpr CharType prefix[] = "_";
-				constexpr auto prefix_size = SEK_ARRAY_SIZE(prefix) - 1;
-
-				/* Format the current index into the buffer. */
-				CharType buffer[20];
-				std::size_t i = 20;
-				for (auto idx = current.container.size;;) /* Write index digits to the buffer. */
-				{
-					buffer[--i] = static_cast<CharType>('0') + static_cast<CharType>(idx % 10);
-					if (!(idx = idx / 10)) break;
-				}
-
-				auto key_size = SEK_ARRAY_SIZE(buffer) - i + prefix_size;
-				auto key_str = alloc_string(key_size);
-
-				std::copy_n(prefix, SEK_ARRAY_SIZE(prefix) - 1, key_str);					   /* Copy prefix. */
-				std::copy(buffer + i, buffer + SEK_ARRAY_SIZE(buffer), key_str + prefix_size); /* Copy digits. */
-				key_str[key_size] = '\0';
-
-				return {key_str, key_size};
-			}
-
 			template<typename T>
 			void resize_container(std::size_t n) const
 			{
@@ -1130,17 +1152,17 @@ namespace sek::serialization::detail
 				{
 					default:
 					{
-						current.type = entry_type::OBJECT;
+						current.type = OBJECT;
 						[[fallthrough]];
 					}
-					case entry_type::OBJECT:
+					case OBJECT:
 					{
 						auto member = push_container<member_t>();
 						member->key = next_key;
 						entry = &member->value;
 						break;
 					}
-					case entry_type::ARRAY:
+					case ARRAY:
 					{
 						entry = push_container<entry_t>();
 						break;
@@ -1158,41 +1180,76 @@ namespace sek::serialization::detail
 				detail::invoke_serialize(std::forward<T>(value), frame);
 			}
 
-			void write_value(entry_t &entry, std::nullptr_t) const { entry.type = entry_type::NULL_VALUE; }
-			void write_value(entry_t &entry, bool b) const
+			void write_value(entry_t &entry, std::nullptr_t) const { entry.type = NULL_VALUE; }
+			template<typename T>
+			void write_value(entry_t &entry, T &&b) const requires(std::same_as<std::decay_t<T>, bool>)
 			{
-				entry.type = static_cast<entry_type>(entry_type::BOOL | b);
+				entry.type = static_cast<entry_type>(BOOL | (!!b));
 			}
-			void write_value(entry_t &entry, CharType c) const
+			template<typename T>
+			void write_value(entry_t &entry, T &&c) const requires(std::same_as<std::decay_t<T>, CharType>)
 			{
-				entry.type = entry_type::CHAR;
+				entry.type = CHAR;
 				entry.literal.character = c;
 			}
 
-			template<std::integral I>
-			void write_value(entry_t &entry, I i) const
+			template<typename T>
+			constexpr static bool is_uint_value =
+				std::unsigned_integral<T> && !std::same_as<T, bool> && !std::same_as<T, CharType>;
+			template<typename T>
+			constexpr static bool is_int_value =
+				std::signed_integral<T> && !std::same_as<T, bool> && !std::same_as<T, CharType>;
+
+			template<std::unsigned_integral I>
+			constexpr static int int_size_type(I i) noexcept
 			{
-				if constexpr (std::is_signed_v<std::decay_t<I>>)
+				return int_size_category(i) << INT_SIZE_OFFSET;
+			}
+			template<typename I>
+			void write_value(entry_t &entry, I &&i) const requires is_uint_value<std::decay_t<I>>
+			{
+				entry.type = static_cast<entry_type>(INT_U | int_size_type(i));
+				entry.literal.ui = static_cast<std::uintmax_t>(i);
+			}
+			template<std::signed_integral I>
+			constexpr static int int_size_type(I i) noexcept
+			{
+				static_assert(-1 == ~0, "Serialization assumes 2's complement");
+
+				/* If the integer is negative, negate the 2s complement integer.
+				 * This will give a "size mask" for 2s complement.
+				 * Use that mask's unsigned value to get the type. */
+				// clang-format off
+				const auto size_mask = i < 0 ? static_cast<std::make_unsigned_t<I>>(~i) :
+				                               static_cast<std::make_unsigned_t<I>>(i);
+				// clang-format on
+				return int_size_category(size_mask) << INT_SIZE_OFFSET;
+			}
+			template<typename I>
+			void write_value(entry_t &entry, I &&i) const requires is_int_value<std::decay_t<I>>
+			{
+				entry.type = static_cast<entry_type>(INT_S | int_size_type(i));
+				entry.literal.si = static_cast<std::intmax_t>(i);
+			}
+
+			template<typename F>
+			void write_value(entry_t &entry, F &&f) const requires std::floating_point<std::decay_t<F>>
+			{
+				if constexpr (sizeof(F) > sizeof(float))
 				{
-					entry.type = entry_type::INT_S;
-					entry.literal.si = static_cast<std::intmax_t>(i);
+					entry.type = FLOAT64;
+					entry.literal.f64 = static_cast<double>(f);
 				}
 				else
 				{
-					entry.type = entry_type::INT_U;
-					entry.literal.ui = static_cast<std::uintmax_t>(i);
+					entry.type = FLOAT32;
+					entry.literal.f32 = static_cast<float>(f);
 				}
-			}
-			template<std::floating_point T>
-			void write_value(entry_t &entry, T f) const
-			{
-				entry.type = entry_type::FLOAT;
-				entry.literal.fp = static_cast<double>(f);
 			}
 
 			void write_value(entry_t &entry, std::basic_string_view<CharType> sv) const
 			{
-				entry.type = entry_type::STRING;
+				entry.type = STRING;
 				entry.string = copy_string(sv);
 			}
 			void write_value(entry_t &entry, const CharType *str) const
@@ -1233,28 +1290,39 @@ namespace sek::serialization::detail
 				SEK_ASSERT(entry != nullptr);
 
 				write_value(*entry, std::forward<T>(value));
-				if (current.container.value_type != entry->type) [[likely]]
+
+				/* Set container value type if all entries are of the same type.
+				 * Use a different condition for integers to account for size-category. */
+				if (current.container.value_type == NO_TYPE) [[unlikely]]
+					current.container.value_type = entry->type;
+				else if constexpr (!std::is_integral_v<std::decay_t<T>>)
 				{
-					if (current.container.value_type == entry_type::NO_TYPE) [[unlikely]]
+					if (current.container.value_type != entry->type) [[likely]]
+						current.container.value_type = DYNAMIC;
+				}
+				else
+				{
+					/* If the current type is also an integer of the same signedness, use the largest size category. */
+					if ((current.container.value_type & INT_S) == (entry->type & INT_S) &&
+						current.container.value_type < entry->type) [[unlikely]]
 						current.container.value_type = entry->type;
 					else
-						current.container.value_type = entry_type::DYNAMIC_TYPE;
+						current.container.value_type = DYNAMIC;
 				}
 			}
 
 			template<typename T>
 			void write_impl(T &&value)
 			{
-				if (current.type != entry_type::ARRAY) [[likely]]
-					next_key = get_next_key();
+				if (current.type != ARRAY) [[likely]]
+					next_key = generate_key<CharType>(parent.string_pool, current.container.size);
 				write_value(std::forward<T>(value));
 			}
 			template<typename T>
 			void write_impl(named_entry_t<CharType, T> value)
 			{
-				SEK_ASSERT(current.type != entry_type::ARRAY, "Named entry modifier cannot be applied to array entry");
-
-				next_key = get_next_key(value.name);
+				if (current.type != ARRAY) [[likely]]
+					next_key = generate_key<CharType>(parent.string_pool, value.name);
 				write_value(std::forward<T>(value.value));
 			}
 			template<typename T>
@@ -1264,15 +1332,15 @@ namespace sek::serialization::detail
 				{
 					default:
 					{
-						current.type = entry_type::OBJECT;
+						current.type = OBJECT;
 						[[fallthrough]];
 					}
-					case entry_type::OBJECT:
+					case OBJECT:
 					{
 						resize_container<member_t>(static_cast<std::size_t>(size.value));
 						break;
 					}
-					case entry_type::ARRAY:
+					case ARRAY:
 					{
 						resize_container<entry_t>(static_cast<std::size_t>(size.value));
 						break;
@@ -1281,9 +1349,9 @@ namespace sek::serialization::detail
 			}
 			void write_impl(array_mode_t)
 			{
-				SEK_ASSERT(current.type != entry_type::OBJECT, "Array mode modifier applied to object entry");
+				SEK_ASSERT(current.type != OBJECT, "Array mode modifier applied to object entry");
 
-				current.type = entry_type::ARRAY;
+				current.type = ARRAY;
 			}
 
 			json_archive_base &parent;
@@ -1320,13 +1388,13 @@ namespace sek::serialization::detail
 		{
 			entry_pool.release();
 			string_pool.release();
-			top_level = nullptr;
+			::new (&top_level) entry_t{};
 		}
 		void reset(std::pmr::memory_resource *res)
 		{
 			entry_pool = entry_pool_t{res};
 			string_pool = string_pool_t{res};
-			top_level = nullptr;
+			::new (&top_level) entry_t{};
 		}
 
 		template<typename T>
@@ -1343,10 +1411,14 @@ namespace sek::serialization::detail
 		void do_write(T &&value)
 		{
 			write_frame frame{*this, top_level};
-			frame.read(std::forward<T>(value));
+			detail::invoke_serialize(std::forward<T>(value), frame);
 		}
 
-		void do_flush(auto &emitter) const { top_level.emit(emitter); }
+		void do_flush(auto &emitter) const
+		{
+			if (top_level.type != NO_TYPE) [[likely]]
+				top_level.emit(emitter);
+		}
 
 		constexpr void swap(json_archive_base &other) noexcept
 		{
@@ -1367,7 +1439,7 @@ namespace sek::serialization::detail
 	template<typename T>
 	const typename json_archive_base<C>::entry_t &json_archive_base<C>::entry_t::read(T &&value) const
 	{
-		if (!(type & entry_type::CONTAINER)) [[unlikely]]
+		if (!(type & CONTAINER)) [[unlikely]]
 			throw archive_error("Invalid Json type, expected array or object");
 
 		read_frame frame{*this};

@@ -27,7 +27,6 @@ if (NOT GTEST_MISSING)
             utility_tests.cpp
             debug_tests.cpp
             container_tests.cpp
-            adapter_tests.cpp
             plugin_tests.cpp
             math_tests.cpp
             serialization_tests.cpp)

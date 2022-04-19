@@ -25,7 +25,8 @@ namespace sek::serialization
 	 * @param name Name of the entry.
 	 * @param value Value to be read or written, forwarded by the manipulator.
 	 * @note If the current entry (entry of the object being deserialized) is an array entry,
-	 * specifying an explicit entry names will have no effect.  */
+	 * specifying an explicit entry name will have no effect.
+	 * @note Names consisting of an underscore followed by decimal digits (`_[0-9]+`) are reserved. */
 	template<typename C, typename T>
 	constexpr named_entry_t<C, T> named_entry(std::basic_string_view<C> name, T &&value) noexcept(detail::noexcept_fwd<T>)
 	{
