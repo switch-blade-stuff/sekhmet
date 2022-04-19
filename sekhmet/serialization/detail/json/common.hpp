@@ -45,12 +45,11 @@ namespace sek::serialization::detail
 			INT_SIGN_BIT = 32,
 			INT_U = INT_MASK,
 			INT_S = INT_MASK | INT_SIGN_BIT,
-			INT_SIZE_OFFSET = 6,
-			INT_SIZE_MASK = 0xf << INT_SIZE_OFFSET,
-			INT_8 = 0 << INT_SIZE_OFFSET,
-			INT_16 = 1 << INT_SIZE_OFFSET,
-			INT_32 = 2 << INT_SIZE_OFFSET,
-			INT_64 = 3 << INT_SIZE_OFFSET,
+			INT_SIZE_MASK = 0xf,
+			INT_8 = 0,
+			INT_16 = 1,
+			INT_32 = 2,
+			INT_64 = 3,
 
 			INT_U8 = INT_U | INT_8,
 			INT_U16 = INT_U | INT_16,
@@ -76,14 +75,6 @@ namespace sek::serialization::detail
 			double fp;
 
 			/* Used for output. */
-			std::int8_t i8;
-			std::uint8_t u8;
-			std::int16_t i16;
-			std::uint16_t u16;
-			std::int32_t i32;
-			std::uint32_t u32;
-			std::int64_t i64;
-			std::uint64_t u64;
 			float f32;
 			double f64;
 		};
@@ -365,14 +356,14 @@ namespace sek::serialization::detail
 					}
 					case CHAR: emitter.on_char(literal.c); break;
 
-					case INT_S8: emitter.on_int8(literal.i8); break;
-					case INT_U8: emitter.on_uint8(literal.u8); break;
-					case INT_S16: emitter.on_int16(literal.i16); break;
-					case INT_U16: emitter.on_uint16(literal.u16); break;
-					case INT_S32: emitter.on_int32(literal.i32); break;
-					case INT_U32: emitter.on_uint32(literal.u32); break;
-					case INT_S64: emitter.on_int64(literal.i64); break;
-					case INT_U64: emitter.on_uint64(literal.u64); break;
+					case INT_S64:
+					case INT_S32:
+					case INT_S16:
+					case INT_S8: emitter.on_int(type, literal.si); break;
+					case INT_U64:
+					case INT_U32:
+					case INT_U16:
+					case INT_U8: emitter.on_uint(type, literal.ui); break;
 
 					case FLOAT32: emitter.on_float32(literal.f32); break;
 					case FLOAT64: emitter.on_float64(literal.f64); break;
@@ -1203,7 +1194,7 @@ namespace sek::serialization::detail
 			template<std::unsigned_integral I>
 			constexpr static int int_size_type(I i) noexcept
 			{
-				return int_size_category(i) << INT_SIZE_OFFSET;
+				return int_size_category(i);
 			}
 			template<typename I>
 			void write_value(entry_t &entry, I &&i) const requires is_uint_value<std::decay_t<I>>
@@ -1223,7 +1214,7 @@ namespace sek::serialization::detail
 				const auto size_mask = i < 0 ? static_cast<std::make_unsigned_t<I>>(~i) :
 				                               static_cast<std::make_unsigned_t<I>>(i);
 				// clang-format on
-				return int_size_category(size_mask) << INT_SIZE_OFFSET;
+				return int_size_category(size_mask);
 			}
 			template<typename I>
 			void write_value(entry_t &entry, I &&i) const requires is_int_value<std::decay_t<I>>
@@ -1303,9 +1294,11 @@ namespace sek::serialization::detail
 				else
 				{
 					/* If the current type is also an integer of the same signedness, use the largest size category. */
-					if ((current.container.value_type & INT_S) == (entry->type & INT_S) &&
-						current.container.value_type < entry->type) [[unlikely]]
-						current.container.value_type = entry->type;
+					if ((current.container.value_type & INT_S) == (entry->type & INT_S))
+					{
+						if (current.container.value_type < entry->type) [[unlikely]]
+							current.container.value_type = entry->type;
+					}
 					else
 						current.container.value_type = DYNAMIC;
 				}

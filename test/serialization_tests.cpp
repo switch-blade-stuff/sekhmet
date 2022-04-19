@@ -41,7 +41,7 @@ namespace
 			archive << ser::named_entry("s", s);
 			archive << ser::named_entry("i", i);
 			archive << ser::named_entry("b", b);
-			archive << v << p;
+			archive << v << p << a;
 		}
 		void deserialize(auto &archive)
 		{
@@ -50,7 +50,7 @@ namespace
 			archive >> ser::named_entry("i", i);
 			archive >> ser::named_entry("m", m);
 			archive >> ser::named_entry("b", b);
-			archive >> v >> p;
+			archive >> v >> p >> a;
 		}
 
 		bool operator==(const serializable_t &) const noexcept = default;
@@ -61,6 +61,7 @@ namespace
 		std::vector<int> v;
 		std::pair<int, float> p;
 		std::map<std::string, int> m;
+		std::array<std::uint8_t , SEK_KB(1)> a;
 	};
 }	 // namespace
 
@@ -72,9 +73,10 @@ TEST(serialization_tests, ubjson_test)
 		.s = "Hello, world!",
 		.i = 0x420,
 		.b = true,
-		.v = {0, 1, 2, 3},
+		.v = {0xff, 0xfff, 0, 1, 2, 3},
 		.p = {69, 420.0f},
 		.m = {{"i1", 1}, {"i2", 2}},
+		.a = {},
 	};
 
 	std::string ubj_string;

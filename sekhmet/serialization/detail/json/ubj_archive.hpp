@@ -59,10 +59,10 @@ namespace sek::serialization::ubj
 	 * @note Container sizes will always be packed. */
 	constexpr static config_flags pack_integers = 4;
 
-	/** Treat high-precision numbers as input errors. */
-	constexpr static config_flags highp_error = 8;
 	/** Parse high-precision numbers as strings. */
-	constexpr static config_flags highp_as_string = 16;
+	constexpr static config_flags highp_as_string = 0;
+	/** Treat high-precision numbers as input errors. */
+	constexpr static config_flags highp_error = 16;
 	/** Skip high-precision numbers (not recommended). */
 	constexpr static config_flags highp_skip = 32;
 
@@ -586,6 +586,7 @@ namespace sek::serialization::ubj
 			struct frame_t
 			{
 				void (*emit_type_token)(writer_base *, detail::token_t);
+				entry_type value_type = entry_type::NO_TYPE;
 			};
 
 			static void emit_fixed_type(writer_base *, detail::token_t) {}
@@ -652,8 +653,8 @@ namespace sek::serialization::ubj
 				switch (detail::int_size_category(value << 1))
 				{
 					case 0:
-						writer->write_token(detail::token_t::INT8);
-						emit_literal(static_cast<std::int8_t>(value));
+						writer->write_token(detail::token_t::UINT8);
+						emit_literal(static_cast<std::uint8_t>(value));
 						break;
 					case 1:
 						writer->write_token(detail::token_t::INT16);
@@ -679,7 +680,7 @@ namespace sek::serialization::ubj
 			{
 				frame.emit_type_token = emit_dynamic_type;
 				if constexpr ((Config & fixed_type) == fixed_type)
-					if (value_type != entry_type::DYNAMIC)
+					if ((frame.value_type = value_type) != entry_type::DYNAMIC)
 					{
 						writer->write_token(detail::token_t::CONTAINER_TYPE);
 						writer->write_token(get_type_token(value_type));
@@ -701,34 +702,44 @@ namespace sek::serialization::ubj
 				emit_literal(value);
 			}
 
-			void on_int8(std::int8_t value)
+			entry_type current_int_type(entry_type type) const noexcept
 			{
-				emit_type(detail::token_t::INT8);
-				emit_literal(value);
+				if constexpr ((Config & fixed_type) == fixed_type)
+					return frame.value_type & entry_type::INT_MASK ? frame.value_type : type;
+				else
+					return type;
 			}
-			void on_uint8(std::uint8_t value)
+			void on_int(entry_type type, std::intmax_t value) { on_uint(type, static_cast<std::uintmax_t>(value)); }
+			void on_uint(entry_type type, std::uintmax_t value)
 			{
-				emit_type(detail::token_t::UINT8);
-				emit_literal(value);
+				switch (current_int_type(type))
+				{
+					case entry_type::INT_S8:
+						emit_type(detail::token_t::INT8);
+						emit_literal(static_cast<std::int8_t>(value));
+						break;
+					case entry_type::INT_U8:
+						emit_type(detail::token_t::UINT8);
+						emit_literal(static_cast<std::uint8_t>(value));
+						break;
+					case entry_type::INT_U16:
+					case entry_type::INT_S16:
+						emit_type(detail::token_t::INT16);
+						emit_literal(static_cast<std::int16_t>(value));
+						break;
+					case entry_type::INT_U32:
+					case entry_type::INT_S32:
+						emit_type(detail::token_t::INT32);
+						emit_literal(static_cast<std::int32_t>(value));
+						break;
+					case entry_type::INT_U64:
+					case entry_type::INT_S64:
+						emit_type(detail::token_t::INT64);
+						emit_literal(static_cast<std::int64_t>(value));
+						break;
+					default: break;
+				}
 			}
-			void on_int16(std::int16_t value)
-			{
-				emit_type(detail::token_t::INT16);
-				emit_literal(value);
-			}
-			void on_uint16(std::uint16_t value) { on_int16(static_cast<std::int16_t>(value)); }
-			void on_int32(std::int32_t value)
-			{
-				emit_type(detail::token_t::INT32);
-				emit_literal(value);
-			}
-			void on_uint32(std::uint32_t value) { on_int32(static_cast<std::int32_t>(value)); }
-			void on_int64(std::int64_t value)
-			{
-				emit_type(detail::token_t::INT64);
-				emit_literal(value);
-			}
-			void on_uint64(std::uint64_t value) { on_int64(static_cast<std::int64_t>(value)); }
 
 			void on_float32(float value)
 			{

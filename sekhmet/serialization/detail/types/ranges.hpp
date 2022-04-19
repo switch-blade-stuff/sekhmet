@@ -74,14 +74,35 @@ namespace sek::serialization
 	void serialize(const R &range, A &archive)
 	{
 		archive << array_mode();
-		if constexpr (std::ranges::sized_range<R>) archive << container_size(std::ranges::size(range));
-		for (auto &item : range) archive << item;
+		// clang-format off
+		if constexpr (std::ranges::sized_range<R>)
+			archive << container_size(std::ranges::size(range));
+		for (auto &item : range)
+			archive << item;
+		// clang-format on
 	}
 
 	template<typename A, typename T, std::size_t N>
 	void deserialize(T (&data)[N], A &archive)
 	{
 		auto data_item = std::ranges::begin(data), data_end = std::ranges::end(data);
+		if constexpr (container_like_archive<A>)
+		{
+			auto archive_entry = archive.begin(), archive_end = archive.end();
+			for (; data_item != data_end && archive_entry != archive_end; ++data_item, ++archive_entry)
+				archive_entry->read(*data_item);
+		}
+		else
+			for (; data_item != data_end; ++data_item)
+			{
+				if (!archive.try_read(*data_item)) [[unlikely]]
+					break;
+			}
+	}
+	template<typename A, std::ranges::forward_range T>
+	void deserialize(T &array, A &archive) requires(requires { typename std::tuple_size<T>::type; })
+	{
+		auto data_item = std::ranges::begin(array), data_end = std::ranges::end(array);
 		if constexpr (container_like_archive<A>)
 		{
 			auto archive_entry = archive.begin(), archive_end = archive.end();
@@ -165,7 +186,12 @@ namespace sek::serialization
 
 		using V = std::ranges::range_value_t<R>;
 		if constexpr (container_like_archive<A>)
-			for (auto &entry : a) r.insert(r.end(), entry.template read<V>());
+		{
+			// clang-format off
+			for (auto &entry : a)
+				r.insert(r.end(), entry.template read<V>());
+			// clang-format on
+		}
 		else
 			for (;;)
 			{
