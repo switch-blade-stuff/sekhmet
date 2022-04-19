@@ -54,10 +54,6 @@ namespace sek::serialization::ubj
 	constexpr static config_flags fixed_size = 1;
 	/** Enables fixed-type containers output. Implies `fixed_size`. */
 	constexpr static config_flags fixed_type = 2 | fixed_size;
-	/** Enables integer size packing (will use smallest integer size possible to represent any integral value).
-	 * @note Decreases performance since every integer's size will need to be checked at runtime.
-	 * @note Container sizes will always be packed. */
-	constexpr static config_flags pack_integers = 4;
 
 	/** Parse high-precision numbers as strings. */
 	constexpr static config_flags highp_as_string = 0;
@@ -356,9 +352,7 @@ namespace sek::serialization::ubj
 					case detail::token_t::NULL_ENTRY: base_handler::on_null(); break;
 					case detail::token_t::BOOL_TRUE: base_handler::on_true(); break;
 					case detail::token_t::BOOL_FALSE: base_handler::on_false(); break;
-					case detail::token_t::CHAR:
-						base_handler::on_char(static_cast<CharType>(parse_literal<char>()));
-						break;
+					case detail::token_t::CHAR: base_handler::on_char(parse_literal<CharType>()); break;
 					case detail::token_t::UINT8: base_handler::on_int(parse_literal<std::uint8_t>()); break;
 					case detail::token_t::INT8: base_handler::on_int(parse_literal<std::int8_t>()); break;
 					case detail::token_t::INT16: base_handler::on_int(parse_literal<std::int16_t>()); break;
@@ -714,13 +708,13 @@ namespace sek::serialization::ubj
 			{
 				switch (current_int_type(type))
 				{
-					case entry_type::INT_S8:
-						emit_type(detail::token_t::INT8);
-						emit_literal(static_cast<std::int8_t>(value));
-						break;
 					case entry_type::INT_U8:
 						emit_type(detail::token_t::UINT8);
 						emit_literal(static_cast<std::uint8_t>(value));
+						break;
+					case entry_type::INT_S8:
+						emit_type(detail::token_t::INT8);
+						emit_literal(static_cast<std::int8_t>(value));
 						break;
 					case entry_type::INT_U16:
 					case entry_type::INT_S16:

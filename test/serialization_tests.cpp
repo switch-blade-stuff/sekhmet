@@ -61,7 +61,7 @@ namespace
 		std::vector<int> v;
 		std::pair<int, float> p;
 		std::map<std::string, int> m;
-		std::array<std::uint8_t , SEK_KB(1)> a;
+		std::array<std::uint8_t, SEK_KB(1)> a;
 	};
 }	 // namespace
 
@@ -82,7 +82,7 @@ TEST(serialization_tests, ubjson_test)
 	std::string ubj_string;
 	{
 		std::stringstream ss;
-		ubj::basic_output_archive<ubj::pack_integers | ubj::fixed_type> archive{ss};
+		ubj::basic_output_archive<ubj::fixed_type> archive{ss};
 		archive << data;
 
 		archive.flush();
