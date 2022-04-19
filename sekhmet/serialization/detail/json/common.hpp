@@ -14,7 +14,7 @@ namespace sek::serialization::detail
 {
 	using namespace sek::detail;
 
-	template<typename CharType = char>
+	template<typename CharType>
 	struct json_archive_base
 	{
 		class entry_t;
@@ -22,9 +22,7 @@ namespace sek::serialization::detail
 		class read_frame;
 		class write_frame;
 
-		struct parse_event_receiver;
-		template<typename>
-		struct emit_event_dispatcher;
+		struct parser_base;
 
 		enum entry_type : int
 		{
@@ -76,9 +74,7 @@ namespace sek::serialization::detail
 		{
 			friend struct json_archive_base;
 			friend struct member_t;
-			friend struct parse_event_receiver;
-			template<typename>
-			friend struct emit_event_dispatcher;
+			friend struct parser_base;
 
 			friend class read_frame;
 			friend class write_frame;
@@ -86,7 +82,7 @@ namespace sek::serialization::detail
 			static void throw_string_error() { throw archive_error("Invalid Json type, expected string"); }
 
 			/* Must only be accessible from friends. */
-			constexpr entry_t() noexcept = default;
+			constexpr entry_t() noexcept : container{}, type(entry_type::NO_TYPE) {}
 
 		public:
 			entry_t(const entry_t &) = delete;
@@ -306,20 +302,364 @@ namespace sek::serialization::detail
 			}
 
 		private:
+			void emit(auto &emitter) const
+			{
+				switch (type)
+				{
+					case NULL_VALUE: emitter->on_null(); break;
+					case BOOL_FALSE:
+					{
+						if constexpr (requires { emitter->on_false(); })
+							emitter->on_false();
+						else
+							emitter->on_bool(false);
+						break;
+					}
+					case BOOL_TRUE:
+					{
+						if constexpr (requires { emitter->on_true(); })
+							emitter->on_true();
+						else
+							emitter->on_bool(true);
+						break;
+					}
+					case CHAR: emitter->on_char(literal.c); break;
+					case INT_S: emitter->on_int(literal.si); break;
+					case INT_U: emitter->on_uint(literal.ui); break;
+					case FLOAT: emitter->on_float(literal.fp); break;
+					case STRING: emitter->on_string(string.data(), string.size()); break;
+					case ARRAY:
+					{
+						auto frame = emitter->enter_frame();
+						auto &array = container;
+
+						emitter->on_array_start(array.size, array.value_type);
+						for (auto value = array.array_data, end = value + array.size; value != end; ++value)
+							value.emit(emitter);
+						emitter->on_array_end();
+
+						emitter->exit_frame(frame);
+						break;
+					}
+					case OBJECT:
+					{
+						auto frame = emitter->enter_frame();
+						auto &object = container;
+
+						emitter->on_object_start(object.size, object.value_type);
+						for (auto member = object.object_data, end = member + object.size; member != end; ++member)
+						{
+							emitter->on_object_key(member->key.data(), member->key.size());
+							member->value.emit(emitter);
+						}
+						emitter->on_object_end();
+
+						emitter->exit_frame(frame);
+						break;
+					}
+					default: break;
+				}
+			}
+
 			union
 			{
-				container_t container = {};
+				container_t container;
 				std::basic_string_view<CharType> string;
-
 				literal_t literal;
 			};
-			entry_type type = entry_type::NO_TYPE;
+			entry_type type;
 		};
 
 		struct member_t
 		{
 			entry_t value;
 			std::basic_string_view<CharType> key;
+		};
+
+		struct parser_base
+		{
+			enum parse_state : int
+			{
+				EXPECT_OBJECT_KEY,
+				EXPECT_OBJECT_VALUE,
+				EXPECT_ARRAY_VALUE,
+			};
+
+			/** @brief Frame used for container parsing. */
+			struct parse_frame
+			{
+				container_t *container = nullptr; /* Pointer to the actual container being parsed. */
+
+				union
+				{
+					void *data_ptr = nullptr;
+					entry_t *array_data;
+					member_t *object_data;
+				};
+				std::size_t capacity = 0; /* Current amortized capacity of the container. */
+				std::size_t size = 0;	  /* Current size of the container. */
+
+				parse_state state;
+			};
+
+			constexpr explicit parser_base(json_archive_base &parent) noexcept : parent(parent) {}
+			~parser_base()
+			{
+				if (parse_stack) [[likely]]
+					parent.upstream->deallocate(parse_stack, stack_capacity * sizeof(parse_frame));
+			}
+
+			template<std::integral S>
+			[[nodiscard]] CharType *on_string_alloc(S len) const
+			{
+				auto size = (static_cast<std::size_t>(len) + 1) * sizeof(CharType);
+				auto result = static_cast<CharType *>(parent.string_pool.allocate(size));
+				if (!result) [[unlikely]]
+					throw std::bad_alloc();
+				return result;
+			}
+
+			bool on_null() const
+			{
+				return on_value([](entry_t &entry) { entry.type = entry_type::NULL_VALUE; });
+			}
+			bool on_bool(bool b) const
+			{
+				return on_value([b](entry_t &entry) { entry.type = entry_type::BOOL | (b ? 1 : 0); });
+			}
+			bool on_true() const
+			{
+				return on_value([](entry_t &entry) { entry.type = entry_type::BOOL_TRUE; });
+			}
+			bool on_false() const
+			{
+				return on_value([](entry_t &entry) { entry.type = entry_type::BOOL_FALSE; });
+			}
+			bool on_char(CharType c) const
+			{
+				return on_value(
+					[c](entry_t &entry)
+					{
+						entry.type = entry_type::CHAR;
+						entry.literal.c = c;
+					});
+			}
+			template<std::integral I>
+			bool on_int(I i) const
+			{
+				return on_value(
+					[i](entry_t &entry)
+					{
+						if constexpr (std::is_signed_v<I>)
+						{
+							entry.type = entry_type::INT_S;
+							entry.literal.si = static_cast<std::intmax_t>(i);
+						}
+						else
+						{
+							entry.type = entry_type::INT_U;
+							entry.literal.ui = static_cast<std::uintmax_t>(i);
+						}
+					});
+			}
+			template<std::floating_point F>
+			bool on_float(F f) const
+			{
+				return on_value(
+					[f](entry_t &entry)
+					{
+						entry.type = entry_type::FLOAT;
+						entry.literal.fp = static_cast<double>(f);
+					});
+			}
+
+			template<std::integral S>
+			bool on_string(const CharType *str, S len) const
+			{
+				return on_value(
+					[&](entry_t &entry)
+					{
+						entry.type = entry_type::STRING;
+						entry.string = std::basic_string_view<CharType>{str, static_cast<std::size_t>(len)};
+					});
+			}
+			template<std::integral S>
+			bool on_string_copy(const CharType *str, S len) const
+			{
+				auto dest = on_string_alloc(len);
+				*std::copy_n(str, static_cast<std::size_t>(len), dest) = '\0';
+				return on_string(str, len);
+			}
+
+			bool on_object_start(std::size_t n = 0)
+			{
+				auto do_start_object = [&](entry_t &entry)
+				{
+					enter_frame();
+					entry.type = entry_type::OBJECT;
+					current->container = &entry.container;
+					current->state = parse_state::EXPECT_OBJECT_KEY;
+					if (n) resize_container<member_t>(n);
+				};
+
+				if (!parse_stack) [[unlikely]] /* If stack is empty, this is the top-level object. */
+				{
+					do_start_object(parent.top_level);
+					return true;
+				}
+				else
+					return on_value(do_start_object);
+			}
+			template<std::integral S>
+			bool on_object_key(const CharType *str, S len)
+			{
+				switch (current->state)
+				{
+					case parse_state::EXPECT_OBJECT_KEY:
+					{
+						push_container<member_t>().key = std::basic_string_view<CharType>{str, static_cast<std::size_t>(len)};
+						current->state = parse_state::EXPECT_OBJECT_VALUE; /* Always expect value after key. */
+						return true;
+					}
+					default: return false;
+				}
+			}
+			template<std::integral S>
+			bool on_object_key_copy(const CharType *str, S len)
+			{
+				auto dest = on_string_alloc(len);
+				*std::copy_n(str, static_cast<std::size_t>(len), dest) = '\0';
+				return on_object_key(dest, len);
+			}
+			template<std::integral S>
+			bool on_object_end(S size)
+			{
+				switch (current->state)
+				{
+					case parse_state::EXPECT_OBJECT_KEY:
+					{
+						auto *obj = current->container;
+						obj->object_data = current->object_data;
+						obj->size = static_cast<std::size_t>(size);
+						exit_frame();
+						return true;
+					}
+					default: return false;
+				}
+			}
+
+			bool on_array_start(std::size_t n = 0)
+			{
+				auto do_start_array = [&](entry_t &entry)
+				{
+					enter_frame();
+					entry.type = entry_type::ARRAY;
+					current->container = &entry.container;
+					current->state = parse_state::EXPECT_ARRAY_VALUE;
+					if (n) resize_container<entry_t>(n);
+				};
+
+				if (!parse_stack) [[unlikely]] /* If stack is empty, this is the top-level array. */
+				{
+					do_start_array(parent.top_level);
+					return true;
+				}
+				else
+					return on_value(do_start_array);
+			}
+			template<std::integral S>
+			bool on_array_end(S size)
+			{
+				switch (current->state)
+				{
+					case parse_state::EXPECT_ARRAY_VALUE:
+					{
+						auto *arr = current->container;
+						arr->array_data = current->array_data;
+						arr->size = static_cast<std::size_t>(size);
+						exit_frame();
+						return true;
+					}
+					default: return false;
+				}
+			}
+
+			template<typename T>
+			void resize_container(std::size_t n) const
+			{
+				auto *old_data = current->data_ptr;
+				auto old_cap = current->capacity * sizeof(T), new_cap = n * sizeof(T);
+
+				auto *new_data = parent.entry_pool.reallocate(old_data, old_cap, new_cap);
+				if (!new_data) [[unlikely]]
+					throw std::bad_alloc();
+
+				current->data_ptr = new_data;
+				current->capacity = n;
+			}
+			template<typename T>
+			[[nodiscard]] T &push_container() const
+			{
+				auto next_idx = current->size;
+				if (current->capacity == current->size++) resize_container<T>(current->size * 2);
+				/* No initialization needed here, since the entry will be initialized by parse events. */
+				return static_cast<T *>(current->data_ptr)[next_idx];
+			}
+
+			bool on_value(auto f) const
+			{
+				entry_t *entry;
+				switch (current->state)
+				{
+					case parse_state::EXPECT_ARRAY_VALUE:
+					{
+						entry = &push_container<entry_t>();
+						break;
+					}
+					case parse_state::EXPECT_OBJECT_VALUE:
+					{
+						/* Size is updated by the key event. */
+						entry = &(current->object_data[current->size - 1].value);
+						current->state = parse_state::EXPECT_OBJECT_KEY;
+						break;
+					}
+					default: return false;
+				}
+
+				f(*entry);
+				return true;
+			}
+			void enter_frame()
+			{
+				if (!parse_stack) [[unlikely]]
+				{
+					auto new_stack = static_cast<parse_frame *>(parent.upstream->allocate(4 * sizeof(parse_frame)));
+					if (!new_stack) [[unlikely]]
+						throw std::bad_alloc();
+					current = parse_stack = new_stack;
+					stack_capacity = 4;
+				}
+				else if (auto pos = ++current - parse_stack; static_cast<std::size_t>(pos) == stack_capacity) [[unlikely]]
+				{
+					auto new_cap = stack_capacity * 2;
+					auto new_stack = static_cast<parse_frame *>(parent.upstream->allocate(new_cap * sizeof(parse_frame)));
+					if (!new_stack) [[unlikely]]
+						throw std::bad_alloc();
+
+					current = std::copy_n(parse_stack, pos, new_stack);
+
+					parent.upstream->deallocate(parse_stack, stack_capacity * sizeof(parse_frame));
+					parse_stack = new_stack;
+					stack_capacity = new_cap;
+				}
+				std::construct_at(current);
+			}
+			void exit_frame() { --current; }
+
+			json_archive_base &parent;
+			parse_frame *parse_stack = nullptr;
+			parse_frame *current = nullptr;
+			std::size_t stack_capacity = 0;
 		};
 
 		/** @brief Iterator providing read-only access to a Json entry. */
@@ -951,298 +1291,6 @@ namespace sek::serialization::detail
 			std::basic_string_view<CharType> next_key = {};
 		};
 
-		struct parse_event_receiver
-		{
-			enum parse_state : int
-			{
-				EXPECT_OBJECT_KEY,
-				EXPECT_OBJECT_VALUE,
-				EXPECT_ARRAY_VALUE,
-			};
-
-			/** @brief Frame used for container parsing. */
-			struct parse_frame
-			{
-				container_t *container = nullptr; /* Pointer to the actual container being parsed. */
-
-				union
-				{
-					void *data_ptr = nullptr;
-					entry_t *array_data;
-					member_t *object_data;
-				};
-				std::size_t capacity = 0; /* Current amortized capacity of the container. */
-				std::size_t size = 0;	  /* Current size of the container. */
-
-				parse_state state;
-			};
-
-			constexpr explicit parse_event_receiver(json_archive_base &parent) noexcept : parent(parent) {}
-			~parse_event_receiver()
-			{
-				if (parse_stack) [[likely]]
-					parent.upstream->deallocate(parse_stack, stack_capacity * sizeof(parse_frame));
-			}
-
-			template<std::integral S>
-			[[nodiscard]] CharType *on_string_alloc(S len) const
-			{
-				auto size = (static_cast<std::size_t>(len) + 1) * sizeof(CharType);
-				auto result = static_cast<CharType *>(parent.string_pool.allocate(size));
-				if (!result) [[unlikely]]
-					throw std::bad_alloc();
-				return result;
-			}
-
-			bool on_null() const
-			{
-				return on_value([](entry_t &entry) { entry.type = entry_type::NULL_VALUE; });
-			}
-			bool on_bool(bool b) const
-			{
-				return on_value([b](entry_t &entry) { entry.type = entry_type::BOOL | (b ? 1 : 0); });
-			}
-			bool on_true() const
-			{
-				return on_value([](entry_t &entry) { entry.type = entry_type::BOOL_TRUE; });
-			}
-			bool on_false() const
-			{
-				return on_value([](entry_t &entry) { entry.type = entry_type::BOOL_FALSE; });
-			}
-			bool on_char(CharType c) const
-			{
-				return on_value(
-					[c](entry_t &entry)
-					{
-						entry.type = entry_type::CHAR;
-						entry.literal.c = c;
-					});
-			}
-			template<std::integral I>
-			bool on_int(I i) const
-			{
-				return on_value(
-					[i](entry_t &entry)
-					{
-						if constexpr (std::is_signed_v<I>)
-						{
-							entry.type = entry_type::INT_S;
-							entry.literal.si = static_cast<std::intmax_t>(i);
-						}
-						else
-						{
-							entry.type = entry_type::INT_U;
-							entry.literal.ui = static_cast<std::uintmax_t>(i);
-						}
-					});
-			}
-			template<std::floating_point F>
-			bool on_float(F f) const
-			{
-				return on_value(
-					[f](entry_t &entry)
-					{
-						entry.type = entry_type::FLOAT;
-						entry.literal.fp = static_cast<double>(f);
-					});
-			}
-
-			template<std::integral S>
-			bool on_string(const CharType *str, S len) const
-			{
-				return on_value(
-					[&](entry_t &entry)
-					{
-						entry.type = entry_type::STRING;
-						entry.string = std::basic_string_view<CharType>{str, static_cast<std::size_t>(len)};
-					});
-			}
-			template<std::integral S>
-			bool on_string_copy(const CharType *str, S len) const
-			{
-				auto dest = on_string_alloc(len);
-				*std::copy_n(str, static_cast<std::size_t>(len), dest) = '\0';
-				return on_string(str, len);
-			}
-
-			bool on_object_start(std::size_t n = 0)
-			{
-				auto do_start_object = [&](entry_t &entry)
-				{
-					enter_frame();
-					entry.type = entry_type::OBJECT;
-					current->container = &entry.container;
-					current->state = parse_state::EXPECT_OBJECT_KEY;
-					if (n) resize_container<member_t>(n);
-				};
-
-				if (!parse_stack) [[unlikely]] /* If stack is empty, this is the top-level object. */
-				{
-					do_start_object(*parent.top_level);
-					return true;
-				}
-				else
-					return on_value(do_start_object);
-			}
-			template<std::integral S>
-			bool on_object_key(const CharType *str, S len)
-			{
-				switch (current->state)
-				{
-					case parse_state::EXPECT_OBJECT_KEY:
-					{
-						push_container<member_t>().key = std::basic_string_view<CharType>{str, static_cast<std::size_t>(len)};
-						current->state = parse_state::EXPECT_OBJECT_VALUE; /* Always expect value after key. */
-						return true;
-					}
-					default: return false;
-				}
-			}
-			template<std::integral S>
-			bool on_object_key_copy(const CharType *str, S len)
-			{
-				auto dest = on_string_alloc(len);
-				*std::copy_n(str, static_cast<std::size_t>(len), dest) = '\0';
-				return on_object_key(dest, len);
-			}
-			template<std::integral S>
-			bool on_object_end(S size)
-			{
-				switch (current->state)
-				{
-					case parse_state::EXPECT_OBJECT_KEY:
-					{
-						auto *obj = current->container;
-						obj->object_data = current->object_data;
-						obj->size = static_cast<std::size_t>(size);
-						exit_frame();
-						return true;
-					}
-					default: return false;
-				}
-			}
-
-			bool on_array_start(std::size_t n = 0)
-			{
-				auto do_start_array = [&](entry_t &entry)
-				{
-					enter_frame();
-					entry.type = entry_type::ARRAY;
-					current->container = &entry.container;
-					current->state = parse_state::EXPECT_ARRAY_VALUE;
-					if (n) resize_container<entry_t>(n);
-				};
-
-				if (!parse_stack) [[unlikely]] /* If stack is empty, this is the top-level array. */
-				{
-					do_start_array(*parent.top_level);
-					return true;
-				}
-				else
-					return on_value(do_start_array);
-			}
-			template<std::integral S>
-			bool on_array_end(S size)
-			{
-				switch (current->state)
-				{
-					case parse_state::EXPECT_ARRAY_VALUE:
-					{
-						auto *arr = current->container;
-						arr->array_data = current->array_data;
-						arr->size = static_cast<std::size_t>(size);
-						exit_frame();
-						return true;
-					}
-					default: return false;
-				}
-			}
-
-			template<typename T>
-			void resize_container(std::size_t n) const
-			{
-				auto *old_data = current->data_ptr;
-				auto old_cap = current->capacity * sizeof(T), new_cap = n * sizeof(T);
-
-				auto *new_data = parent.entry_pool.reallocate(old_data, old_cap, new_cap);
-				if (!new_data) [[unlikely]]
-					throw std::bad_alloc();
-
-				current->data_ptr = new_data;
-				current->capacity = n;
-			}
-			template<typename T>
-			[[nodiscard]] T &push_container() const
-			{
-				auto next_idx = current->size;
-				if (current->capacity == current->size++) resize_container<T>(current->size * 2);
-				/* No initialization needed here, since the entry will be initialized by parse events. */
-				return static_cast<T *>(current->data_ptr)[next_idx];
-			}
-
-			bool on_value(auto f) const
-			{
-				entry_t *entry;
-				switch (current->state)
-				{
-					case parse_state::EXPECT_ARRAY_VALUE:
-					{
-						entry = &push_container<entry_t>();
-						break;
-					}
-					case parse_state::EXPECT_OBJECT_VALUE:
-					{
-						/* Size is updated by the key event. */
-						entry = &(current->object_data[current->size - 1].value);
-						current->state = parse_state::EXPECT_OBJECT_KEY;
-						break;
-					}
-					default: return false;
-				}
-
-				f(*entry);
-				return true;
-			}
-			void enter_frame()
-			{
-				if (!parse_stack) [[unlikely]]
-				{
-					auto new_stack = static_cast<parse_frame *>(parent.upstream->allocate(4 * sizeof(parse_frame)));
-					if (!new_stack) [[unlikely]]
-						throw std::bad_alloc();
-					current = parse_stack = new_stack;
-					stack_capacity = 4;
-				}
-				else if (auto pos = ++current - parse_stack; pos == stack_capacity) [[unlikely]]
-				{
-					auto new_cap = stack_capacity * 2;
-					auto new_stack = static_cast<parse_frame *>(parent.upstream->allocate(new_cap * sizeof(parse_frame)));
-					if (!new_stack) [[unlikely]]
-						throw std::bad_alloc();
-
-					current = std::copy_n(parse_stack, pos, new_stack);
-
-					parent.upstream->deallocate(parse_stack, stack_capacity * sizeof(parse_frame));
-					parse_stack = new_stack;
-					stack_capacity = new_cap;
-				}
-				std::construct_at(current);
-			}
-			void exit_frame() { --current; }
-
-			json_archive_base &parent;
-			parse_frame *parse_stack = nullptr;
-			parse_frame *current = nullptr;
-			std::size_t stack_capacity = 0;
-		};
-
-		template<typename Emitter>
-		struct emit_event_dispatcher
-		{
-			entry_t *current;
-		};
-
 		using entry_pool_t = basic_pool_resource<sizeof(entry_t) * 64>;
 		using string_pool_t = basic_pool_resource<SEK_KB(1)>;
 
@@ -1284,19 +1332,21 @@ namespace sek::serialization::detail
 		template<typename T>
 		bool do_try_read(T &&value)
 		{
-			return init_top_level().try_read(std::forward<T>(value));
+			return top_level.try_read(std::forward<T>(value));
 		}
 		template<typename T>
 		void do_read(T &&value)
 		{
-			init_top_level().read(std::forward<T>(value));
+			top_level.read(std::forward<T>(value));
 		}
 		template<typename T>
 		void do_write(T &&value)
 		{
-			write_frame frame{*this, init_top_level()};
+			write_frame frame{*this, top_level};
 			frame.read(std::forward<T>(value));
 		}
+
+		void do_flush(auto &emitter) const { top_level.emit(emitter); }
 
 		constexpr void swap(json_archive_base &other) noexcept
 		{
@@ -1306,21 +1356,11 @@ namespace sek::serialization::detail
 			std::swap(top_level, other.top_level);
 		}
 
-		entry_t &init_top_level()
-		{
-			top_level = static_cast<entry_t *>(entry_pool.allocate(sizeof(entry_t)));
-			if (!top_level) [[unlikely]]
-				throw std::bad_alloc();
-
-			::new (top_level) entry_t{};
-			return *top_level;
-		}
-
 		std::pmr::memory_resource *upstream;
 
-		entry_pool_t entry_pool;	  /* Allocation pool used for entry allocation. */
-		string_pool_t string_pool;	  /* Allocation pool used for string allocation. */
-		entry_t *top_level = nullptr; /* Top-most entry of the Json tree. */
+		entry_pool_t entry_pool;   /* Allocation pool used for entry tree allocation. */
+		string_pool_t string_pool; /* Allocation pool used for string allocation. */
+		entry_t top_level = {};	   /* Top-most entry of the Json tree. */
 	};
 
 	template<typename C>

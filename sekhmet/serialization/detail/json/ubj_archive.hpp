@@ -86,9 +86,9 @@ namespace sek::serialization::ubj
 		typedef typename archive_frame::size_type size_type;
 
 	private:
-		struct parser_base : base_t::parse_event_receiver
+		struct parser_base : base_t::parser_base
 		{
-			using base_handler = typename base_t::parse_event_receiver;
+			using base_handler = typename base_t::parser_base;
 
 			constexpr static auto eof_msg = "UBJson: Unexpected end of input";
 			constexpr static auto data_msg = "UBJson: Invalid input";
@@ -434,7 +434,7 @@ namespace sek::serialization::ubj
 		explicit basic_input_archive(std::istream &is) : basic_input_archive(is.rdbuf()) {}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(std::istream &is, std::pmr::memory_resource *res) : basic_input_archive(is.rdbuf()) {}
+		basic_input_archive(std::istream &is, std::pmr::memory_resource *res) : basic_input_archive(is.rdbuf(), res) {}
 
 		/** Attempts to deserialize the top-level Json entry of the archive.
 		 * @param value Value to deserialize from the Json entry.
@@ -561,6 +561,19 @@ namespace sek::serialization::ubj
 
 		struct emitter_base
 		{
+			struct frame_t
+			{
+				void on_string(const CharType *str, std::size_t n)
+				{
+
+				}
+				void on_true()
+				{
+				}
+
+				detail::token_t fixed_type;
+			};
+
 			void write_guarded(const void *src, std::size_t n)
 			{
 				if (write(this, src, n) != n) [[unlikely]]
@@ -621,6 +634,7 @@ namespace sek::serialization::ubj
 					write_literal(static_cast<std::int8_t>(length));
 				}
 			}
+
 			void emit_string(sv_type str)
 			{
 				emit_length(static_cast<std::int64_t>(str.size()));
@@ -709,6 +723,7 @@ namespace sek::serialization::ubj
 				emit_data(entry);
 			}
 
+			frame_t frame;
 			std::size_t (*write)(void *, const void *, std::size_t);
 		};
 		struct file_emitter_t final : emitter_base
