@@ -52,7 +52,7 @@ namespace sek::serialization
 		template<typename C>
 		[[nodiscard]] std::basic_string_view<C> generate_key(auto &alloc, std::size_t idx)
 		{
-			constexpr C prefix[] = "_";
+			constexpr C prefix[] = "__";
 			constexpr auto prefix_size = SEK_ARRAY_SIZE(prefix) - 1;
 
 			/* Format the current index into the buffer. */
