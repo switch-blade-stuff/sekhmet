@@ -66,11 +66,13 @@ namespace sek::serialization::ubj
 	/** Skip high-precision numbers (not recommended). */
 	constexpr static config_flags highp_skip = 8;
 
-/** @details Archive used to read UBJson data.
+	/** @details Archive used to read UBJson data.
 	 *
 	 * The archive itself does not do any deserialization, instead deserialization is done by archive frames,
 	 * which represent a Json object or array. These frames are then passed to deserialization functions
-	 * of serializable types. */
+	 * of serializable types.
+	 *
+	 * @tparam Config Configuration flags used for the archive. */
 	template<config_flags Config>
 	class basic_input_archive : detail::base_archive
 	{
@@ -514,7 +516,9 @@ namespace sek::serialization::ubj
 	 *
 	 * The archive itself does not do any serialization, instead serialization is done by archive frames,
 	 * which represent a Json object or array. These frames are then passed to serialization functions
-	 * of serializable types. */
+	 * of serializable types.
+	 *
+	 * @tparam Config Configuration flags used for the archive. */
 	template<config_flags Config>
 	class basic_output_archive : detail::base_archive
 	{
