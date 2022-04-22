@@ -64,13 +64,6 @@ namespace
 		std::map<std::string, int> m;
 		std::array<std::uint8_t, SEK_KB(1)> a;
 	};
-}	 // namespace
-
-#include "sekhmet/serialization/json.hpp"
-
-TEST(serialization_tests, json_test)
-{
-	namespace json = sek::serialization::json;
 
 	const serializable_t data = {
 		.s = "Hello, world!",
@@ -81,19 +74,26 @@ TEST(serialization_tests, json_test)
 		.m = {{"i1", 1}, {"i2", 2}},
 		.a = {},
 	};
+}	 // namespace
 
-	std::string ubj_string;
+#include "sekhmet/serialization/json.hpp"
+
+TEST(serialization_tests, json_test)
+{
+	namespace json = sek::serialization::json;
+
+	std::string json_string;
 	{
 		std::stringstream ss;
 		json::output_archive archive{ss};
 		archive << data;
 
 		archive.flush();
-		ubj_string = ss.str();
+		json_string = ss.str();
 	}
 	serializable_t deserialized = {};
 	{
-		json::input_archive archive{ubj_string.data(), ubj_string.size()};
+		json::input_archive archive{json_string.data(), json_string.size()};
 		archive >> deserialized;
 	}
 	EXPECT_EQ(data, deserialized);
@@ -105,16 +105,6 @@ TEST(serialization_tests, ubjson_test)
 {
 	namespace ubj = sek::serialization::ubj;
 
-	const serializable_t data = {
-		.s = "Hello, world!",
-		.i = 0x420,
-		.b = true,
-		.v = {0xff, 0xfff, 0, 1, 2, 3},
-		.p = {69, 420.0f},
-		.m = {{"i1", 1}, {"i2", 2}},
-		.a = {},
-	};
-
 	std::string ubj_string;
 	{
 		std::stringstream ss;
@@ -124,7 +114,7 @@ TEST(serialization_tests, ubjson_test)
 		archive.flush();
 		ubj_string = ss.str();
 	}
-	serializable_t deserialized;
+	serializable_t deserialized = {};
 	{
 		ubj::input_archive archive{ubj_string.data(), ubj_string.size()};
 		archive >> deserialized;
