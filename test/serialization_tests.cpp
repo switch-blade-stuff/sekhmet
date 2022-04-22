@@ -6,7 +6,7 @@
 
 #include <numbers>
 
-#include "sekhmet/serialization/ubjson.hpp"
+#include "sekhmet/serialization/archive.hpp"
 
 namespace ser = sek::serialization;
 
@@ -50,7 +50,8 @@ namespace
 			archive >> ser::named_entry("i", i);
 			archive >> ser::named_entry("m", m);
 			archive >> ser::named_entry("b", b);
-			archive >> v >> p >> a;
+			archive >> v >> p;
+			archive >> a;
 		}
 
 		bool operator==(const serializable_t &) const noexcept = default;
@@ -64,6 +65,41 @@ namespace
 		std::array<std::uint8_t, SEK_KB(1)> a;
 	};
 }	 // namespace
+
+#include "sekhmet/serialization/json.hpp"
+
+TEST(serialization_tests, json_test)
+{
+	namespace json = sek::serialization::json;
+
+	const serializable_t data = {
+		.s = "Hello, world!",
+		.i = 0x420,
+		.b = true,
+		.v = {0xff, 0xfff, 0, 1, 2, 3},
+		.p = {69, 420.0f},
+		.m = {{"i1", 1}, {"i2", 2}},
+		.a = {},
+	};
+
+	std::string ubj_string;
+	{
+		std::stringstream ss;
+		json::output_archive archive{ss};
+		archive << data;
+
+		archive.flush();
+		ubj_string = ss.str();
+	}
+	serializable_t deserialized = {};
+	{
+		json::input_archive archive{ubj_string.data(), ubj_string.size()};
+		archive >> deserialized;
+	}
+	EXPECT_EQ(data, deserialized);
+}
+
+#include "sekhmet/serialization/ubjson.hpp"
 
 TEST(serialization_tests, ubjson_test)
 {

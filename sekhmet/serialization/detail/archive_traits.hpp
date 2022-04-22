@@ -18,6 +18,7 @@ namespace sek::serialization
 	{
 	public:
 		archive_error() : std::runtime_error("Unknown archive error") {}
+		explicit archive_error(const std::string &msg) : std::runtime_error(msg) {}
 		explicit archive_error(const char *msg) : std::runtime_error(msg) {}
 		~archive_error() override = default;
 	};

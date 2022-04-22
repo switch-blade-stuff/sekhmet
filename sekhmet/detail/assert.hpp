@@ -11,25 +11,38 @@
 
 namespace sek::detail
 {
-	[[maybe_unused]] constexpr void assert_impl(
-		bool condition, const char *condition_str, const char *file, std::size_t line, const char *func, const char *msg)
+	[[noreturn]] [[maybe_unused]] inline void assert_never_reached_impl(const char *file, std::size_t line, const char *func)
 	{
-		if (!condition) [[unlikely]]
+		fprintf(stderr, "Reached unreachable code at '%s:%lu' in '%s'. This is an internal error.\n", file, line, func);
+		std::abort();
+	}
+	[[maybe_unused]] inline void
+		assert_impl(bool cnd, const char *cnd_str, const char *file, std::size_t line, const char *func, const char *msg)
+	{
+		if (!cnd) [[unlikely]]
 		{
-			fprintf(stderr, "Assertion (%s) failed at '%s:%lu' in '%s'", condition_str, file, line, func);
-			if (msg) fprintf(stderr, ": %s", msg);
-			fprintf(stderr, "\n");
+			fprintf(stderr, "Assertion ");
+			if (cnd_str) [[likely]]
+				fprintf(stderr, "(%s) ", cnd_str);
 
-			abort();
+			fprintf(stderr, "failed at '%s:%lu' in '%s'", file, line, func);
+			if (msg) [[likely]]
+				fprintf(stderr, ": %s", msg);
+			fputc('\n', stderr);
+
+			std::abort();
 		}
 	}
 }	 // namespace sek::detail
 
-#define SEK_ASSERT_2(cond, msg) sek::detail::assert_impl((cond), (#cond), (SEK_FILE), (SEK_LINE), (SEK_PRETTY_FUNC), (msg))
-#define SEK_ASSERT_1(cond) SEK_ASSERT_2(cond, nullptr)
+#define SEK_ASSERT_2(cnd, msg) sek::detail::assert_impl((cnd), (#cnd), (SEK_FILE), (SEK_LINE), (SEK_PRETTY_FUNC), (msg))
+#define SEK_ASSERT_1(cnd) SEK_ASSERT_2(cnd, nullptr)
 
 /** Same as regular SEK_ASSERT, except applies even when SEK_NO_DEBUG_ASSERT is defined. */
 #define SEK_ASSERT_ALWAYS(...) SEK_GET_MACRO_2(__VA_ARGS__, SEK_ASSERT_2, SEK_ASSERT_1)(__VA_ARGS__)
+
+/** Asserts that the code should never be reached. */
+#define SEK_NEVER_REACHED sek::detail::assert_never_reached_impl((SEK_FILE), (SEK_LINE), (SEK_PRETTY_FUNC))
 
 #if !defined(SEK_NO_DEBUG_ASSERT) && !defined(NDEBUG)
 /** Assert that supports an optional message, prints the enclosing function name and terminates using exit(1).

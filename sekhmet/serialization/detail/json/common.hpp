@@ -14,7 +14,7 @@ namespace sek::serialization::detail
 {
 	using namespace sek::detail;
 
-	template<typename CharType>
+	template<typename CharType, bool EnableContainerTypes, bool EnableCharValue>
 	struct json_archive_base
 	{
 		class entry_t;
@@ -104,6 +104,12 @@ namespace sek::serialization::detail
 
 			static void throw_string_error() { throw archive_error("Invalid Json type, expected string"); }
 
+			constexpr void swap(entry_t &other) noexcept
+			{
+				std::swap(container, other.container);
+				std::swap(type, other.type);
+			}
+
 			/* Must only be accessible from friends. */
 			constexpr entry_t() noexcept : container{}, type(NO_TYPE) {}
 
@@ -144,8 +150,8 @@ namespace sek::serialization::detail
 				return *this;
 			}
 
-			/** Reads a character from the entry. Returns `true` if the entry contains a bool, `false` otherwise. */
-			bool try_read(CharType &c) const noexcept
+			/** Reads a character from the entry. Returns `true` if the entry contains a character, `false` otherwise. */
+			bool try_read(CharType &c) const noexcept requires EnableCharValue
 			{
 				if (type == CHAR) [[likely]]
 				{
@@ -157,7 +163,7 @@ namespace sek::serialization::detail
 			}
 			/** Reads a character from the entry.
 			 * @throw archive_error If the entry does not contain a character. */
-			const entry_t &read(CharType &c) const
+			const entry_t &read(CharType &c) const requires EnableCharValue
 			{
 				if (!try_read(c)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected char");
@@ -354,7 +360,16 @@ namespace sek::serialization::detail
 							emitter.on_bool(true);
 						break;
 					}
-					case CHAR: emitter.on_char(literal.c); break;
+					case CHAR:
+					{
+						if constexpr (EnableCharValue)
+						{
+							emitter.on_char(literal.c);
+							break;
+						}
+						else
+							SEK_NEVER_REACHED;
+					}
 
 					case INT_S64:
 					case INT_S32:
@@ -465,7 +480,7 @@ namespace sek::serialization::detail
 			}
 			bool on_bool(bool b) const
 			{
-				return on_value([b](entry_t &entry) { entry.type = BOOL | (b ? 1 : 0); });
+				return on_value([b](entry_t &entry) { entry.type = static_cast<entry_type>(BOOL | (b ? 1 : 0)); });
 			}
 			bool on_true() const
 			{
@@ -529,7 +544,7 @@ namespace sek::serialization::detail
 			{
 				auto dest = on_string_alloc(len);
 				*std::copy_n(str, static_cast<std::size_t>(len), dest) = '\0';
-				return on_string(str, len);
+				return on_string(dest, len);
 			}
 
 			bool on_object_start(std::size_t n = 0)
@@ -1178,7 +1193,7 @@ namespace sek::serialization::detail
 				entry.type = static_cast<entry_type>(BOOL | static_cast<int>(!!b));
 			}
 			template<typename T>
-			void write_value(entry_t &entry, T &&c) const requires(std::same_as<std::decay_t<T>, CharType>)
+			void write_value(entry_t &entry, T &&c) const requires std::same_as<std::decay_t<T>, CharType> && EnableCharValue
 			{
 				entry.type = CHAR;
 				entry.literal.character = c;
@@ -1282,25 +1297,28 @@ namespace sek::serialization::detail
 
 				write_value(*entry, std::forward<T>(value));
 
-				/* Set container value type if all entries are of the same type.
-				 * Use a different condition for integers to account for size-category. */
-				if (current.container.value_type == NO_TYPE) [[unlikely]]
-					current.container.value_type = entry->type;
-				else if constexpr (!std::is_integral_v<std::decay_t<T>>)
+				if constexpr (EnableContainerTypes)
 				{
-					if (current.container.value_type != entry->type) [[likely]]
-						current.container.value_type = DYNAMIC;
-				}
-				else
-				{
-					/* If the current type is also an integer of the same signedness, use the largest size category. */
-					if ((current.container.value_type & INT_S) == (entry->type & INT_S))
+					/* Set container value type if all entries are of the same type.
+					 * Use a different condition for integers to account for size-category. */
+					if (current.container.value_type == NO_TYPE) [[unlikely]]
+						current.container.value_type = entry->type;
+					else if constexpr (!std::is_integral_v<std::decay_t<T>>)
 					{
-						if (current.container.value_type < entry->type) [[unlikely]]
-							current.container.value_type = entry->type;
+						if (current.container.value_type != entry->type) [[likely]]
+							current.container.value_type = DYNAMIC;
 					}
 					else
-						current.container.value_type = DYNAMIC;
+					{
+						/* If the current type is also an integer of the same signedness, use the largest size category. */
+						if ((current.container.value_type & INT_S) == (entry->type & INT_S))
+						{
+							if (current.container.value_type < entry->type) [[unlikely]]
+								current.container.value_type = entry->type;
+						}
+						else
+							current.container.value_type = DYNAMIC;
+					}
 				}
 			}
 
@@ -1367,8 +1385,9 @@ namespace sek::serialization::detail
 			: upstream(std::exchange(other.upstream, nullptr)),
 			  entry_pool(std::move(other.entry_pool)),
 			  string_pool(std::move(other.string_pool)),
-			  top_level(std::exchange(other.top_level, nullptr))
+			  top_level()
 		{
+			top_level.swap(other.top_level);
 		}
 		constexpr json_archive_base &operator=(json_archive_base &&other) noexcept
 		{
@@ -1418,7 +1437,7 @@ namespace sek::serialization::detail
 			std::swap(upstream, other.upstream);
 			entry_pool.swap(other.entry_pool);
 			string_pool.swap(other.string_pool);
-			std::swap(top_level, other.top_level);
+			top_level.swap(other.top_level);
 		}
 
 		std::pmr::memory_resource *upstream;
@@ -1428,9 +1447,9 @@ namespace sek::serialization::detail
 		entry_t top_level = {};	   /* Top-most entry of the Json tree. */
 	};
 
-	template<typename C>
+	template<typename C, bool Ct, bool Cv>
 	template<typename T>
-	const typename json_archive_base<C>::entry_t &json_archive_base<C>::entry_t::read(T &&value) const
+	const typename json_archive_base<C, Ct, Cv>::entry_t &json_archive_base<C, Ct, Cv>::entry_t::read(T &&value) const
 	{
 		if (!(type & CONTAINER)) [[unlikely]]
 			throw archive_error("Invalid Json type, expected array or object");

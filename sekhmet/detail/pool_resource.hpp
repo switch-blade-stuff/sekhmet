@@ -28,15 +28,15 @@ namespace sek::detail
 
 		constexpr static void *align_ptr(void *p, std::size_t align) noexcept
 		{
-			const auto i = std::bit_cast<std::intptr_t>(p);
+			const auto i = std::bit_cast<std::uintptr_t>(p);
 			return std::bit_cast<void *>(i + ((~i + 1) & (align - 1)));
 		}
 
 	public:
-		basic_pool_resource() = delete;
 		basic_pool_resource(const basic_pool_resource &) = delete;
 		basic_pool_resource &operator=(const basic_pool_resource &) = delete;
 
+		constexpr basic_pool_resource() noexcept = default;
 		constexpr explicit basic_pool_resource(std::pmr::memory_resource *upstream) noexcept : upstream(upstream) {}
 		constexpr basic_pool_resource(basic_pool_resource &&other) noexcept { swap(other); }
 		constexpr basic_pool_resource &operator=(basic_pool_resource &&other) noexcept

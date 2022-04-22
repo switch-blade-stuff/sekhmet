@@ -13,9 +13,13 @@
 
 namespace sek::serialization::ubj
 {
+	typedef int config_flags;
+
 	namespace detail
 	{
-		using namespace serialization::detail;
+		using namespace sek::serialization::detail;
+
+		using base_archive = detail::json_archive_base<char, true, true>;
 
 		enum token_t : std::int8_t
 		{
@@ -46,33 +50,31 @@ namespace sek::serialization::ubj
 			ARRAY_START = '[',
 			ARRAY_END = ']',
 		};
-	}	 // namespace detail
 
-	typedef int config_flags;
+		constexpr static config_flags highp_mask = 12;
+	}	 // namespace detail
 
 	/** Enables fixed-size container output. */
 	constexpr static config_flags fixed_size = 1;
 	/** Enables fixed-type containers output. Implies `fixed_size`. */
 	constexpr static config_flags fixed_type = 2 | fixed_size;
 
+	/** Treat high-precision numbers as input errors (this is the default). */
+	constexpr static config_flags highp_error = 0;
 	/** Parse high-precision numbers as strings. */
-	constexpr static config_flags highp_as_string = 0;
-	/** Treat high-precision numbers as input errors. */
-	constexpr static config_flags highp_error = 16;
+	constexpr static config_flags highp_as_string = 4;
 	/** Skip high-precision numbers (not recommended). */
-	constexpr static config_flags highp_skip = 32;
+	constexpr static config_flags highp_skip = 8;
 
-	/** @details Archive used to read UBJson data.
+/** @details Archive used to read UBJson data.
 	 *
-	 * The archive itself does not do any de-serialization, instead deserialization is done by special archive frames,
+	 * The archive itself does not do any deserialization, instead deserialization is done by archive frames,
 	 * which represent a Json object or array. These frames are then passed to deserialization functions
-	 * of serializable types.
-	 *
-	 * @tparam CharType Character type used for Json. */
-	template<config_flags Config, typename CharType = char>
-	class basic_input_archive : detail::json_archive_base<CharType>
+	 * of serializable types. */
+	template<config_flags Config>
+	class basic_input_archive : detail::base_archive
 	{
-		using base_t = detail::json_archive_base<CharType>;
+		using base_t = detail::base_archive;
 
 	public:
 		typedef typename base_t::read_frame archive_frame;
@@ -190,7 +192,7 @@ namespace sek::serialization::ubj
 			std::size_t bump(std::size_t n) noexcept final
 			{
 				auto off = static_cast<std::streamoff>(n);
-				if (buff->seekoff(off, std::ios::cur, std::ios::in) == std::streambuf::pos_type{off}) [[likely]]
+				if (buff->pubseekoff(off, std::ios::cur, std::ios::in) == std::streambuf::pos_type{off}) [[likely]]
 					return n;
 				else
 					return 0;
@@ -236,14 +238,14 @@ namespace sek::serialization::ubj
 					case detail::token_t::INT16: return static_cast<std::int64_t>(parse_literal<std::int16_t>());
 					case detail::token_t::INT32: return static_cast<std::int64_t>(parse_literal<std::int32_t>());
 					case detail::token_t::INT64: return parse_literal<std::int64_t>();
-					default: throw archive_error(bad_length_msg);
+					default: [[unlikely]] throw archive_error(bad_length_msg);
 				}
 			}
-			[[nodiscard]] std::pair<const CharType *, std::size_t> parse_string()
+			[[nodiscard]] std::pair<const char *, std::size_t> parse_string()
 			{
 				auto len = static_cast<std::size_t>(parse_length());
 				auto *str = base_handler::on_string_alloc(len);
-				reader->guarded_read(str, len * sizeof(CharType));
+				reader->guarded_read(str, len * sizeof(char));
 				str[len] = '\0';
 				return {str, len};
 			}
@@ -352,7 +354,7 @@ namespace sek::serialization::ubj
 					case detail::token_t::NULL_ENTRY: base_handler::on_null(); break;
 					case detail::token_t::BOOL_TRUE: base_handler::on_true(); break;
 					case detail::token_t::BOOL_FALSE: base_handler::on_false(); break;
-					case detail::token_t::CHAR: base_handler::on_char(parse_literal<CharType>()); break;
+					case detail::token_t::CHAR: base_handler::on_char(parse_literal<char>()); break;
 					case detail::token_t::UINT8: base_handler::on_int(parse_literal<std::uint8_t>()); break;
 					case detail::token_t::INT8: base_handler::on_int(parse_literal<std::int8_t>()); break;
 					case detail::token_t::INT16: base_handler::on_int(parse_literal<std::int16_t>()); break;
@@ -362,9 +364,9 @@ namespace sek::serialization::ubj
 					case detail::token_t::FLOAT64: base_handler::on_float(parse_literal<double>()); break;
 					case detail::token_t::HIGHP:
 					{
-						if constexpr ((Config & highp_error) == highp_error)
+						if constexpr ((Config & detail::highp_mask) == highp_error)
 							throw archive_error("High-precision number support is disabled");
-						else if constexpr ((Config & highp_skip) == highp_skip)
+						else if constexpr ((Config & detail::highp_mask) == highp_skip)
 							break;
 						[[fallthrough]];
 					}
@@ -376,7 +378,7 @@ namespace sek::serialization::ubj
 					}
 					case detail::token_t::ARRAY_START: parse_array(); break;
 					case detail::token_t::OBJECT_START: parse_object(); break;
-					default: throw archive_error(data_msg);
+					default: [[unlikely]] throw archive_error(data_msg);
 				}
 			}
 			void parse_entry() { parse_entry(reader->read_token()); }
@@ -390,7 +392,11 @@ namespace sek::serialization::ubj
 		basic_input_archive &operator=(const basic_input_archive &) = delete;
 
 		constexpr basic_input_archive(basic_input_archive &&) noexcept = default;
-		constexpr basic_input_archive &operator=(basic_input_archive &&) noexcept = default;
+		constexpr basic_input_archive &operator=(basic_input_archive &&other) noexcept
+		{
+			base_t::operator=(std::forward<basic_input_archive>(other));
+			return *this;
+		}
 
 		/** Reads UBJson from a memory buffer.
 		 * @param buff Pointer to the memory buffer containing UBJson data.
@@ -468,7 +474,7 @@ namespace sek::serialization::ubj
 		friend constexpr void swap(basic_input_archive &a, basic_input_archive &b) noexcept { a.swap(b); }
 
 	private:
-		void parse(reader_base *reader)
+		void parse(auto *reader)
 		{
 			parser_spec12 parser{*this, reader};
 			parser.parse_entry();
@@ -490,7 +496,7 @@ namespace sek::serialization::ubj
 		}
 	};
 
-	typedef basic_input_archive<highp_error, char> input_archive;
+	typedef basic_input_archive<highp_error> input_archive;
 
 	static_assert(serialization::input_archive<input_archive::archive_frame, bool>);
 	static_assert(serialization::input_archive<input_archive::archive_frame, char>);
@@ -504,11 +510,15 @@ namespace sek::serialization::ubj
 	static_assert(serialization::input_archive<input_archive::archive_frame, std::string>);
 	static_assert(serialization::container_like_archive<input_archive::archive_frame>);
 
-	/** @details Archive used to write UBJson data. */
-	template<config_flags Config, typename CharType = char>
-	class basic_output_archive : detail::json_archive_base<CharType>
+	/** @details Archive used to write UBJson data.
+	 *
+	 * The archive itself does not do any serialization, instead serialization is done by archive frames,
+	 * which represent a Json object or array. These frames are then passed to serialization functions
+	 * of serializable types. */
+	template<config_flags Config>
+	class basic_output_archive : detail::base_archive
 	{
-		using base_t = detail::json_archive_base<CharType>;
+		using base_t = detail::base_archive;
 		using entry_type = typename base_t::entry_type;
 
 	public:
@@ -535,8 +545,8 @@ namespace sek::serialization::ubj
 			{
 				writer_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
 				{
-					auto emitter = static_cast<file_writer_t *>(ptr);
-					return fwrite(src, 1, n, emitter->file);
+					auto writer = static_cast<file_writer_t *>(ptr);
+					return fwrite(src, 1, n, writer->file);
 				};
 			}
 
@@ -549,10 +559,10 @@ namespace sek::serialization::ubj
 			{
 				writer_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
 				{
-					auto emitter = static_cast<buffer_writer_t *>(ptr);
-					if (emitter->curr + n > emitter->end) [[unlikely]]
-						n = emitter->end - emitter->curr;
-					emitter->curr = std::copy_n(static_cast<const std::byte *>(src), n, emitter->curr);
+					auto writer = static_cast<buffer_writer_t *>(ptr);
+					if (writer->curr + n > writer->end) [[unlikely]]
+						n = writer->end - writer->curr;
+					writer->curr = std::copy_n(static_cast<const std::byte *>(src), n, writer->curr);
 					return n;
 				};
 			}
@@ -566,9 +576,9 @@ namespace sek::serialization::ubj
 			{
 				writer_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
 				{
-					auto emitter = static_cast<streambuf_writer_t *>(ptr);
+					auto writer = static_cast<streambuf_writer_t *>(ptr);
 					auto data = static_cast<const std::streambuf::char_type *>(src);
-					return static_cast<std::size_t>(emitter->buff->sputn(data, static_cast<std::streamsize>(n)));
+					return static_cast<std::size_t>(writer->buff->sputn(data, static_cast<std::streamsize>(n)));
 				};
 			}
 
@@ -610,7 +620,7 @@ namespace sek::serialization::ubj
 					case entry_type::STRING: return detail::token_t::STRING;
 					case entry_type::ARRAY: return detail::token_t::ARRAY_START;
 					case entry_type::OBJECT: return detail::token_t::OBJECT_START;
-					default: return detail::token_t::INVALID;
+					default: [[unlikely]] return detail::token_t::INVALID;
 				}
 			}
 
@@ -665,10 +675,10 @@ namespace sek::serialization::ubj
 						break;
 				}
 			}
-			void emit_string(const CharType *str, std::size_t size)
+			void emit_string(const char *str, std::size_t size)
 			{
 				emit_length(size);
-				writer->write_guarded(str, size * sizeof(CharType));
+				writer->write_guarded(str, size * sizeof(char));
 			}
 			void emit_container(std::size_t size, entry_type value_type)
 			{
@@ -690,7 +700,7 @@ namespace sek::serialization::ubj
 			void on_null() { emit_type(detail::token_t::NULL_ENTRY); }
 			void on_true() { emit_type(detail::token_t::BOOL_TRUE); }
 			void on_false() { emit_type(detail::token_t::BOOL_FALSE); }
-			void on_char(CharType value)
+			void on_char(char value)
 			{
 				emit_type(detail::token_t::CHAR);
 				emit_literal(value);
@@ -731,7 +741,7 @@ namespace sek::serialization::ubj
 						emit_type(detail::token_t::INT64);
 						emit_literal(static_cast<std::int64_t>(value));
 						break;
-					default: break;
+					default: [[unlikely]] SEK_NEVER_REACHED;
 				}
 			}
 
@@ -746,7 +756,7 @@ namespace sek::serialization::ubj
 				emit_literal(value);
 			}
 
-			void on_string(const CharType *str, std::size_t size)
+			void on_string(const char_type *str, std::size_t size)
 			{
 				emit_type(detail::token_t::STRING);
 				emit_string(str, size);
@@ -769,7 +779,7 @@ namespace sek::serialization::ubj
 				emit_type(detail::token_t::OBJECT_START);
 				emit_container(size, value_type);
 			}
-			void on_object_key(const CharType *str, std::size_t size) { emit_string(str, size); }
+			void on_object_key(const char_type *str, std::size_t size) { emit_string(str, size); }
 			void on_object_end()
 			{
 				// clang-format off
@@ -778,8 +788,8 @@ namespace sek::serialization::ubj
 				// clang-format on
 			}
 
-			frame_t enter_frame() { return frame; }
-			void exit_frame(frame_t old) { frame = old; }
+			constexpr frame_t enter_frame() { return frame; }
+			constexpr void exit_frame(frame_t old) { frame = old; }
 
 			frame_t frame = {emit_dynamic_type};
 			writer_base *writer;
@@ -790,10 +800,15 @@ namespace sek::serialization::ubj
 		basic_output_archive(const basic_output_archive &) = delete;
 		basic_output_archive &operator=(const basic_output_archive &) = delete;
 
-		constexpr basic_output_archive(basic_output_archive &&other) noexcept { swap(other); }
+		constexpr basic_output_archive(basic_output_archive &&other) noexcept
+			: base_t(std::forward<basic_input_archive>(other))
+		{
+			writer_padding = other.writer_padding;
+		}
 		constexpr basic_output_archive &operator=(basic_output_archive &&other) noexcept
 		{
-			swap(other);
+			base_t::operator=(std::forward<basic_input_archive>(other));
+			std::swap(writer_padding, other.writer_padding);
 			return *this;
 		}
 
@@ -841,7 +856,7 @@ namespace sek::serialization::ubj
 
 		~basic_output_archive() { flush_impl(); }
 
-		/** Serialized the forwarded value to UBJson. Flushes previous uncommitted state.
+		/** Serializes the forwarded value to UBJson. Flushes previous uncommitted state.
 		 * @param value Value to serialize as UBJson.
 		 * @return Reference to this archive.
 		 * @note Serialized data is kept inside the archive's internal state and will be written to the output once the
@@ -891,10 +906,9 @@ namespace sek::serialization::ubj
 			buffer_writer_t buffer_writer;
 			streambuf_writer_t streambuf_writer;
 		};
-		bool need_flush = false;
 	};
 
-	typedef basic_output_archive<fixed_type, char> output_archive;
+	typedef basic_output_archive<fixed_type> output_archive;
 
 	static_assert(serialization::output_archive<output_archive, std::nullptr_t>);
 	static_assert(serialization::output_archive<output_archive, bool>);

@@ -15,23 +15,12 @@ namespace sek::serialization
 	namespace detail
 	{
 		// clang-format off
-		template<typename T, std::size_t N>
-		concept has_tuple_element = requires(T t)
-		{
-			typename std::tuple_element_t<N, std::remove_const_t<T>>;
-			{ get<N>(t) } -> std::convertible_to<const std::tuple_element_t<N, T> &>;
-		};
-		template<typename T, std::size_t... Is>
-		constexpr auto has_tuple_elements(std::index_sequence<Is...>)
-		{
-			return (has_tuple_element<T, Is> && ...);
-		}
 		template<typename T>
 		concept tuple_like = !std::is_reference_v<T> && requires(T t)
 		{
 			typename std::tuple_size<T>::type;
 			std::derived_from<std::tuple_size<T>, std::integral_constant<std::size_t, std::tuple_size_v<T>>>;
-		} && has_tuple_elements<T>(std::make_index_sequence<std::tuple_size_v<T>>());
+		};
 		template<typename T>
 		concept pair_like = requires(T &p)
 		{

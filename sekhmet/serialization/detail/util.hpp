@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <bit>
+
 #include "archive_traits.hpp"
 #include "types/ranges.hpp"
 #include "types/tuples.hpp"
