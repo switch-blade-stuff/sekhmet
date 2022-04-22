@@ -91,10 +91,11 @@ TEST(serialization_tests, json_test)
 		archive.flush();
 		json_string = ss.str();
 	}
+	json_string = "// Test comment\n" + json_string;
 	serializable_t deserialized = {};
 	{
 		json::input_archive archive{json_string.data(), json_string.size()};
-		archive >> deserialized;
+		EXPECT_TRUE(archive.try_read(deserialized));
 	}
 	EXPECT_EQ(data, deserialized);
 }
@@ -117,7 +118,7 @@ TEST(serialization_tests, ubjson_test)
 	serializable_t deserialized = {};
 	{
 		ubj::input_archive archive{ubj_string.data(), ubj_string.size()};
-		archive >> deserialized;
+		EXPECT_TRUE(archive.try_read(deserialized));
 	}
 	EXPECT_EQ(data, deserialized);
 }

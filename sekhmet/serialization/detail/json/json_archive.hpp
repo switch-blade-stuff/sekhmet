@@ -41,12 +41,23 @@ namespace sek::serialization::json
 		};
 	}	 // namespace detail
 
+	typedef int config_flags;
+	constexpr config_flags no_flags = 0;
+
+	/** Enables parsing single & multi-line comments in Json input. Enabled by default. */
+	constexpr config_flags allow_comments = 1;
+	/** Enables parsing trailing commas in Json input. */
+	constexpr config_flags trailing_commas = 2;
+
 	/** @details Archive used to read Json data. Internally uses the RapidJSON library.
 	 *
 	 * The archive itself does not do any deserialization, instead deserialization is done by special archive frames,
 	 * which represent a Json object or array. These frames are then passed to deserialization functions
-	 * of serializable types. */
-	class input_archive : detail::base_archive
+	 * of serializable types.
+	 *
+	 * @tparam Config Configuration flags used for the archive. */
+	template<config_flags Config>
+	class basic_input_archive : detail::base_archive
 	{
 		using base_t = detail::base_archive;
 
@@ -182,48 +193,50 @@ namespace sek::serialization::json
 		};
 
 	public:
-		input_archive() = delete;
-		input_archive(const input_archive &) = delete;
-		input_archive &operator=(const input_archive &) = delete;
+		basic_input_archive() = delete;
+		basic_input_archive(const basic_input_archive &) = delete;
+		basic_input_archive &operator=(const basic_input_archive &) = delete;
 
-		constexpr input_archive(input_archive &&) noexcept = default;
-		constexpr input_archive &operator=(input_archive &&other) noexcept
+		constexpr basic_input_archive(basic_input_archive &&) noexcept = default;
+		constexpr basic_input_archive &operator=(basic_input_archive &&other) noexcept
 		{
-			base_t::operator=(std::forward<input_archive>(other));
+			base_t::operator=(std::forward<basic_input_archive>(other));
 			return *this;
 		}
 
 		/** Reads Json from a character buffer.
 		 * @param buff Pointer to the character buffer containing Json data.
 		 * @param len Size of the character buffer. */
-		input_archive(const char_type *buff, std::size_t len)
-			: input_archive(buff, len, std::pmr::get_default_resource())
+		basic_input_archive(const char_type *buff, std::size_t len)
+			: basic_input_archive(buff, len, std::pmr::get_default_resource())
 		{
 		}
-		/** @copydoc input_archive
+		/** @copydoc basic_input_archive
 		 * @param res PMR memory resource used for internal allocation. */
-		input_archive(const char_type *buff, std::size_t len, std::pmr::memory_resource *res) : base_t(res)
+		basic_input_archive(const char_type *buff, std::size_t len, std::pmr::memory_resource *res) : base_t(res)
 		{
 			parse(buff, len);
 		}
 		/** Reads Json from a file.
 		 * @param file Pointer to the Json file. */
-		explicit input_archive(FILE *file) : input_archive(file, std::pmr::get_default_resource()) {}
-		/** @copydoc input_archive
+		explicit basic_input_archive(FILE *file) : basic_input_archive(file, std::pmr::get_default_resource()) {}
+		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		input_archive(FILE *file, std::pmr::memory_resource *res) : base_t(res) { parse(file); }
+		basic_input_archive(FILE *file, std::pmr::memory_resource *res) : base_t(res) { parse(file); }
 		/** Reads Json from a stream buffer.
 		 * @param buff Pointer to the stream buffer. */
-		explicit input_archive(std::streambuf *buff) : input_archive(buff, std::pmr::get_default_resource()) {}
-		/** @copydoc input_archive
+		explicit basic_input_archive(std::streambuf *buff) : basic_input_archive(buff, std::pmr::get_default_resource())
+		{
+		}
+		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		input_archive(std::streambuf *buff, std::pmr::memory_resource *res) : base_t(res) { parse(buff); }
+		basic_input_archive(std::streambuf *buff, std::pmr::memory_resource *res) : base_t(res) { parse(buff); }
 		/** Reads Json from an input stream.
 		 * @param is Reference to the input stream. */
-		explicit input_archive(std::istream &is) : input_archive(is.rdbuf()) {}
-		/** @copydoc input_archive
+		explicit basic_input_archive(std::istream &is) : basic_input_archive(is.rdbuf()) {}
+		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		input_archive(std::istream &is, std::pmr::memory_resource *res) : input_archive(is.rdbuf(), res) {}
+		basic_input_archive(std::istream &is, std::pmr::memory_resource *res) : basic_input_archive(is.rdbuf(), res) {}
 
 		/** Attempts to deserialize the top-level Json entry of the archive.
 		 * @param value Value to deserialize from the Json entry.
@@ -238,14 +251,14 @@ namespace sek::serialization::json
 		 * @return Reference to this archive.
 		 * @throw archive_error On deserialization errors. */
 		template<typename T>
-		input_archive &read(T &&value)
+		basic_input_archive &read(T &&value)
 		{
 			base_t::do_read(std::forward<T>(value));
 			return *this;
 		}
 		/** @copydoc read */
 		template<typename T>
-		input_archive &operator>>(T &&value)
+		basic_input_archive &operator>>(T &&value)
 		{
 			return read(std::forward<T>(value));
 		}
@@ -260,8 +273,8 @@ namespace sek::serialization::json
 			return result;
 		}
 
-		constexpr void swap(input_archive &other) noexcept { base_t::swap(other); }
-		friend constexpr void swap(input_archive &a, input_archive &b) noexcept { a.swap(b); }
+		constexpr void swap(basic_input_archive &other) noexcept { base_t::swap(other); }
+		friend constexpr void swap(basic_input_archive &a, basic_input_archive &b) noexcept { a.swap(b); }
 
 	private:
 		void parse(auto &reader)
@@ -270,7 +283,10 @@ namespace sek::serialization::json
 			detail::rj_allocator allocator{base_t::upstream};
 			rj_parser parser{&allocator};
 
-			if (!parser.Parse(reader, handler)) [[unlikely]]
+			constexpr unsigned parse_flags =
+				((Config & allow_comments) == allow_comments ? rapidjson::kParseCommentsFlag : 0) |
+				((Config & trailing_commas) == trailing_commas ? rapidjson::kParseTrailingCommasFlag : 0);
+			if (!parser.Parse<parse_flags>(reader, handler)) [[unlikely]]
 			{
 				std::string error_msg = "Json parser error at ";
 				error_msg.append(std::to_string(parser.GetErrorOffset()));
@@ -294,6 +310,8 @@ namespace sek::serialization::json
 		}
 	};
 
+	typedef basic_input_archive<allow_comments> input_archive;
+
 	static_assert(serialization::input_archive<input_archive::archive_frame, bool>);
 	static_assert(serialization::input_archive<input_archive::archive_frame, char>);
 	static_assert(serialization::input_archive<input_archive::archive_frame, std::uint8_t>);
@@ -306,15 +324,12 @@ namespace sek::serialization::json
 	static_assert(serialization::input_archive<input_archive::archive_frame, std::string>);
 	static_assert(serialization::container_like_archive<input_archive::archive_frame>);
 
-	typedef int config_flags;
-
-	/** Enables pretty-printing for Json output. */
-	constexpr config_flags pretty_print = 1;
-	/** If pretty printing is enabled, writes arrays on a single line. */
-	constexpr config_flags inline_arrays = 2;
-	/** Enables extended floating-point values (NaN, inf). */
-	constexpr config_flags extended_fp = 4;
-	constexpr config_flags no_flags = 0;
+	/** Enables pretty-printing of Json output. Enabled by default. */
+	constexpr config_flags pretty_print = 4;
+	/** If pretty printing is enabled, writes arrays on a single line. Enabled by default. */
+	constexpr config_flags inline_arrays = 8;
+	/** Enables non-standard floating-point values (NaN, inf). */
+	constexpr config_flags extended_fp = 16;
 
 	/** @details Archive used to write Json data. Internally uses the RapidJSON library.
 	 *
@@ -618,7 +633,7 @@ namespace sek::serialization::json
 		};
 	};
 
-	typedef basic_output_archive<pretty_print | inline_arrays | extended_fp> output_archive;
+	typedef basic_output_archive<pretty_print | inline_arrays> output_archive;
 
 	static_assert(serialization::output_archive<output_archive, std::nullptr_t>);
 	static_assert(serialization::output_archive<output_archive, bool>);

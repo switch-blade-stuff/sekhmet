@@ -65,6 +65,7 @@ namespace sek::serialization::ubj
 	constexpr static config_flags highp_as_string = 4;
 	/** Skip high-precision numbers (not recommended). */
 	constexpr static config_flags highp_skip = 8;
+	constexpr config_flags no_flags = 0;
 
 	/** @details Archive used to read UBJson data.
 	 *
