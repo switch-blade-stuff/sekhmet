@@ -1,3 +1,7 @@
+### Tools
+
+* lefticus json2cpp - Constexpr json resource building. Baking serialized Json configuration into the built binary.
+
 ### Component serialization
 
 While the ECS system does not require components to be explicitly declared, in order to be able to serialize

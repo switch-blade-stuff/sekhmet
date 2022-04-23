@@ -120,10 +120,10 @@ namespace sek::serialization::detail
 			entry_t &operator=(entry_t &&) = delete;
 
 			/** Reads a null value from the entry. Returns `true` if the entry contains a null value, `false` otherwise. */
-			bool try_read(std::nullptr_t) const noexcept { return type == NULL_VALUE; }
+			constexpr bool try_read(std::nullptr_t) const noexcept { return type == NULL_VALUE; }
 			/** Reads a null value from the entry.
 			 * @throw archive_error If the entry does not contain a null value. */
-			const entry_t &read(std::nullptr_t) const
+			constexpr const entry_t &read(std::nullptr_t) const
 			{
 				if (!try_read(nullptr)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected null");
@@ -131,7 +131,7 @@ namespace sek::serialization::detail
 			}
 
 			/** Reads a bool from the entry. Returns `true` if the entry contains a bool, `false` otherwise. */
-			bool try_read(bool &b) const noexcept
+			constexpr bool try_read(bool &b) const noexcept
 			{
 				if (type & BOOL) [[likely]]
 				{
@@ -143,7 +143,7 @@ namespace sek::serialization::detail
 			}
 			/** Reads a bool from the entry.
 			 * @throw archive_error If the entry does not contain a bool. */
-			const entry_t &read(bool &b) const
+			constexpr const entry_t &read(bool &b) const
 			{
 				if (!try_read(b)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected bool");
@@ -151,7 +151,7 @@ namespace sek::serialization::detail
 			}
 
 			/** Reads a character from the entry. Returns `true` if the entry contains a character, `false` otherwise. */
-			bool try_read(CharType &c) const noexcept requires EnableCharValue
+			constexpr bool try_read(CharType &c) const noexcept requires EnableCharValue
 			{
 				if (type == CHAR) [[likely]]
 				{
@@ -163,7 +163,7 @@ namespace sek::serialization::detail
 			}
 			/** Reads a character from the entry.
 			 * @throw archive_error If the entry does not contain a character. */
-			const entry_t &read(CharType &c) const requires EnableCharValue
+			constexpr const entry_t &read(CharType &c) const requires EnableCharValue
 			{
 				if (!try_read(c)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected char");
@@ -172,7 +172,7 @@ namespace sek::serialization::detail
 
 			/** Reads a number from the entry. Returns `true` if the entry contains a number, `false` otherwise. */
 			template<typename I>
-			bool try_read(I &value) const noexcept requires(std::integral<I> || std::floating_point<I>)
+			constexpr bool try_read(I &value) const noexcept requires(std::integral<I> || std::floating_point<I>)
 			{
 				if (type & INT_MASK)
 				{
@@ -193,7 +193,7 @@ namespace sek::serialization::detail
 			/** Reads a number from the entry.
 			 * @throw archive_error If the entry does not contain a number. */
 			template<typename I>
-			const entry_t &read(I &value) const requires(std::integral<I> || std::floating_point<I>)
+			constexpr const entry_t &read(I &value) const requires(std::integral<I> || std::floating_point<I>)
 			{
 				if (!try_read(value)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected number");
@@ -203,7 +203,7 @@ namespace sek::serialization::detail
 			/** Reads a string from the entry.
 			 * @param value STL string to assign the string value to.
 			 * @copydoc `true` if the entry contains a string, `false` otherwise. */
-			bool try_read(std::basic_string<CharType> &value) const
+			constexpr bool try_read(std::basic_string<CharType> &value) const
 			{
 				if (type == STRING) [[likely]]
 				{
@@ -216,7 +216,7 @@ namespace sek::serialization::detail
 			/** Reads a string from the entry.
 			 * @param value STL string view to assign the string value to.
 			 * @copydoc `true` if the entry contains a string, `false` otherwise. */
-			bool try_read(std::basic_string_view<CharType> &value) const noexcept
+			constexpr bool try_read(std::basic_string_view<CharType> &value) const noexcept
 			{
 				if (type == STRING) [[likely]]
 				{
@@ -230,7 +230,7 @@ namespace sek::serialization::detail
 			 * @param value Output iterator used to write the string value to.
 			 * @copydoc `true` if the entry contains a string, `false` otherwise. */
 			template<std::output_iterator<CharType> I>
-			bool try_read(I &value) const
+			constexpr bool try_read(I &value) const
 			{
 				if (type == STRING) [[likely]]
 				{
@@ -245,7 +245,7 @@ namespace sek::serialization::detail
 			 * @param sent Sentinel for the output iterator.
 			 * @copydoc `true` if the entry contains a string, `false` otherwise. */
 			template<std::output_iterator<CharType> I, std::sentinel_for<I> S>
-			bool try_read(I &value, S &sent) const
+			constexpr bool try_read(I &value, S &sent) const
 			{
 				if (type == STRING) [[likely]]
 				{
@@ -260,7 +260,7 @@ namespace sek::serialization::detail
 			 * @param value STL string to assign the string value to.
 			 * @return Reference to this entry.
 			 * @throw archive_error If the entry does not contain a string. */
-			const entry_t &read(std::basic_string<CharType> &value) const
+			constexpr const entry_t &read(std::basic_string<CharType> &value) const
 			{
 				if (!try_read(value)) [[unlikely]]
 					throw_string_error();
@@ -270,7 +270,7 @@ namespace sek::serialization::detail
 			 * @param value STL string view to assign the string value to.
 			 * @return Reference to this entry.
 			 * @throw archive_error If the entry does not contain a string. */
-			const entry_t &read(std::basic_string_view<CharType> &value) const
+			constexpr const entry_t &read(std::basic_string_view<CharType> &value) const
 			{
 				if (!try_read(value)) [[unlikely]]
 					throw_string_error();
@@ -281,7 +281,7 @@ namespace sek::serialization::detail
 			 * @return Reference to this entry.
 			 * @throw archive_error If the entry does not contain a string. */
 			template<std::output_iterator<CharType> I>
-			const entry_t &read(I &value) const
+			constexpr const entry_t &read(I &value) const
 			{
 				if (!try_read(value)) [[unlikely]]
 					throw_string_error();
@@ -293,7 +293,7 @@ namespace sek::serialization::detail
 			 * @return Reference to this entry.
 			 * @throw archive_error If the entry does not contain a string. */
 			template<std::output_iterator<CharType> I, std::sentinel_for<I> S>
-			const entry_t &read(I &value, S &sent) const
+			constexpr const entry_t &read(I &value, S &sent) const
 			{
 				if (!try_read(value, sent)) [[unlikely]]
 					throw_string_error();
@@ -305,10 +305,10 @@ namespace sek::serialization::detail
 			 * @return Reference to this entry.
 			 * @throw archive_error If the entry does not contain an object or array. */
 			template<typename T>
-			const entry_t &read(T &&value) const;
+			constexpr const entry_t &read(T &&value) const;
 			/** @copydoc read */
 			template<typename T>
-			const entry_t &operator>>(T &&value) const
+			constexpr const entry_t &operator>>(T &&value) const
 			{
 				return read(std::forward<T>(value));
 			}
@@ -316,7 +316,7 @@ namespace sek::serialization::detail
 			 * @param value Forwarded value to be read from the entry.
 			 * @return `true` if read successfully, `false` otherwise. */
 			template<typename T>
-			bool try_read(T &&value) const
+			constexpr bool try_read(T &&value) const
 			{
 				try
 				{
@@ -331,7 +331,7 @@ namespace sek::serialization::detail
 
 			/** Reads a default-initialized instance of `T` from the entry. */
 			template<std::default_initializable T>
-			T read() const
+			constexpr T read() const
 			{
 				T result;
 				read(result);
@@ -339,7 +339,7 @@ namespace sek::serialization::detail
 			}
 
 		private:
-			void emit(auto &emitter) const
+			constexpr void emit(auto &emitter) const
 			{
 				switch (type)
 				{
@@ -796,6 +796,25 @@ namespace sek::serialization::detail
 			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
 			/** Returns reference to the entry at `n` offset from the iterator. */
 			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return get()[n]; }
+
+			/** Returns the name of the associated entry.
+			 * If the pointed-to entry is not a named entry (object member) returns an empty string view. */
+			[[nodiscard]] constexpr std::basic_string_view<CharType> name(std::nothrow_t) const noexcept
+			{
+				if (type != OBJECT) [[unlikely]]
+					return {};
+				else
+					return object_data->key;
+			}
+			/** Returns the name of the associated entry.
+			 * @throw archive_error If the pointed-to entry is not a named entry (object member). */
+			[[nodiscard]] constexpr std::basic_string_view<CharType> name() const
+			{
+				if (type != OBJECT) [[unlikely]]
+					throw archive_error("Entry iterator does not point to a named entry");
+				else
+					return object_data->key;
+			}
 
 			[[nodiscard]] friend constexpr difference_type operator-(entry_iterator a, entry_iterator b) noexcept
 			{
@@ -1449,7 +1468,7 @@ namespace sek::serialization::detail
 
 	template<typename C, bool Ct, bool Cv>
 	template<typename T>
-	const typename json_archive_base<C, Ct, Cv>::entry_t &json_archive_base<C, Ct, Cv>::entry_t::read(T &&value) const
+	constexpr const typename json_archive_base<C, Ct, Cv>::entry_t &json_archive_base<C, Ct, Cv>::entry_t::read(T &&value) const
 	{
 		if (!(type & CONTAINER)) [[unlikely]]
 			throw archive_error("Invalid Json type, expected array or object");
