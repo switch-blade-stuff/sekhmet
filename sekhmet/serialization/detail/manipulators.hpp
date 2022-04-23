@@ -14,29 +14,29 @@ namespace sek::serialization
 		constexpr static bool noexcept_fwd = noexcept(T(std::forward<T>(std::declval<T &&>())));
 	}
 
-	/** @brief Archive manipulator used to read or write an entry with explicit name. */
+	/** @brief Archive manipulator used to read or write an entry with explicit key. */
 	template<typename C, typename T>
-	struct named_entry_t
+	struct keyed_entry_t
 	{
-		std::basic_string_view<C> name;
+		std::basic_string_view<C> key;
 		T value;
 	};
-	/** Reads or writes an entry with an explicit name.
-	 * @param name Name of the entry.
+	/** Reads or writes an entry with an explicit key.
+	 * @param key Name of the entry.
 	 * @param value Value to be read or written, forwarded by the manipulator.
 	 * @note If the current entry (entry of the object being deserialized) is an array entry,
-	 * specifying an explicit entry name will have no effect.
+	 * specifying an explicit entry key will have no effect.
 	 * @note Names consisting of an underscore followed by decimal digits (`_[0-9]+`) are reserved. */
 	template<typename C, typename T>
-	constexpr named_entry_t<C, T> named_entry(std::basic_string_view<C> name, T &&value) noexcept(detail::noexcept_fwd<T>)
+	constexpr keyed_entry_t<C, T> keyed_entry(std::basic_string_view<C> key, T &&value) noexcept(detail::noexcept_fwd<T>)
 	{
-		return named_entry_t<C, T>{name, std::forward<T>(value)};
+		return keyed_entry_t<C, T>{key, std::forward<T>(value)};
 	}
-	/** @copydoc named_entry */
+	/** @copydoc keyed_entry */
 	template<typename C, typename T>
-	constexpr named_entry_t<C, T> named_entry(const C *name, T &&value) noexcept(detail::noexcept_fwd<T>)
+	constexpr keyed_entry_t<C, T> keyed_entry(const C *key, T &&value) noexcept(detail::noexcept_fwd<T>)
 	{
-		return named_entry_t<C, T>{name, std::forward<T>(value)};
+		return keyed_entry_t<C, T>{key, std::forward<T>(value)};
 	}
 
 	/** @brief Archive manipulator used read or write size of the current container.
@@ -60,7 +60,7 @@ namespace sek::serialization
 	 * By default archives serialize types as table-like entries.
 	 * This manipulator is used to switch an archive to array output mode.
 	 *
-	 * @note Entries written to an array will not be accessible via a name.
+	 * @note Entries written to an array will not be accessible via a key.
 	 * @warning Switching an archive to array output mode after multiple entries have already been
 	 * written or after the container size was specified, leads to undefined behavior. */
 	struct array_mode_t

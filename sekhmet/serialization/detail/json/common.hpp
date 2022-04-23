@@ -797,21 +797,21 @@ namespace sek::serialization::detail
 			/** Returns reference to the entry at `n` offset from the iterator. */
 			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return get()[n]; }
 
-			/** Returns the name of the associated entry.
-			 * If the pointed-to entry is not a named entry (object member) returns an empty string view. */
-			[[nodiscard]] constexpr std::basic_string_view<CharType> name(std::nothrow_t) const noexcept
+			/** Returns the key of the associated entry.
+			 * If the pointed-to entry is not a keyed entry (object member) returns an empty string view. */
+			[[nodiscard]] constexpr std::basic_string_view<CharType> key(std::nothrow_t) const noexcept
 			{
 				if (type != OBJECT) [[unlikely]]
 					return {};
 				else
 					return object_data->key;
 			}
-			/** Returns the name of the associated entry.
-			 * @throw archive_error If the pointed-to entry is not a named entry (object member). */
-			[[nodiscard]] constexpr std::basic_string_view<CharType> name() const
+			/** Returns the key of the associated entry.
+			 * @throw archive_error If the pointed-to entry is not a keyed entry (object member). */
+			[[nodiscard]] constexpr std::basic_string_view<CharType> key() const
 			{
 				if (type != OBJECT) [[unlikely]]
-					throw archive_error("Entry iterator does not point to a named entry");
+					throw archive_error("Entry iterator does not point to a keyed entry");
 				else
 					return object_data->key;
 			}
@@ -1007,33 +1007,33 @@ namespace sek::serialization::detail
 				return result;
 			}
 
-			/** Deserializes the next Json entry using the named entry hint.
-			 * @param value Named entry containing the entry name hint & forwarded entry value.
+			/** Deserializes the next Json entry using the keyed entry hint.
+			 * @param value Named entry containing the entry key hint & forwarded entry value.
 			 * @return `true` if deserialization was successful, `false` otherwise. */
 			template<typename T>
-			bool try_read(named_entry_t<CharType, T> value)
+			bool try_read(keyed_entry_t<CharType, T> value)
 			{
 				if (type == OBJECT) [[likely]]
 				{
-					if (seek_entry(value.name)) [[likely]]
+					if (seek_entry(value.key)) [[likely]]
 						return try_read(std::forward<T>(value.value));
 				}
 				return false;
 			}
-			/** Deserializes the next Json entry using the named entry hint.
-			 * @param value Named entry containing the entry name hint & forwarded entry value.
+			/** Deserializes the next Json entry using the keyed entry hint.
+			 * @param value Named entry containing the entry key hint & forwarded entry value.
 			 * @return Reference to this frame.
 			 * @throw archive_exception On deserialization errors. */
 			template<typename T>
-			read_frame &read(named_entry_t<CharType, T> value)
+			read_frame &read(keyed_entry_t<CharType, T> value)
 			{
 				if (type == ARRAY) [[unlikely]]
 					throw archive_error("Named entry modifier cannot be applied to an array entry");
 
-				if (!seek_entry(value.name)) [[unlikely]]
+				if (!seek_entry(value.key)) [[unlikely]]
 				{
 					std::string err{"Invalid Json object member \""};
-					err.append(value.name);
+					err.append(value.key);
 					err.append(1, '\"');
 					throw std::out_of_range(err);
 				}
@@ -1043,7 +1043,7 @@ namespace sek::serialization::detail
 			}
 			/** @copydoc read */
 			template<typename T>
-			read_frame &operator>>(named_entry_t<CharType, T> value)
+			read_frame &operator>>(keyed_entry_t<CharType, T> value)
 			{
 				return read(value);
 			}
@@ -1349,10 +1349,10 @@ namespace sek::serialization::detail
 				write_value(std::forward<T>(value));
 			}
 			template<typename T>
-			void write_impl(named_entry_t<CharType, T> value)
+			void write_impl(keyed_entry_t<CharType, T> value)
 			{
 				if (current.type != ARRAY) [[likely]]
-					next_key = generate_key<CharType>(parent.string_pool, value.name);
+					next_key = generate_key<CharType>(parent.string_pool, value.key);
 				write_value(std::forward<T>(value.value));
 			}
 			template<typename T>

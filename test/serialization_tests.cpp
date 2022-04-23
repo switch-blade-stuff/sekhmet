@@ -36,20 +36,20 @@ namespace
 	{
 		void serialize(auto &archive) const
 		{
-			archive << ser::named_entry("m", m);
-			archive << ser::named_entry("n", nullptr);
-			archive << ser::named_entry("s", s);
-			archive << ser::named_entry("i", i);
-			archive << ser::named_entry("b", b);
+			archive << ser::keyed_entry("m", m);
+			archive << ser::keyed_entry("n", nullptr);
+			archive << ser::keyed_entry("s", s);
+			archive << ser::keyed_entry("i", i);
+			archive << ser::keyed_entry("b", b);
 			archive << v << p << a;
 		}
 		void deserialize(auto &archive)
 		{
-			archive >> ser::named_entry("n", nullptr);
-			archive >> ser::named_entry("s", s);
-			archive >> ser::named_entry("i", i);
-			archive >> ser::named_entry("m", m);
-			archive >> ser::named_entry("b", b);
+			archive >> ser::keyed_entry("n", nullptr);
+			archive >> ser::keyed_entry("s", s);
+			archive >> ser::keyed_entry("i", i);
+			archive >> ser::keyed_entry("m", m);
+			archive >> ser::keyed_entry("b", b);
 			archive >> v >> p;
 			archive >> a;
 		}
