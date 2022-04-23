@@ -33,6 +33,9 @@ Archives may implement container functionality themselves, or through some kind-
 Note that entry iterators are not required to preserve the actual order of entries and should not be relied upon for
 ordered entry access. It is, however, guaranteed that entries can be read in the same order as they were written.
 
+If a container-like archive supports named entries, entry iterators should provide an ability to get names of the
+pointed-to entries.
+
 Input archives implementing container functionality must implement the `Container` standard named requirement
 with `value_type` being the implementation-defined entry type.
 
