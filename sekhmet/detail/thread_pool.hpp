@@ -28,8 +28,33 @@ namespace sek
 		constexpr static queue_mode filo = 1;
 
 	private:
-		/* Simple type-erased functor to avoid including the entire "functional" header. */
-		struct task_base
+		struct task_node
+		{
+			constexpr void link_after(task_node &prev) noexcept
+			{
+				previous = &prev;
+				next = prev.next;
+				prev.next = this;
+			}
+			constexpr task_node &unlink() noexcept
+			{
+				if (next) next->previous = previous;
+				if (previous) previous->next = next;
+				return *this;
+			}
+
+			union
+			{
+				task_node *front = nullptr;
+				task_node *next;
+			};
+			union
+			{
+				task_node *back = nullptr;
+				task_node *previous;
+			};
+		};
+		struct task_base : task_node
 		{
 			constexpr task_base &invoke() noexcept
 			{
@@ -50,12 +75,10 @@ namespace sek
 		template<typename T, typename F>
 		struct task_t : task_base
 		{
-			constexpr static bool in_place = sizeof(F) < sizeof(void *) && alignof(F) < alignof(void *) &&
-											 std::is_trivially_copyable_v<F>;
+			constexpr static bool in_place = sizeof(F) < sizeof(void *) && std::is_trivially_copyable_v<F>;
 
-			task_t(std::pmr::unsynchronized_pool_resource *pool,
-				   std::promise<T> promise,
-				   F &&f) requires std::convertible_to<std::invoke_result_t<F>, T> : promise(std::move(promise))
+			task_t(std::pmr::unsynchronized_pool_resource *pool, std::promise<T> promise, F &&f)
+				: promise(std::move(promise))
 			{
 				if constexpr (in_place)
 				{
@@ -120,6 +143,7 @@ namespace sek
 			std::promise<T> promise;
 		};
 
+		/* Custom worker instead of std::jthread since jthread joins on destruction, and we need to detach. */
 		struct worker
 		{
 			static void thread_main(std::stop_token, thread_pool *) noexcept;
@@ -140,26 +164,24 @@ namespace sek
 			std::thread thread;
 		};
 
-		constexpr static auto max_pool_block = sizeof(void *) * 8; /* Max pool block size is 64/32 bytes. */
-
 	public:
 		thread_pool(const thread_pool &) = delete;
 		thread_pool &operator=(const thread_pool &) = delete;
 		thread_pool(thread_pool &&) = delete;
 		thread_pool &operator=(thread_pool &&) = delete;
 
-		/** Initializes thread pool with `std::thread::hardware_concurrency` workers & FILO queue mode. */
-		thread_pool() : thread_pool(0, filo) {}
+		/** Initializes thread pool with `std::thread::hardware_concurrency` workers & FIFO queue mode. */
+		thread_pool() : thread_pool(0, fifo) {}
 		/** Initializes thread pool with n threads & the specified queue mode.
 		 * @param n Amount of worker threads to initialize the pool with. If set to 0 will use `std::thread::hardware_concurrency` workers.
-		 * @param mode Queue mode used for task dispatch. Default is FILO. */
-		explicit thread_pool(std::size_t n, queue_mode mode = filo)
+		 * @param mode Queue mode used for task dispatch. Default is FIFO. */
+		explicit thread_pool(std::size_t n, queue_mode mode = fifo)
 			: thread_pool(std::pmr::get_default_resource(), n, mode)
 		{
 		}
 		/** @copydoc thread_pool
 		 * @param res Memory resource used to allocate internal state. */
-		SEK_API thread_pool(std::pmr::memory_resource *res, std::size_t n, queue_mode mode = filo);
+		SEK_API thread_pool(std::pmr::memory_resource *res, std::size_t n, queue_mode mode = fifo);
 		/** Terminates all worker threads & de-allocates internal state. */
 		SEK_API ~thread_pool();
 
@@ -175,7 +197,6 @@ namespace sek
 
 		/** Schedules a task to be executed by one of the worker threads.
 		 * Tasks are dispatched according to the current queue mode.
-		 *
 		 * @param task Functor to execute on one of the worker threads.
 		 * @return `std::future` used to retrieve task result or exceptions.
 		 * @note Task functor must be invocable with 0 arguments. */
@@ -194,16 +215,14 @@ namespace sek
 			{
 				std::lock_guard<std::mutex> l(mtx);
 
-				if (queue_data + queue_capacity == queue_end) [[unlikely]]
-					expand_queue();
-
 				using task_type = task_t<T, F>;
 				auto task_ptr = static_cast<task_type *>(task_alloc.allocate(sizeof(task_type), alignof(task_type)));
 				if (!task_ptr) [[unlikely]]
 					throw std::bad_alloc();
 
-				std::construct_at(task_ptr, &task_alloc, std::forward<std::promise<T>>(promise), std::forward<F>(task));
-				result = (*queue_end++ = task_ptr)->promise.get_future();
+				std::construct_at(task_ptr, &task_alloc, std::move(promise), std::forward<F>(task));
+				task_ptr->link_after(queue_head);
+				result = task_ptr->promise.get_future();
 			}
 			cv.notify_all();
 			return result;
@@ -220,7 +239,7 @@ namespace sek
 			if (!new_workers) [[unlikely]]
 				throw std::bad_alloc();
 
-			/* Move workers if there are any. */
+			/* Move old workers if there are any. */
 			if (workers_data)
 			{
 				for (auto src = workers_data, end = workers_data + size(), dst = new_workers; src < end; ++src, ++dst)
@@ -236,23 +255,14 @@ namespace sek
 		}
 		void destroy_workers(worker *first, worker *last)
 		{
-			// clang-format off
-			for (auto worker = first; worker != last; ++worker)
-				std::destroy_at(worker);
-			// clang-format on
-
-			/* Notify the CV so that the waiting workers can terminate. */
+			std::destroy(first, last);
 			cv.notify_all();
 		}
 
-		SEK_API void expand_queue();
-
-		task_base &pop_task()
+		task_base &pop_task() noexcept
 		{
-			if (dispatch_mode == fifo)
-				return **queue_begin++;
-			else
-				return **--queue_end;
+			// NOLINTNEXTLINE static cast is fine here since there is no virtual inheritance
+			return static_cast<task_base &>((dispatch_mode == fifo ? queue_head.back : queue_head.front)->unlink());
 		}
 		void delete_task(task_base &task) { task.destroy(&task_alloc); }
 
@@ -265,11 +275,7 @@ namespace sek
 		std::size_t workers_capacity = 0;
 		std::size_t workers_count = 0;
 
-		task_base **queue_data = nullptr;
-		task_base **queue_begin = nullptr;
-		task_base **queue_end = nullptr;
-		std::size_t queue_capacity = 0;
-
+		task_node queue_head = {.front = &queue_head, .back = &queue_head};
 		queue_mode dispatch_mode;
 	};
 }	 // namespace sek

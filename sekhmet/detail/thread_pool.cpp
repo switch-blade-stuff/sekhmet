@@ -15,27 +15,26 @@ namespace sek
 	}
 
 	thread_pool::thread_pool(std::pmr::memory_resource *res, std::size_t n, thread_pool::queue_mode mode)
-		: task_alloc(std::pmr::pool_options{0, max_pool_block}, res), dispatch_mode(mode)
+		: task_alloc(res), dispatch_mode(mode)
 	{
 		adjust_worker_count(n);
 
 		/* Initialize n workers. */
 		realloc_workers(n);
-		for (auto begin = workers_data, end = workers_data + n; begin != end; ++begin) std::construct_at(begin, this);
+		// clang-format off
+		for (auto begin = workers_data, end = workers_data + n; begin != end; ++begin)
+			std::construct_at(begin, this);
+		// clang-format on
 		workers_count = n;
 	}
 	thread_pool::~thread_pool()
 	{
-		auto alloc = allocator();
-
-		// clang-format off
+		/* Destroy & terminate workers, then destroy unfinished tasks. */
 		destroy_workers(workers_data, workers_data + size());
-		for (auto task = queue_begin, end = queue_end; task != end; ++task)
-			delete_task(**task);
-		// clang-format on
+		allocator()->deallocate(workers_data, workers_capacity * sizeof(worker), alignof(worker));
 
-		alloc->deallocate(workers_data, workers_capacity * sizeof(std::jthread), alignof(std::jthread));
-		alloc->deallocate(queue_data, queue_capacity * sizeof(task_base *), alignof(task_base *));
+		for (auto task = queue_head.front, end = queue_head.back; task != end;)
+			delete_task(*static_cast<task_base *>(std::exchange(task, task->next)));	// NOLINT
 	}
 
 	void thread_pool::resize(std::size_t n)
@@ -55,33 +54,6 @@ namespace sek
 		}
 		workers_count = n;
 	}
-	void thread_pool::expand_queue()
-	{
-		if (auto alloc = allocator(); !queue_data) [[unlikely]]
-		{
-			queue_end = queue_begin = queue_data =
-				static_cast<task_base **>(alloc->allocate((queue_capacity = 8) * sizeof(task_base *), alignof(task_base *)));
-			if (!queue_data) [[unlikely]]
-				throw std::bad_alloc();
-		}
-		else
-		{
-			auto new_capacity = queue_capacity * 2;
-			auto new_data = alloc->allocate(new_capacity * sizeof(task_base *), alignof(task_base *));
-			if (!new_data) [[unlikely]]
-				throw std::bad_alloc();
-
-			auto old_data = queue_data;
-			auto old_begin = queue_begin;
-
-			queue_data = static_cast<task_base **>(new_data);
-			queue_begin = queue_data + (old_begin - old_data);
-			queue_end = std::copy(old_begin, queue_end, queue_begin);
-
-			alloc->deallocate(old_data, queue_capacity * sizeof(task_base *), alignof(task_base *));
-			queue_capacity = new_capacity;
-		}
-	}
 
 	void thread_pool::worker::thread_main(std::stop_token st, thread_pool *p) noexcept
 	{
@@ -91,7 +63,7 @@ namespace sek
 			{
 				/* Wait for termination or available tasks. */
 				std::unique_lock<std::mutex> lock(p->mtx);
-				p->cv.wait(lock, [&]() { return st.stop_requested() || p->queue_end != p->queue_begin; });
+				p->cv.wait(lock, [&]() { return st.stop_requested() || p->queue_head.next != &p->queue_head; });
 
 				/* Break out of the loop if termination was requested. */
 				if (st.stop_requested()) [[unlikely]]
