@@ -19,11 +19,12 @@ if (PROJECT_IS_TOP_LEVEL OR SEK_EXPORT_BUILD)
     sek_set_maybe_parent(SEK_PROJECT ${PROJECT_NAME})
     sek_set_maybe_parent(SEK_LIBRARY_PATH $<TARGET_FILE:${PROJECT_NAME}>)
     sek_set_maybe_parent(SEK_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/sekhmet)
-    # set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "lib")
+    sek_set_maybe_parent(SEK_ENGINE_VERSION 0.0.1)
     set_target_properties(${PROJECT_NAME} PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
 
     # Set compilation variables & definitions
     target_compile_definitions(${PROJECT_NAME} PRIVATE SEK_EXPORT_LIBRARY)
+    add_compile_definitions(SEK_ENGINE_VERSION="${SEK_ENGINE_VERSION}")
 
     # Find & link thread library
     set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -59,3 +60,4 @@ if (PROJECT_IS_TOP_LEVEL OR SEK_EXPORT_BUILD)
         add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/test test)
     endif ()
 endif ()
+message("Install prefix: ${CMAKE_INSTALL_PREFIX}")

@@ -32,3 +32,12 @@ macro(sek_init_target_options)
         endif ()
     endif ()
 endmacro()
+
+macro(sek_init_tool_subproject)
+    sek_set_cxx_version_20()
+    sek_init_target_options(${ARGV0})
+    set_target_properties(${ARGV0} PROPERTIES
+            ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/tools"
+            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/tools"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/tools")
+endmacro()

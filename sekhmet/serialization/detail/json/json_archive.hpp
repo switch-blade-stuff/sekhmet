@@ -19,7 +19,7 @@ namespace sek::serialization::json
 
 		constexpr static std::size_t rj_allocator_page_size = 512;
 
-		using base_archive = detail::json_archive_base<char, false, false>;
+		using base_archive = json_archive_base<char>;
 		using rj_encoding = rapidjson::UTF8<>;
 
 		struct rj_allocator : detail::basic_pool_resource<rj_allocator_page_size>

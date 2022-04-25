@@ -25,13 +25,6 @@ namespace sek::detail
 
 		return CreateFileMappingW(fd, nullptr, PAGE_READWRITE, 0, 0, wide_name.get());
 	}
-
-	static std::ptrdiff_t alloc_granularity() noexcept
-	{
-		SYSTEM_INFO info;
-		GetSystemInfo(&info);
-		return static_cast<std::ptrdiff_t>(info.dwAllocationGranularity);
-	}
 	void filemap_handle::init(void *fd, std::ptrdiff_t offset, std::size_t size, int mode, const char *name)
 	{
 		struct raii_mapping
@@ -42,8 +35,13 @@ namespace sek::detail
 			HANDLE ptr;
 		};
 
+		/* Initialize view alignment. */
+		SYSTEM_INFO info;
+		GetSystemInfo(&info);
+		alignment = static_cast<std::ptrdiff_t>(info.dwAllocationGranularity);
+
 		/* View must start at a multiple of allocation granularity. */
-		auto offset_diff = static_cast<std::ptrdiff_t>(offset % alloc_granularity());
+		auto offset_diff = static_cast<std::ptrdiff_t>(offset % alignment);
 		ULARGE_INTEGER real_offset = {.QuadPart = static_cast<ULONGLONG>(offset - offset_diff)};
 
 		/* If size == 0, get size of the entire file. */
@@ -107,18 +105,18 @@ namespace sek::detail
 			return UnmapViewOfFile(native_handle());
 		return false;
 	}
-	void filemap_handle::flush(std::size_t n) const
+	void filemap_handle::flush(std::ptrdiff_t n) const
 	{
 		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
-		auto diff = int_ptr % alloc_granularity();
+		auto diff = int_ptr % alignment;
 
-		if (!FlushViewOfFile(std::bit_cast<HANDLE>(int_ptr - diff), n + static_cast<SIZE_T>(diff))) [[unlikely]]
+		if (!FlushViewOfFile(std::bit_cast<HANDLE>(int_ptr - diff), static_cast<SIZE_T>(n + diff))) [[unlikely]]
 			throw filemap_error("`FlushViewOfFile` returned 0");
 	}
 
 	filemap_handle::native_handle_type filemap_handle::native_handle() const noexcept
 	{
 		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
-		return std::bit_cast<HANDLE>(int_ptr - (int_ptr % alloc_granularity()));
+		return std::bit_cast<HANDLE>(int_ptr - (int_ptr % alignment));
 	}
 }	 // namespace sek::detail

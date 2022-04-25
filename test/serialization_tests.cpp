@@ -50,8 +50,7 @@ namespace
 			archive >> ser::keyed_entry("i", i);
 			archive >> ser::keyed_entry("m", m);
 			archive >> ser::keyed_entry("b", b);
-			archive >> v >> p;
-			archive >> a;
+			archive >> v >> p >> a;
 		}
 
 		bool operator==(const serializable_t &) const noexcept = default;

@@ -4,156 +4,272 @@
 
 #pragma once
 
-#include <functional>
-#include <list>
+#include <future>
 #include <mutex>
 #include <thread>
-#include <vector>
 
 #include "aligned_storage.hpp"
 #include "define.h"
 #include <condition_variable>
+#include <memory_resource>
 
 namespace sek
 {
 	/** @brief Structure used to manage multiple worker threads.
 	 *
-	 * Thread pools provide high-level way to schedule & execute asynchronous work.
+	 * Thread pools provide high-level way to schedule & execute asynchronous tasks.
 	 * Thread pools manage a set of threads which wait for some work to become available.
 	 * Worker threads exist as long as the pool exists. */
 	class thread_pool
 	{
+	public:
+		typedef int queue_mode;
+		constexpr static queue_mode fifo = 0;
+		constexpr static queue_mode filo = 1;
+
 	private:
-		enum class pool_state
+		/* Simple type-erased functor to avoid including the entire "functional" header. */
+		struct task_base
 		{
-			/** Threads need to wait. */
-			PAUSE,
-			/** Threads are free to take on work. */
-			RUN,
-			/** Threads should terminate immediately. */
-			TERMINATE,
-		};
-
-		struct worker
-		{
-			SEK_API void operator()() const;
-
-			thread_pool *parent;
-		};
-
-		struct work_node
-		{
-			template<typename T>
-			using store_locally =
-				std::conjunction<std::is_trivially_copyable<T>,
-								 std::bool_constant<sizeof(T) <= sizeof(void *) && alignof(T) <= alignof(void *)>>;
-
-			work_node(const work_node &) = delete;
-			work_node(work_node &&) = delete;
-
-			template<typename T>
-			constexpr explicit work_node(work_node *next, T &&f) : next(next)
+			constexpr task_base &invoke() noexcept
 			{
-				if constexpr (store_locally<T>::value)
+				invoke_func(this);
+				return *this;
+			}
+			constexpr void destroy(std::pmr::unsynchronized_pool_resource *pool) noexcept { destroy_func(this, pool); }
+
+			void (*invoke_func)(void *) noexcept;
+			void (*destroy_func)(void *, std::pmr::unsynchronized_pool_resource *) noexcept;
+
+			union
+			{
+				type_storage<void *> local_data;
+				void *heap_data;
+			};
+		};
+		template<typename T, typename F>
+		struct task_t : task_base
+		{
+			constexpr static bool in_place = sizeof(F) < sizeof(void *) && alignof(F) < alignof(void *) &&
+											 std::is_trivially_copyable_v<F>;
+
+			task_t(std::pmr::unsynchronized_pool_resource *pool,
+				   std::promise<T> promise,
+				   F &&f) requires std::convertible_to<std::invoke_result_t<F>, T> : promise(std::move(promise))
+			{
+				if constexpr (in_place)
 				{
-					std::construct_at(local_data.template get<T>(), std::forward<T>(f));
-					invoke_func = [](const work_node *p)
+					std::construct_at(local_data.template get<F>(), std::forward<F>(f));
+
+					invoke_func = +[](void *ptr) noexcept
 					{
-						T *obj = p->local_data.template get<T>();
-						std::invoke(*obj);
-					};
-					destroy_func = [](const work_node *p)
-					{
-						T *obj = p->local_data.template get<T>();
-						std::destroy_at(obj);
+						auto task = static_cast<task_t *>(ptr);
+						task->do_invoke(*task->local_data.template get<F>());
 					};
 				}
 				else
 				{
-					heap_data = new T(std::forward<T>(f));
-					invoke_func = [](const work_node *p) { std::invoke(*static_cast<T *>(p->heap_data)); };
-					destroy_func = [](const work_node *p) { delete static_cast<T *>(p->heap_data); };
+					heap_data = pool->allocate(sizeof(F), alignof(F));
+					std::construct_at(static_cast<F *>(heap_data), std::forward<F>(f));
+
+					invoke_func = +[](void *ptr) noexcept
+					{
+						auto task = static_cast<task_t *>(ptr);
+						task->do_invoke(*static_cast<F *>(task->heap_data));
+					};
+				}
+
+				destroy_func = +[](void *ptr, std::pmr::unsynchronized_pool_resource *pool) noexcept
+				{
+					auto task = static_cast<task_t *>(ptr);
+					task->do_destroy(pool);
+				};
+			}
+
+			void do_invoke(F &f) noexcept
+			{
+				try
+				{
+					if constexpr (std::is_void_v<T>)
+					{
+						f();
+						promise.set_value();
+					}
+					else
+						promise.set_value(f());
+				}
+				catch (...)
+				{
+					promise.set_exception(std::current_exception());
 				}
 			}
-			constexpr ~work_node() { destroy_func(this); }
-
-			constexpr void invoke() const { return invoke_func(this); }
-
-			union
+			void do_destroy(std::pmr::unsynchronized_pool_resource *pool)
 			{
-				mutable aligned_storage<sizeof(void *), alignof(void *)> local_data;
-				void *heap_data;
-			};
+				if constexpr (in_place)
+					std::destroy_at(local_data.template get<F>());
+				else
+				{
+					std::destroy_at(static_cast<F *>(heap_data));
+					pool->deallocate(heap_data, sizeof(F), alignof(F));
+				}
 
-			void (*invoke_func)(const work_node *);
-			void (*destroy_func)(const work_node *);
+				std::destroy_at(this);
+				pool->deallocate(this, sizeof(task_t), alignof(task_t));
+			}
 
-			work_node *next = nullptr;
+			std::promise<T> promise;
 		};
 
+		struct worker
+		{
+			static void thread_main(std::stop_token, thread_pool *) noexcept;
+
+			worker(worker &&other) noexcept : source(std::move(other.source)), thread(std::move(other.thread)) {}
+			explicit worker(thread_pool *parent) : thread(thread_main, source.get_token(), parent) {}
+			~worker()
+			{
+				/* Detach the thread to let the worker terminate on it's own. */
+				if (source.stop_possible()) [[likely]]
+				{
+					source.request_stop();
+					thread.detach();
+				}
+			}
+
+			std::stop_source source;
+			std::thread thread;
+		};
+
+		constexpr static auto max_pool_block = sizeof(void *) * 8; /* Max pool block size is 64/32 bytes. */
+
 	public:
-		/** Creates a new pool with the specified worker count & dispatch policy.
-		 * @param worker_count Amount of worker threads within this pool. Minimum is 1.
-		 * @param policy Dispatch policy used by the pool. Default value is first in, last out. */
-		SEK_API explicit thread_pool(std::size_t worker_count);
+		thread_pool(const thread_pool &) = delete;
+		thread_pool &operator=(const thread_pool &) = delete;
+		thread_pool(thread_pool &&) = delete;
+		thread_pool &operator=(thread_pool &&) = delete;
+
+		/** Initializes thread pool with `std::thread::hardware_concurrency` workers & FILO queue mode. */
+		thread_pool() : thread_pool(0, filo) {}
+		/** Initializes thread pool with n threads & the specified queue mode.
+		 * @param n Amount of worker threads to initialize the pool with. If set to 0 will use `std::thread::hardware_concurrency` workers.
+		 * @param mode Queue mode used for task dispatch. Default is FILO. */
+		explicit thread_pool(std::size_t n, queue_mode mode = filo)
+			: thread_pool(std::pmr::get_default_resource(), n, mode)
+		{
+		}
+		/** @copydoc thread_pool
+		 * @param res Memory resource used to allocate internal state. */
+		SEK_API thread_pool(std::pmr::memory_resource *res, std::size_t n, queue_mode mode = filo);
+		/** Terminates all worker threads & de-allocates internal state. */
 		SEK_API ~thread_pool();
 
-		/** Queues the provided functor to be dispatched by one of the worker threads. */
-		template<typename F, typename... Args>
-		void add_work(F &&f, Args &&...args)
-		{
-			std::unique_lock<std::mutex> l(pool_mtx);
+		/** Returns the current queue dispatch mode of the pool. */
+		[[nodiscard]] constexpr queue_mode mode() const noexcept { return dispatch_mode; }
+		/** Sets pool's queue dispatch mode. */
+		constexpr void mode(queue_mode mode) noexcept { dispatch_mode = mode; }
 
-			push_work([f = std::forward<F>(f), ... args = std::forward<Args>(args)]() { std::invoke(f, args...); });
-			worker_cv.notify_all();
+		/** Returns the current amount of worker threads in the pool. */
+		[[nodiscard]] constexpr std::size_t size() const noexcept { return workers_count; }
+		/** Resizes the pool to n workers. If n is set to 0, uses `std::thread::hardware_concurrency` workers. */
+		SEK_API void resize(std::size_t n);
+
+		/** Schedules a task to be executed by one of the worker threads.
+		 * Tasks are dispatched according to the current queue mode.
+		 *
+		 * @param task Functor to execute on one of the worker threads.
+		 * @return `std::future` used to retrieve task result or exceptions.
+		 * @note Task functor must be invocable with 0 arguments. */
+		template<std::invocable F>
+		std::future<std::invoke_result_t<F>> schedule(F &&task)
+		{
+			return push_task(std::promise<std::invoke_result_t<F>>{}, std::forward<F>(task));
 		}
-
-		/** Pauses the pool. Disables dispatching of worker threads.
-		 * All work that is currently in-progress will be finished. */
-		void pause() { set_state(pool_state::PAUSE); }
-		/** Resumes a paused pool. Enables dispatching of worker threads.
-		 * If a pool is not paused, all waiting worker threads would be notified either way. */
-		void resume() { set_state(pool_state::PAUSE); }
-
-		/** Returns a vector of exceptions thrown by workers & clears current exception vector. */
-		std::vector<std::pair<std::exception_ptr, std::thread::id>> get_work_exceptions()
+		/** @copydoc schedule
+		 * @param promise Promise used to store task's result & exceptions.
+		 * @note Task's return type must be implicitly convertible to the promised type. */
+		template<typename T, std::invocable F>
+		std::future<T> schedule(std::promise<T> promise, F &&task)
 		{
-			std::unique_lock<std::mutex> l(pool_mtx);
+			std::future<T> result;
+			{
+				std::lock_guard<std::mutex> l(mtx);
 
-			std::vector<std::pair<std::exception_ptr, std::thread::id>> result = {};
-			result.swap(work_exceptions);
+				if (queue_data + queue_capacity == queue_end) [[unlikely]]
+					expand_queue();
+
+				using task_type = task_t<T, F>;
+				auto task_ptr = static_cast<task_type *>(task_alloc.allocate(sizeof(task_type), alignof(task_type)));
+				if (!task_ptr) [[unlikely]]
+					throw std::bad_alloc();
+
+				std::construct_at(task_ptr, &task_alloc, std::forward<std::promise<T>>(promise), std::forward<F>(task));
+				result = (*queue_end++ = task_ptr)->promise.get_future();
+			}
+			cv.notify_all();
 			return result;
 		}
 
 	private:
-		template<typename F>
-		constexpr void push_work(F &&f)
+		[[nodiscard]] auto allocator() const noexcept { return task_alloc.upstream_resource(); }
+
+		void realloc_workers(std::size_t n)
 		{
-			work_queue = new work_node{work_queue, std::forward<F>(f)};
+			auto alloc = allocator();
+
+			auto new_workers = static_cast<worker *>(alloc->allocate(n * sizeof(worker), alignof(worker)));
+			if (!new_workers) [[unlikely]]
+				throw std::bad_alloc();
+
+			/* Move workers if there are any. */
+			if (workers_data)
+			{
+				for (auto src = workers_data, end = workers_data + size(), dst = new_workers; src < end; ++src, ++dst)
+				{
+					std::construct_at(dst, std::move(*src));
+					std::destroy_at(src);
+				}
+				alloc->deallocate(workers_data, workers_capacity * sizeof(worker), alignof(worker));
+			}
+
+			workers_data = new_workers;
+			workers_capacity = n;
 		}
-		constexpr const work_node *pop_work() noexcept
+		void destroy_workers(worker *first, worker *last)
 		{
-			auto node = work_queue;
-			work_queue = work_queue->next;
-			return node;
+			// clang-format off
+			for (auto worker = first; worker != last; ++worker)
+				std::destroy_at(worker);
+			// clang-format on
+
+			/* Notify the CV so that the waiting workers can terminate. */
+			cv.notify_all();
 		}
 
-		SEK_API void set_state(pool_state new_state);
-		SEK_API const work_node *wait_for_work_or_exit();
+		SEK_API void expand_queue();
 
-		/** Mutex used to synchronise thread operations. */
-		mutable std::mutex pool_mtx;
-		/** Conditional variable used by the worker threads to wait for work to be available. */
-		std::condition_variable worker_cv;
+		task_base &pop_task()
+		{
+			if (dispatch_mode == fifo)
+				return **queue_begin++;
+			else
+				return **--queue_end;
+		}
+		void delete_task(task_base &task) { task.destroy(&task_alloc); }
 
-		/** Current state of the pool. */
-		pool_state state = pool_state::PAUSE;
+		std::pmr::unsynchronized_pool_resource task_alloc;
 
-		/** Worker threads used by this pool. */
-		std::vector<std::thread> workers;
-		/** Buffer used to store work for the worker threads. */
-		work_node *work_queue = nullptr;
-		/** Vector containing exceptions generated by the workers. */
-		std::vector<std::pair<std::exception_ptr, std::thread::id>> work_exceptions;
+		std::condition_variable cv;
+		std::mutex mtx;
+
+		worker *workers_data = nullptr;
+		std::size_t workers_capacity = 0;
+		std::size_t workers_count = 0;
+
+		task_base **queue_data = nullptr;
+		task_base **queue_begin = nullptr;
+		task_base **queue_end = nullptr;
+		std::size_t queue_capacity = 0;
+
+		queue_mode dispatch_mode;
 	};
 }	 // namespace sek

@@ -4,87 +4,106 @@
 
 #include "thread_pool.hpp"
 
-#include "sekhmet/math/detail/util.hpp"
 #include "assert.hpp"
 
 namespace sek
 {
-	thread_pool::thread_pool(std::size_t worker_count)
+	static void adjust_worker_count(std::size_t &n)
 	{
-		/* Spawn worker threads. */
-		{
-			auto n = math::max<std::size_t>(1, worker_count);
-			workers.reserve(n);
-			while (n-- > 0) workers.emplace_back(worker{this});
-		}
+		if (!n && !(n = std::thread::hardware_concurrency())) [[unlikely]]
+			throw std::runtime_error("`std::thread::hardware_concurrency` returned 0");
+	}
 
-		/* Tell worker threads that they are allowed to run now. */
-		set_state(pool_state::RUN);
+	thread_pool::thread_pool(std::pmr::memory_resource *res, std::size_t n, thread_pool::queue_mode mode)
+		: task_alloc(std::pmr::pool_options{0, max_pool_block}, res), dispatch_mode(mode)
+	{
+		adjust_worker_count(n);
+
+		/* Initialize n workers. */
+		realloc_workers(n);
+		for (auto begin = workers_data, end = workers_data + n; begin != end; ++begin) std::construct_at(begin, this);
+		workers_count = n;
 	}
 	thread_pool::~thread_pool()
 	{
-		/* Stop worker threads & wait for them to terminate. */
-		set_state(pool_state::TERMINATE);
-		for (auto &worker_thread : workers) worker_thread.join();
+		auto alloc = allocator();
+
+		// clang-format off
+		destroy_workers(workers_data, workers_data + size());
+		for (auto task = queue_begin, end = queue_end; task != end; ++task)
+			delete_task(**task);
+		// clang-format on
+
+		alloc->deallocate(workers_data, workers_capacity * sizeof(std::jthread), alignof(std::jthread));
+		alloc->deallocate(queue_data, queue_capacity * sizeof(task_base *), alignof(task_base *));
 	}
 
-	void thread_pool::set_state(thread_pool::pool_state new_state)
+	void thread_pool::resize(std::size_t n)
 	{
-		std::unique_lock<std::mutex> l(pool_mtx);
+		adjust_worker_count(n);
 
-		state = new_state;
-		worker_cv.notify_all(); /* Notify all workers to let them know of a state change. */
+		if (n == size()) [[unlikely]]
+			return;
+		else if (n < size()) /* Terminate size - n threads. */
+			destroy_workers(workers_data + n, workers_data + size());
+		else /* Start n - size threads. */
+		{
+			if (n > workers_capacity) [[unlikely]]
+				realloc_workers(n);
+			for (auto worker = workers_data + size(), end = workers_data + n; worker != end; ++worker)
+				std::construct_at(worker, this);
+		}
+		workers_count = n;
 	}
-
-	const thread_pool::work_node *thread_pool::wait_for_work_or_exit()
+	void thread_pool::expand_queue()
 	{
-		std::unique_lock<std::mutex> wait_lock(pool_mtx);
+		if (auto alloc = allocator(); !queue_data) [[unlikely]]
+		{
+			queue_end = queue_begin = queue_data =
+				static_cast<task_base **>(alloc->allocate((queue_capacity = 8) * sizeof(task_base *), alignof(task_base *)));
+			if (!queue_data) [[unlikely]]
+				throw std::bad_alloc();
+		}
+		else
+		{
+			auto new_capacity = queue_capacity * 2;
+			auto new_data = alloc->allocate(new_capacity * sizeof(task_base *), alignof(task_base *));
+			if (!new_data) [[unlikely]]
+				throw std::bad_alloc();
 
-		const thread_pool::work_node *node = nullptr;
-		worker_cv.wait(wait_lock,
-					   [&, this]() noexcept -> bool
-					   {
-						   /* If the state is TERMINATE, return true without setting any work. */
-						   if (state == pool_state::TERMINATE) return true;
+			auto old_data = queue_data;
+			auto old_begin = queue_begin;
 
-						   /* Wait until we are allowed to take on work and
-							* there is any work available. */
-						   if (state == pool_state::RUN && work_queue != nullptr)
-						   {
-							   node = pop_work();
-							   return true;
-						   }
+			queue_data = static_cast<task_base **>(new_data);
+			queue_begin = queue_data + (old_begin - old_data);
+			queue_end = std::copy(old_begin, queue_end, queue_begin);
 
-						   return false;
-					   });
-		return node;
+			alloc->deallocate(old_data, queue_capacity * sizeof(task_base *), alignof(task_base *));
+			queue_capacity = new_capacity;
+		}
 	}
 
-	void thread_pool::worker::operator()() const
+	void thread_pool::worker::thread_main(std::stop_token st, thread_pool *p) noexcept
 	{
 		for (;;)
 		{
-			/* Dispatch the work. */
-			auto work_node = parent->wait_for_work_or_exit();
-			if (!work_node) break;
-
 			try
 			{
-				work_node->invoke();
+				/* Wait for termination or available tasks. */
+				std::unique_lock<std::mutex> lock(p->mtx);
+				p->cv.wait(lock, [&]() { return st.stop_requested() || p->queue_end != p->queue_begin; });
+
+				/* Break out of the loop if termination was requested. */
+				if (st.stop_requested()) [[unlikely]]
+					break;
 			}
-			catch (...)
+			catch (std::system_error &e) /* Mutex error. */
 			{
-				/* If there are any exceptions, push them to the parent pool. */
-				std::unique_lock<std::mutex> l(parent->pool_mtx);
-
-				// NOLINTNEXTLINE(performance-unnecessary-value-param)
-				parent->work_exceptions.emplace_back(std::current_exception(), std::this_thread::get_id());
+				/* TODO: Log exception */
 			}
 
-			/* Always notify other threads, even if there was an exception,
-			 * since we need to keep dispatching until the queue is empty. */
-			std::unique_lock<std::mutex> l(parent->pool_mtx);
-			if (parent->work_queue) parent->worker_cv.notify_all();
+			/* Get task from the parent's queue, execute it, then delete it. */
+			p->delete_task(p->pop_task().invoke());
 		}
 	}
 }	 // namespace sek

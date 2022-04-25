@@ -14,7 +14,12 @@ namespace sek::serialization::detail
 {
 	using namespace sek::detail;
 
-	template<typename CharType, bool EnableContainerTypes, bool EnableCharValue>
+	typedef int json_archive_config;
+
+	constexpr json_archive_config container_types = 1;
+	constexpr json_archive_config char_value = 2;
+
+	template<typename CharType, json_archive_config Config = 0>
 	struct json_archive_base
 	{
 		class entry_t;
@@ -69,9 +74,10 @@ namespace sek::serialization::detail
 		{
 			CharType c;
 
-			/* Used for input. */
 			std::intmax_t si;
 			std::uintmax_t ui;
+
+			/* Used for input. */
 			double fp;
 
 			/* Used for output. */
@@ -151,7 +157,7 @@ namespace sek::serialization::detail
 			}
 
 			/** Reads a character from the entry. Returns `true` if the entry contains a character, `false` otherwise. */
-			constexpr bool try_read(CharType &c) const noexcept requires EnableCharValue
+			constexpr bool try_read(CharType &c) const noexcept requires((Config & char_value) == char_value)
 			{
 				if (type == CHAR) [[likely]]
 				{
@@ -163,7 +169,7 @@ namespace sek::serialization::detail
 			}
 			/** Reads a character from the entry.
 			 * @throw archive_error If the entry does not contain a character. */
-			constexpr const entry_t &read(CharType &c) const requires EnableCharValue
+			constexpr const entry_t &read(CharType &c) const requires((Config & char_value) == char_value)
 			{
 				if (!try_read(c)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected char");
@@ -362,7 +368,7 @@ namespace sek::serialization::detail
 					}
 					case CHAR:
 					{
-						if constexpr (EnableCharValue)
+						if constexpr ((Config & char_value) == char_value)
 						{
 							emitter.on_char(literal.c);
 							break;
@@ -1212,7 +1218,8 @@ namespace sek::serialization::detail
 				entry.type = static_cast<entry_type>(BOOL | static_cast<int>(!!b));
 			}
 			template<typename T>
-			void write_value(entry_t &entry, T &&c) const requires std::same_as<std::decay_t<T>, CharType> && EnableCharValue
+			void write_value(entry_t &entry, T &&c) const
+				requires(std::same_as<std::decay_t<T>, CharType> && ((Config & char_value) == char_value))
 			{
 				entry.type = CHAR;
 				entry.literal.character = c;
@@ -1316,7 +1323,7 @@ namespace sek::serialization::detail
 
 				write_value(*entry, std::forward<T>(value));
 
-				if constexpr (EnableContainerTypes)
+				if constexpr ((Config & container_types) == container_types)
 				{
 					/* Set container value type if all entries are of the same type.
 					 * Use a different condition for integers to account for size-category. */
@@ -1466,9 +1473,9 @@ namespace sek::serialization::detail
 		entry_t top_level = {};	   /* Top-most entry of the Json tree. */
 	};
 
-	template<typename C, bool Ct, bool Cv>
+	template<typename C, json_archive_config Cfg>
 	template<typename T>
-	constexpr const typename json_archive_base<C, Ct, Cv>::entry_t &json_archive_base<C, Ct, Cv>::entry_t::read(T &&value) const
+	constexpr const typename json_archive_base<C, Cfg>::entry_t &json_archive_base<C, Cfg>::entry_t::read(T &&value) const
 	{
 		if (!(type & CONTAINER)) [[unlikely]]
 			throw archive_error("Invalid Json type, expected array or object");

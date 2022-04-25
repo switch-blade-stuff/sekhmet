@@ -19,7 +19,7 @@ namespace sek::serialization::ubj
 	{
 		using namespace sek::serialization::detail;
 
-		using base_archive = detail::json_archive_base<char, true, true>;
+		using base_archive = json_archive_base<char, container_types | char_value>;
 
 		enum token_t : std::int8_t
 		{

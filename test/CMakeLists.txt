@@ -19,21 +19,16 @@ else ()
 endif ()
 
 if (NOT GTEST_MISSING)
-    add_library(${PROJECT_NAME}.plugin SHARED test_plugin.hpp test_plugin.cpp)
-    sek_init_target_options(${PROJECT_NAME}.plugin)
-    target_link_libraries(${PROJECT_NAME}.plugin PUBLIC ${SEK_PROJECT})
-
     include(GoogleTest)
     add_executable(${PROJECT_NAME}
             main.cpp
             utility_tests.cpp
             debug_tests.cpp
             container_tests.cpp
-            plugin_tests.cpp
             math_tests.cpp
             serialization_tests.cpp)
     sek_init_target_options(${PROJECT_NAME})
-    target_link_libraries(${PROJECT_NAME} PUBLIC ${SEK_PROJECT} ${PROJECT_NAME}.plugin gtest)
+    target_link_libraries(${PROJECT_NAME} PUBLIC ${SEK_PROJECT} gtest)
     if (UNIX)
         target_link_libraries(${PROJECT_NAME} PUBLIC dl)
     endif ()

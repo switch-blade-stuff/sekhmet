@@ -12,7 +12,6 @@
 
 namespace sek::detail
 {
-	static auto page_size() noexcept { return sysconf(_SC_PAGE_SIZE); }
 	static std::size_t file_size(int fd) noexcept
 	{
 		struct stat st;
@@ -21,11 +20,13 @@ namespace sek::detail
 
 	void filemap_handle::init(int fd, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *)
 	{
+		page_size = sysconf(_SC_PAGE_SIZE);
+
 		int prot = (mode & filemap_in ? PROT_READ : 0) | (mode & filemap_out ? PROT_WRITE : 0);
 		int flags = (mode & filemap_copy) == filemap_copy ? MAP_PRIVATE : MAP_SHARED;
 
 		/* Adjust offset to be a multiple of page size. */
-		auto offset_diff = offset % page_size();
+		auto offset_diff = offset % page_size;
 		auto real_offset = offset - offset_diff;
 
 		/* Get the actual size from the file descriptor if size == 0. */
@@ -49,10 +50,10 @@ namespace sek::detail
 	}
 	filemap_handle::filemap_handle(const char *path, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *name)
 	{
-		struct raii_file
+		struct raii_fd
 		{
-			constexpr explicit raii_file(int fd) noexcept : fd(fd) {}
-			~raii_file() { close(fd); }
+			constexpr explicit raii_fd(int fd) noexcept : fd(fd) {}
+			~raii_fd() { close(fd); }
 
 			int fd;
 		};
@@ -62,7 +63,7 @@ namespace sek::detail
 			flags = O_RDWR;
 		else if (mode & filemap_in)
 			flags = O_WRONLY;
-		auto file = raii_file{open(path, flags | O_CLOEXEC)};
+		auto file = raii_fd{open(path, flags | O_CLOEXEC)};
 		if (file.fd < 0) [[unlikely]]
 			throw filemap_error("Failed to open file descriptor");
 
@@ -73,16 +74,17 @@ namespace sek::detail
 		if (view_ptr) [[likely]]
 		{
 			auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
-			auto diff = int_ptr % page_size();
+			auto diff = int_ptr % page_size;
 			return !munmap(std::bit_cast<void *>(int_ptr - diff), map_size + static_cast<std::size_t>(diff));
 		}
 		return false;
 	}
-	void filemap_handle::flush(std::size_t n) const
+	void filemap_handle::flush(std::ptrdiff_t n) const
 	{
 		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
-		auto diff = int_ptr % page_size();
-		if (msync(std::bit_cast<void *>(int_ptr - diff), n + static_cast<size_t>(diff), MS_SYNC | MS_INVALIDATE)) [[unlikely]]
+		auto diff = int_ptr % page_size;
+		if (msync(std::bit_cast<void *>(int_ptr - diff), static_cast<std::size_t>(n + diff), MS_SYNC | MS_INVALIDATE))
+			[[unlikely]]
 		{
 			switch (errno)
 			{
@@ -97,6 +99,6 @@ namespace sek::detail
 	filemap_handle::native_handle_type filemap_handle::native_handle() const noexcept
 	{
 		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
-		return std::bit_cast<void *>(int_ptr - (int_ptr % page_size()));
+		return std::bit_cast<void *>(int_ptr - (int_ptr % page_size));
 	}
 }	 // namespace sek::detail
