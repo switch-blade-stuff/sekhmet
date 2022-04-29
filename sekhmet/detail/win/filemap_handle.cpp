@@ -62,7 +62,7 @@ namespace sek::detail
 			throw filemap_error("Failed to create file mapping object");
 
 		DWORD access = mode & filemap_in ? FILE_MAP_READ : 0;
-		if ((mode & filemap_copy) == filemap_copy)
+		if (mode & filemap_copy)
 			access |= FILE_MAP_COPY;
 		else if (mode & filemap_out)
 			access |= FILE_MAP_WRITE;
@@ -105,9 +105,9 @@ namespace sek::detail
 			return UnmapViewOfFile(native_handle());
 		return false;
 	}
-	void filemap_handle::flush(std::ptrdiff_t n) const
+	void filemap_handle::flush(std::ptrdiff_t off, std::ptrdiff_t n) const
 	{
-		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
+		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr) + off;
 		auto diff = int_ptr % alignment;
 
 		if (!FlushViewOfFile(std::bit_cast<HANDLE>(int_ptr - diff), static_cast<SIZE_T>(n + diff))) [[unlikely]]

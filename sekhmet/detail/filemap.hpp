@@ -26,9 +26,9 @@ namespace sek
 	{
 		typedef int filemap_openmode;
 
-		constexpr auto filemap_in = static_cast<filemap_openmode>(0b1);
-		constexpr auto filemap_out = static_cast<filemap_openmode>(0b10);
-		constexpr auto filemap_copy = static_cast<filemap_openmode>(0b110);
+		constexpr auto filemap_in = static_cast<filemap_openmode>(1);
+		constexpr auto filemap_out = static_cast<filemap_openmode>(2);
+		constexpr auto filemap_copy = static_cast<filemap_openmode>(4);
 
 		class filemap_handle;
 	}	 // namespace detail
@@ -55,8 +55,8 @@ namespace sek
 		constexpr static openmode in = detail::filemap_in;
 		/** Enables write mode for the filemap. */
 		constexpr static openmode out = detail::filemap_out;
-		/** Enables copy-on-write mode for the filemap. Exclusive with `out`. */
-		constexpr static openmode copy = detail::filemap_copy;
+		/** Enables copy-on-write mode for the filemap. Implies `out`. */
+		constexpr static openmode copy = detail::filemap_copy | out;
 
 	public:
 		filemap() = delete;
@@ -110,10 +110,20 @@ namespace sek
 			return std::span<std::byte>{static_cast<std::byte *>(data()), static_cast<std::size_t>(size())};
 		}
 
-		/** Flushes the mapped file.
-		 * @param n Amount of bytes to flush, up to the size of the mapped file.
-		 * @throw filemap_error On any implementation-defined error. */
-		void flush(std::ptrdiff_t n) const { handle.flush(n); }
+		/** Flushes portion of the mapped memory to it's backing file.
+		 * @param off Offset into the mapping at which to start the flush.
+		 * @param n Amount of bytes to flush.
+		 * @throw filemap_error On any implementation-defined error.
+		 * @note pos + n must not exceed the size of the mapping. */
+		void flush(std::ptrdiff_t pos = 0, std::ptrdiff_t n = -1) const
+		{
+			if (n < 0) n = static_cast<std::ptrdiff_t>(size()) - pos;
+
+			SEK_ASSERT(pos > 0 && n > 0);
+			SEK_ASSERT(pos + n <= static_cast<std::ptrdiff_t>(size()));
+
+			handle.flush(pos, n);
+		}
 
 		/** Returns the underlying native handle. */
 		[[nodiscard]] native_handle_type native_handle() const noexcept { return handle.native_handle(); }

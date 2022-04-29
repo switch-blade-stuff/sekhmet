@@ -23,7 +23,7 @@ namespace sek::detail
 		page_size = sysconf(_SC_PAGE_SIZE);
 
 		int prot = (mode & filemap_in ? PROT_READ : 0) | (mode & filemap_out ? PROT_WRITE : 0);
-		int flags = (mode & filemap_copy) == filemap_copy ? MAP_PRIVATE : MAP_SHARED;
+		int flags = mode & filemap_copy ? MAP_PRIVATE : MAP_SHARED;
 
 		/* Adjust offset to be a multiple of page size. */
 		auto offset_diff = offset % page_size;
@@ -79,9 +79,9 @@ namespace sek::detail
 		}
 		return false;
 	}
-	void filemap_handle::flush(std::ptrdiff_t n) const
+	void filemap_handle::flush(std::ptrdiff_t off, std::ptrdiff_t n) const
 	{
-		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
+		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr) + off;
 		auto diff = int_ptr % page_size;
 		if (msync(std::bit_cast<void *>(int_ptr - diff), static_cast<std::size_t>(n + diff), MS_SYNC | MS_INVALIDATE))
 			[[unlikely]]

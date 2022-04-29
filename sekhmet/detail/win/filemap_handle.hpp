@@ -42,7 +42,7 @@ namespace sek::detail
 		[[nodiscard]] constexpr void *data() const noexcept { return view_ptr; }
 
 		SEK_API bool reset() noexcept;
-		SEK_API void flush(std::ptrdiff_t n) const;
+		SEK_API void flush(std::ptrdiff_t off, std::ptrdiff_t n) const;
 
 		[[nodiscard]] SEK_API native_handle_type native_handle() const noexcept;
 

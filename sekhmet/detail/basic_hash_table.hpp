@@ -210,19 +210,15 @@ namespace sek
 
 			[[nodiscard]] constexpr static size_type apply_load_factor(size_type value) noexcept
 			{
-				return value * 10 / 16;
+				return value * 11 / 16;
 			}
 			[[nodiscard]] constexpr static size_type apply_load_factor_inv(size_type value) noexcept
 			{
-				return value * 16 / 10;
+				return value * 16 / 11;
 			}
 			[[nodiscard]] constexpr static size_type apply_tombstone_factor(size_type value) noexcept
 			{
 				return value * 5 / 16;
-			}
-			[[nodiscard]] constexpr static size_type apply_tombstone_inv(size_type value) noexcept
-			{
-				return value * 16 / 5;
 			}
 
 			constexpr static size_type initial_capacity = 4;

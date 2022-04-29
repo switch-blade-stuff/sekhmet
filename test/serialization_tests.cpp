@@ -121,3 +121,45 @@ TEST(serialization_tests, ubjson_test)
 	}
 	EXPECT_EQ(data, deserialized);
 }
+
+#include "sekhmet/type_id.hpp"
+
+template<typename T>
+struct printer_base
+{
+	struct invoker
+	{
+		invoker() noexcept { printf("%s\n", sek::type_name<T>().data()); }
+	};
+
+	static const invoker instance;
+};
+
+template<typename T>
+const typename printer_base<T>::invoker printer_base<T>::instance = {};
+
+namespace
+{
+	struct test_struct : printer_base<test_struct>
+	{
+	};
+}	 // namespace
+
+// template<>
+// std::string_view sek::type_name<test_struct>() noexcept
+//{
+//	return "test_struct";
+// }
+
+namespace sek
+{
+	template<typename T>
+	constexpr void resource_factory(T &)
+	{
+	}
+}	 // namespace sek
+
+#define SEK_DETAIL_PREFAB_1(type)
+#define SEK_DETAIL_PREFAB_2(type, name) SEK_DETAIL_PREFAB_1(type)
+
+#define SEK_PREFAB_FACTORY(...) SEK_GET_MACRO_2(__VA_ARGS__, SEK_DETAIL_PREFAB_2, SEK_DETAIL_PREFAB_1)(__VA_ARGS__)

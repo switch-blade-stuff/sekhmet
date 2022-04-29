@@ -10,50 +10,46 @@
 #include "hash.hpp"
 #include "static_string.hpp"
 
-namespace sek::detail
-{
-	template<basic_static_string Src, std::size_t J, std::size_t I, std::size_t Last, std::size_t N>
-	consteval auto format_type_name(basic_static_string<char, N> result) noexcept
-	{
-		if constexpr (I == Last)
-		{
-			result[J] = '\0';
-			return result;
-		}
-		else
-		{
-			result[J] = static_cast<typename decltype(result)::value_type>(Src[I]);
-			return format_type_name<Src, J + 1, I + 1, Last>(result);
-		}
-	}
-	template<basic_static_string Src, std::size_t J, std::size_t I, std::size_t Last, std::size_t N>
-	consteval auto format_type_name() noexcept
-	{
-		return format_type_name<Src, J, I, Last, N>({});
-	}
-
-	template<basic_static_string Name>
-	consteval auto generate_type_name_impl() noexcept
-	{
-#if defined(__clang__) || defined(__GNUC__)
-		constexpr auto offset_start = Name.find_first('=') + 2;
-		constexpr auto offset_end = Name.find_last(']');
-		constexpr auto trimmed_length = offset_end - offset_start + 1;
-#elif defined(_MSC_VER)
-		constexpr auto offset_start = Name.find_first('<') + 1;
-		constexpr auto offset_end = Name.find_last('>');
-		constexpr auto trimmed_length = offset_end - offset_start + 1;
-#else
-#error "Implement type name generation for this compiler"
-#endif
-		return format_type_name<Name, 0, offset_start, offset_end, trimmed_length>();
-	}
-}	 // namespace sek::detail
-
 namespace sek
 {
 	namespace detail
 	{
+		template<basic_static_string Src, std::size_t J, std::size_t I, std::size_t Last, std::size_t N>
+		consteval auto format_type_name(basic_static_string<char, N> result) noexcept
+		{
+			if constexpr (I == Last)
+			{
+				result[J] = '\0';
+				return result;
+			}
+			else
+			{
+				result[J] = static_cast<typename decltype(result)::value_type>(Src[I]);
+				return format_type_name<Src, J + 1, I + 1, Last>(result);
+			}
+		}
+		template<basic_static_string Src, std::size_t J, std::size_t I, std::size_t Last, std::size_t N>
+		consteval auto format_type_name() noexcept
+		{
+			return format_type_name<Src, J, I, Last, N>({});
+		}
+		template<basic_static_string Name>
+		consteval auto generate_type_name_impl() noexcept
+		{
+#if defined(__clang__) || defined(__GNUC__)
+			constexpr auto offset_start = Name.find_first('=') + 2;
+			constexpr auto offset_end = Name.find_last(']');
+			constexpr auto trimmed_length = offset_end - offset_start + 1;
+#elif defined(_MSC_VER)
+			constexpr auto offset_start = Name.find_first('<') + 1;
+			constexpr auto offset_end = Name.find_last('>');
+			constexpr auto trimmed_length = offset_end - offset_start + 1;
+#else
+#error "Implement type name generation for this compiler"
+#endif
+			return format_type_name<Name, 0, offset_start, offset_end, trimmed_length>();
+		}
+
 		template<typename T>
 		[[nodiscard]] constexpr std::basic_string_view<char> generate_type_name() noexcept
 		{
@@ -63,19 +59,12 @@ namespace sek
 	}	 // namespace detail
 
 	/** Returns name of the specified type.
-	 * @note If the type was not declared using `SEK_DECLARE_TYPE`, type name will be generated using compiler-specific method.
-	 * @warning Consistency of generated type names across different compilers is not guaranteed. */
+	 * @warning Consistency of generated type names across different compilers is not guaranteed.
+	 * To generate consistent type names, overload this function for the desired type. */
 	template<typename T>
 	[[nodiscard]] constexpr std::string_view type_name() noexcept
 	{
 		return detail::generate_type_name<T>();
-	}
-	/** Returns hash of the specified type's name. */
-	template<typename T>
-	[[nodiscard]] constexpr std::size_t type_hash() noexcept
-	{
-		constexpr auto name = type_name<T>();
-		return fnv1a(name.data(), name.size());
 	}
 
 	/** @brief Structure used to identify a type. */
@@ -85,9 +74,9 @@ namespace sek
 		/** Returns a type id instance for the specified type. Equivalent to `type_id{type_name<T>()}`.
 		 * @tparam T Type to create id for. */
 		template<typename T>
-		[[nodiscard]] constexpr static type_id identify() noexcept
+		[[nodiscard]] constexpr static type_id get() noexcept
 		{
-			return type_id{type_name<T>(), type_hash<T>()};
+			return type_id{type_name<T>()};
 		}
 
 	private:

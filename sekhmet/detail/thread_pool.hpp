@@ -75,7 +75,7 @@ namespace sek
 		template<typename T, typename F>
 		struct task_t : task_base
 		{
-			constexpr static bool in_place = sizeof(F) < sizeof(void *) && std::is_trivially_copyable_v<F>;
+			constexpr static bool in_place = sizeof(F) < sizeof(void *);
 
 			task_t(std::pmr::unsynchronized_pool_resource *pool, std::promise<T> promise, F &&f)
 				: promise(std::move(promise))
@@ -144,13 +144,13 @@ namespace sek
 		};
 
 		/* Custom worker instead of std::jthread since jthread joins on destruction, and we need to detach. */
-		struct worker
+		struct worker_t
 		{
 			static void thread_main(std::stop_token, thread_pool *) noexcept;
 
-			worker(worker &&other) noexcept : source(std::move(other.source)), thread(std::move(other.thread)) {}
-			explicit worker(thread_pool *parent) : thread(thread_main, source.get_token(), parent) {}
-			~worker()
+			worker_t(worker_t &&other) noexcept : source(std::move(other.source)), thread(std::move(other.thread)) {}
+			explicit worker_t(thread_pool *parent) : thread(thread_main, source.get_token(), parent) {}
+			~worker_t()
 			{
 				/* Detach the thread to let the worker terminate on it's own. */
 				if (source.stop_possible()) [[likely]]
@@ -235,7 +235,7 @@ namespace sek
 		{
 			auto alloc = allocator();
 
-			auto new_workers = static_cast<worker *>(alloc->allocate(n * sizeof(worker), alignof(worker)));
+			auto new_workers = static_cast<worker_t *>(alloc->allocate(n * sizeof(worker_t), alignof(worker_t)));
 			if (!new_workers) [[unlikely]]
 				throw std::bad_alloc();
 
@@ -247,13 +247,13 @@ namespace sek
 					std::construct_at(dst, std::move(*src));
 					std::destroy_at(src);
 				}
-				alloc->deallocate(workers_data, workers_capacity * sizeof(worker), alignof(worker));
+				alloc->deallocate(workers_data, workers_capacity * sizeof(worker_t), alignof(worker_t));
 			}
 
 			workers_data = new_workers;
 			workers_capacity = n;
 		}
-		void destroy_workers(worker *first, worker *last)
+		void destroy_workers(worker_t *first, worker_t *last)
 		{
 			std::destroy(first, last);
 			cv.notify_all();
@@ -271,7 +271,7 @@ namespace sek
 		std::condition_variable cv;
 		std::mutex mtx;
 
-		worker *workers_data = nullptr;
+		worker_t *workers_data = nullptr;
 		std::size_t workers_capacity = 0;
 		std::size_t workers_count = 0;
 

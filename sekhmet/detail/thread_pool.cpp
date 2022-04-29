@@ -31,7 +31,7 @@ namespace sek
 	{
 		/* Destroy & terminate workers, then destroy unfinished tasks. */
 		destroy_workers(workers_data, workers_data + size());
-		allocator()->deallocate(workers_data, workers_capacity * sizeof(worker), alignof(worker));
+		allocator()->deallocate(workers_data, workers_capacity * sizeof(worker_t), alignof(worker_t));
 
 		for (auto task = queue_head.front, end = queue_head.back; task != end;)
 			delete_task(*static_cast<task_base *>(std::exchange(task, task->next)));	// NOLINT
@@ -55,7 +55,7 @@ namespace sek
 		workers_count = n;
 	}
 
-	void thread_pool::worker::thread_main(std::stop_token st, thread_pool *p) noexcept
+	void thread_pool::worker_t::thread_main(std::stop_token st, thread_pool *p) noexcept
 	{
 		for (;;)
 		{
