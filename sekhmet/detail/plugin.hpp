@@ -168,7 +168,7 @@ namespace registration
 
 #define SEK_PLUGIN_EVENT_TYPE(name, id) registration::sek_plugin_event<name, id, (SEK_FILE), (SEK_LINE)>
 
-#define SEK_PLUGIN_EVENT(plugin_name, event)                                                                             \
+#define SEK_ON_PLUGIN_EVENT(plugin_name, event)                                                                          \
 	template<>                                                                                                           \
 	struct SEK_PLUGIN_EVENT_TYPE(plugin_name, event)                                                                     \
 	{                                                                                                                    \
@@ -181,5 +181,5 @@ namespace registration
                                                                                                                          \
 	void SEK_PLUGIN_EVENT_TYPE(plugin_name, event)::invoke()
 
-#define SEK_ON_PLUGIN_ENABLE(plugin_name) SEK_PLUGIN_EVENT(plugin_name, sek::plugin::enable_event)
-#define SEK_ON_PLUGIN_DISABLE(plugin_name) SEK_PLUGIN_EVENT(plugin_name, sek::plugin::disable_event)
+#define SEK_ON_PLUGIN_ENABLE(plugin_name) SEK_ON_PLUGIN_EVENT(plugin_name, sek::plugin::enable_event)
+#define SEK_ON_PLUGIN_DISABLE(plugin_name) SEK_ON_PLUGIN_EVENT(plugin_name, sek::plugin::disable_event)
