@@ -7,8 +7,8 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "sekhmet/math/detail/util.hpp"
 #include "meta_util.hpp"
+#include "sekhmet/math/detail/util.hpp"
 
 namespace sek
 {
@@ -58,10 +58,45 @@ namespace sek
 		return fnv1a(static_cast<const uint8_t *>(data), len, seed);
 	}
 
-	template<math::arithmetic T>
-	[[nodiscard]] constexpr hash_t hash(T value) noexcept
+	template<std::integral I>
+	[[nodiscard]] constexpr hash_t int32_hash(I value) noexcept
 	{
-		return fnv1a(&value, 1);
+		auto temp = static_cast<std::uint64_t>(value);
+
+		temp = (~temp) + (temp << 15);	  // key = (key << 15) - key - 1;
+		temp ^= temp >> 12;
+		temp += temp << 2;
+		temp ^= temp >> 4;
+		temp = (temp + (temp << 3)) + (temp << 11);
+		temp = temp ^ (temp >> 16);
+		return temp;
+	}
+	template<std::integral I>
+	[[nodiscard]] constexpr hash_t int64_hash(I value) noexcept
+	{
+		auto temp = static_cast<std::uint64_t>(value);
+
+		temp = (~temp) + (temp << 21);
+		temp ^= temp >> 24;
+		temp = (temp + (temp << 3)) + (temp << 8);
+		temp ^= temp >> 14;
+		temp = (temp + (temp << 2)) + (temp << 4);
+		temp ^= temp >> 28;
+		temp += temp << 31;
+		return static_cast<hash_t>(temp);
+	}
+
+	template<std::integral I>
+	[[nodiscard]] constexpr hash_t hash(I value) noexcept
+		requires(sizeof(I) == sizeof(std::int32_t))
+	{
+		return int32_hash(value);
+	}
+	template<std::integral I>
+	[[nodiscard]] constexpr hash_t hash(I value) noexcept
+		requires(sizeof(I) == sizeof(std::int64_t))
+	{
+		return int64_hash(value);
 	}
 
 	template<typename T>
@@ -77,10 +112,7 @@ namespace sek
 	[[nodiscard]] constexpr hash_t hash(std::nullptr_t) noexcept { return hash(0); }
 
 	template<typename T>
-	concept has_hash = requires(T t)
-	{
-		hash(t);
-	};
+	concept has_hash = requires(T t) { hash(t); };
 
 	/** Combines hash of the value type with the seed.
 	 * @param seed Seed to combine the hash with.
@@ -94,7 +126,8 @@ namespace sek
 	}
 
 	template<std::ranges::forward_range R>
-	[[nodiscard]] constexpr hash_t hash(const R &r) noexcept requires has_hash<std::ranges::range_value_t<R>>
+	[[nodiscard]] constexpr hash_t hash(const R &r) noexcept
+		requires has_hash<std::ranges::range_value_t<R>>
 	{
 		hash_t result = {};
 		for (const auto &value : r) hash_combine(result, value);
@@ -104,7 +137,7 @@ namespace sek
 	namespace detail
 	{
 		template<std::size_t I, has_hash... Ts>
-		constexpr void tuple_hash_unwrap(hash_t & result, const std::tuple<Ts...> &t) noexcept
+		constexpr void tuple_hash_unwrap(hash_t &result, const std::tuple<Ts...> &t) noexcept
 		{
 			hash_combine(result, std::get<I>(t));
 			if constexpr (I + 1 < sizeof...(Ts)) tuple_hash_unwrap<I + 1>(result, t);
