@@ -66,12 +66,19 @@ namespace sek
 			{
 				explicit event_registrar(void (*f)()) noexcept : node_t(f)
 				{
-					auto &dest = instance<P>::value.find_queue(I);
-					if (dest == nullptr) [[unlikely]]
+					auto *&dest = instance<P>::value.queues;
+					for (;; dest = dest->next)
 					{
-						auto &queue = event_queue::instance<P, I>::value;
-						queue.next = std::exchange(dest, &queue);
+						if (dest == nullptr || dest->id > I) [[unlikely]]
+						{
+							auto &queue = event_queue::instance<P, I>::value;
+							queue.next = std::exchange(dest, &queue);
+							break;
+						}
+						else if (dest->id == I) [[likely]]
+							break;
 					}
+
 					next = std::exchange(dest->nodes, this);
 				}
 			};
@@ -81,15 +88,6 @@ namespace sek
 
 			explicit plugin_data(std::string_view name) noexcept : name(name) { load(this); }
 			~plugin_data() { unload(this); }
-
-			constexpr event_queue *&find_queue(std::size_t id) noexcept
-			{
-				for (auto *&next_ptr = queues;; next_ptr = next_ptr->next)
-				{
-					if (next_ptr == nullptr || next_ptr->id > id) [[likely]]
-						return next_ptr;
-				}
-			}
 
 			std::atomic<status_t> status = DISABLED;
 

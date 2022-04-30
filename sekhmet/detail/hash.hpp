@@ -88,13 +88,13 @@ namespace sek
 
 	template<std::integral I>
 	[[nodiscard]] constexpr hash_t hash(I value) noexcept
-		requires(sizeof(I) == sizeof(std::int32_t))
+		requires(sizeof(I) <= sizeof(std::int32_t))
 	{
 		return int32_hash(value);
 	}
 	template<std::integral I>
 	[[nodiscard]] constexpr hash_t hash(I value) noexcept
-		requires(sizeof(I) == sizeof(std::int64_t))
+		requires(sizeof(I) > sizeof(std::int32_t))
 	{
 		return int64_hash(value);
 	}
