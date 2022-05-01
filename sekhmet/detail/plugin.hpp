@@ -133,7 +133,7 @@ namespace sek
 
 		/** Invokes the corresponding plugin event queue.
 		 * @param event Id of the event queue to invoke.
-		 * @note Manually invoking enable or disable queues (id 0 and 1) is not recommended. */
+		 * @note Manually invoking enable or disable queues is not recommended. */
 		constexpr void invoke_event(event_id event) const
 		{
 			for (auto queue = data->queues; queue != nullptr; queue = queue->next)

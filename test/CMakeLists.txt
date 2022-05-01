@@ -1,7 +1,7 @@
 project(${PROJECT_NAME}.test)
 #sek_set_cxx_version_20()
 
-if (WIN32)
+if (CMAKE_HOST_WIN32)
     # Windows does not have OS-level library lookup, thus need to use a local dependency
     include(FetchContent)
     FetchContent_Declare(googletest URL https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip)

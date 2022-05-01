@@ -20,6 +20,17 @@ namespace sek::math::detail
 		constexpr T &operator[](std::size_t i) noexcept { return data[i]; }
 		constexpr const T &operator[](std::size_t i) const noexcept { return data[i]; }
 
+		template<std::size_t I>
+		constexpr T &get() noexcept
+		{
+			return data[I];
+		}
+		template<std::size_t I>
+		constexpr const T &get() const noexcept
+		{
+			return data[I];
+		}
+
 		constexpr auto operator<=>(const vector_data &) const noexcept = default;
 		constexpr bool operator==(const vector_data &) const noexcept = default;
 
@@ -45,6 +56,17 @@ namespace sek::math::detail
 
 		constexpr T &operator[](std::size_t i) noexcept { return array[i]; }
 		constexpr const T &operator[](std::size_t i) const noexcept { return array[i]; }
+
+		template<std::size_t I>
+		constexpr T &get() noexcept
+		{
+			return array[I];
+		}
+		template<std::size_t I>
+		constexpr const T &get() const noexcept
+		{
+			return array[I];
+		}
 
 		constexpr auto operator<=>(const vector_data &other) const noexcept { return array <=> other.array; }
 		constexpr bool operator==(const vector_data &other) const noexcept { return array == other.array; }
