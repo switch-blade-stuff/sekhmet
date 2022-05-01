@@ -72,7 +72,7 @@ namespace sek::math::detail
 	template<std::size_t I>
 	constexpr void x86_simd_abs(simd_data<float, 4> (&out)[I], const simd_data<float, 4> (&data)[I]) noexcept
 	{
-		constexpr auto mask = ieee574_mask<float>{0x7fff'ffff};
+		constexpr auto mask = std::bit_cast<float>(0x7fff'ffff);
 		simd_array_invoke(out, data, [m = _mm_set1_ps(mask)](auto &out, auto l) { out = _mm_and_ps(m, l); });
 	}
 
@@ -143,7 +143,7 @@ namespace sek::math::detail
 	template<std::size_t I>
 	constexpr void x86_simd_abs(simd_data<double, 2> (&out)[I], const simd_data<double, 2> (&data)[I]) noexcept
 	{
-		constexpr auto mask = ieee574_mask<double>{0x7fff'ffff'ffff'ffff};
+		constexpr auto mask = std::bit_cast<double>(0x7fff'ffff'ffff'ffff);
 		simd_array_invoke(out, data, [m = _mm_set1_pd(mask)](auto &out, auto l) { out = _mm_and_pd(m, l); });
 	}
 
