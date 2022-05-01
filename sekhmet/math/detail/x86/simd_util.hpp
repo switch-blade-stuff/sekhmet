@@ -35,9 +35,9 @@ namespace sek::math::detail
 		double f;
 	};
 
+	// clang-format off
 	template<typename T, std::size_t N, std::size_t M, typename F>
-	constexpr void
-		simd_array_invoke(simd_data<T, N> (&out)[M], const simd_data<T, N> (&l)[M], const simd_data<T, N> (&r)[M], F f) noexcept
+	constexpr void simd_array_invoke(simd_data<T, N> (&out)[M], const simd_data<T, N> (&l)[M], const simd_data<T, N> (&r)[M], F f) noexcept
 	{
 		for (auto i = M; i-- > 0;) f(out[i].value, l[i].value, r[i].value);
 	}
@@ -51,4 +51,5 @@ namespace sek::math::detail
 	{
 		for (auto i = M; i-- > 0;) f(out[i].value, l[i].value);
 	}
+	// clang-format on
 }	 // namespace sek::math

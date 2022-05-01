@@ -24,5 +24,6 @@ namespace sek::math::detail
 		__m256d value;
 	};
 
-}	 // namespace sek::math
+	// TODO: Implement AVX SIMD
+}	 // namespace sek::math::detail
 #endif

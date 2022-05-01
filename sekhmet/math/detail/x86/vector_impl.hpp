@@ -10,7 +10,7 @@
 #include "sse.hpp"
 #include <type_traits>
 
-#define SEK_DETAIL_SIMD_ARG(storage) storage.data.simd_array
+#define SEK_DETAIL_SIMD_ARG(storage) storage.data
 #define SEK_DETAIL_REQUIRE_SIMD_OVERLOAD(func, ...) requires(requires { func(__VA_ARGS__); })
 
 namespace sek::math::detail
