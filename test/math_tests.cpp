@@ -18,7 +18,7 @@ TEST(math_tests, vec_test)
 	EXPECT_EQ(abs(sek::math::vector4d{-1.0, 2.0, 3.0, 4.0}), (sek::math::vector4d{1.0, 2.0, 3.0, 4.0}));
 	EXPECT_EQ(max(v4_3, v4_1), v4_2);
 
-	using v16d = sek::math::vector<double, 16>;
+	using v16d = sek::math::basic_vector<double, 16>;
 
 	auto v16_1 = v16d{1.}, v16_2 = v16d{2.}, v16_3 = v16d{3.};
 	auto v16_4 = v16_1 + v16_2;
@@ -28,7 +28,7 @@ TEST(math_tests, vec_test)
 	EXPECT_EQ(v2i_1 + v2i_2, sek::math::vector2i(1, -1));
 	EXPECT_EQ(abs(v2i_1 + v2i_2), sek::math::vector2i(1, 1));
 
-	using v6f = sek::math::vector<float, 6>;
+	using v6f = sek::math::basic_vector<float, 6>;
 	v6f v6f_1 = v6f{1.f, 2.f, 3.f, 4.f, 5.f, 6.f};
 	auto v6f_2 = sek::math::dot(v6f_1, v6f_1);
 	EXPECT_EQ(v6f_2, 1.f + 2.f * 2.f + 3.f * 3.f + 4.f * 4.f + 5.f * 5.f + 6.f * 6.f);

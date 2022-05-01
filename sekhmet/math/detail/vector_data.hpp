@@ -49,14 +49,8 @@ namespace sek::math::detail
 	template<typename T, std::size_t N>
 	struct vector_data<T, N, true>
 	{
-		using data_t = simd_data_t<T, N>;
-		constexpr static auto size = sizeof(data_t);
-
 		constexpr vector_data() noexcept = default;
-		constexpr explicit vector_data(const T (&vals)[N]) noexcept
-		{
-			std::copy(std::begin(vals), std::end(vals), values.data);
-		}
+		constexpr explicit vector_data(const T (&vals)[N]) noexcept : values(vals) {}
 
 		constexpr T &operator[](std::size_t i) noexcept { return values[i]; }
 		constexpr const T &operator[](std::size_t i) const noexcept { return values[i]; }
@@ -72,6 +66,9 @@ namespace sek::math::detail
 			return values.template get<I>();
 		}
 
+		constexpr operator simd_t<T, N> &() noexcept { return simd; }
+		constexpr operator const simd_t<T, N> &() const noexcept { return simd; }
+
 		constexpr auto operator<=>(const vector_data &other) const noexcept { return values <=> other.values; }
 		constexpr bool operator==(const vector_data &other) const noexcept { return values == other.values; }
 
@@ -81,11 +78,11 @@ namespace sek::math::detail
 
 		union
 		{
-			vector_data<T, size / sizeof(T), false> values = {};
-			data_t data;
+			vector_data<T, N, false> values = {};
+			simd_t<T, N> simd;
 		};
 	};
 
 	template<typename T, std::size_t N>
-	using vector_data_t = vector_data<T, N, has_simd_data<T, N>>;
+	using vector_data_t = vector_data<T, N, simd_exists<T, N>>;
 }	 // namespace sek::math::detail

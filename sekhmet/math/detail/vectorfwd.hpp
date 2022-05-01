@@ -8,6 +8,6 @@
 
 namespace sek::math
 {
-	template<typename T, std::size_t N>
-	requires(N != 0 && arithmetic<T>) union vector;
+	template<arithmetic T, std::size_t N>
+	union basic_vector;
 }	 // namespace sek::math

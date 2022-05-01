@@ -38,11 +38,11 @@ if (ENABLE_SIMD)
         endif ()
     endif ()
 
-    option(ENABLE_AVX "Enable AVX instruction set support" ON)
+    option(ENABLE_AVX "Enable AVX instruction set support" OFF)
     if(ENABLE_AVX)
         add_compile_definitions(SEK_USE_AVX)
 
-        option(ENABLE_AVX2 "Enable AVX2 instruction set support" ON)
+        option(ENABLE_AVX2 "Enable AVX2 instruction set support" OFF)
         add_compile_definitions(SEK_USE_AVX2)
     endif ()
 endif ()

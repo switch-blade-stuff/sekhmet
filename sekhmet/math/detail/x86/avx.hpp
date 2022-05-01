@@ -4,7 +4,8 @@
 
 #pragma once
 
-#include "simd_util.hpp"
+#include "../util.hpp"
+#include "common.hpp"
 
 #ifdef SEK_USE_AVX
 
@@ -13,13 +14,12 @@
 namespace sek::math::detail
 {
 	template<>
-	struct simd_data<float, 8>
+	struct simd_t<double, 3>
 	{
-		__m256 value;
+		__m256d value;
 	};
-
 	template<>
-	struct simd_data<double, 4>
+	struct simd_t<double, 4>
 	{
 		__m256d value;
 	};
