@@ -4,8 +4,6 @@
 
 #pragma once
 
-#include <numbers>
-
 #include "sekhmet/detail/assert.hpp"
 #include "sekhmet/detail/hash.hpp"
 #include "util.hpp"
@@ -100,6 +98,9 @@ private:                                                                        
 	template<typename U, std::size_t M>                                                                                \
 	friend constexpr U magn(const basic_vector<U, M> &) noexcept;                                                      \
                                                                                                                        \
+	template<std::size_t... I, typename U, std::size_t M>                                                              \
+	friend constexpr basic_vector<U, sizeof...(I)> shuffle(const basic_vector<U, M> &) noexcept;                       \
+                                                                                                                       \
 	template<std::size_t I, typename U, std::size_t M>                                                                 \
 	friend constexpr U &get(basic_vector<U, M> &) noexcept;                                                            \
 	template<std::size_t I, typename U, std::size_t M>                                                                 \
@@ -134,8 +135,8 @@ public:                                                                         
 
 namespace sek::math
 {
-	/** Generic vector overload.
-	 * @note Generic vector types are not guaranteed to have SIMD-optimized. */
+	/** Generic vector.
+	 * @note Generic vector types are not guaranteed to be SIMD-optimized. */
 	template<arithmetic T, std::size_t N>
 	union basic_vector
 	{
@@ -320,7 +321,7 @@ namespace sek::math
 		return l;
 	}
 
-	/** Returns a copy of the vector multiplied by a scalar. */
+	/** Returns a copy of a vector multiplied by a scalar. */
 	template<typename T, std::size_t N>
 	[[nodiscard]] constexpr basic_vector<T, N> operator*(const basic_vector<T, N> &l, T r) noexcept
 	{
@@ -347,7 +348,7 @@ namespace sek::math
 			detail::vector_mul(l.data, l.data, r);
 		return l;
 	}
-	/** Returns a copy of the vector divided by a scalar. */
+	/** Returns a copy of a vector divided by a scalar. */
 	template<typename T, std::size_t N>
 	[[nodiscard]] constexpr basic_vector<T, N> operator/(const basic_vector<T, N> &l, T r) noexcept
 	{
@@ -356,6 +357,17 @@ namespace sek::math
 			detail::generic::vector_div(result.data, l.data, r);
 		else
 			detail::vector_div(result.data, l.data, r);
+		return result;
+	}
+	/** Returns a vector produced by dividing a scalar by a vector. */
+	template<typename T, std::size_t N>
+	[[nodiscard]] constexpr basic_vector<T, N> operator/(T l, const basic_vector<T, N> &r) noexcept
+	{
+		basic_vector<T, N> result;
+		if (std::is_constant_evaluated())
+			detail::generic::vector_div(result.data, l, r.data);
+		else
+			detail::vector_div(result.data, l, r.data);
 		return result;
 	}
 	/** Divides vector by a scalar. */
@@ -561,6 +573,20 @@ namespace sek::math
 			detail::generic::vector_norm(result.data, v.data);
 		else
 			detail::vector_norm(result.data, v.data);
+		return result;
+	}
+
+	/** Produces a new vector which is the result of shuffling elements of another vector.
+	 * @tparam I Indices of elements of the source vector in the order they should be shuffled to the destination vector.
+	 * @return Result vector who's elements are specified by `I`. */
+	template<std::size_t... I, typename U, std::size_t M>
+	constexpr basic_vector<U, sizeof...(I)> shuffle(const basic_vector<U, M> &l) noexcept
+	{
+		basic_vector<U, sizeof...(I)> result;
+		if (std::is_constant_evaluated())
+			detail::generic::vector_shuffle(result.data, l.data, std::index_sequence<I...>{});
+		else
+			detail::vector_shuffle(result.data, l.data, std::index_sequence<I...>{});
 		return result;
 	}
 

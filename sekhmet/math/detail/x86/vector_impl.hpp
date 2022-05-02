@@ -37,6 +37,12 @@ namespace sek::math::detail
 		x86_simd_div_s(out.simd, l.simd, r);
 	}
 	template<typename T, std::size_t N>
+	inline void vector_div(vector_data<T, N, true> &out, T l, const vector_data<T, N, true> &r) noexcept
+		SEK_REQUIRES_OVERLOAD(x86_simd_div_s, out.simd, l, r.simd)
+	{
+		x86_simd_div_s(out.simd, l, r.simd);
+	}
+	template<typename T, std::size_t N>
 	inline void vector_neg(vector_data<T, N, true> &out, const vector_data<T, N, true> &l) noexcept
 		SEK_REQUIRES_OVERLOAD(x86_simd_neg, out.simd, l.simd)
 	{
@@ -113,5 +119,12 @@ namespace sek::math::detail
 		SEK_REQUIRES_OVERLOAD(x86_simd_norm, out.simd, l.simd)
 	{
 		x86_simd_norm(out.simd, l.simd);
+	}
+
+	template<typename T, std::size_t N, std::size_t M, std::size_t... Is>
+	inline void vector_shuffle(vector_data<T, N, true> &out, const vector_data<T, M, true> &l, std::index_sequence<Is...> s) noexcept
+		SEK_REQUIRES_OVERLOAD(x86_simd_shuffle, out.simd, l.simd, s)
+	{
+		x86_simd_shuffle(out.simd, l.simd, s);
 	}
 }	 // namespace sek::math::detail

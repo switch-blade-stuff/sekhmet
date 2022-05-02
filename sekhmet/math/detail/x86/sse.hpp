@@ -72,6 +72,11 @@ namespace sek::math::detail
 		out.value = _mm_div_ps(l.value, _mm_set1_ps(r));
 	}
 	template<std::size_t N>
+	inline void x86_simd_div_s(simd_t<float, N> &out, float l, const simd_t<float, N> &r) noexcept
+	{
+		out.value = _mm_div_ps(_mm_set1_ps(l), r.value);
+	}
+	template<std::size_t N>
 	inline void x86_simd_neg(simd_t<float, N> &out, const simd_t<float, N> &l) noexcept
 	{
 		out.value = _mm_sub_ps(_mm_setzero_ps(), l.value);
@@ -111,6 +116,13 @@ namespace sek::math::detail
 		out.value = _mm_sub_ps(_mm_mul_ps(a, b), _mm_shuffle_ps(c, c, _MM_SHUFFLE(3, 0, 2, 1)));
 	}
 
+	template<std::size_t N, std::size_t M, std::size_t... Is>
+	inline void x86_simd_shuffle(simd_t<float, N> &out, const simd_t<float, M> &l, std::index_sequence<Is...> s) noexcept
+	{
+		constexpr auto mask = x86_mm_shuffle4_mask(s);
+		out.value = _mm_shuffle_ps(l.value, l.value, mask);
+	}
+
 #ifdef SEK_USE_SSE2
 	template<>
 	struct simd_t<double, 2>
@@ -133,6 +145,10 @@ namespace sek::math::detail
 	inline void x86_simd_div_s(simd_t<double, 2> &out, const simd_t<double, 2> &l, double r) noexcept
 	{
 		out.value = _mm_div_pd(l.value, _mm_set1_pd(r));
+	}
+	inline void x86_simd_div_s(simd_t<double, 2> &out, double l, const simd_t<double, 2> &r) noexcept
+	{
+		out.value = _mm_div_pd(_mm_set1_pd(l), r.value);
 	}
 	inline void x86_simd_neg(simd_t<double, 2> &out, const simd_t<double, 2> &l) noexcept
 	{
@@ -158,6 +174,13 @@ namespace sek::math::detail
 	inline void x86_simd_rsqrt(simd_t<double, 2> &out, const simd_t<double, 2> &l) noexcept
 	{
 		out.value = _mm_div_pd(_mm_set1_pd(1), _mm_sqrt_pd(l.value));
+	}
+
+	template<std::size_t... Is>
+	inline void x86_simd_shuffle(simd_t<double, 2> &out, const simd_t<double, 2> &l, std::index_sequence<Is...> s) noexcept
+	{
+		constexpr auto mask = x86_mm_shuffle2_mask(s);
+		out.value = _mm_shuffle_pd(l.value, l.value, mask);
 	}
 
 #ifndef SEK_USE_AVX
@@ -197,6 +220,13 @@ namespace sek::math::detail
 		const auto rv = _mm_set1_pd(r);
 		out.value[0] = _mm_div_pd(l.value[0], rv);
 		out.value[1] = _mm_div_pd(l.value[1], rv);
+	}
+	template<std::size_t N>
+	inline void x86_simd_div_s(simd_t<double, N> &out, double l, const simd_t<double, N> &r) noexcept
+	{
+		const auto lv = _mm_set1_pd(l);
+		out.value[0] = _mm_div_pd(lv, r.value[0]);
+		out.value[1] = _mm_div_pd(lv, r.value[1]);
 	}
 	template<std::size_t N>
 	inline void x86_simd_neg(simd_t<double, N> &out, const simd_t<double, N> &l) noexcept
@@ -248,6 +278,15 @@ namespace sek::math::detail
 		out.value[0] = _mm_sub_pd(_mm_mul_pd(a, _mm_shuffle_pd(r.value[1], r.value[0], _MM_SHUFFLE2(0, 0))),
 								  _mm_mul_pd(b, _mm_shuffle_pd(l.value[1], l.value[0], _MM_SHUFFLE2(0, 0))));
 		out.value[1] = _mm_sub_pd(_mm_mul_pd(l.value[0], b), _mm_mul_pd(r.value[0], a));
+	}
+
+	template<std::size_t N, std::size_t I0, std::size_t I1, std::size_t... Is> /* N is greater than 2 */
+	inline void x86_simd_shuffle(simd_t<double, N> &out, const simd_t<double, 2> &l, std::index_sequence<I0, I1, Is...>) noexcept
+	{
+		constexpr auto mask0 = x86_mm_shuffle2_mask(std::index_sequence<I0, I1>{});
+		constexpr auto mask1 = x86_mm_shuffle2_mask(std::index_sequence<Is...>{});
+		out.value[0] = _mm_shuffle_pd(l.value, l.value, mask0);
+		out.value[1] = _mm_shuffle_pd(l.value, l.value, mask1);
 	}
 #endif
 
@@ -373,10 +412,23 @@ namespace sek::math::detail
 		out.value = _mm_div_epi32(l.value, _mm_set1_epi32(r));
 	}
 	template<integral_of_size<4> T, std::size_t N>
+	inline void x86_simd_div_s(simd_t<T, N> &out, T l, const simd_t<T, N> &r) noexcept
+	{
+		out.value = _mm_div_epi32(_mm_set1_epi32(l), r.value);
+	}
+	template<integral_of_size<4> T, std::size_t N>
 	inline void x86_simd_neg(simd_t<T, N> &out, const simd_t<T, N> &l) noexcept
 	{
 		out.value = _mm_sub_epi32(_mm_setzero_si128(), l.value);
 	}
+
+	template<integral_of_size<4> T, std::size_t N, std::size_t... Is>
+	inline void x86_simd_shuffle(simd_t<T, N> &out, const simd_t<T, N> &l, std::index_sequence<Is...> s) noexcept
+	{
+		constexpr auto mask = x86_mm_shuffle4_mask(s);
+		out.value = _mm_shuffle_epi32(l.value, mask);
+	}
+
 #ifdef SEK_USE_SSSE3
 	template<integral_of_size<4> T, std::size_t N>
 	inline void x86_simd_abs(simd_t<T, N> &out, const simd_t<T, N> &l) noexcept
@@ -422,6 +474,11 @@ namespace sek::math::detail
 	inline void x86_simd_div_s(simd_t<T, 8> &out, const simd_t<T, 8> &l, T r) noexcept
 	{
 		out.value = _mm_div_epi16(l.value, _mm_set1_epi16(r));
+	}
+	template<integral_of_size<2> T, std::size_t N>
+	inline void x86_simd_div_s(simd_t<T, N> &out, T l, const simd_t<T, N> &r) noexcept
+	{
+		out.value = _mm_div_epi16(_mm_set1_epi16(l), r.value);
 	}
 	template<integral_of_size<2> T>
 	inline void x86_simd_neg(simd_t<T, 8> &out, const simd_t<T, 8> &l) noexcept
@@ -471,6 +528,11 @@ namespace sek::math::detail
 	inline void x86_simd_div_s(simd_t<T, 16> &out, const simd_t<T, 16> &l, T r) noexcept
 	{
 		out.value = _mm_div_epi8(l.value, _mm_set1_epi8(r));
+	}
+	template<integral_of_size<1> T, std::size_t N>
+	inline void x86_simd_div_s(simd_t<T, N> &out, T l, const simd_t<T, N> &r) noexcept
+	{
+		out.value = _mm_div_epi8(_mm_set1_epi8(l), r.value);
 	}
 	template<integral_of_size<1> T>
 	inline void x86_simd_neg(simd_t<T, 16> &out, const simd_t<T, 16> &l) noexcept

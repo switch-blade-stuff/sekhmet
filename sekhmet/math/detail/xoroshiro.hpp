@@ -15,11 +15,11 @@
 namespace sek::math
 {
 	template<typename T, typename I>
-	concept is_seed_generator = requires(const I (&state)[4], T &gen) {
-									typename T::result_type;
-									std::same_as<typename T::result_type, I>;
-									gen.generate(std::begin(state), std::end(state));
-								};
+	concept seed_generator = requires(const I (&state)[4], T &gen) {
+								 typename T::result_type;
+								 std::same_as<typename T::result_type, I>;
+								 gen.generate(std::begin(state), std::end(state));
+							 };
 
 	constexpr static auto mix_seed_xor(auto &seed) noexcept { return std::rotl(seed, 19) ^ seed; }
 	constexpr static auto uint64_to_double(auto value) noexcept { return static_cast<double>(value >> 11) * 0x1.0p-53; }
@@ -338,7 +338,7 @@ namespace sek::math
 		/** Initializes the generator from a seed. */
 		constexpr explicit xoroshiro(result_type s) noexcept { seed(s); }
 		/** Initializes the generator from a seed sequence. */
-		template<is_seed_generator<result_type> S>
+		template<seed_generator<result_type> S>
 		constexpr explicit xoroshiro(S s) noexcept
 		{
 			seed(s);
@@ -356,7 +356,7 @@ namespace sek::math
 			}
 		}
 		/** Seeds the generator with a seed sequence. */
-		template<is_seed_generator<result_type> S>
+		template<seed_generator<result_type> S>
 		constexpr void seed(S &s) noexcept
 		{
 			s.generate(std::begin(base::state), std::end(base::state));

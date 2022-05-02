@@ -55,6 +55,19 @@ TEST(math_tests, vec_test)
 		auto v3f_2 = sek::math::cross(v3f_1, {4, 5, 6});
 		EXPECT_EQ(v3f_2, (sek::math::vector3f{-3, 6, -3}));
 	}
+
+	{
+		sek::math::vector3f v3f = {1, 2, 3};
+
+		EXPECT_EQ((sek::math::shuffle<2, 1>(v3f)), (sek::math::vector2f{3, 2}));
+		EXPECT_EQ((sek::math::shuffle<0, 1, 2, 2>(v3f)), (sek::math::vector4f{1, 2, 3, 3}));
+	}
+
+	{
+		sek::math::vector2d v2d = {1, 2};
+		EXPECT_EQ((sek::math::shuffle<1, 0>(v2d)), (sek::math::vector2d{2, 1}));
+		EXPECT_EQ((sek::math::shuffle<1, 0, 0>(v2d)), (sek::math::vector3d{2, 1, 1}));
+	}
 }
 
 TEST(math_tests, random_test)

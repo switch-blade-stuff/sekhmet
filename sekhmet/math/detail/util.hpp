@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <limits>
+#include <numbers>
 
 #include "sekhmet/detail/define.h"
 #include <type_traits>

@@ -52,4 +52,37 @@
 #undef SEK_USE_AVX2
 #endif
 
+namespace sek::math::detail
+{
+	template<std::size_t J, std::size_t I, std::size_t... Is>
+	constexpr std::uint8_t x86_mm_shuffle4_unwrap(std::index_sequence<I, Is...>) noexcept
+	{
+		constexpr auto bit = static_cast<std::uint8_t>(I) << J;
+		if constexpr (sizeof...(Is) != 0)
+			return bit | x86_mm_shuffle4_unwrap<J + 2>(std::index_sequence<Is...>{});
+		else
+			return bit;
+	}
+	template<std::size_t... Is>
+	constexpr std::uint8_t x86_mm_shuffle4_mask(std::index_sequence<Is...> s) noexcept
+	{
+		return x86_mm_shuffle4_unwrap<0>(s);
+	}
+
+	template<std::size_t J, std::size_t I, std::size_t... Is>
+	constexpr std::uint8_t x86_mm_shuffle2_unwrap(std::index_sequence<I, Is...>) noexcept
+	{
+		constexpr auto bit = static_cast<std::uint8_t>(I) << J;
+		if constexpr (sizeof...(Is) != 0)
+			return bit | x86_mm_shuffle2_unwrap<J + 1>(std::index_sequence<Is...>{});
+		else
+			return bit;
+	}
+	template<std::size_t... Is>
+	constexpr std::uint8_t x86_mm_shuffle2_mask(std::index_sequence<Is...> s) noexcept
+	{
+		return x86_mm_shuffle2_unwrap<0>(s);
+	}
+}	 // namespace sek::math::detail
+
 #endif
