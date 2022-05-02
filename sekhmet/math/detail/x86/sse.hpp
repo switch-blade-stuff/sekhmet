@@ -72,15 +72,15 @@ namespace sek::math::detail
 		out.value = _mm_div_ps(l.value, _mm_set1_ps(r));
 	}
 	template<std::size_t N>
-	inline void x86_simd_neg(simd_t<float, N> &out, const simd_t<float, N> &data) noexcept
+	inline void x86_simd_neg(simd_t<float, N> &out, const simd_t<float, N> &l) noexcept
 	{
-		out.value = _mm_sub_ps(_mm_setzero_ps(), data.value);
+		out.value = _mm_sub_ps(_mm_setzero_ps(), l.value);
 	}
 	template<std::size_t N>
-	inline void x86_simd_abs(simd_t<float, N> &out, const simd_t<float, N> &data) noexcept
+	inline void x86_simd_abs(simd_t<float, N> &out, const simd_t<float, N> &l) noexcept
 	{
 		constexpr auto mask = std::bit_cast<float>(0x7fff'ffff);
-		out.value = _mm_and_ps(_mm_set1_ps(mask), data.value);
+		out.value = _mm_and_ps(_mm_set1_ps(mask), l.value);
 	}
 	template<std::size_t N>
 	inline void x86_simd_max(simd_t<float, N> &out, const simd_t<float, N> &l, const simd_t<float, N> &r) noexcept
@@ -93,14 +93,22 @@ namespace sek::math::detail
 		out.value = _mm_min_ps(l.value, r.value);
 	}
 	template<std::size_t N>
-	inline void x86_simd_sqrt(simd_t<float, N> &out, const simd_t<float, N> &data) noexcept
+	inline void x86_simd_sqrt(simd_t<float, N> &out, const simd_t<float, N> &l) noexcept
 	{
-		out.value = _mm_sqrt_ps(data.value);
+		out.value = _mm_sqrt_ps(l.value);
 	}
 	template<std::size_t N>
-	inline void x86_simd_rsqrt(simd_t<float, N> &out, const simd_t<float, N> &data) noexcept
+	inline void x86_simd_rsqrt(simd_t<float, N> &out, const simd_t<float, N> &l) noexcept
 	{
-		out.value = _mm_rsqrt_ps(data.value);
+		out.value = _mm_rsqrt_ps(l.value);
+	}
+
+	inline void x86_simd_cross(simd_t<float, 3> &out, const simd_t<float, 3> &l, const simd_t<float, 3> &r) noexcept
+	{
+		const auto a = _mm_shuffle_ps(l.value, l.value, _MM_SHUFFLE(1, 3, 2, 0));
+		const auto b = _mm_shuffle_ps(r.value, r.value, _MM_SHUFFLE(2, 1, 3, 0));
+		const auto c = _mm_mul_ps(a, r.value);
+		out.value = _mm_sub_ps(_mm_mul_ps(a, b), _mm_shuffle_ps(c, c, _MM_SHUFFLE(1, 3, 2, 0)));
 	}
 
 #ifdef SEK_USE_SSE2
@@ -126,14 +134,14 @@ namespace sek::math::detail
 	{
 		out.value = _mm_div_pd(l.value, _mm_set1_pd(r));
 	}
-	inline void x86_simd_neg(simd_t<double, 2> &out, const simd_t<double, 2> &data) noexcept
+	inline void x86_simd_neg(simd_t<double, 2> &out, const simd_t<double, 2> &l) noexcept
 	{
-		out.value = _mm_sub_pd(_mm_setzero_pd(), data.value);
+		out.value = _mm_sub_pd(_mm_setzero_pd(), l.value);
 	}
-	inline void x86_simd_abs(simd_t<double, 2> &out, const simd_t<double, 2> &data) noexcept
+	inline void x86_simd_abs(simd_t<double, 2> &out, const simd_t<double, 2> &l) noexcept
 	{
 		constexpr auto mask = std::bit_cast<double>(0x7fff'ffff'ffff'ffff);
-		out.value = _mm_and_pd(_mm_set1_pd(mask), data.value);
+		out.value = _mm_and_pd(_mm_set1_pd(mask), l.value);
 	}
 	inline void x86_simd_max(simd_t<double, 2> &out, const simd_t<double, 2> &l, const simd_t<double, 2> &r) noexcept
 	{
@@ -143,13 +151,13 @@ namespace sek::math::detail
 	{
 		out.value = _mm_min_pd(l.value, r.value);
 	}
-	inline void x86_simd_sqrt(simd_t<double, 2> &out, const simd_t<double, 2> &data) noexcept
+	inline void x86_simd_sqrt(simd_t<double, 2> &out, const simd_t<double, 2> &l) noexcept
 	{
-		out.value = _mm_sqrt_pd(data.value);
+		out.value = _mm_sqrt_pd(l.value);
 	}
-	inline void x86_simd_rsqrt(simd_t<double, 2> &out, const simd_t<double, 2> &data) noexcept
+	inline void x86_simd_rsqrt(simd_t<double, 2> &out, const simd_t<double, 2> &l) noexcept
 	{
-		out.value = _mm_div_pd(_mm_set1_pd(1), _mm_sqrt_pd(data.value));
+		out.value = _mm_div_pd(_mm_set1_pd(1), _mm_sqrt_pd(l.value));
 	}
 
 #ifndef SEK_USE_AVX
@@ -191,19 +199,19 @@ namespace sek::math::detail
 		out.value[1] = _mm_div_pd(l.value[1], rv);
 	}
 	template<std::size_t N>
-	inline void x86_simd_neg(simd_t<double, N> &out, const simd_t<double, N> &data) noexcept
+	inline void x86_simd_neg(simd_t<double, N> &out, const simd_t<double, N> &l) noexcept
 	{
 		const auto z = _mm_setzero_pd();
-		out.value[0] = _mm_sub_pd(z, data.value[0]);
-		out.value[1] = _mm_sub_pd(z, data.value[1]);
+		out.value[0] = _mm_sub_pd(z, l.value[0]);
+		out.value[1] = _mm_sub_pd(z, l.value[1]);
 	}
 	template<std::size_t N>
-	inline void x86_simd_abs(simd_t<double, N> &out, const simd_t<double, N> &data) noexcept
+	inline void x86_simd_abs(simd_t<double, N> &out, const simd_t<double, N> &l) noexcept
 	{
 		constexpr auto mask = std::bit_cast<double>(0x7fff'ffff'ffff'ffff);
 		const auto m = _mm_set1_pd(mask);
-		out.value[0] = _mm_and_pd(m, data.value[0]);
-		out.value[1] = _mm_and_pd(m, data.value[1]);
+		out.value[0] = _mm_and_pd(m, l.value[0]);
+		out.value[1] = _mm_and_pd(m, l.value[1]);
 	}
 	template<std::size_t N>
 	inline void x86_simd_max(simd_t<double, N> &out, const simd_t<double, N> &l, const simd_t<double, N> &r) noexcept
@@ -218,17 +226,17 @@ namespace sek::math::detail
 		out.value[1] = _mm_min_pd(l.value[1], r.value[1]);
 	}
 	template<std::size_t N>
-	inline void x86_simd_sqrt(simd_t<double, N> &out, const simd_t<double, N> &data) noexcept
+	inline void x86_simd_sqrt(simd_t<double, N> &out, const simd_t<double, N> &l) noexcept
 	{
-		out.value[0] = _mm_sqrt_pd(data.value[0]);
-		out.value[1] = _mm_sqrt_pd(data.value[1]);
+		out.value[0] = _mm_sqrt_pd(l.value[0]);
+		out.value[1] = _mm_sqrt_pd(l.value[1]);
 	}
 	template<std::size_t N>
-	inline void x86_simd_rsqrt(simd_t<double, N> &out, const simd_t<double, N> &data) noexcept
+	inline void x86_simd_rsqrt(simd_t<double, N> &out, const simd_t<double, N> &l) noexcept
 	{
 		const auto v1 = _mm_set1_pd(1);
-		out.value[0] = _mm_div_pd(v1, _mm_sqrt_pd(data.value[0]));
-		out.value[1] = _mm_div_pd(v1, _mm_sqrt_pd(data.value[1]));
+		out.value[0] = _mm_div_pd(v1, _mm_sqrt_pd(l.value[0]));
+		out.value[1] = _mm_div_pd(v1, _mm_sqrt_pd(l.value[1]));
 	}
 #endif
 
@@ -249,9 +257,9 @@ namespace sek::math::detail
 		out.value = _mm_sub_epi64(l.value, r.value);
 	}
 	template<integral_of_size<8> T>
-	inline void x86_simd_neg(simd_t<T, 2> &out, const simd_t<T, 2> &data) noexcept
+	inline void x86_simd_neg(simd_t<T, 2> &out, const simd_t<T, 2> &l) noexcept
 	{
-		out.value = _mm_sub_epi64(_mm_setzero_si128(), data.value);
+		out.value = _mm_sub_epi64(_mm_setzero_si128(), l.value);
 	}
 
 #ifndef SEK_USE_AVX2
@@ -279,11 +287,11 @@ namespace sek::math::detail
 		out.value[1] = _mm_sub_epi64(l.value[1], r.value[1]);
 	}
 	template<integral_of_size<8> T, std::size_t N>
-	inline void x86_simd_neg(simd_t<T, N> &out, const simd_t<T, N> &data) noexcept
+	inline void x86_simd_neg(simd_t<T, N> &out, const simd_t<T, N> &l) noexcept
 	{
 		const auto z = _mm_setzero_si128();
-		out.value[0] = _mm_sub_epi64(z, data.value[0]);
-		out.value[1] = _mm_sub_epi64(z, data.value[1]);
+		out.value[0] = _mm_sub_epi64(z, l.value[0]);
+		out.value[1] = _mm_sub_epi64(z, l.value[1]);
 	}
 
 	template<integral_of_size<8> T, std::size_t N>
@@ -354,15 +362,15 @@ namespace sek::math::detail
 		out.value = _mm_div_epi32(l.value, _mm_set1_epi32(r));
 	}
 	template<integral_of_size<4> T, std::size_t N>
-	inline void x86_simd_neg(simd_t<T, N> &out, const simd_t<T, N> &data) noexcept
+	inline void x86_simd_neg(simd_t<T, N> &out, const simd_t<T, N> &l) noexcept
 	{
-		out.value = _mm_sub_epi32(_mm_setzero_si128(), data.value);
+		out.value = _mm_sub_epi32(_mm_setzero_si128(), l.value);
 	}
 #ifdef SEK_USE_SSSE3
 	template<integral_of_size<4> T, std::size_t N>
-	inline void x86_simd_abs(simd_t<T, N> &out, const simd_t<T, N> &data) noexcept
+	inline void x86_simd_abs(simd_t<T, N> &out, const simd_t<T, N> &l) noexcept
 	{
-		out.value = _mm_abs_epi32(data.value);
+		out.value = _mm_abs_epi32(l.value);
 	}
 #endif
 #ifdef SEK_USE_SSE4_1
@@ -375,6 +383,15 @@ namespace sek::math::detail
 	inline void x86_simd_min(simd_t<T, N> &out, const simd_t<T, N> &l, const simd_t<T, N> &r) noexcept
 	{
 		out.value = _mm_min_epi32(l.value, r.value);
+	}
+
+	template<integral_of_size<4> T>
+	inline void x86_simd_cross(simd_t<T, 3> &out, const simd_t<T, 3> &l, const simd_t<T, 3> &r) noexcept
+	{
+		const auto a = _mm_shuffle_epi32(l.value, l.value, _MM_SHUFFLE(1, 3, 2, 0));
+		const auto b = _mm_shuffle_epi32(r.value, r.value, _MM_SHUFFLE(2, 1, 3, 0));
+		const auto c = _mm_mul_epi32(a, r.value);
+		out.value = _mm_sub_epi32(_mm_mul_epi32(a, b), _mm_shuffle_epi32(c, c, _MM_SHUFFLE(1, 3, 2, 0)));
 	}
 #endif
 
@@ -405,15 +422,15 @@ namespace sek::math::detail
 		out.value = _mm_div_epi16(l.value, _mm_set1_epi16(r));
 	}
 	template<integral_of_size<2> T>
-	inline void x86_simd_neg(simd_t<T, 8> &out, const simd_t<T, 8> &data) noexcept
+	inline void x86_simd_neg(simd_t<T, 8> &out, const simd_t<T, 8> &l) noexcept
 	{
-		out.value = _mm_sub_epi16(_mm_setzero_si128(), data.value);
+		out.value = _mm_sub_epi16(_mm_setzero_si128(), l.value);
 	}
 #ifdef SEK_USE_SSSE3
 	template<integral_of_size<2> T>
-	inline void x86_simd_abs(simd_t<T, 8> &out, const simd_t<T, 8> &data) noexcept
+	inline void x86_simd_abs(simd_t<T, 8> &out, const simd_t<T, 8> &l) noexcept
 	{
-		out.value = _mm_abs_epi16(data.value);
+		out.value = _mm_abs_epi16(l.value);
 	}
 #endif
 	template<integral_of_size<2> T>
@@ -454,15 +471,15 @@ namespace sek::math::detail
 		out.value = _mm_div_epi8(l.value, _mm_set1_epi8(r));
 	}
 	template<integral_of_size<1> T>
-	inline void x86_simd_neg(simd_t<T, 16> &out, const simd_t<T, 16> &data) noexcept
+	inline void x86_simd_neg(simd_t<T, 16> &out, const simd_t<T, 16> &l) noexcept
 	{
-		out.value = _mm_sub_epi8(_mm_setzero_si128(), data.value);
+		out.value = _mm_sub_epi8(_mm_setzero_si128(), l.value);
 	}
 #ifdef SEK_USE_SSSE3
 	template<integral_of_size<1> T>
-	inline void x86_simd_abs(simd_t<T, 16> &out, const simd_t<T, 16> &data) noexcept
+	inline void x86_simd_abs(simd_t<T, 16> &out, const simd_t<T, 16> &l) noexcept
 	{
-		out.value = _mm_abs_epi8(data.value);
+		out.value = _mm_abs_epi8(l.value);
 	}
 #endif
 #ifdef SEK_USE_SSE4_1
