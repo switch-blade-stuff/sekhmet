@@ -105,10 +105,10 @@ namespace sek::math::detail
 
 	inline void x86_simd_cross(simd_t<float, 3> &out, const simd_t<float, 3> &l, const simd_t<float, 3> &r) noexcept
 	{
-		const auto a = _mm_shuffle_ps(l.value, l.value, _MM_SHUFFLE(1, 3, 2, 0));
-		const auto b = _mm_shuffle_ps(r.value, r.value, _MM_SHUFFLE(2, 1, 3, 0));
+		const auto a = _mm_shuffle_ps(l.value, l.value, _MM_SHUFFLE(3, 0, 2, 1));
+		const auto b = _mm_shuffle_ps(r.value, r.value, _MM_SHUFFLE(3, 1, 0, 2));
 		const auto c = _mm_mul_ps(a, r.value);
-		out.value = _mm_sub_ps(_mm_mul_ps(a, b), _mm_shuffle_ps(c, c, _MM_SHUFFLE(1, 3, 2, 0)));
+		out.value = _mm_sub_ps(_mm_mul_ps(a, b), _mm_shuffle_ps(c, c, _MM_SHUFFLE(3, 0, 2, 1)));
 	}
 
 #ifdef SEK_USE_SSE2
@@ -383,15 +383,6 @@ namespace sek::math::detail
 	inline void x86_simd_min(simd_t<T, N> &out, const simd_t<T, N> &l, const simd_t<T, N> &r) noexcept
 	{
 		out.value = _mm_min_epi32(l.value, r.value);
-	}
-
-	template<integral_of_size<4> T>
-	inline void x86_simd_cross(simd_t<T, 3> &out, const simd_t<T, 3> &l, const simd_t<T, 3> &r) noexcept
-	{
-		const auto a = _mm_shuffle_epi32(l.value, l.value, _MM_SHUFFLE(1, 3, 2, 0));
-		const auto b = _mm_shuffle_epi32(r.value, r.value, _MM_SHUFFLE(2, 1, 3, 0));
-		const auto c = _mm_mul_epi32(a, r.value);
-		out.value = _mm_sub_epi32(_mm_mul_epi32(a, b), _mm_shuffle_epi32(c, c, _MM_SHUFFLE(1, 3, 2, 0)));
 	}
 #endif
 

@@ -48,6 +48,8 @@ namespace sek::serialization::json
 	constexpr config_flags allow_comments = 1;
 	/** Enables parsing trailing commas in Json input. */
 	constexpr config_flags trailing_commas = 2;
+	/** Enables non-standard floating-point values (NaN, inf). */
+	constexpr config_flags extended_fp = 16;
 
 	/** @details Archive used to read Json data. Internally uses the RapidJSON library.
 	 *
@@ -285,7 +287,8 @@ namespace sek::serialization::json
 
 			constexpr unsigned parse_flags =
 				((Config & allow_comments) == allow_comments ? rapidjson::kParseCommentsFlag : 0) |
-				((Config & trailing_commas) == trailing_commas ? rapidjson::kParseTrailingCommasFlag : 0);
+				((Config & trailing_commas) == trailing_commas ? rapidjson::kParseTrailingCommasFlag : 0) |
+				((Config & extended_fp) == extended_fp ? rapidjson::kParseNanAndInfFlag : 0);
 			if (!parser.Parse<parse_flags>(reader, handler)) [[unlikely]]
 			{
 				std::string error_msg = "Json parser error at ";
@@ -328,8 +331,6 @@ namespace sek::serialization::json
 	constexpr config_flags pretty_print = 4;
 	/** If pretty printing is enabled, writes arrays on a single line. Enabled by default. */
 	constexpr config_flags inline_arrays = 8;
-	/** Enables non-standard floating-point values (NaN, inf). */
-	constexpr config_flags extended_fp = 16;
 
 	/** @details Archive used to write Json data. Internally uses the RapidJSON library.
 	 *
@@ -447,8 +448,8 @@ namespace sek::serialization::json
 			std::streambuf *buff;
 		};
 
-		constexpr static auto rj_emitter_flags = (Config & extended_fp) == extended_fp ? rapidjson::kWriteNanAndInfFlag :
-																						   rapidjson::kWriteDefaultFlags;
+		constexpr static auto rj_emitter_flags =
+			rapidjson::kWriteDefaultFlags | ((Config & extended_fp) == extended_fp ? rapidjson::kWriteNanAndInfFlag : 0);
 		using rj_emitter_base =
 			std::conditional_t<(Config & pretty_print) == pretty_print,
 							   rapidjson::PrettyWriter<rj_writer, detail::rj_encoding, detail::rj_encoding, detail::rj_allocator, rj_emitter_flags>,

@@ -127,22 +127,25 @@ TEST(serialization_tests, ubjson_test)
 TEST(serialization_tests, math_test)
 {
 	namespace math = sek::math;
-	namespace ubj = sek::serialization::ubj;
+	namespace json = sek::serialization::json;
 
 	const auto v = math::vector4f{1, 2, 3, std::numeric_limits<float>::infinity()};
 
 	std::string ubj_string;
 	{
 		std::stringstream ss;
-		ubj::basic_output_archive<ubj::fixed_type> archive{ss};
-		archive << v;
+		json::basic_output_archive<json::pretty_print | json::inline_arrays | json::extended_fp> archive_ex{ss};
+		archive_ex << v;
 
-		archive.flush();
+		archive_ex.flush();
 		ubj_string = ss.str();
 	}
 	math::vector4f deserialized = {};
 	{
-		ubj::input_archive archive{ubj_string.data(), ubj_string.size()};
+		auto f = [&]() -> void { json::input_archive archive{ubj_string.data(), ubj_string.size()}; };
+		EXPECT_THROW(f(), sek::serialization::archive_error);
+
+		json::basic_input_archive<json::extended_fp> archive{ubj_string.data(), ubj_string.size()};
 		EXPECT_TRUE(archive.try_read(deserialized));
 	}
 	EXPECT_EQ(v, deserialized);

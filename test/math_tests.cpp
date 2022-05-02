@@ -40,6 +40,9 @@ TEST(math_tests, vec_test)
 	auto n1 = sek::math::norm(v3f_1);
 	auto n2 = v3f_1 / sek::math::magn(v3f_1);
 	EXPECT_EQ(n1, n2);
+
+	auto v3f_2 = sek::math::cross(v3f_1, {4, 5, 6});
+	EXPECT_EQ(v3f_2, (sek::math::vector3f{-3, 6, -3}));
 }
 
 TEST(math_tests, random_test)
