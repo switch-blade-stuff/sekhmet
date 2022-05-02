@@ -28,30 +28,45 @@
 private:                                                                                                               \
 	detail::vector_data_t<T, N> data = {};                                                                             \
                                                                                                                        \
-	friend constexpr sek::hash_t hash<>(const basic_vector<T, N> &) noexcept;                                          \
-	friend constexpr void swap<>(basic_vector<T, N> &, basic_vector<T, N> &) noexcept;                                 \
-	friend constexpr auto operator<=><>(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;              \
-	friend constexpr bool operator==<>(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;               \
-	friend constexpr basic_vector<T, N> operator+<>(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;  \
-	friend constexpr basic_vector<T, N> &operator+=<>(basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;      \
-	friend constexpr basic_vector<T, N> operator-<>(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;  \
-	friend constexpr basic_vector<T, N> &operator-=<>(basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;      \
-	friend constexpr basic_vector<T, N> operator*<>(const basic_vector<T, N> &, T) noexcept;                           \
-	friend constexpr basic_vector<T, N> &operator*=<>(basic_vector<T, N> &, T) noexcept;                               \
-	friend constexpr basic_vector<T, N> operator/<>(const basic_vector<T, N> &, T) noexcept;                           \
-	friend constexpr basic_vector<T, N> &operator/=<>(basic_vector<T, N> &, T) noexcept;                               \
-	friend constexpr basic_vector<T, N> max<>(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;        \
-	friend constexpr basic_vector<T, N> min<>(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;        \
-	friend constexpr T dot<>(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;                         \
-	friend constexpr basic_vector<T, N> sqrt<>(const basic_vector<T, N> &) noexcept;                                   \
-	friend constexpr basic_vector<T, N> rsqrt<>(const basic_vector<T, N> &) noexcept;                                  \
-	friend constexpr T magn<>(const basic_vector<T, N> &) noexcept;                                                    \
-	friend constexpr basic_vector<T, N> norm<>(const basic_vector<T, N> &) noexcept;                                   \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr sek::hash_t hash(const basic_vector<U, M> &) noexcept;                                            \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr void swap(basic_vector<U, M> &, basic_vector<U, M> &) noexcept;                                   \
                                                                                                                        \
-	template<std::size_t I, typename U, std::size_t M>                                                                 \
-	friend constexpr U &get(basic_vector<U, M> &) noexcept;                                                            \
-	template<std::size_t I, typename U, std::size_t M>                                                                 \
-	friend constexpr const U &get(const basic_vector<U, M> &) noexcept;                                                \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr auto operator<=>(const basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;                \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr bool operator==(const basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;                 \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr basic_vector<U, M> operator+(const basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;    \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr basic_vector<U, M> &operator+=(basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;        \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr basic_vector<U, M> operator-(const basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;    \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr basic_vector<U, M> &operator-=(basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;        \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr basic_vector<U, M> operator*(const basic_vector<U, M> &, U) noexcept;                             \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr basic_vector<U, M> &operator*=(basic_vector<U, M> &, U) noexcept;                                 \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr basic_vector<U, M> operator/(const basic_vector<U, M> &, U) noexcept;                             \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr basic_vector<U, M> &operator/=(basic_vector<U, M> &, U) noexcept;                                 \
+	template<std::integral U, std::size_t M>                                                                           \
+	friend constexpr basic_vector<U, M> &operator&=(basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;        \
+	template<std::integral U, std::size_t M>                                                                           \
+	friend constexpr basic_vector<U, M> operator&(const basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;    \
+	template<std::integral U, std::size_t M>                                                                           \
+	friend constexpr basic_vector<U, M> &operator|=(basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;        \
+	template<std::integral U, std::size_t M>                                                                           \
+	friend constexpr basic_vector<U, M> operator|(const basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;    \
+	template<std::integral U, std::size_t M>                                                                           \
+	friend constexpr basic_vector<U, M> operator^(const basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;    \
+	template<std::integral U, std::size_t M>                                                                           \
+	friend constexpr basic_vector<U, M> &operator^=(basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;        \
+	template<std::integral U, std::size_t M>                                                                           \
+	friend constexpr basic_vector<U, M> operator~(const basic_vector<U, M> &) noexcept;                                \
                                                                                                                        \
 	template<typename U, std::size_t M>                                                                                \
 	friend constexpr basic_vector<U, M> operator+(const basic_vector<U, M> &) noexcept                                 \
@@ -65,25 +80,31 @@ private:                                                                        
 	friend constexpr basic_vector<U, M> abs(const basic_vector<U, M> &) noexcept                                       \
 		requires std::is_signed_v<U>                                                                                   \
 	;                                                                                                                  \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr basic_vector<U, M> max(const basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;          \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr basic_vector<U, M> min(const basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;          \
+                                                                                                                       \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr basic_vector<U, M> sqrt(const basic_vector<U, M> &) noexcept;                                     \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr basic_vector<U, M> rsqrt(const basic_vector<U, M> &) noexcept;                                    \
+                                                                                                                       \
 	template<typename U>                                                                                               \
 	friend constexpr basic_vector<U, 3> cross(const basic_vector<U, 3> &, const basic_vector<U, 3> &) noexcept         \
 		requires std::is_signed_v<U>                                                                                   \
 	;                                                                                                                  \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr U dot(const basic_vector<U, M> &, const basic_vector<U, M> &) noexcept;                           \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr basic_vector<U, M> norm(const basic_vector<U, M> &) noexcept;                                     \
+	template<typename U, std::size_t M>                                                                                \
+	friend constexpr U magn(const basic_vector<U, M> &) noexcept;                                                      \
                                                                                                                        \
-	template<std::integral U, std::size_t M>                                                                           \
-	friend constexpr basic_vector<U, M> &operator&=(basic_vector<U, M> &, const basic_vector<T, N> &) noexcept;        \
-	template<std::integral U, std::size_t M>                                                                           \
-	friend constexpr basic_vector<U, M> operator&(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;    \
-	template<std::integral U, std::size_t M>                                                                           \
-	friend constexpr basic_vector<U, M> &operator|=(basic_vector<U, M> &, const basic_vector<T, N> &) noexcept;        \
-	template<std::integral U, std::size_t M>                                                                           \
-	friend constexpr basic_vector<U, M> operator|(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;    \
-	template<std::integral U, std::size_t M>                                                                           \
-	friend constexpr basic_vector<U, M> operator^(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;    \
-	template<std::integral U, std::size_t M>                                                                           \
-	friend constexpr basic_vector<U, M> &operator^=(basic_vector<U, M> &, const basic_vector<T, N> &) noexcept;        \
-	template<std::integral U, std::size_t M>                                                                           \
-	friend constexpr basic_vector<U, M> operator~(const basic_vector<T, N> &) noexcept;                                \
+	template<std::size_t I, typename U, std::size_t M>                                                                 \
+	friend constexpr U &get(basic_vector<U, M> &) noexcept;                                                            \
+	template<std::size_t I, typename U, std::size_t M>                                                                 \
+	friend constexpr const U &get(const basic_vector<U, M> &) noexcept;                                                \
                                                                                                                        \
 public:                                                                                                                \
 	typedef T value_type;                                                                                              \
@@ -114,91 +135,6 @@ public:                                                                         
 
 namespace sek::math
 {
-	template<std::size_t N, std::size_t M, typename T>
-	[[nodiscard]] constexpr basic_vector<T, N> vector_cast(const basic_vector<T, M> &) noexcept;
-
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr sek::hash_t hash(const basic_vector<T, N> &) noexcept;
-	template<typename T, std::size_t N>
-	constexpr void swap(basic_vector<T, N> &, basic_vector<T, N> &) noexcept;
-
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr auto operator<=>(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr bool operator==(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> operator+(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-	template<typename T, std::size_t N>
-	constexpr basic_vector<T, N> &operator+=(basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> operator-(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-	template<typename T, std::size_t N>
-	constexpr basic_vector<T, N> &operator-=(basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-
-	// clang-format off
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> operator+(const basic_vector<T, N> &) noexcept requires std::is_signed_v<T>;
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> operator-(const basic_vector<T, N> &) noexcept requires std::is_signed_v<T>;
-	// clang-format on
-
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> operator*(const basic_vector<T, N> &, T) noexcept;
-	template<typename T, std::size_t N>
-	constexpr basic_vector<T, N> &operator*=(basic_vector<T, N> &, T) noexcept;
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> operator/(const basic_vector<T, N> &, T) noexcept;
-	template<typename T, std::size_t N>
-	constexpr basic_vector<T, N> &operator/=(basic_vector<T, N> &, T) noexcept;
-
-	template<std::integral T, std::size_t N>
-	constexpr basic_vector<T, N> &operator&=(basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-	template<std::integral T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> operator&(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-	template<std::integral T, std::size_t N>
-	constexpr basic_vector<T, N> &operator|=(basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-	template<std::integral T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> operator|(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-	template<std::integral T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> operator^(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-	template<std::integral T, std::size_t N>
-	constexpr basic_vector<T, N> &operator^=(basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-	template<std::integral T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> operator~(const basic_vector<T, N> &) noexcept;
-
-	// clang-format off
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> abs(const basic_vector<T, N> &) noexcept requires std::is_signed_v<T>;
-	// clang-format on
-
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> max(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> min(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr T dot(const basic_vector<T, N> &, const basic_vector<T, N> &) noexcept;
-	// clang-format off
-	template<typename T>
-	[[nodiscard]] constexpr basic_vector<T, 3> cross(const basic_vector<T, 3> &, const basic_vector<T, 3> &) noexcept requires std::is_signed_v<T>;
-	// clang-format on
-
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> sqrt(const basic_vector<T, N> &) noexcept;
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> rsqrt(const basic_vector<T, N> &) noexcept;
-
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr T magn(const basic_vector<T, N> &) noexcept;
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> norm(const basic_vector<T, N> &) noexcept;
-
-	template<std::size_t I, typename T, std::size_t N>
-	[[nodiscard]] constexpr T &get(basic_vector<T, N> &) noexcept;
-	template<std::size_t I, typename T, std::size_t N>
-	[[nodiscard]] constexpr const T &get(const basic_vector<T, N> &) noexcept;
-
 	/** Generic vector overload.
 	 * @note Generic vector types are not guaranteed to have SIMD-optimized. */
 	template<arithmetic T, std::size_t N>
@@ -385,26 +321,6 @@ namespace sek::math
 		return l;
 	}
 
-	/** Returns a copy of the vector. */
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> operator+(const basic_vector<T, N> &v) noexcept
-		requires std::is_signed_v<T>
-	{
-		return v;
-	}
-	/** Returns a negated copy of the vector. */
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr basic_vector<T, N> operator-(const basic_vector<T, N> &v) noexcept
-		requires std::is_signed_v<T>
-	{
-		basic_vector<T, N> result;
-		if (std::is_constant_evaluated())
-			detail::generic::vector_mul(result.data, v.data);
-		else
-			detail::vector_mul(result.data, v.data);
-		return result;
-	}
-
 	/** Returns a copy of the vector multiplied by a scalar. */
 	template<typename T, std::size_t N>
 	[[nodiscard]] constexpr basic_vector<T, N> operator*(const basic_vector<T, N> &l, T r) noexcept
@@ -529,6 +445,25 @@ namespace sek::math
 		return result;
 	}
 
+	/** Returns a copy of the vector. */
+	template<typename T, std::size_t N>
+	[[nodiscard]] constexpr basic_vector<T, N> operator+(const basic_vector<T, N> &v) noexcept
+		requires std::is_signed_v<T>
+	{
+		return v;
+	}
+	/** Returns a negated copy of the vector. */
+	template<typename T, std::size_t N>
+	[[nodiscard]] constexpr basic_vector<T, N> operator-(const basic_vector<T, N> &v) noexcept
+		requires std::is_signed_v<T>
+	{
+		basic_vector<T, N> result;
+		if (std::is_constant_evaluated())
+			detail::generic::vector_inv(result.data, v.data);
+		else
+			detail::vector_inv(result.data, v.data);
+		return result;
+	}
 	/** Calculates absolute value of a vector.
 	 * @example abs({-1, 2, 0}) -> {1, 2, 0} */
 	template<typename T, std::size_t N>
@@ -567,28 +502,6 @@ namespace sek::math
 		return result;
 	}
 
-	/** Calculates dot product of two vectors. */
-	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr T dot(const basic_vector<T, N> &l, const basic_vector<T, N> &r) noexcept
-	{
-		if (std::is_constant_evaluated())
-			return detail::generic::vector_dot(l.data, r.data);
-		else
-			return detail::vector_dot(l.data, r.data);
-	}
-	/** Calculates cross product of two vectors. */
-	template<typename T>
-	[[nodiscard]] constexpr basic_vector<T, 3> cross(const basic_vector<T, 3> &l, const basic_vector<T, 3> &r) noexcept
-		requires std::is_signed_v<T>
-	{
-		basic_vector<T, 3> result;
-		if (std::is_constant_evaluated())
-			detail::generic::vector_cross(result.data, l.data, r.data);
-		else
-			detail::vector_cross(result.data, l.data, r.data);
-		return result;
-	}
-
 	/** Calculates square root of a vector. */
 	template<typename T, std::size_t N>
 	[[nodiscard]] constexpr basic_vector<T, N> sqrt(const basic_vector<T, N> &v) noexcept
@@ -612,6 +525,27 @@ namespace sek::math
 		return result;
 	}
 
+	/** Calculates dot product of two vectors. */
+	template<typename T, std::size_t N>
+	[[nodiscard]] constexpr T dot(const basic_vector<T, N> &l, const basic_vector<T, N> &r) noexcept
+	{
+		if (std::is_constant_evaluated())
+			return detail::generic::vector_dot(l.data, r.data);
+		else
+			return detail::vector_dot(l.data, r.data);
+	}
+	/** Calculates cross product of two vectors. */
+	template<typename T>
+	[[nodiscard]] constexpr basic_vector<T, 3> cross(const basic_vector<T, 3> &l, const basic_vector<T, 3> &r) noexcept
+		requires std::is_signed_v<T>
+	{
+		basic_vector<T, 3> result;
+		if (std::is_constant_evaluated())
+			detail::generic::vector_cross(result.data, l.data, r.data);
+		else
+			detail::vector_cross(result.data, l.data, r.data);
+		return result;
+	}
 	/** Returns a length of the vector. */
 	template<typename T, std::size_t N>
 	[[nodiscard]] constexpr T magn(const basic_vector<T, N> &v) noexcept

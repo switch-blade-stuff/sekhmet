@@ -238,6 +238,17 @@ namespace sek::math::detail
 		out.value[0] = _mm_div_pd(v1, _mm_sqrt_pd(l.value[0]));
 		out.value[1] = _mm_div_pd(v1, _mm_sqrt_pd(l.value[1]));
 	}
+
+	inline void x86_simd_cross(simd_t<double, 3> &out, const simd_t<double, 3> &l, const simd_t<double, 3> &r) noexcept
+	{
+		/* 4 shuffles are needed here since the 3 doubles are split across 2 __m128d vectors. */
+		const auto a = _mm_shuffle_pd(l.value[0], l.value[1], _MM_SHUFFLE2(0, 1));
+		const auto b = _mm_shuffle_pd(r.value[0], r.value[1], _MM_SHUFFLE2(0, 1));
+
+		out.value[0] = _mm_sub_pd(_mm_mul_pd(a, _mm_shuffle_pd(r.value[1], r.value[0], _MM_SHUFFLE2(0, 0))),
+								  _mm_mul_pd(b, _mm_shuffle_pd(l.value[1], l.value[0], _MM_SHUFFLE2(0, 0))));
+		out.value[1] = _mm_sub_pd(_mm_mul_pd(l.value[0], b), _mm_mul_pd(r.value[0], a));
+	}
 #endif
 
 	template<integral_of_size<8> T>
