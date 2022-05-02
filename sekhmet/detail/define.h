@@ -47,5 +47,6 @@
 #endif
 
 #ifdef __cplusplus
-#define SEK_REQUIRES_OVERLOAD(func, ...) requires(requires { func(__VA_ARGS__); })
+#define SEK_HAS_OVERLOAD(func, ...) requires { func(__VA_ARGS__); }
+#define SEK_REQUIRES_OVERLOAD(func, ...) requires(SEK_HAS_OVERLOAD(func, __VA_ARGS__))
 #endif

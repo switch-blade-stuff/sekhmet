@@ -10,7 +10,6 @@
 #include "sekhmet/detail/hash.hpp"
 #include "util.hpp"
 #include "vector_data.hpp"
-#include "vectorfwd.hpp"
 
 #ifndef SEK_NO_SIMD
 #if defined(SEK_ARCH_x86)

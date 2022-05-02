@@ -5,7 +5,6 @@
 #pragma once
 
 #include "detail/vector.hpp"
-#include "detail/vectorfwd.hpp"
 
 namespace sek::math
 {
