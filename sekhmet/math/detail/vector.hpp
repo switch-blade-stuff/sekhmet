@@ -49,9 +49,9 @@ private:                                                                        
 	friend constexpr basic_vector<T, N> norm<>(const basic_vector<T, N> &) noexcept;                                   \
                                                                                                                        \
 	template<std::size_t I, typename U, std::size_t M>                                                                 \
-	friend constexpr T &get(basic_vector<U, M> &) noexcept;                                                            \
+	friend constexpr U &get(basic_vector<U, M> &) noexcept;                                                            \
 	template<std::size_t I, typename U, std::size_t M>                                                                 \
-	friend constexpr const T &get(const basic_vector<U, M> &) noexcept;                                                \
+	friend constexpr const U &get(const basic_vector<U, M> &) noexcept;                                                \
                                                                                                                        \
 	template<typename U, std::size_t M>                                                                                \
 	friend constexpr basic_vector<U, M> operator+(const basic_vector<U, M> &) noexcept                                 \
@@ -193,6 +193,11 @@ namespace sek::math
 	[[nodiscard]] constexpr T magn(const basic_vector<T, N> &) noexcept;
 	template<typename T, std::size_t N>
 	[[nodiscard]] constexpr basic_vector<T, N> norm(const basic_vector<T, N> &) noexcept;
+
+	template<std::size_t I, typename T, std::size_t N>
+	[[nodiscard]] constexpr T &get(basic_vector<T, N> &) noexcept;
+	template<std::size_t I, typename T, std::size_t N>
+	[[nodiscard]] constexpr const T &get(const basic_vector<T, N> &) noexcept;
 
 	/** Generic vector overload.
 	 * @note Generic vector types are not guaranteed to have SIMD-optimized. */

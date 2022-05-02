@@ -122,44 +122,28 @@ TEST(serialization_tests, ubjson_test)
 	EXPECT_EQ(data, deserialized);
 }
 
-#include "sekhmet/type_id.hpp"
+#include "sekhmet/math/vector.hpp"
 
-template<typename T>
-struct printer_base
+TEST(serialization_tests, math_test)
 {
-	struct invoker
+	namespace math = sek::math;
+	namespace ubj = sek::serialization::ubj;
+
+	const auto v = math::vector4f{1, 2, 3, std::numeric_limits<float>::infinity()};
+
+	std::string ubj_string;
 	{
-		invoker() noexcept { printf("%s\n", sek::type_name<T>().data()); }
-	};
+		std::stringstream ss;
+		ubj::basic_output_archive<ubj::fixed_type> archive{ss};
+		archive << v;
 
-	static const invoker instance;
-};
-
-template<typename T>
-const typename printer_base<T>::invoker printer_base<T>::instance = {};
-
-namespace
-{
-	struct test_struct : printer_base<test_struct>
-	{
-	};
-}	 // namespace
-
-// template<>
-// std::string_view sek::type_name<test_struct>() noexcept
-//{
-//	return "test_struct";
-// }
-
-namespace sek
-{
-	template<typename T>
-	constexpr void resource_factory(T &)
-	{
+		archive.flush();
+		ubj_string = ss.str();
 	}
-}	 // namespace sek
-
-#define SEK_DETAIL_PREFAB_1(type)
-#define SEK_DETAIL_PREFAB_2(type, name) SEK_DETAIL_PREFAB_1(type)
-
-#define SEK_PREFAB_FACTORY(...) SEK_GET_MACRO_2(__VA_ARGS__, SEK_DETAIL_PREFAB_2, SEK_DETAIL_PREFAB_1)(__VA_ARGS__)
+	math::vector4f deserialized = {};
+	{
+		ubj::input_archive archive{ubj_string.data(), ubj_string.size()};
+		EXPECT_TRUE(archive.try_read(deserialized));
+	}
+	EXPECT_EQ(v, deserialized);
+}
