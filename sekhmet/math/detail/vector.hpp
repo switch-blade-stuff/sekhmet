@@ -459,9 +459,9 @@ namespace sek::math
 	{
 		basic_vector<T, N> result;
 		if (std::is_constant_evaluated())
-			detail::generic::vector_inv(result.data, v.data);
+			detail::generic::vector_neg(result.data, v.data);
 		else
-			detail::vector_inv(result.data, v.data);
+			detail::vector_neg(result.data, v.data);
 		return result;
 	}
 	/** Calculates absolute value of a vector.

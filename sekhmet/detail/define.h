@@ -45,3 +45,7 @@
 #else
 #define SEK_IF_EDITOR(...)
 #endif
+
+#ifdef __cplusplus
+#define SEK_REQUIRES_OVERLOAD(func, ...) requires(requires { func(__VA_ARGS__); })
+#endif
