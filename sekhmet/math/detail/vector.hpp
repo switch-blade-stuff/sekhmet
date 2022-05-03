@@ -548,6 +548,12 @@ namespace sek::math
 		/* Magnitude of a vector A=XYZ is sqrt(X*X + Y*Y + Z*Z) = sqrt(dot(A, A)). */
 		return std::sqrt(dot(v, v));
 	}
+	/** Returns a distance between two vectors. */
+	template<typename T, std::size_t N>
+	[[nodiscard]] constexpr T distance(const basic_vector<T, N> &l, const basic_vector<T, N> &r) noexcept
+	{
+		return magn(l - r);
+	}
 	/** Returns a normalized copy of the vector. */
 	template<typename T, std::size_t N>
 	[[nodiscard]] constexpr basic_vector<T, N> norm(const basic_vector<T, N> &v) noexcept
@@ -557,6 +563,29 @@ namespace sek::math
 			detail::generic::vector_norm(result.data, v.data);
 		else
 			detail::vector_norm(result.data, v.data);
+		return result;
+	}
+
+	/** Converts a degree angle vector to radian angle vector. */
+	template<std::floating_point T, std::size_t N>
+	[[nodiscard]] constexpr basic_vector<T, N> rad(const basic_vector<T, N> &v) noexcept
+	{
+		basic_vector<T, N> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_rad(result.data, v.data);
+		else
+			detail::vector_rad(result.data, v.data);
+		return result;
+	}
+	/** Converts a radian angle vector to degree angle vector. */
+	template<std::floating_point T, std::size_t N>
+	[[nodiscard]] constexpr basic_vector<T, N> deg(const basic_vector<T, N> &v) noexcept
+	{
+		basic_vector<T, N> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_deg(result.data, v.data);
+		else
+			detail::vector_deg(result.data, v.data);
 		return result;
 	}
 

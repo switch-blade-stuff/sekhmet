@@ -49,7 +49,6 @@ public:                                                                         
 	{                                                                                                                  \
 		return data[i];                                                                                                \
 	}                                                                                                                  \
-                                                                                                                       \
 	/** @copydoc operator[] */                                                                                         \
 	[[nodiscard]] constexpr col_type &col(std::size_t i) noexcept                                                      \
 	{                                                                                                                  \
