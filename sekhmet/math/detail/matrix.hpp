@@ -60,6 +60,31 @@ public:                                                                         
 		return data[i];                                                                                                     \
 	}                                                                                                                       \
                                                                                                                             \
+	/** @copydoc operator[] */                                                                                              \
+	[[nodiscard]] constexpr col_type &col(std::size_t i) noexcept                                                           \
+	{                                                                                                                       \
+		return data[i];                                                                                                     \
+	}                                                                                                                       \
+	/** @copydoc operator[] */                                                                                              \
+	[[nodiscard]] constexpr const col_type &col(std::size_t i) const noexcept                                               \
+	{                                                                                                                       \
+		return data[i];                                                                                                     \
+	}                                                                                                                       \
+                                                                                                                            \
+private:                                                                                                                    \
+	template<std::size_t... Is>                                                                                             \
+	[[nodiscard]] constexpr row_type row(std::index_sequence<Is...>, std::size_t i) const noexcept                          \
+	{                                                                                                                       \
+		return row_type{data[Is][i]...};                                                                                    \
+	}                                                                                                                       \
+                                                                                                                            \
+public:                                                                                                                     \
+	/** Returns copy of the corresponding row of the matrix. */                                                             \
+	[[nodiscard]] constexpr row_type row(std::size_t i) const noexcept                                                      \
+	{                                                                                                                       \
+		return row(std::make_index_sequence<columns>{}, i);                                                                 \
+	}                                                                                                                       \
+                                                                                                                            \
 	[[nodiscard]] constexpr bool operator==(const basic_matrix &) const noexcept = default;                                 \
                                                                                                                             \
 	constexpr void swap(const basic_matrix &other) noexcept                                                                 \
@@ -97,127 +122,6 @@ namespace sek::math
 	struct basic_matrix
 	{
 		SEK_MATH_MATRIX_COMMON(T, N, M)
-	};
-
-	template<arithmetic T>
-	struct basic_matrix<T, 4, 2>
-	{
-		SEK_MATH_MATRIX_COMMON(T, 4, 2)
-
-	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2, const col_type &c3) noexcept
-			: data{c0, c1, c2, c3}
-		{
-		}
-		constexpr basic_matrix(T xx, T yx, T zx, T wx, T xy, T yy, T zy, T wy) noexcept
-			: basic_matrix({xx, xy}, {yx, yy}, {zx, zy}, {wx, wy})
-		{
-		}
-	};
-	template<arithmetic T>
-	struct basic_matrix<T, 4, 3>
-	{
-		SEK_MATH_MATRIX_COMMON(T, 4, 3)
-
-	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2, const col_type &c3) noexcept
-			: data{c0, c1, c2, c3}
-		{
-		}
-		constexpr basic_matrix(T xx, T yx, T zx, T wx, T xy, T yy, T zy, T wy, T xz, T yz, T zz, T wz) noexcept
-			: basic_matrix({xx, xy, xz}, {yx, yy, yz}, {zx, zy, zz}, {wx, wy, wz})
-		{
-		}
-	};
-	template<arithmetic T>
-	struct basic_matrix<T, 4, 4>
-	{
-		SEK_MATH_MATRIX_COMMON(T, 4, 4)
-
-	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2, const col_type &c3) noexcept
-			: data{c0, c1, c2, c3}
-		{
-		}
-		constexpr basic_matrix(T xx, T yx, T zx, T wx, T xy, T yy, T zy, T wy, T xz, T yz, T zz, T wz, T xw, T yw, T zw, T ww) noexcept
-			: basic_matrix({xx, xy, xz, xw}, {yx, yy, yz, yw}, {zx, zy, zz, zw}, {wx, wy, wz, ww})
-		{
-		}
-	};
-
-	template<arithmetic T>
-	struct basic_matrix<T, 3, 2>
-	{
-		SEK_MATH_MATRIX_COMMON(T, 3, 2)
-
-	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
-		{
-		}
-		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy) noexcept : basic_matrix({xx, xy}, {yx, yy}, {zx, zy})
-		{
-		}
-	};
-	template<arithmetic T>
-	struct basic_matrix<T, 3, 3>
-	{
-		SEK_MATH_MATRIX_COMMON(T, 3, 3)
-
-	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
-		{
-		}
-		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy, T xz, T yz, T zz) noexcept
-			: basic_matrix({xx, xy, xz}, {yx, yy, yz}, {zx, zy, zz})
-		{
-		}
-	};
-	template<arithmetic T>
-	struct basic_matrix<T, 3, 4>
-	{
-		SEK_MATH_MATRIX_COMMON(T, 3, 4)
-
-	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
-		{
-		}
-		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy, T xz, T yz, T zz, T xw, T yw, T zw) noexcept
-			: basic_matrix({xx, xy, xz, xw}, {yx, yy, yz, yw}, {zx, zy, zz, zw})
-		{
-		}
-	};
-
-	template<arithmetic T>
-	struct basic_matrix<T, 2, 2>
-	{
-		SEK_MATH_MATRIX_COMMON(T, 2, 2)
-
-	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
-		constexpr basic_matrix(T xx, T yx, T xy, T yy) noexcept : basic_matrix({xx, yx}, {xy, yy}) {}
-	};
-	template<arithmetic T>
-	struct basic_matrix<T, 2, 3>
-	{
-		SEK_MATH_MATRIX_COMMON(T, 2, 3)
-
-	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
-		constexpr basic_matrix(T xx, T yx, T xy, T yy, T xz, T yz) noexcept : basic_matrix({xx, xy, xz}, {yx, yy, yz})
-		{
-		}
-	};
-	template<arithmetic T>
-	struct basic_matrix<T, 2, 4>
-	{
-		SEK_MATH_MATRIX_COMMON(T, 2, 4)
-
-	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
-		constexpr basic_matrix(T xx, T yx, T xy, T yy, T xz, T yz, T xw, T yw) noexcept
-			: basic_matrix({xx, xy, xz, xw}, {yx, yy, yz, yw})
-		{
-		}
 	};
 
 	template<typename T, std::size_t N, std::size_t M>
@@ -319,6 +223,92 @@ namespace sek::math
 	{
 		detail::unroll_matrix_op<N>([](auto i, auto &l, auto r) { l[i] /= r; }, l, r);
 		return l;
+	}
+
+	/** Preforms a bitwise AND on two matrices. */
+	template<typename T, std::size_t N, std::size_t M>
+	constexpr basic_matrix<T, N, M> &operator&=(basic_matrix<T, N, M> &l, const basic_matrix<T, N, M> &r) noexcept
+	{
+		detail::unroll_matrix_op<N>([](auto i, auto &l, const auto &r) { l[i] &= r[i]; }, l, r);
+		return l;
+	}
+	/** Returns a matrix which is the result of bitwise AND of two matrices. */
+	template<typename T, std::size_t N, std::size_t M>
+	[[nodiscard]] constexpr basic_matrix<T, N, M> operator&(const basic_matrix<T, N, M> &l, const basic_matrix<T, N, M> &r) noexcept
+	{
+		basic_matrix<T, N, M> result;
+		detail::unroll_matrix_op<N>([](auto i, auto &out, const auto &l, const auto &r) { out[i] = l[i] & r[i]; }, result, l, r);
+		return result;
+	}
+	/** Preforms a bitwise OR on two matrices. */
+	template<typename T, std::size_t N, std::size_t M>
+	constexpr basic_matrix<T, N, M> &operator|=(basic_matrix<T, N, M> &l, const basic_matrix<T, N, M> &r) noexcept
+	{
+		detail::unroll_matrix_op<N>([](auto i, auto &l, const auto &r) { l[i] |= r[i]; }, l, r);
+		return l;
+	}
+	/** Returns a matrix which is the result of bitwise OR of two matrices. */
+	template<typename T, std::size_t N, std::size_t M>
+	[[nodiscard]] constexpr basic_matrix<T, N, M> operator|(const basic_matrix<T, N, M> &l, const basic_matrix<T, N, M> &r) noexcept
+	{
+		basic_matrix<T, N, M> result;
+		detail::unroll_matrix_op<N>([](auto i, auto &out, const auto &l, const auto &r) { out[i] = l[i] | r[i]; }, result, l, r);
+		return result;
+	}
+	/** Returns a matrix which is the result of bitwise XOR of two matrices. */
+	template<typename T, std::size_t N, std::size_t M>
+	[[nodiscard]] constexpr basic_matrix<T, N, M> operator^(const basic_matrix<T, N, M> &l, const basic_matrix<T, N, M> &r) noexcept
+	{
+		basic_matrix<T, N, M> result;
+		detail::unroll_matrix_op<N>([](auto i, auto &out, const auto &l, const auto &r) { out[i] = l[i] ^ r[i]; }, result, l, r);
+		return result;
+	}
+	/** Preforms a bitwise XOR on two matrices. */
+	template<typename T, std::size_t N, std::size_t M>
+	constexpr basic_matrix<T, N, M> &operator^=(basic_matrix<T, N, M> &l, const basic_matrix<T, N, M> &r) noexcept
+	{
+		detail::unroll_matrix_op<N>([](auto i, auto &l, const auto &r) { l[i] ^= r[i]; }, l, r);
+		return l;
+	}
+	/** Returns a bitwise inverted copy of a matrix. */
+	template<typename T, std::size_t N, std::size_t M>
+	[[nodiscard]] constexpr basic_matrix<T, N, M> operator~(const basic_matrix<T, N, M> &m) noexcept
+	{
+		basic_matrix<T, N, M> result;
+		detail::unroll_matrix_op<N>([](auto i, auto &out, const auto &m) { out[i] = ~m[i]; }, result, m);
+		return result;
+	}
+
+	/** Returns a copy of the matrix. */
+	template<typename T, std::size_t N, std::size_t M>
+	[[nodiscard]] constexpr basic_matrix<T, N, M> operator+(const basic_matrix<T, N, M> &m) noexcept
+		requires std::is_signed_v<T>
+	{
+		return m;
+	}
+	/** Returns a negated copy of the matrix. */
+	template<typename T, std::size_t N, std::size_t M>
+	[[nodiscard]] constexpr basic_matrix<T, N, M> operator-(const basic_matrix<T, N, M> &m) noexcept
+		requires std::is_signed_v<T>
+	{
+		basic_matrix<T, N, M> result;
+		detail::unroll_matrix_op<N>([](auto i, auto &out, const auto &m) { out[i] = -m[i]; }, result, m);
+		return result;
+	}
+
+	/** Returns a matrix which is the result of multiplying two matrices. */
+	template<typename T, std::size_t C0, std::size_t R0, std::size_t C1>
+	[[nodiscard]] constexpr basic_matrix<T, C1, R0> operator*(const basic_matrix<T, C0, R0> &l,
+															  const basic_matrix<T, C1, C0> &r) noexcept
+	{
+		basic_matrix<T, C1, R0> result = {};
+		for (std::size_t c1 = 0; c1 != C1; ++c1)
+			for (std::size_t r0 = 0; r0 != R0; ++r0)
+			{
+				/* Unroll final iteration if possible. */
+				detail::unroll_matrix_op<C0>([&](auto c0) { result[c1][r0] += l[c0][r0] * r[c1][c0]; });
+			}
+		return result;
 	}
 
 	/** Gets the Ith column of the matrix. */

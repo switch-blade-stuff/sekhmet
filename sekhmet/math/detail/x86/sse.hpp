@@ -586,16 +586,31 @@ namespace sek::math::detail
 #endif
 
 #ifdef SEK_USE_SSE4_1
-	template<std::size_t N>
-	inline float x86_simd_dot(const simd_t<float, N> &l, const simd_t<float, N> &r) noexcept
+	inline float x86_simd_dot(const simd_t<float, 2> &l, const simd_t<float, 2> &r) noexcept
+	{
+		return _mm_cvtss_f32(_mm_dp_ps(l.value, r.value, 0x31));
+	}
+	inline void x86_simd_norm(simd_t<float, 2> &out, const simd_t<float, 2> &l) noexcept
+	{
+		out.value = _mm_div_ps(l.value, _mm_sqrt_ps(_mm_dp_ps(l.value, l.value, 0x3f)));
+	}
+	inline float x86_simd_dot(const simd_t<float, 3> &l, const simd_t<float, 3> &r) noexcept
+	{
+		return _mm_cvtss_f32(_mm_dp_ps(l.value, r.value, 0x71));
+	}
+	inline void x86_simd_norm(simd_t<float, 3> &out, const simd_t<float, 3> &l) noexcept
+	{
+		out.value = _mm_div_ps(l.value, _mm_sqrt_ps(_mm_dp_ps(l.value, l.value, 0x7f)));
+	}
+	inline float x86_simd_dot(const simd_t<float, 4> &l, const simd_t<float, 4> &r) noexcept
 	{
 		return _mm_cvtss_f32(_mm_dp_ps(l.value, r.value, 0xf1));
 	}
-	template<std::size_t N>
-	inline void x86_simd_norm(simd_t<float, N> &out, const simd_t<float, N> &l) noexcept
+	inline void x86_simd_norm(simd_t<float, 4> &out, const simd_t<float, 4> &l) noexcept
 	{
 		out.value = _mm_div_ps(l.value, _mm_sqrt_ps(_mm_dp_ps(l.value, l.value, 0xff)));
 	}
+
 #ifdef SEK_USE_SSE2
 	inline double x86_simd_dot(const simd_t<double, 2> &l, const simd_t<double, 2> &r) noexcept
 	{
@@ -606,8 +621,25 @@ namespace sek::math::detail
 		out.value = _mm_div_pd(l.value, _mm_sqrt_pd(_mm_dp_pd(l.value, l.value, 0xff)));
 	}
 #ifndef SEK_USE_AVX
-	template<std::size_t N>
-	inline double x86_simd_dot(const simd_t<double, N> &l, const simd_t<double, N> &r) noexcept
+	inline double x86_simd_dot(const simd_t<double, 3> &l, const simd_t<double, 3> &r) noexcept
+	{
+		// clang-format off
+		return _mm_cvtsd_f64(_mm_add_pd(
+			_mm_dp_pd(l.value[0], r.value[0], 0xf1),
+			_mm_dp_pd(l.value[1], r.value[1], 0x11)));
+		// clang-format on
+	}
+	inline void x86_simd_norm(simd_t<double, 3> &out, const simd_t<double, 3> &l) noexcept
+	{
+		// clang-format off
+		const auto magn = _mm_sqrt_pd(_mm_add_pd(
+			_mm_dp_pd(l.value[0], l.value[0], 0xff),
+			_mm_dp_pd(l.value[1], l.value[1], 0x1f)));
+		// clang-format on
+		out.value[0] = _mm_div_pd(l.value[0], magn);
+		out.value[1] = _mm_div_pd(l.value[1], magn);
+	}
+	inline double x86_simd_dot(const simd_t<double, 4> &l, const simd_t<double, 4> &r) noexcept
 	{
 		// clang-format off
 		return _mm_cvtsd_f64(_mm_add_pd(
@@ -615,8 +647,7 @@ namespace sek::math::detail
 			_mm_dp_pd(l.value[1], r.value[1], 0xf1)));
 		// clang-format on
 	}
-	template<std::size_t N>
-	inline void x86_simd_norm(simd_t<double, N> &out, const simd_t<double, N> &l) noexcept
+	inline void x86_simd_norm(simd_t<double, 4> &out, const simd_t<double, 4> &l) noexcept
 	{
 		// clang-format off
 		const auto magn = _mm_sqrt_pd(_mm_add_pd(

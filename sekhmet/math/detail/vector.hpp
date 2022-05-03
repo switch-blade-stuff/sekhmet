@@ -458,6 +458,7 @@ namespace sek::math
 			detail::vector_neg(result.data, v.data);
 		return result;
 	}
+
 	/** Calculates absolute value of a vector.
 	 * @example abs({-1, 2, 0}) -> {1, 2, 0} */
 	template<typename T, std::size_t N>

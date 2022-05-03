@@ -5,6 +5,9 @@
 #pragma once
 
 #include "detail/matrix.hpp"
+#include "detail/matrix2x.hpp"
+#include "detail/matrix3x.hpp"
+#include "detail/matrix4x.hpp"
 
 namespace sek::math
 {
