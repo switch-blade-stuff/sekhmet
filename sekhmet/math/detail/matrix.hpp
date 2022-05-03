@@ -21,7 +21,8 @@ public:                                                                         
 	constexpr static auto rows = M;                                                                                         \
                                                                                                                             \
 	/** Returns the identity matrix. */                                                                                     \
-	constexpr static std::enable_if_t<N == M, basic_matrix> identity() noexcept                                             \
+	constexpr static basic_matrix identity() noexcept                                                                       \
+		requires(N == M)                                                                                                    \
 	{                                                                                                                       \
 		return basic_matrix{1};                                                                                             \
 	}                                                                                                                       \
@@ -104,9 +105,12 @@ namespace sek::math
 		SEK_MATH_MATRIX_COMMON(T, 4, 2)
 
 	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
-		constexpr basic_matrix(T xx, T yx, T xy, T yy, T xz, T yz, T xw, T yw) noexcept
-			: basic_matrix({xx, xy, xz, xw}, {yx, yy, yz, yw})
+		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2, const col_type &c3) noexcept
+			: data{c0, c1, c2, c3}
+		{
+		}
+		constexpr basic_matrix(T xx, T yx, T zx, T wx, T xy, T yy, T zy, T wy) noexcept
+			: basic_matrix({xx, xy}, {yx, yy}, {zx, zy}, {wx, wy})
 		{
 		}
 	};
@@ -116,9 +120,12 @@ namespace sek::math
 		SEK_MATH_MATRIX_COMMON(T, 4, 3)
 
 	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
-		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy, T xz, T yz, T zz, T xw, T yw, T zw) noexcept
-			: basic_matrix({xx, xy, xz, xw}, {yx, yy, yz, yw}, {zx, zy, zz, zw})
+		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2, const col_type &c3) noexcept
+			: data{c0, c1, c2, c3}
+		{
+		}
+		constexpr basic_matrix(T xx, T yx, T zx, T wx, T xy, T yy, T zy, T wy, T xz, T yz, T zz, T wz) noexcept
+			: basic_matrix({xx, xy, xz}, {yx, yy, yz}, {zx, zy, zz}, {wx, wy, wz})
 		{
 		}
 	};
@@ -128,7 +135,10 @@ namespace sek::math
 		SEK_MATH_MATRIX_COMMON(T, 4, 4)
 
 	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
+		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2, const col_type &c3) noexcept
+			: data{c0, c1, c2, c3}
+		{
+		}
 		constexpr basic_matrix(T xx, T yx, T zx, T wx, T xy, T yy, T zy, T wy, T xz, T yz, T zz, T wz, T xw, T yw, T zw, T ww) noexcept
 			: basic_matrix({xx, xy, xz, xw}, {yx, yy, yz, yw}, {zx, zy, zz, zw}, {wx, wy, wz, ww})
 		{
@@ -141,8 +151,10 @@ namespace sek::math
 		SEK_MATH_MATRIX_COMMON(T, 3, 2)
 
 	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
-		constexpr basic_matrix(T xx, T yx, T xy, T yy, T xz, T yz) noexcept : basic_matrix({xx, xy, xz}, {yx, yy, yz})
+		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
+		{
+		}
+		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy) noexcept : basic_matrix({xx, xy}, {yx, yy}, {zx, zy})
 		{
 		}
 	};
@@ -152,7 +164,9 @@ namespace sek::math
 		SEK_MATH_MATRIX_COMMON(T, 3, 3)
 
 	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
+		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
+		{
+		}
 		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy, T xz, T yz, T zz) noexcept
 			: basic_matrix({xx, xy, xz}, {yx, yy, yz}, {zx, zy, zz})
 		{
@@ -164,9 +178,11 @@ namespace sek::math
 		SEK_MATH_MATRIX_COMMON(T, 3, 4)
 
 	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
-		constexpr basic_matrix(T xx, T yx, T zx, T wx, T xy, T yy, T zy, T wy, T xz, T yz, T zz, T wz) noexcept
-			: basic_matrix({xx, xy, xz}, {yx, yy, yz}, {zx, zy, zz}, {wx, wy, wz})
+		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
+		{
+		}
+		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy, T xz, T yz, T zz, T xw, T yw, T zw) noexcept
+			: basic_matrix({xx, xy, xz, xw}, {yx, yy, yz, yw}, {zx, zy, zz, zw})
 		{
 		}
 	};
@@ -178,7 +194,7 @@ namespace sek::math
 
 	public:
 		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
-		constexpr basic_matrix(T xx, T yx, T xy, T yy) noexcept : basic_matrix({xx, xy}, {yx, yy}) {}
+		constexpr basic_matrix(T xx, T yx, T xy, T yy) noexcept : basic_matrix({xx, yx}, {xy, yy}) {}
 	};
 	template<arithmetic T>
 	struct basic_matrix<T, 2, 3>
@@ -187,7 +203,7 @@ namespace sek::math
 
 	public:
 		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
-		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy) noexcept : basic_matrix({xx, xy}, {yx, yy}, {zx, zy})
+		constexpr basic_matrix(T xx, T yx, T xy, T yy, T xz, T yz) noexcept : basic_matrix({xx, xy, xz}, {yx, yy, yz})
 		{
 		}
 	};
@@ -198,8 +214,8 @@ namespace sek::math
 
 	public:
 		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
-		constexpr basic_matrix(T xx, T yx, T zx, T wx, T xy, T yy, T zy, T wy) noexcept
-			: basic_matrix({xx, xy}, {yx, yy}, {zx, zy}, {wx, wy})
+		constexpr basic_matrix(T xx, T yx, T xy, T yy, T xz, T yz, T xw, T yw) noexcept
+			: basic_matrix({xx, xy, xz, xw}, {yx, yy, yz, yw})
 		{
 		}
 	};
@@ -218,6 +234,15 @@ namespace sek::math
 	constexpr void swap(basic_matrix<T, N, M> &a, basic_matrix<T, N, M> &b) noexcept
 	{
 		a.swap(b);
+	}
+
+	/** Returns a transposed copy of a matrix. */
+	template<typename T, std::size_t N, std::size_t M>
+	[[nodiscard]] constexpr basic_matrix<T, M, N> transpose(const basic_matrix<T, N, M> &m) noexcept
+	{
+		basic_matrix<T, M, N> result;
+		detail::unroll_matrix_op<N>([&](auto c) { detail::unroll_matrix_op<M>([&](auto r) { result[r][c] = m[c][r]; }); });
+		return result;
 	}
 
 	/** Returns a matrix which is the result of addition of two matrices. */

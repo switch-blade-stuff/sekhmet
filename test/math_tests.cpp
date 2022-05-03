@@ -84,6 +84,10 @@ TEST(math_tests, matrix_test)
 
 		EXPECT_EQ(m2f_3, (sek::math::matrix2f{2, 2, 2, 2}));
 	}
+	{
+		EXPECT_EQ(sek::math::transpose(sek::math::matrix3f{1}), (sek::math::matrix3f{1}));
+		EXPECT_EQ(sek::math::transpose(sek::math::matrix3x2f{1, 4, 0, 5, 1, 0}), (sek::math::matrix2x3f{1, 5, 4, 1, 0, 0}));
+	}
 }
 
 TEST(math_tests, random_test)
