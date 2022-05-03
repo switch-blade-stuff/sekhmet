@@ -36,11 +36,6 @@
 namespace sek::math::detail
 {
 	template<>
-	struct simd_t<float, 2>
-	{
-		__m128 value;
-	};
-	template<>
 	struct simd_t<float, 3>
 	{
 		__m128 value;
@@ -376,11 +371,6 @@ namespace sek::math::detail
 #endif
 
 	template<integral_of_size<4> T>
-	struct simd_t<T, 2>
-	{
-		__m128i value;
-	};
-	template<integral_of_size<4> T>
 	struct simd_t<T, 3>
 	{
 		__m128i value;
@@ -586,14 +576,6 @@ namespace sek::math::detail
 #endif
 
 #ifdef SEK_USE_SSE4_1
-	inline float x86_simd_dot(const simd_t<float, 2> &l, const simd_t<float, 2> &r) noexcept
-	{
-		return _mm_cvtss_f32(_mm_dp_ps(l.value, r.value, 0x31));
-	}
-	inline void x86_simd_norm(simd_t<float, 2> &out, const simd_t<float, 2> &l) noexcept
-	{
-		out.value = _mm_div_ps(l.value, _mm_sqrt_ps(_mm_dp_ps(l.value, l.value, 0x3f)));
-	}
 	inline float x86_simd_dot(const simd_t<float, 3> &l, const simd_t<float, 3> &r) noexcept
 	{
 		return _mm_cvtss_f32(_mm_dp_ps(l.value, r.value, 0x71));
