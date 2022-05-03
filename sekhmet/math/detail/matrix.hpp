@@ -9,87 +9,96 @@
 #include "vector.hpp"
 
 /* Use a macro to avoid duplicating common definitions for matrix specializations. */
-#define SEK_MATH_MATRIX_COMMON(T, N, M)                                                                                     \
-public:                                                                                                                     \
-	typedef T value_type;                                                                                                   \
-	typedef basic_vector<T, M> col_type;                                                                                    \
-	typedef basic_vector<T, N> row_type;                                                                                    \
-                                                                                                                            \
-	/** Number of columns in the matrix. */                                                                                 \
-	constexpr static auto columns = N;                                                                                      \
-	/** Number of rows in the matrix. */                                                                                    \
-	constexpr static auto rows = M;                                                                                         \
-                                                                                                                            \
-	/** Returns the identity matrix. */                                                                                     \
-	constexpr static basic_matrix identity() noexcept                                                                       \
-		requires(N == M)                                                                                                    \
-	{                                                                                                                       \
-		return basic_matrix{1};                                                                                             \
-	}                                                                                                                       \
-                                                                                                                            \
-private:                                                                                                                    \
-	col_type data[N] = {}; /* Matrices stored as columns to optimize SIMD computation. */                                   \
-                                                                                                                            \
-public:                                                                                                                     \
-	constexpr basic_matrix() noexcept = default;                                                                            \
-	/** Initializes the main diagonal of the matrix to the provided value. */                                               \
-	constexpr explicit basic_matrix(T v) noexcept                                                                           \
-	{                                                                                                                       \
-		detail::unroll_matrix_op<min(N, M)>([](auto i, auto &d, auto v) { d[i][i] = v; }, data, v);                         \
-	}                                                                                                                       \
-                                                                                                                            \
-	constexpr explicit basic_matrix(const col_type(&cols)[N]) noexcept                                                      \
-	{                                                                                                                       \
-		std::copy_n(cols, N, data);                                                                                         \
-	}                                                                                                                       \
-	template<typename U, std::size_t O, std::size_t P>                                                                      \
-	constexpr basic_matrix(const basic_matrix<U, O, P> &other) noexcept                                                     \
-		requires(std::convertible_to<U, T> && O != N && P != M)                                                             \
-	{                                                                                                                       \
-		detail::unroll_matrix_op<min(N, O)>([](auto i, auto &dst, const auto &src) { dst[i] = src[i]; }, data, other.data); \
-	}                                                                                                                       \
-                                                                                                                            \
-	/** Returns the corresponding column of the matrix. */                                                                  \
-	[[nodiscard]] constexpr col_type &operator[](std::size_t i) noexcept                                                    \
-	{                                                                                                                       \
-		return data[i];                                                                                                     \
-	}                                                                                                                       \
-	/** @copydoc operator[] */                                                                                              \
-	[[nodiscard]] constexpr const col_type &operator[](std::size_t i) const noexcept                                        \
-	{                                                                                                                       \
-		return data[i];                                                                                                     \
-	}                                                                                                                       \
-                                                                                                                            \
-	/** @copydoc operator[] */                                                                                              \
-	[[nodiscard]] constexpr col_type &col(std::size_t i) noexcept                                                           \
-	{                                                                                                                       \
-		return data[i];                                                                                                     \
-	}                                                                                                                       \
-	/** @copydoc operator[] */                                                                                              \
-	[[nodiscard]] constexpr const col_type &col(std::size_t i) const noexcept                                               \
-	{                                                                                                                       \
-		return data[i];                                                                                                     \
-	}                                                                                                                       \
-                                                                                                                            \
-private:                                                                                                                    \
-	template<std::size_t... Is>                                                                                             \
-	[[nodiscard]] constexpr row_type row(std::index_sequence<Is...>, std::size_t i) const noexcept                          \
-	{                                                                                                                       \
-		return row_type{data[Is][i]...};                                                                                    \
-	}                                                                                                                       \
-                                                                                                                            \
-public:                                                                                                                     \
-	/** Returns copy of the corresponding row of the matrix. */                                                             \
-	[[nodiscard]] constexpr row_type row(std::size_t i) const noexcept                                                      \
-	{                                                                                                                       \
-		return row(std::make_index_sequence<columns>{}, i);                                                                 \
-	}                                                                                                                       \
-                                                                                                                            \
-	[[nodiscard]] constexpr bool operator==(const basic_matrix &) const noexcept = default;                                 \
-                                                                                                                            \
-	constexpr void swap(const basic_matrix &other) noexcept                                                                 \
-	{                                                                                                                       \
-		std::swap(data, other.data);                                                                                        \
+#define SEK_MATH_MATRIX_COMMON(T, N, M)                                                                                \
+public:                                                                                                                \
+	typedef T value_type;                                                                                              \
+	typedef basic_vector<T, M> col_type;                                                                               \
+	typedef basic_vector<T, N> row_type;                                                                               \
+                                                                                                                       \
+	/** Number of columns in the matrix. */                                                                            \
+	constexpr static auto columns = N;                                                                                 \
+	/** Number of rows in the matrix. */                                                                               \
+	constexpr static auto rows = M;                                                                                    \
+                                                                                                                       \
+	/** Returns the identity matrix. */                                                                                \
+	constexpr static basic_matrix identity() noexcept                                                                  \
+		requires(N == M)                                                                                               \
+	{                                                                                                                  \
+		return basic_matrix{1};                                                                                        \
+	}                                                                                                                  \
+                                                                                                                       \
+private:                                                                                                               \
+	col_type data[N] = {}; /* Matrices stored as columns to optimize SIMD computation. */                              \
+                                                                                                                       \
+public:                                                                                                                \
+	constexpr basic_matrix() noexcept = default;                                                                       \
+	/** Initializes the main diagonal of the matrix to the provided value. */                                          \
+	constexpr explicit basic_matrix(T v) noexcept                                                                      \
+	{                                                                                                                  \
+		detail::unroll_matrix_op<min(N, M)>([](auto i, auto &d, auto v) { d[i][i] = v; }, data, v);                    \
+	}                                                                                                                  \
+                                                                                                                       \
+	constexpr explicit basic_matrix(const col_type(&cols)[N]) noexcept                                                 \
+	{                                                                                                                  \
+		std::copy_n(cols, N, data);                                                                                    \
+	}                                                                                                                  \
+	template<std::size_t O, std::size_t P>                                                                             \
+	constexpr explicit basic_matrix(const basic_matrix<T, O, P> &other) noexcept                                       \
+		requires(O != N && P != M)                                                                                     \
+	{                                                                                                                  \
+		detail::unroll_matrix_op<max(N, O)>(                                                                           \
+			[](auto i, auto &dst, const auto &src)                                                                     \
+			{                                                                                                          \
+				if (i < O)                                                                                             \
+					dst[i] = src[i];                                                                                   \
+				else if (i < N)                                                                                        \
+					dst[i][i] = 1;                                                                                     \
+			},                                                                                                         \
+			data,                                                                                                      \
+			other.data);                                                                                               \
+	}                                                                                                                  \
+                                                                                                                       \
+	/** Returns the corresponding column of the matrix. */                                                             \
+	[[nodiscard]] constexpr col_type &operator[](std::size_t i) noexcept                                               \
+	{                                                                                                                  \
+		return data[i];                                                                                                \
+	}                                                                                                                  \
+	/** @copydoc operator[] */                                                                                         \
+	[[nodiscard]] constexpr const col_type &operator[](std::size_t i) const noexcept                                   \
+	{                                                                                                                  \
+		return data[i];                                                                                                \
+	}                                                                                                                  \
+                                                                                                                       \
+	/** @copydoc operator[] */                                                                                         \
+	[[nodiscard]] constexpr col_type &col(std::size_t i) noexcept                                                      \
+	{                                                                                                                  \
+		return data[i];                                                                                                \
+	}                                                                                                                  \
+	/** @copydoc operator[] */                                                                                         \
+	[[nodiscard]] constexpr const col_type &col(std::size_t i) const noexcept                                          \
+	{                                                                                                                  \
+		return data[i];                                                                                                \
+	}                                                                                                                  \
+                                                                                                                       \
+private:                                                                                                               \
+	template<std::size_t... Is>                                                                                        \
+	[[nodiscard]] constexpr row_type row(std::index_sequence<Is...>, std::size_t i) const noexcept                     \
+	{                                                                                                                  \
+		return row_type{data[Is][i]...};                                                                               \
+	}                                                                                                                  \
+                                                                                                                       \
+public:                                                                                                                \
+	/** Returns copy of the corresponding row of the matrix. */                                                        \
+	[[nodiscard]] constexpr row_type row(std::size_t i) const noexcept                                                 \
+	{                                                                                                                  \
+		return row(std::make_index_sequence<columns>{}, i);                                                            \
+	}                                                                                                                  \
+                                                                                                                       \
+	[[nodiscard]] constexpr bool operator==(const basic_matrix &) const noexcept = default;                            \
+                                                                                                                       \
+	constexpr void swap(const basic_matrix &other) noexcept                                                            \
+	{                                                                                                                  \
+		std::swap(data, other.data);                                                                                   \
 	}
 
 namespace sek::math

@@ -110,9 +110,9 @@ public:                                                                         
                                                                                                                        \
 	constexpr basic_vector() noexcept = default;                                                                       \
                                                                                                                        \
-	template<typename U, std::size_t M>                                                                                \
-	constexpr basic_vector(const basic_vector<U, M> &other) noexcept                                                   \
-		requires(std::convertible_to<U, T> && M != N)                                                                  \
+	template<std::size_t M>                                                                                            \
+	constexpr explicit basic_vector(const basic_vector<T, M> &other) noexcept                                          \
+		requires(M != N)                                                                                               \
 	: data(other.data)                                                                                                 \
 	{                                                                                                                  \
 	}                                                                                                                  \
@@ -128,7 +128,7 @@ public:                                                                         
 	[[nodiscard]] constexpr const value_type &operator[](std::size_t i) const noexcept                                 \
 	{                                                                                                                  \
 		return data[i];                                                                                                \
-	}                                                                                                                 \
+	}                                                                                                                  \
 	constexpr void swap(basic_vector &other) noexcept                                                                  \
 	{                                                                                                                  \
 		data.swap(other.data);                                                                                         \

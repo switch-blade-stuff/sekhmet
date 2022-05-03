@@ -16,6 +16,31 @@ namespace sek::math
 	public:
 		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
 		constexpr basic_matrix(T xx, T yx, T xy, T yy) noexcept : basic_matrix({xx, xy}, {yx, yy}) {}
+
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 3> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 4> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 2> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 3> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 4> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 2> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 3> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 4> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
 	};
 
 	template<typename T>
@@ -82,9 +107,32 @@ namespace sek::math
 
 	public:
 		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
-		constexpr basic_matrix(T xx, T yx,
-							   T xy, T yy,
-							   T xz, T yz) noexcept : basic_matrix({xx, xy, xz}, {yx, yy, yz})
+		constexpr basic_matrix(T xx, T yx, T xy, T yy, T xz, T yz) noexcept : basic_matrix({xx, xy, xz}, {yx, yy, yz})
+		{
+		}
+
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 2> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 4> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 2> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 3> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 4> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 2> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 3> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 4> &other) noexcept : basic_matrix{other[0], other[1]}
 		{
 		}
 	};
@@ -156,11 +204,33 @@ namespace sek::math
 
 	public:
 		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
-		constexpr basic_matrix(T xx, T yx,
-							   T xy, T yy,
-							   T xz, T yz,
-							   T xw, T yw) noexcept
+		constexpr basic_matrix(T xx, T yx, T xy, T yy, T xz, T yz, T xw, T yw) noexcept
 			: basic_matrix({xx, xy, xz, xw}, {yx, yy, yz, yw})
+		{
+		}
+
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 2> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 3> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 2> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 3> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 4> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 2> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 3> &other) noexcept : basic_matrix{other[0], other[1]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 4> &other) noexcept : basic_matrix{other[0], other[1]}
 		{
 		}
 	};

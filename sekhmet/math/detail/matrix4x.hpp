@@ -18,9 +18,41 @@ namespace sek::math
 			: data{c0, c1, c2, c3}
 		{
 		}
-		constexpr basic_matrix(T xx, T yx, T zx, T wx,
-							   T xy, T yy, T zy, T wy) noexcept
+		constexpr basic_matrix(T xx, T yx, T zx, T wx, T xy, T yy, T zy, T wy) noexcept
 			: basic_matrix({xx, xy}, {yx, yy}, {zx, zy}, {wx, wy})
+		{
+		}
+
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 2> &other) noexcept
+			: basic_matrix{other[0], other[1], {}, {}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 3> &other) noexcept
+			: basic_matrix{other[0], other[1], {}, {}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 4> &other) noexcept
+			: basic_matrix{other[0], other[1], {}, {}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 2> &other) noexcept
+			: basic_matrix{other[0], other[1], other[2], {}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 3> &other) noexcept
+			: basic_matrix{other[0], other[1], other[2], {}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 4> &other) noexcept
+			: basic_matrix{other[0], other[1], other[2], {}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 3> &other) noexcept
+			: basic_matrix{other[0], other[1], other[2], other[3]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 4> &other) noexcept
+			: basic_matrix{other[0], other[1], other[2], other[3]}
 		{
 		}
 	};
@@ -92,10 +124,41 @@ namespace sek::math
 			: data{c0, c1, c2, c3}
 		{
 		}
-		constexpr basic_matrix(T xx, T yx, T zx, T wx,
-							   T xy, T yy, T zy, T wy,
-							   T xz, T yz, T zz, T wz) noexcept
+		constexpr basic_matrix(T xx, T yx, T zx, T wx, T xy, T yy, T zy, T wy, T xz, T yz, T zz, T wz) noexcept
 			: basic_matrix({xx, xy, xz}, {yx, yy, yz}, {zx, zy, zz}, {wx, wy, wz})
+		{
+		}
+
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 2> &other) noexcept
+			: basic_matrix{other[0], other[1], {0, 0, 1}, {}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 3> &other) noexcept
+			: basic_matrix{other[0], other[1], {0, 0, 1}, {}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 4> &other) noexcept
+			: basic_matrix{other[0], other[1], {0, 0, 1}, {}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 2> &other) noexcept
+			: basic_matrix{other[0], other[1], {other[2][0], other[2][1], 1}, {}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 3> &other) noexcept
+			: basic_matrix{other[0], other[1], other[2], {}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 4> &other) noexcept
+			: basic_matrix{other[0], other[1], other[2], {}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 2> &other) noexcept
+			: basic_matrix{other[0], other[1], {other[2][0], other[2][1], 1}, other[3]}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 4> &other) noexcept
+			: basic_matrix{other[0], other[1], other[2], other[3]}
 		{
 		}
 	};
@@ -170,11 +233,41 @@ namespace sek::math
 			: data{c0, c1, c2, c3}
 		{
 		}
-		constexpr basic_matrix(T xx, T yx, T zx, T wx,
-							   T xy, T yy, T zy, T wy,
-							   T xz, T yz, T zz, T wz,
-							   T xw, T yw, T zw, T ww) noexcept
+		constexpr basic_matrix(T xx, T yx, T zx, T wx, T xy, T yy, T zy, T wy, T xz, T yz, T zz, T wz, T xw, T yw, T zw, T ww) noexcept
 			: basic_matrix({xx, xy, xz, xw}, {yx, yy, yz, yw}, {zx, zy, zz, zw}, {wx, wy, wz, ww})
+		{
+		}
+
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 2> &other) noexcept
+			: basic_matrix{other[0], other[1], {0, 0, 1}, {0, 0, 0, 1}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 3> &other) noexcept
+			: basic_matrix{other[0], other[1], {0, 0, 1}, {0, 0, 0, 1}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 4> &other) noexcept
+			: basic_matrix{other[0], other[1], {0, 0, 1}, {0, 0, 0, 1}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 2> &other) noexcept
+			: basic_matrix{other[0], other[1], {other[2][0], other[2][1], 1}, {0, 0, 0, 1}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 3> &other) noexcept
+			: basic_matrix{other[0], other[1], other[2], {0, 0, 0, 1}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 4> &other) noexcept
+			: basic_matrix{other[0], other[1], other[2], {0, 0, 0, 1}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 2> &other) noexcept
+			: basic_matrix{other[0], other[1], {other[2][0], other[2][1], 1}, {other[3][0], other[3][1], 0, 1}}
+		{
+		}
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 3> &other) noexcept
+			: basic_matrix{other[0], other[1], other[2], other[3]}
 		{
 		}
 	};
