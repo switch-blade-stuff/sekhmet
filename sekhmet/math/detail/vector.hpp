@@ -548,9 +548,9 @@ namespace sek::math
 		/* Magnitude of a vector A=XYZ is sqrt(X*X + Y*Y + Z*Z) = sqrt(dot(A, A)). */
 		return std::sqrt(dot(v, v));
 	}
-	/** Returns a distance between two vectors. */
+	/** Returns a dist between two vectors. */
 	template<typename T, std::size_t N>
-	[[nodiscard]] constexpr T distance(const basic_vector<T, N> &l, const basic_vector<T, N> &r) noexcept
+	[[nodiscard]] constexpr T dist(const basic_vector<T, N> &l, const basic_vector<T, N> &r) noexcept
 	{
 		return magn(l - r);
 	}
