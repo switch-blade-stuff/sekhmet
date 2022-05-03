@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "sekhmet/detail/assert.hpp"
 #include "sekhmet/detail/hash.hpp"
 #include "util.hpp"
 #include "vector_data.hpp"
@@ -108,26 +107,28 @@ private:                                                                        
                                                                                                                        \
 public:                                                                                                                \
 	typedef T value_type;                                                                                              \
+                                                                                                                       \
 	constexpr basic_vector() noexcept = default;                                                                       \
+                                                                                                                       \
+	template<typename U, std::size_t M>                                                                                \
+	constexpr basic_vector(const basic_vector<U, M> &other) noexcept                                                   \
+		requires(std::convertible_to<U, T> && M != N)                                                                  \
+	: data(other.data)                                                                                                 \
+	{                                                                                                                  \
+	}                                                                                                                  \
+                                                                                                                       \
 	constexpr explicit basic_vector(const value_type(&vals)[N]) noexcept : data(vals)                                  \
 	{                                                                                                                  \
 	}                                                                                                                  \
                                                                                                                        \
 	[[nodiscard]] constexpr value_type &operator[](std::size_t i) noexcept                                             \
 	{                                                                                                                  \
-		SEK_ASSERT(i < N);                                                                                             \
 		return data[i];                                                                                                \
 	}                                                                                                                  \
 	[[nodiscard]] constexpr const value_type &operator[](std::size_t i) const noexcept                                 \
 	{                                                                                                                  \
-		SEK_ASSERT(i < N);                                                                                             \
 		return data[i];                                                                                                \
-	}                                                                                                                  \
-	template<std::size_t M>                                                                                            \
-	[[nodiscard]] constexpr operator basic_vector<value_type, M>() const noexcept                                      \
-	{                                                                                                                  \
-		return vector_cast<M>(*this);                                                                                  \
-	}                                                                                                                  \
+	}                                                                                                                 \
 	constexpr void swap(basic_vector &other) noexcept                                                                  \
 	{                                                                                                                  \
 		data.swap(other.data);                                                                                         \
@@ -237,24 +238,6 @@ namespace sek::math
 		};
 #endif
 	};
-
-	template<std::size_t N, std::size_t M, typename T>
-	[[nodiscard]] constexpr basic_vector<T, N> vector_cast(const basic_vector<T, M> &src) noexcept
-	{
-		constexpr auto make_vector = []<std::size_t... Is>(std::index_sequence<Is...>, const basic_vector<T, M> &src)
-		{
-			constexpr auto extract = []<std::size_t I>(const basic_vector<T, M> &src)
-			{
-				if constexpr (I > M)
-					return T{};
-				else
-					return src[I];
-			};
-
-			return basic_vector<T, N>{{extract<Is>(src)...}};
-		};
-		return make_vector(std::make_index_sequence<N>(), src);
-	}
 
 	template<typename T, std::size_t N>
 	[[nodiscard]] constexpr sek::hash_t hash(const basic_vector<T, N> &v) noexcept
@@ -596,7 +579,7 @@ namespace sek::math
 	{
 		return v.data.template get<I>();
 	}
-	/** Gets the Ith element of the vector. */
+	/** @copydoc get */
 	template<std::size_t I, typename T, std::size_t N>
 	[[nodiscard]] constexpr const T &get(const basic_vector<T, N> &v) noexcept
 	{

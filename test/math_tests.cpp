@@ -8,7 +8,7 @@
 
 static_assert(std::is_trivially_copyable_v<sek::math::vector4d>);
 
-TEST(math_tests, vec_test)
+TEST(math_tests, vector_test)
 {
 	{
 		sek::math::vector4d v4_1 = {0, 0, 0, 0}, v4_2 = {1, 2, 3, 4};
@@ -67,6 +67,15 @@ TEST(math_tests, vec_test)
 		sek::math::vector2d v2d = {1, 2};
 		EXPECT_EQ((sek::math::shuffle<1, 0>(v2d)), (sek::math::vector2d{2, 1}));
 		EXPECT_EQ((sek::math::shuffle<1, 0, 0>(v2d)), (sek::math::vector3d{2, 1, 1}));
+	}
+}
+
+TEST(math_tests, matrix_test)
+{
+	{
+		auto m4f3_i = sek::math::matrix4x3f::identity();
+		auto m4f3_1 = sek::math::matrix4x3f{1};
+		EXPECT_EQ(m4f3_i, m4f3_1);
 	}
 }
 

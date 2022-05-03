@@ -13,6 +13,16 @@ namespace sek::math::detail
 	struct vector_data
 	{
 		constexpr vector_data() noexcept = default;
+
+		template<typename U, std::size_t M>
+		constexpr explicit vector_data(const vector_data<U, M> &other) noexcept
+			requires(std::convertible_to<U, T> && M != N)
+		{
+			if constexpr (M < N)
+				std::copy_n(other.data, M, data);
+			else
+				std::copy_n(other.data, N, data);
+		}
 		constexpr explicit vector_data(const T (&vals)[N]) noexcept
 		{
 			std::copy(std::begin(vals), std::end(vals), data);
@@ -49,6 +59,15 @@ namespace sek::math::detail
 	struct vector_data<T, N, true>
 	{
 		constexpr vector_data() noexcept = default;
+
+		// clang-format off
+		template<typename U, std::size_t M>
+		constexpr explicit vector_data(const vector_data<U, M> &other) noexcept
+			requires(std::convertible_to<U, T> && M != N) : values(other)
+		{
+		}
+		// clang-format on
+
 		constexpr explicit vector_data(const T (&vals)[N]) noexcept : values(vals) {}
 
 		constexpr T &operator[](std::size_t i) noexcept { return values[i]; }
