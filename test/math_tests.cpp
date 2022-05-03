@@ -73,9 +73,9 @@ TEST(math_tests, vector_test)
 TEST(math_tests, matrix_test)
 {
 	{
-		auto m4f3_i = sek::math::matrix4x3f::identity();
-		auto m4f3_1 = sek::math::matrix4x3f{1};
-		EXPECT_EQ(m4f3_i, m4f3_1);
+		auto m4f_i = sek::math::matrix4f::identity();
+		auto m4f_1 = sek::math::matrix4f{1};
+		EXPECT_EQ(m4f_i, m4f_1);
 	}
 }
 

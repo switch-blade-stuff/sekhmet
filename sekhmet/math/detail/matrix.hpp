@@ -15,7 +15,9 @@ public:                                                                         
 	typedef basic_vector<T, M> col_type;                                                                               \
 	typedef basic_vector<T, N> row_type;                                                                               \
                                                                                                                        \
-	constexpr static basic_matrix identity() noexcept                                                                  \
+	/** Returns the identity matrix.                                                                                   \
+	 * @note This function is only available for square matrices. */                                                   \
+	constexpr static std::enable_if_t<N == M, basic_matrix> identity() noexcept                                        \
 	{                                                                                                                  \
 		return basic_matrix{1};                                                                                        \
 	}                                                                                                                  \
