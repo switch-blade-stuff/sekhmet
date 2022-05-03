@@ -17,7 +17,8 @@ namespace sek::math
 		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
 		{
 		}
-		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy) noexcept : basic_matrix({xx, xy}, {yx, yy}, {zx, zy})
+		constexpr basic_matrix(T xx, T yx, T zx,
+							   T xy, T yy, T zy) noexcept : basic_matrix({xx, xy}, {yx, yy}, {zx, zy})
 		{
 		}
 	};
@@ -68,6 +69,17 @@ namespace sek::math
 		// clang-format on
 	}
 
+	template<typename T>
+	[[nodiscard]] constexpr basic_vector<T, 2> operator*(const basic_matrix<T, 3, 2> &m, const basic_vector<T, 3> &v) noexcept
+	{
+		return m[0] * v[0] + m[1] * v[1] + m[2] * v[2];
+	}
+	template<typename T>
+	[[nodiscard]] constexpr basic_vector<T, 3> operator*(const basic_vector<T, 2> &v, const basic_matrix<T, 3, 2> &m) noexcept
+	{
+		return basic_vector<T, 2>{dot(v, m[0]), dot(v, m[1]), dot(v, m[2])};
+	}
+
 	template<arithmetic T>
 	struct basic_matrix<T, 3, 3>
 	{
@@ -77,7 +89,9 @@ namespace sek::math
 		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
 		{
 		}
-		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy, T xz, T yz, T zz) noexcept
+		constexpr basic_matrix(T xx, T yx, T zx,
+							   T xy, T yy, T zy,
+							   T xz, T yz, T zz) noexcept
 			: basic_matrix({xx, xy, xz}, {yx, yy, yz}, {zx, zy, zz})
 		{
 		}
@@ -132,6 +146,17 @@ namespace sek::math
 		// clang-format on
 	}
 
+	template<typename T>
+	[[nodiscard]] constexpr basic_vector<T, 3> operator*(const basic_matrix<T, 3, 3> &m, const basic_vector<T, 3> &v) noexcept
+	{
+		return m[0] * v[0] + m[1] * v[1] + m[2] * v[2];
+	}
+	template<typename T>
+	[[nodiscard]] constexpr basic_vector<T, 3> operator*(const basic_vector<T, 3> &v, const basic_matrix<T, 3, 3> &m) noexcept
+	{
+		return basic_vector<T, 2>{dot(v, m[0]), dot(v, m[1]), dot(v, m[2])};
+	}
+
 	template<arithmetic T>
 	struct basic_matrix<T, 3, 4>
 	{
@@ -141,7 +166,10 @@ namespace sek::math
 		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
 		{
 		}
-		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy, T xz, T yz, T zz, T xw, T yw, T zw) noexcept
+		constexpr basic_matrix(T xx, T yx, T zx,
+							   T xy, T yy, T zy,
+							   T xz, T yz, T zz,
+							   T xw, T yw, T zw) noexcept
 			: basic_matrix({xx, xy, xz, xw}, {yx, yy, yz, yw}, {zx, zy, zz, zw})
 		{
 		}
@@ -197,5 +225,16 @@ namespace sek::math
 									 {dot(r0, c2), dot(r1, c2), dot(r2, c2), dot(r3, c2)},
 									 {dot(r0, c3), dot(r1, c3), dot(r2, c3), dot(r3, c3)}};
 		// clang-format on
+	}
+
+	template<typename T>
+	[[nodiscard]] constexpr basic_vector<T, 4> operator*(const basic_matrix<T, 3, 4> &m, const basic_vector<T, 3> &v) noexcept
+	{
+		return m[0] * v[0] + m[1] * v[1] + m[2] * v[2];
+	}
+	template<typename T>
+	[[nodiscard]] constexpr basic_vector<T, 3> operator*(const basic_vector<T, 4> &v, const basic_matrix<T, 3, 4> &m) noexcept
+	{
+		return basic_vector<T, 2>{dot(v, m[0]), dot(v, m[1]), dot(v, m[2])};
 	}
 }	 // namespace sek::math

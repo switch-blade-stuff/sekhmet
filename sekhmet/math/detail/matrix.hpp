@@ -310,6 +310,22 @@ namespace sek::math
 			}
 		return result;
 	}
+	/** Returns a vector which is the result of multiplying matrix by a vector. */
+	template<typename T, std::size_t N, std::size_t M>
+	[[nodiscard]] constexpr basic_vector<T, M> operator*(const basic_matrix<T, N, M> &m, const basic_vector<T, N> &v) noexcept
+	{
+		basic_vector<T, N> result = {};
+		detail::unroll_matrix_op<N>([&](auto i) { result += m[i] * v[i]; });
+		return result;
+	}
+	/** Returns a vector which is the result of multiplying vector by a matrix. */
+	template<typename T, std::size_t C0, std::size_t C1>
+	[[nodiscard]] constexpr basic_vector<T, C1> operator*(const basic_vector<T, C0> &v, const basic_matrix<T, C1, C0> &m) noexcept
+	{
+		basic_vector<T, C1> result = {};
+		detail::unroll_matrix_op<C1>([&](auto i) { result[i] = dot(v, m[i]); });
+		return result;
+	}
 
 	/** Gets the Ith column of the matrix. */
 	template<std::size_t I, typename T, std::size_t N, std::size_t M>

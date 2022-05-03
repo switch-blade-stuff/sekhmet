@@ -89,11 +89,18 @@ TEST(math_tests, matrix_test)
 		EXPECT_EQ(sek::math::transpose(sek::math::matrix3x2f{1, 4, 0, 5, 1, 0}), (sek::math::matrix2x3f{1, 5, 4, 1, 0, 0}));
 	}
 	{
-		auto m2f_1 = sek::math::matrix2f{-2, 0, 1, 4};
-		auto m2f_2 = sek::math::matrix2f{6, -7, 5, 1};
-		auto m2f_3 = m2f_1 * m2f_2;
+		auto m3x2f = sek::math::matrix3x2f{0, 4, -2, -4, -3, 0};
+		auto m2x3f = sek::math::matrix2x3f{0, 1, 1, -1, 2, 3};
+		auto m2f = m3x2f * m2x3f;
 
-		EXPECT_EQ(m2f_3, (sek::math::matrix2f{-19, -28, -9, 4}));
+		EXPECT_EQ(m2f, (sek::math::matrix2f{0, -10, -3, -1}));
+	}
+	{
+		auto m3x2f = sek::math::matrix3x2f{1, -1, 2, 0, -3, 1};
+		auto v3f = sek::math::vector3f{2, 1, 0};
+		auto v2f = m3x2f * v3f;
+
+		EXPECT_EQ(v2f, (sek::math::vector2f{1, -3}));
 	}
 }
 
