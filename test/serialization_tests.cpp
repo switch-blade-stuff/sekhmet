@@ -122,31 +122,51 @@ TEST(serialization_tests, ubjson_test)
 	EXPECT_EQ(data, deserialized);
 }
 
-#include "sekhmet/math/vector.hpp"
+#include "sekhmet/math.hpp"
 
 TEST(serialization_tests, math_test)
 {
 	namespace math = sek::math;
 	namespace json = sek::serialization::json;
 
-	const auto v = math::vector4f{1, 2, 3, std::numeric_limits<float>::infinity()};
+	std::string json_string;
 
-	std::string ubj_string;
 	{
-		std::stringstream ss;
-		json::basic_output_archive<json::pretty_print | json::inline_arrays | json::extended_fp> archive_ex{ss};
-		archive_ex << v;
+		const auto v = math::vector4f{1, 2, 3, std::numeric_limits<float>::infinity()};
+		{
+			std::stringstream ss;
+			json::basic_output_archive<json::pretty_print | json::inline_arrays | json::extended_fp> archive_ex{ss};
+			archive_ex << v;
 
-		archive_ex.flush();
-		ubj_string = ss.str();
+			archive_ex.flush();
+			json_string = ss.str();
+		}
+		math::vector4f deserialized = {};
+		{
+			auto f = [&]() -> void { json::input_archive archive{json_string.data(), json_string.size()}; };
+			EXPECT_THROW(f(), sek::serialization::archive_error);
+
+			json::basic_input_archive<json::extended_fp> archive{json_string.data(), json_string.size()};
+			EXPECT_TRUE(archive.try_read(deserialized));
+		}
+		EXPECT_EQ(v, deserialized);
 	}
-	math::vector4f deserialized = {};
+
 	{
-		auto f = [&]() -> void { json::input_archive archive{ubj_string.data(), ubj_string.size()}; };
-		EXPECT_THROW(f(), sek::serialization::archive_error);
+		const auto m = math::matrix4f{2};
+		{
+			std::stringstream ss;
+			json::basic_output_archive<json::pretty_print | json::inline_arrays> archive_ex{ss};
+			archive_ex << m;
 
-		json::basic_input_archive<json::extended_fp> archive{ubj_string.data(), ubj_string.size()};
-		EXPECT_TRUE(archive.try_read(deserialized));
+			archive_ex.flush();
+			json_string = ss.str();
+		}
+		math::matrix4f deserialized = {};
+		{
+			json::input_archive archive{json_string.data(), json_string.size()};
+			EXPECT_TRUE(archive.try_read(deserialized));
+		}
+		EXPECT_EQ(m, deserialized);
 	}
-	EXPECT_EQ(v, deserialized);
 }
