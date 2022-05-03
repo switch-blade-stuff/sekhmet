@@ -77,6 +77,13 @@ TEST(math_tests, matrix_test)
 		auto m4f_1 = sek::math::matrix4f{1};
 		EXPECT_EQ(m4f_i, m4f_1);
 	}
+	{
+		auto m2f_1 = sek::math::matrix2f{1};
+		auto m2f_2 = sek::math::matrix2f{1, 2, 2, 1};
+		auto m2f_3 = m2f_1 + m2f_2;
+
+		EXPECT_EQ(m2f_3, (sek::math::matrix2f{2, 2, 2, 2}));
+	}
 }
 
 TEST(math_tests, random_test)
