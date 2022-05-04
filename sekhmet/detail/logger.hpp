@@ -53,13 +53,13 @@ namespace sek
 		constexpr static const value_type *error_cat = "Error";
 
 		/* Character array instead of a string is used to enable conversion to target character type. */
-		constexpr static value_type format_str[] = {
-			'[', '{', ':', '%', 'H', ':', '%', 'M', ':', '%', 'S', '}', ']', '>', ' ', '{', '}', '\0'};
+		constexpr static value_type format_str[] = {'[', '{', ':', '%', 'H', ':', '%', 'M', ':', '%',  'S', '}',
+													']', '[', '{', '}', ']', ':', ' ', '{', '}', '\n', '\0'};
 
-		static str_t default_format(sv_t msg)
+		static str_t default_format(sv_t cat, sv_t msg)
 		{
 			auto now = std::time(nullptr);
-			return fmt::format(format_str, fmt::localtime(now), msg);
+			return fmt::format(format_str, fmt::localtime(now), cat, msg);
 		}
 
 		static std::atomic<basic_logger *> &msg_ptr()
@@ -130,7 +130,7 @@ namespace sek
 		// clang-format off
 		/** Sets logger formatter. */
 		template<typename F>
-		constexpr void formatter(F &&f) noexcept requires std::is_invocable_r_v<str_t, F, sv_t>
+		constexpr void formatter(F &&f) noexcept requires std::is_invocable_r_v<str_t, F, sv_t, sv_t>
 		{
 			format_func = std::forward<F>(f);
 		}
@@ -165,7 +165,7 @@ namespace sek
 		/** Logs the provided message. */
 		basic_logger &log(std::basic_string_view<value_type, traits_type> msg)
 		{
-			const auto final_msg = fmt::format("[{}]{}\n", category_str, format_func(msg));
+			const auto final_msg = format_func(category_str, msg);
 			for (auto &listener : listeners) listener(final_msg);
 			return *this;
 		}
@@ -181,7 +181,7 @@ namespace sek
 		}
 
 	private:
-		std::function<str_t(sv_t)> format_func = default_format;
+		std::function<str_t(sv_t, sv_t)> format_func = default_format;
 		std::vector<std::function<void(sv_t)>> listeners;
 		str_t category_str = msg_cat;
 	};
