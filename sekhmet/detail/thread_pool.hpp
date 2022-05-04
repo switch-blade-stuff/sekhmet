@@ -144,7 +144,28 @@ namespace sek
 			std::promise<T> promise;
 		};
 
-		struct worker_t;
+		struct control_block;
+
+		/* Custom worker instead of std::jthread since jthread joins on destruction, and we need to detach. */
+		struct worker_t
+		{
+			static void thread_main(std::stop_token, control_block *) noexcept;
+
+			worker_t(worker_t &&other) noexcept : source(std::move(other.source)), thread(std::move(other.thread)) {}
+			explicit worker_t(control_block *cb) : thread(thread_main, source.get_token(), cb) {}
+			~worker_t()
+			{
+				/* Detach the thread to let the worker terminate on it's own. */
+				if (source.stop_possible()) [[likely]]
+				{
+					source.request_stop();
+					thread.detach();
+				}
+			}
+
+			std::stop_source source;
+			std::thread thread;
+		};
 
 		/* Worker threads may outlive the pool, thus the control block must live as long as any worker lives. */
 		struct control_block
@@ -163,7 +184,7 @@ namespace sek
 			SEK_API void resize(std::size_t n);
 			SEK_API void terminate();
 
-			template<typename T, std::invocable F>
+			template<typename T, typename F>
 			std::future<T> schedule(std::promise<T> &&promise, F &&task)
 			{
 				std::future<T> result;
@@ -240,27 +261,6 @@ namespace sek
 
 			task_node queue_head = {.front = &queue_head, .back = &queue_head};
 			queue_mode dispatch_mode;
-		};
-
-		/* Custom worker instead of std::jthread since jthread joins on destruction, and we need to detach. */
-		struct worker_t
-		{
-			static void thread_main(std::stop_token, control_block *) noexcept;
-
-			worker_t(worker_t &&other) noexcept : source(std::move(other.source)), thread(std::move(other.thread)) {}
-			explicit worker_t(control_block *cb) : thread(thread_main, source.get_token(), cb) {}
-			~worker_t()
-			{
-				/* Detach the thread to let the worker terminate on it's own. */
-				if (source.stop_possible()) [[likely]]
-				{
-					source.request_stop();
-					thread.detach();
-				}
-			}
-
-			std::stop_source source;
-			std::thread thread;
 		};
 
 	public:
