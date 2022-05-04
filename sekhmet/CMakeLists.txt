@@ -9,6 +9,7 @@ target_sources(${PROJECT_NAME} INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/static_string.hpp
         ${CMAKE_CURRENT_LIST_DIR}/hmap.hpp
         ${CMAKE_CURRENT_LIST_DIR}/hset.hpp
+        ${CMAKE_CURRENT_LIST_DIR}/logger.hpp
         ${CMAKE_CURRENT_LIST_DIR}/thread_pool.hpp
         ${CMAKE_CURRENT_LIST_DIR}/type_id.hpp
         ${CMAKE_CURRENT_LIST_DIR}/filemap.hpp

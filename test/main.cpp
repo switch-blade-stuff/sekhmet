@@ -4,9 +4,19 @@
 
 #include <gtest/gtest.h>
 
+#include "sekhmet/logger.hpp"
+
+void init_test_suite()
+{
+	sek::logger::msg() += std::cout;
+	sek::logger::warn() += std::cout;
+	sek::logger::error() += std::cout;
+}
+
 int main(int argc, char **argv)
 {
 	testing::InitGoogleTest(&argc, argv);
+	init_test_suite();
 
 	testing::GTEST_FLAG(death_test_style) = "fast";
 	return RUN_ALL_TESTS();

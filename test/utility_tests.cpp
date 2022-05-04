@@ -141,3 +141,18 @@ TEST(utility_tests, thread_pool_test)
 	f4.wait();
 	EXPECT_GE(std::chrono::duration_cast<ms_t>(std::chrono::steady_clock::now() - wait_start), ms_t{200});
 }
+
+#include "sekhmet/logger.hpp"
+
+TEST(utility_tests, logget_test)
+{
+	constexpr auto log_msg = "Test log message";
+
+	auto logger = sek::logger::msg();
+	std::stringstream ss;
+
+	logger += ss;
+	logger << log_msg;
+
+	EXPECT_NE(ss.str().find(log_msg), std::string::npos);
+}
