@@ -165,7 +165,7 @@ namespace sek
 		/** Logs the provided message. */
 		basic_logger &log(std::basic_string_view<value_type, traits_type> msg)
 		{
-			const auto final_msg = fmt::format("[{}]{}", category_str, format_func(msg));
+			const auto final_msg = fmt::format("[{}]{}\n", category_str, format_func(msg));
 			for (auto &listener : listeners) listener(final_msg);
 			return *this;
 		}

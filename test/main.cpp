@@ -9,8 +9,8 @@
 void init_test_suite()
 {
 	sek::logger::msg() += std::cout;
-	sek::logger::warn() += std::cout;
-	sek::logger::error() += std::cout;
+	sek::logger::warn() += std::clog;
+	sek::logger::error() += std::cerr;
 }
 
 int main(int argc, char **argv)

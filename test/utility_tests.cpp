@@ -146,13 +146,33 @@ TEST(utility_tests, thread_pool_test)
 
 TEST(utility_tests, logget_test)
 {
-	constexpr auto log_msg = "Test log message";
-
-	auto logger = sek::logger::msg();
 	std::stringstream ss;
 
-	logger += ss;
-	logger << log_msg;
+	{
+		constexpr auto log_msg = "Test log message";
+		sek::logger::msg() += ss;
+		sek::logger::msg() << log_msg;
 
-	EXPECT_NE(ss.str().find(log_msg), std::string::npos);
+		auto output = ss.str();
+		EXPECT_NE(output.find(log_msg), std::string::npos);
+		EXPECT_NE(output.find("Message"), std::string::npos);
+	}
+	{
+		constexpr auto log_msg = "Test log warning";
+		sek::logger::warn() += ss;
+		sek::logger::warn() << log_msg;
+
+		auto output = ss.str();
+		EXPECT_NE(output.find(log_msg), std::string::npos);
+		EXPECT_NE(output.find("Warning"), std::string::npos);
+	}
+	{
+		constexpr auto log_msg = "Test log error";
+		sek::logger::error() += ss;
+		sek::logger::error() << log_msg;
+
+		auto output = ss.str();
+		EXPECT_NE(output.find(log_msg), std::string::npos);
+		EXPECT_NE(output.find("Error"), std::string::npos);
+	}
 }
