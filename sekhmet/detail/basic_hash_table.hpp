@@ -179,7 +179,7 @@ namespace sek
 				}
 
 				/** Returns pointer to the target element. */
-				[[nodiscard]] constexpr pointer get() const noexcept { return bucket_ptr->data; }
+				[[nodiscard]] constexpr pointer get() const noexcept { return &bucket_ptr->value(); }
 				/** @copydoc value */
 				[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 				/** Returns reference to the target element. */
@@ -281,8 +281,8 @@ namespace sek
 				{
 					if (!empty())
 					{
-						std::destroy_at(bucket.data);
-						get_allocator().deallocate(bucket.data, 1);
+						std::destroy_at(&bucket.value());
+						get_allocator().deallocate(&bucket.value(), 1);
 					}
 				}
 				constexpr bucket_type reset() noexcept { return std::exchange(bucket, {}); }
