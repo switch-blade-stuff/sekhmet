@@ -107,3 +107,37 @@ TEST(utility_tests, adapter_test)
 	EXPECT_FALSE(adapter.empty());
 	EXPECT_EQ(adapter.invoke<size_proxy>(), s.size());
 }
+
+#include "sekhmet/thread_pool.hpp"
+
+TEST(utility_tests, thread_pool_test)
+{
+	using ms_t = std::chrono::milliseconds;
+	constexpr auto task = []() { std::this_thread::sleep_for(ms_t(100)); };
+
+	/* 4 threads will need to wait once (4 tasks / 4 threads). */
+	sek::thread_pool tp{4};
+	auto f1 = tp.schedule(task);
+	auto f2 = tp.schedule(task);
+	auto f3 = tp.schedule(task);
+	auto f4 = tp.schedule(task);
+	auto wait_start = std::chrono::steady_clock::now();
+	f1.wait();
+	f2.wait();
+	f3.wait();
+	f4.wait();
+	EXPECT_GE(std::chrono::duration_cast<ms_t>(std::chrono::steady_clock::now() - wait_start), ms_t{100});
+
+	/* 2 threads will need to wait twice (4 tasks / 2 threads). */
+	tp.resize(2);
+	f1 = tp.schedule(task);
+	f2 = tp.schedule(task);
+	f3 = tp.schedule(task);
+	f4 = tp.schedule(task);
+	wait_start = std::chrono::steady_clock::now();
+	f1.wait();
+	f2.wait();
+	f3.wait();
+	f4.wait();
+	EXPECT_GE(std::chrono::duration_cast<ms_t>(std::chrono::steady_clock::now() - wait_start), ms_t{200});
+}

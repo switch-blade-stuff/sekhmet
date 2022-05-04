@@ -14,7 +14,7 @@ namespace sek
 			throw std::runtime_error("`std::thread::hardware_concurrency` returned 0");
 	}
 
-	thread_pool::thread_pool(std::pmr::memory_resource *res, std::size_t n, thread_pool::queue_mode mode)
+	thread_pool::control_block::control_block(std::pmr::memory_resource *res, std::size_t n, thread_pool::queue_mode mode)
 		: task_alloc(res), dispatch_mode(mode)
 	{
 		adjust_worker_count(n);
@@ -27,55 +27,59 @@ namespace sek
 		// clang-format on
 		workers_count = n;
 	}
-	thread_pool::~thread_pool()
+	thread_pool::control_block::~control_block()
 	{
-		/* Destroy & terminate workers, then destroy unfinished tasks. */
-		destroy_workers(workers_data, workers_data + size());
+		/* Workers should be terminated by now, no need to destroy them again. */
 		allocator()->deallocate(workers_data, workers_capacity * sizeof(worker_t), alignof(worker_t));
-
 		for (auto task = queue_head.front, end = queue_head.back; task != end;)
-			delete_task(*static_cast<task_base *>(std::exchange(task, task->next)));	// NOLINT
+			delete_task(static_cast<task_base *>(std::exchange(task, task->next)));	   // NOLINT
 	}
 
-	void thread_pool::resize(std::size_t n)
+	void thread_pool::control_block::resize(std::size_t n)
 	{
 		adjust_worker_count(n);
 
-		if (n == size()) [[unlikely]]
+		if (n == workers_count) [[unlikely]]
 			return;
-		else if (n < size()) /* Terminate size - n threads. */
-			destroy_workers(workers_data + n, workers_data + size());
+		else if (n < workers_count) /* Terminate size - n threads. */
+			destroy_workers(workers_data + n, workers_data + workers_count);
 		else /* Start n - size threads. */
 		{
 			if (n > workers_capacity) [[unlikely]]
 				realloc_workers(n);
-			for (auto worker = workers_data + size(), end = workers_data + n; worker != end; ++worker)
+			for (auto worker = workers_data + workers_count, end = workers_data + n; worker != end; ++worker)
 				std::construct_at(worker, this);
 		}
 		workers_count = n;
 	}
+	void thread_pool::control_block::terminate() { destroy_workers(workers_data, workers_data + workers_count); }
 
-	void thread_pool::worker_t::thread_main(std::stop_token st, thread_pool *p) noexcept
+	void thread_pool::worker_t::thread_main(std::stop_token st, control_block *cb) noexcept
 	{
+		cb->acquire();
 		for (;;)
 		{
+			task_base *task;
 			try
 			{
 				/* Wait for termination or available tasks. */
-				std::unique_lock<std::mutex> lock(p->mtx);
-				p->cv.wait(lock, [&]() { return st.stop_requested() || p->queue_head.next != &p->queue_head; });
+				std::unique_lock<std::mutex> lock(cb->mtx);
+				cb->cv.wait(lock, [&]() { return st.stop_requested() || cb->queue_head.next != &cb->queue_head; });
 
-				/* Break out of the loop if termination was requested. */
+				/* Break out of the loop if termination was requested, otherwise get the next task. */
 				if (st.stop_requested()) [[unlikely]]
 					break;
+				else
+					task = cb->pop_task();
 			}
 			catch (std::system_error &e) /* Mutex error. */
 			{
 				/* TODO: Log exception */
 			}
 
-			/* Get task from the parent's queue, execute it, then delete it. */
-			p->delete_task(p->pop_task().invoke());
+			/* Execute & delete the task. */
+			cb->delete_task(task->invoke());
 		}
+		cb->release();
 	}
 }	 // namespace sek
