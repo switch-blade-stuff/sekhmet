@@ -30,7 +30,7 @@ namespace sek
 	thread_pool::control_block::~control_block()
 	{
 		/* Workers should be terminated by now, no need to destroy them again. */
-		allocator()->deallocate(workers_data, workers_capacity * sizeof(worker_t), alignof(worker_t));
+		task_alloc.upstream_resource()->deallocate(workers_data, workers_capacity * sizeof(worker_t), alignof(worker_t));
 		for (auto task = queue_head.front, end = queue_head.back; task != end;)
 			delete_task(static_cast<task_base *>(std::exchange(task, task->next)));	   // NOLINT
 	}

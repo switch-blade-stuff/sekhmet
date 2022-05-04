@@ -163,8 +163,6 @@ namespace sek
 			SEK_API void resize(std::size_t n);
 			SEK_API void terminate();
 
-			[[nodiscard]] auto allocator() const noexcept { return task_alloc.upstream_resource(); }
-
 			template<typename T, std::invocable F>
 			std::future<T> schedule(std::promise<T> &&promise, F &&task)
 			{
@@ -187,7 +185,7 @@ namespace sek
 
 			void realloc_workers(std::size_t n)
 			{
-				auto alloc = allocator();
+				auto alloc = task_alloc.upstream_resource();
 
 				auto new_workers = static_cast<worker_t *>(alloc->allocate(n * sizeof(worker_t), alignof(worker_t)));
 				if (!new_workers) [[unlikely]]
