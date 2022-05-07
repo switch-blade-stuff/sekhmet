@@ -6,12 +6,12 @@
 
 #include <algorithm>
 
-#include "sekhmet/math/detail/util.hpp"
 #include "alloc_util.hpp"
 #include "assert.hpp"
 #include "ebo_base_helper.hpp"
 #include "flagged_ptr.hpp"
 #include "hash.hpp"
+#include "sekhmet/math/detail/util.hpp"
 
 namespace sek
 {
@@ -69,7 +69,7 @@ namespace sek
 		 * need to do the same, but will avoid the use of linked lists.
 		 * A multiset can be easily implemented as a map of counters that would be used to track the amount of specific keys within the set.
 		 * */
-		template<typename KeyType, typename ValueType, typename Allocator, typename KeyCompare, typename KeyHash, typename KeyExtract>
+		template<typename KeyType, typename ValueType, typename KeyHash, typename KeyCompare, typename KeyExtract, typename Allocator>
 		class basic_hash_table;
 
 		template<typename KeyType, typename ValueType, typename KeyExtract>
@@ -78,7 +78,7 @@ namespace sek
 			[[nodiscard]] constexpr static auto tombstone_ptr() noexcept { return std::bit_cast<ValueType *>(1UL); }
 
 			constexpr hash_table_bucket() noexcept = default;
-			constexpr explicit hash_table_bucket(ValueType *ptr, std::size_t hash) noexcept : hash(hash), data(ptr) {}
+			constexpr explicit hash_table_bucket(ValueType *ptr, auto hash) noexcept : hash(hash), data(ptr) {}
 
 			[[nodiscard]] constexpr bool is_empty() const noexcept { return data == nullptr; }
 			[[nodiscard]] constexpr bool is_tombstone() const noexcept { return data == tombstone_ptr(); }
@@ -96,7 +96,7 @@ namespace sek
 				swap(data, other.data);
 			}
 
-			std::size_t hash = 0;
+			hash_t hash = 0;
 			ValueType *data;
 		};
 
@@ -303,7 +303,7 @@ namespace sek
 
 			template<bool RequireOccupied>
 			[[nodiscard]] constexpr static bucket_type *find_bucket_impl(
-				bucket_type *data, size_type capacity, const key_type &key, std::size_t hash, const KeyCompare &compare) noexcept
+				bucket_type *data, size_type capacity, const key_type &key, auto hash, const KeyCompare &compare) noexcept
 			{
 				if (capacity != 0) [[likely]] /* Initially, capacity is 0, so need to check. */
 				{
@@ -750,7 +750,7 @@ namespace sek
 				return find_bucket<RequireOccupied>(key, get_hash()(key));
 			}
 			template<bool RequireOccupied = true>
-			[[nodiscard]] constexpr bucket_type *find_bucket(const key_type &key, std::size_t hash) const noexcept
+			[[nodiscard]] constexpr bucket_type *find_bucket(const key_type &key, auto hash) const noexcept
 			{
 				return find_bucket_impl<RequireOccupied>(buckets_data, buckets_capacity, key, hash, get_compare());
 			}

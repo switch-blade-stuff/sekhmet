@@ -89,11 +89,8 @@ namespace sek::detail
 		DWORD access = GENERIC_READ, share = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
 		if (mode & filemap_out) access |= GENERIC_WRITE;
 
-#if (_WIN32_WINNT >= _WIN32_WINNT_WIN8)
-		auto file = raii_file{CreateFile2(path, access, share, OPEN_EXISTING, nullptr)};
-#else
-		auto file = raii_file{CreateFileW(path, access, share, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr)};
-#endif
+		auto file = raii_file{CreateFileW(
+			path, access, share, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_POSIX_SEMANTICS | FILE_FLAG_NO_BUFFERING, nullptr)};
 		if (!file.ptr) [[unlikely]]
 			throw filemap_error("Failed to create file handle");
 		init(file.ptr, offset, size, mode, name);

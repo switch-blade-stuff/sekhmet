@@ -9,8 +9,6 @@ FetchContent_GetProperties(fmt)
 if (NOT fmt_POPULATED)
     FetchContent_Populate(fmt)
     include_directories(${fmt_SOURCE_DIR}/include)
-else ()
-    message(FATAL_ERROR "fmt is required")
 endif ()
 
 target_sources(${PROJECT_NAME} PRIVATE

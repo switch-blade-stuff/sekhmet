@@ -185,7 +185,11 @@ namespace sek
 
 		/** Creates an `asset_stream` from this asset.
 		 * @param mode Mode to use while creating the stream. */
-		[[nodiscard]] asset_stream get_stream(std::ios::openmode mode = std::ios::in) const;
+		 template<typename C, typename T = std::char_traits<C>>
+		[[nodiscard]] asset_stream get_stream(std::ios::openmode mode = std::ios::in) const
+		 {
+
+		 }
 		/** Creates a `filemap` from this asset.
 		 * @param mode Mode to use while creating the `filemap`. */
 		[[nodiscard]] filemap get_filemap(filemap::openmode mode = filemap::in) const { return record->map_file(mode); }

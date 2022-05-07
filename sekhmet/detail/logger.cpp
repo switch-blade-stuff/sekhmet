@@ -6,5 +6,5 @@
 
 namespace sek
 {
-	template class SEK_API_EXPORT basic_logger<std::ostream::char_type>;
+	template class SEK_API_EXPORT basic_logger<char>;
 }

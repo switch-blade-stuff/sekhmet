@@ -144,7 +144,7 @@ TEST(utility_tests, thread_pool_test)
 
 #include "sekhmet/logger.hpp"
 
-TEST(utility_tests, logget_test)
+TEST(utility_tests, logger_test)
 {
 	std::stringstream ss;
 

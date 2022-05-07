@@ -63,10 +63,11 @@ namespace sek
 		filemap(const filemap &) = delete;
 		filemap &operator=(const filemap &) = delete;
 
-		constexpr filemap(filemap &&other) noexcept : handle(std::move(other.handle)) {}
+		constexpr filemap(filemap &&other) noexcept : handle(std::move(other.handle)), map_mode(other.map_mode) {}
 		constexpr filemap &operator=(filemap &&other) noexcept
 		{
 			handle = std::move(other.handle);
+			map_mode = other.map_mode;
 			return *this;
 		}
 		~filemap() { SEK_ASSERT_ALWAYS(handle.reset()); }
@@ -84,7 +85,7 @@ namespace sek
 						 std::size_t size = 0,
 						 openmode mode = in,
 						 const char *name = nullptr)
-			: handle(path.c_str(), offset, size, mode, name)
+			: handle(path.c_str(), offset, size, mode, name), map_mode(mode)
 		{
 		}
 		// clang-format on
@@ -94,7 +95,7 @@ namespace sek
 						 std::size_t size = 0,
 						 openmode mode = in,
 						 const char *name = nullptr)
-			: handle(path.data(), offset, size, mode, name)
+			: handle(path.data(), offset, size, mode, name), map_mode(mode)
 		{
 		}
 
@@ -106,9 +107,12 @@ namespace sek
 		 * @param name Optional name for the file mapping. If the OS does not support named file mapping, the name is ignored.
 		 * @throw filemap_error On any implementation-defined error. */
 		explicit filemap(native_file_type fd, std::ptrdiff_t offset = 0, std::size_t size = 0, openmode mode = in, const char *name = nullptr)
-			: handle(fd, offset, size, mode, name)
+			: handle(fd, offset, size, mode, name), map_mode(mode)
 		{
 		}
+
+		/** Returns the mode of the file mapping. */
+		[[nodiscard]] constexpr openmode mode() const noexcept { return map_mode; }
 
 		/** Returns the size (in bytes) of the file mapping. */
 		[[nodiscard]] constexpr std::size_t size() const noexcept { return handle.size(); }
@@ -139,10 +143,15 @@ namespace sek
 		/** Returns the underlying native handle. */
 		[[nodiscard]] native_handle_type native_handle() const noexcept { return handle.native_handle(); }
 
-		constexpr void swap(filemap &other) noexcept { handle.swap(other.handle); }
+		constexpr void swap(filemap &other) noexcept
+		{
+			handle.swap(other.handle);
+			std::swap(map_mode, other.map_mode);
+		}
 		friend constexpr void swap(filemap &a, filemap &b) noexcept { a.swap(b); }
 
 	private:
 		detail::filemap_handle handle;
+		openmode map_mode;
 	};
 }	 // namespace sek

@@ -7,13 +7,9 @@
 #include <atomic>
 #include <ctime>
 #include <functional>
-#include <iostream>
-#include <utility>
 #include <vector>
 
-#include "aligned_storage.hpp"
 #include "define.h"
-#include "static_string.hpp"
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <fmt/xchar.h>
@@ -22,19 +18,18 @@ namespace sek
 {
 	namespace detail
 	{
+		// clang-format off
 		template<typename U, typename C, typename T>
-		concept log_listener =
-			requires(U &dest, std::basic_string_view<C, T> msg) {
-				// clang-format off
+		concept log_listener = requires(U &dest, std::basic_string_view<C, T> msg) {
 				requires requires { dest << msg; } ||
 						 requires { dest.write(msg); } ||
 						 requires { dest.write(msg.data(), msg.size()); } ||
 						 requires { dest.write(msg.data(), static_cast<std::streamsize>(msg.size())); } ||
 						 requires { dest << msg.data(); } ||
 						 requires { dest.write(msg.data()); };
-				// clang-format on
 			};
-	}
+		// clang-format on
+	}	 // namespace detail
 
 	/** @brief Stream adapter used to preform logging. */
 	template<typename C, typename T = std::char_traits<C>>
@@ -51,16 +46,6 @@ namespace sek
 		constexpr static const value_type *msg_cat = "Message";
 		constexpr static const value_type *warn_cat = "Warning";
 		constexpr static const value_type *error_cat = "Error";
-
-		/* Character array instead of a string is used to enable conversion to target character type. */
-		constexpr static value_type format_str[] = {'[', '{', ':', '%', 'H', ':', '%', 'M', ':', '%',  'S', '}',
-													']', '[', '{', '}', ']', ':', ' ', '{', '}', '\n', '\0'};
-
-		static str_t default_format(sv_t cat, sv_t msg)
-		{
-			auto now = std::time(nullptr);
-			return fmt::format(format_str, fmt::localtime(now), cat, msg);
-		}
 
 		static std::atomic<basic_logger *> &msg_ptr()
 		{
@@ -115,6 +100,15 @@ namespace sek
 				dest.write(msg.data());
 		}
 
+		/* Character array instead of a string is used to enable conversion to target character type. */
+		constexpr static value_type format_str[] = {'[', '{', ':', '%', 'H', ':', '%', 'M', ':', '%',  'S', '}',
+													']', '[', '{', '}', ']', ':', ' ', '{', '}', '\n', '\0'};
+		static str_t default_format(sv_t cat, sv_t msg)
+		{
+			auto now = std::time(nullptr);
+			return fmt::format(format_str, fmt::localtime(now), cat, msg);
+		}
+
 	public:
 		/** Initializes logger with a default format. */
 		constexpr basic_logger() = default;
@@ -132,27 +126,35 @@ namespace sek
 		template<typename F>
 		constexpr void formatter(F &&f) noexcept requires std::is_invocable_r_v<str_t, F, sv_t, sv_t>
 		{
-			format_func = std::forward<F>(f);
+			sync_busy([&]() { format_func = std::forward<F>(f); });
 		}
 		// clang-format on
 
 		/** Returns logger category. */
 		[[nodiscard]] constexpr const auto &category() const noexcept { return category_str; }
 		/** Sets logger category. */
-		constexpr void category(std::basic_string_view<value_type, traits_type> cat) { category_str = cat; }
+		constexpr void category(std::basic_string_view<value_type, traits_type> cat)
+		{
+			sync_busy([&]() { category_str = cat; });
+		}
 
 		/** Constructs a listener in-place. */
 		template<detail::log_listener<C, T> S, typename... Args>
 		basic_logger &listen(std::in_place_type_t<S>, Args &&...args)
 		{
-			listeners.template emplace_back([s = S{std::forward<Args>(args)...}](sv_t msg) mutable { write(s, msg); });
+			sync_busy(
+				[&]()
+				{
+					/* Lambda must be mutable, since the listener is allocated in-place. */
+					listeners.emplace_back([s = S{std::forward<Args>(args)...}](sv_t msg) mutable { write(s, msg); });
+				});
 			return *this;
 		}
 		/** Adds a listener stream to the logger. */
 		template<detail::log_listener<C, T> S>
 		basic_logger &listen(S &s)
 		{
-			listeners.template emplace_back([sp = &s](sv_t msg) { write(*sp, msg); });
+			sync_busy([&]() { listeners.template emplace_back([sp = &s](sv_t msg) { write(*sp, msg); }); });
 			return *this;
 		}
 		/** @copydoc listen */
@@ -165,8 +167,12 @@ namespace sek
 		/** Logs the provided message. */
 		basic_logger &log(std::basic_string_view<value_type, traits_type> msg)
 		{
-			const auto final_msg = format_func(category_str, msg);
-			for (auto &listener : listeners) listener(final_msg);
+			sync_busy(
+				[&]()
+				{
+					const auto final_msg = format_func(category_str, msg);
+					for (auto &listener : listeners) listener(final_msg);
+				});
 			return *this;
 		}
 		/** @copydoc log */
@@ -181,12 +187,29 @@ namespace sek
 		}
 
 	private:
+		void sync_busy(auto &&f)
+		{
+			/* Wait until the flag is clear, then set the flag. */
+			busy.wait(true);
+			while (busy.test_and_set()) /* Keep waiting if the flag was already set by another thread. */
+				[[likely]] busy.wait(true);
+
+			/* Do whatever we need to do while the flag is set. */
+			f();
+
+			/* Clear the flag & notify the next waiting thread. */
+			busy.clear(std::memory_order_relaxed);
+			busy.notify_one();
+		}
+
 		std::function<str_t(sv_t, sv_t)> format_func = default_format;
 		std::vector<std::function<void(sv_t)>> listeners;
 		str_t category_str = msg_cat;
+
+		std::atomic_flag busy;
 	};
 
-	typedef basic_logger<std::ostream::char_type> logger;
+	extern template class SEK_API basic_logger<char>;
 
-	extern template class SEK_API basic_logger<std::ostream::char_type>;
+	typedef basic_logger<char> logger;
 }	 // namespace sek
