@@ -50,11 +50,11 @@ TEST(container_tests, array_list_test)
 
 #include "sekhmet/hmap.hpp"
 
-template class sek::hmap<std::string, float>;
+template class sek::sparse_map<std::string, float>;
 
 TEST(container_tests, hmap_test)
 {
-	sek::hmap<std::string, float> m1 = {
+	sek::sparse_map<std::string, float> m1 = {
 		{"0", 9.9f},
 		{"1", 7.6f},
 		{"2", std::numbers::pi_v<float>},
@@ -82,7 +82,7 @@ TEST(container_tests, hmap_test)
 			  std::weak_ordering::equivalent);
 	EXPECT_EQ(m1.find("1"), m1.end());
 
-	sek::hmap<std::string, int> m2;
+	sek::sparse_map<std::string, int> m2;
 
 	for (auto i = 0; i < 1000; i++) m2.emplace(std::to_string(i), i);
 	for (auto i = 0; i < 200; i++) m2.erase(m2.find(std::to_string(i)));
@@ -100,11 +100,11 @@ TEST(container_tests, hmap_test)
 
 #include "sekhmet/hset.hpp"
 
-template class sek::hset<std::string>;
+template class sek::sparse_set<std::string>;
 
 TEST(container_tests, hset_test)
 {
-	sek::hset<std::string> s1 = {"1", "2", "3", "4"};
+	sek::sparse_set<std::string> s1 = {"1", "2", "3", "4"};
 
 	EXPECT_EQ(s1.size(), 4);
 	EXPECT_FALSE(s1.contains("0"));

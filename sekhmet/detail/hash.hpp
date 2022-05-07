@@ -158,6 +158,13 @@ namespace sek
 		return hash_combine(result, hash(p.second));
 	}
 
+	template<typename T>
+	[[nodiscard]] constexpr hash_t hash(const T &v) noexcept
+		requires(requires { std::hash<T>{}(v); })
+	{
+		return std::hash<T>{}(v);
+	}
+
 	/** @brief Hasher that calls `hash` function on the passed object via ADL.
 	 * If such function is not available, uses `std::hash`. */
 	struct default_hash

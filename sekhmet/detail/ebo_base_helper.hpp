@@ -14,19 +14,20 @@ namespace sek
 		template<typename T, bool = true>
 		struct ebo_base_helper_impl : T
 		{
+			// clang-format off
 			constexpr ebo_base_helper_impl() noexcept(std::is_nothrow_default_constructible_v<T>) = default;
 			constexpr ebo_base_helper_impl(const ebo_base_helper_impl &) noexcept(std::is_nothrow_copy_constructible_v<T>) = default;
-			constexpr ebo_base_helper_impl &
-				operator=(const ebo_base_helper_impl &) noexcept(std::is_nothrow_copy_assignable_v<T>) = default;
+			constexpr ebo_base_helper_impl &operator=(const ebo_base_helper_impl &) noexcept(std::is_nothrow_copy_assignable_v<T>) = default;
 			constexpr ebo_base_helper_impl(ebo_base_helper_impl &&) noexcept(std::is_nothrow_move_constructible_v<T>) = default;
-			constexpr ebo_base_helper_impl &
-				operator=(ebo_base_helper_impl &&) noexcept(std::is_nothrow_move_assignable_v<T>) = default;
+			constexpr ebo_base_helper_impl &operator=(ebo_base_helper_impl &&) noexcept(std::is_nothrow_move_assignable_v<T>) = default;
 
 			template<typename... Args>
-			constexpr explicit ebo_base_helper_impl(Args &&...args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+			constexpr explicit ebo_base_helper_impl(Args &&...args)
+				noexcept(std::is_nothrow_constructible_v<T, Args...>) requires std::is_constructible_v<T, Args...>
 				: T(std::forward<Args>(args)...)
 			{
 			}
+			// clang-format on
 
 			[[nodiscard]] constexpr T *get() noexcept { return static_cast<T *>(this); }
 			[[nodiscard]] constexpr const T *get() const noexcept { return static_cast<const T *>(this); }
@@ -48,29 +49,30 @@ namespace sek
 		template<typename T>
 		struct ebo_base_helper_impl<T, false>
 		{
-			constexpr ebo_base_helper_impl() noexcept(
-				std::is_nothrow_default_constructible_v<T>) requires std::is_default_constructible_v<T>
+			// clang-format off
+			constexpr ebo_base_helper_impl()
+				noexcept(std::is_nothrow_default_constructible_v<T>) requires std::is_default_constructible_v<T>
 			{
 				::new (get()) T();
 			}
-			constexpr ebo_base_helper_impl(const ebo_base_helper_impl &other) noexcept(
-				std::is_nothrow_copy_constructible_v<T>) requires std::is_copy_constructible_v<T>
+			constexpr ebo_base_helper_impl(const ebo_base_helper_impl &other)
+				noexcept(std::is_nothrow_copy_constructible_v<T>) requires std::is_copy_constructible_v<T>
 			{
 				::new (get()) T{*other.get()};
 			}
-			constexpr ebo_base_helper_impl &operator=(const ebo_base_helper_impl &other) noexcept(
-				std::is_nothrow_copy_assignable_v<T>) requires std::is_copy_assignable_v<T>
+			constexpr ebo_base_helper_impl &operator=(const ebo_base_helper_impl &other)
+				noexcept(std::is_nothrow_copy_assignable_v<T>) requires std::is_copy_assignable_v<T>
 			{
 				*get() = *other.get();
 				return *this;
 			}
-			constexpr ebo_base_helper_impl(ebo_base_helper_impl &&other) noexcept(
-				std::is_nothrow_move_constructible_v<T>) requires std::is_move_constructible_v<T>
+			constexpr ebo_base_helper_impl(ebo_base_helper_impl &&other)
+				noexcept(std::is_nothrow_move_constructible_v<T>) requires std::is_move_constructible_v<T>
 			{
 				::new (get()) T{std::move(*other.get())};
 			}
-			constexpr ebo_base_helper_impl &operator=(ebo_base_helper_impl &&other) noexcept(
-				std::is_nothrow_move_assignable_v<T>) requires std::is_move_assignable_v<T>
+			constexpr ebo_base_helper_impl &operator=(ebo_base_helper_impl &&other)
+				noexcept(std::is_nothrow_move_assignable_v<T>) requires std::is_move_assignable_v<T>
 			{
 				*get() = std::move(*other.get());
 				return *this;
@@ -78,10 +80,12 @@ namespace sek
 			constexpr ~ebo_base_helper_impl() { get()->~T(); }
 
 			template<typename... Args>
-			constexpr explicit ebo_base_helper_impl(Args &&...args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+			constexpr explicit ebo_base_helper_impl(Args &&...args)
+				noexcept(std::is_nothrow_constructible_v<T, Args...>) requires std::is_constructible_v<T, Args...>
 			{
 				::new (get()) T{std::forward<Args>(args)...};
 			}
+			// clang-format on
 
 			[[nodiscard]] constexpr T *get() noexcept { return obj_data.template get<T>(); }
 			[[nodiscard]] constexpr const T *get() const noexcept { return obj_data.template get<T>(); }

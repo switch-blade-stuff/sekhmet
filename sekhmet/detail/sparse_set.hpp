@@ -6,18 +6,29 @@
 
 #include <iterator>
 
-#include "basic_hash_table.hpp"
+#include "sparse_hash_table.hpp"
 
 namespace sek
 {
-	/** Hashtable-based set structure.
+	/** @brief Sparse table based set providing fast insertion & deletion, but higher memory overhead than a tree-based set.
+	 *
+	 * Sparse sets are implemented via an open-addressing hash table.
+	 * This allows for efficient insertion & deletion at the expense of greater memory overhead.
+	 * Sparse sets always retain iterator validity on erasure.
+	 * Iterators are invalidated on insertion if a re-hash is required.
+	 *
+	 * @note Iteration over a sparse set is O(n), where n is the amount of buckets within the set.
+	 * This comes from a requirement for iterators to be valid after erasure operations
+	 * (thus bucket list may contain tombstones). In addition, de-referencing sparse set iterators requires one level of indirection,
+	 * since the buckets do not contain set values themselves.
+	 *
 	 * @tparam T Type of objects stored in the set.
 	 * @tparam KeyHash Functor used to generate hashes for keys. By default uses `default_hash` which calls static
 	 * non-member `hash` function via ADL if available, otherwise invokes `std::hash`.
 	 * @tparam KeyComp Predicate used to compare keys.
 	 * @tparam Alloc Allocator used for the set. */
 	template<typename T, typename KeyHash = default_hash, typename KeyComp = std::equal_to<T>, typename Alloc = std::allocator<T>>
-	class hset
+	class sparse_set
 	{
 	public:
 		typedef T key_type;
@@ -32,7 +43,7 @@ namespace sek
 				return std::forward<U>(val);
 			}
 		};
-		using table_type = detail::basic_hash_table<T, value_type, KeyHash, KeyComp, ret_identity, Alloc>;
+		using table_type = detail::sparse_hash_table<T, value_type, KeyHash, KeyComp, ret_identity, Alloc>;
 
 	public:
 		typedef typename table_type::pointer pointer;
@@ -51,8 +62,8 @@ namespace sek
 		typedef typename table_type::node_handle node_handle;
 
 	public:
-		constexpr hset() noexcept(std::is_nothrow_default_constructible_v<table_type>) = default;
-		constexpr ~hset() = default;
+		constexpr sparse_set() noexcept(std::is_nothrow_default_constructible_v<table_type>) = default;
+		constexpr ~sparse_set() = default;
 
 		/** Constructs a set with the specified minimum capacity.
 		 * @param capacity Capacity of the set.
@@ -60,11 +71,11 @@ namespace sek
 		 * @param key_hash Key hasher.
 		 * @param value_alloc Allocator used to allocate set's elements.
 		 * @param bucket_alloc Allocator used to allocate set's internal bucket array. */
-		constexpr explicit hset(size_type capacity,
-								const KeyComp &key_compare = {},
-								const KeyHash &key_hash = {},
-								const allocator_type &value_alloc = {},
-								const bucket_allocator_type &bucket_alloc = {})
+		constexpr explicit sparse_set(size_type capacity,
+									  const KeyComp &key_compare = {},
+									  const KeyHash &key_hash = {},
+									  const allocator_type &value_alloc = {},
+									  const bucket_allocator_type &bucket_alloc = {})
 			: data_table(capacity, key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}
@@ -77,13 +88,13 @@ namespace sek
 		 * @param value_alloc Allocator used to allocate set's elements.
 		 * @param bucket_alloc Allocator used to allocate set's internal bucket array. */
 		template<std::random_access_iterator Iterator>
-		constexpr hset(Iterator first,
-					   Iterator last,
-					   const KeyComp &key_compare = {},
-					   const KeyHash &key_hash = {},
-					   const allocator_type &value_alloc = {},
-					   const bucket_allocator_type &bucket_alloc = {})
-			: hset(static_cast<size_type>(std::distance(first, last)), key_compare, key_hash, value_alloc, bucket_alloc)
+		constexpr sparse_set(Iterator first,
+							 Iterator last,
+							 const KeyComp &key_compare = {},
+							 const KeyHash &key_hash = {},
+							 const allocator_type &value_alloc = {},
+							 const bucket_allocator_type &bucket_alloc = {})
+			: sparse_set(static_cast<size_type>(std::distance(first, last)), key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 			insert(first, last);
 		}
@@ -95,13 +106,13 @@ namespace sek
 		 * @param value_alloc Allocator used to allocate set's elements.
 		 * @param bucket_alloc Allocator used to allocate set's internal bucket array. */
 		template<std::forward_iterator Iterator>
-		constexpr hset(Iterator first,
-					   Iterator last,
-					   const KeyComp &key_compare = {},
-					   const KeyHash &key_hash = {},
-					   const allocator_type &value_alloc = {},
-					   const bucket_allocator_type &bucket_alloc = {})
-			: hset(0, key_compare, key_hash, value_alloc, bucket_alloc)
+		constexpr sparse_set(Iterator first,
+							 Iterator last,
+							 const KeyComp &key_compare = {},
+							 const KeyHash &key_hash = {},
+							 const allocator_type &value_alloc = {},
+							 const bucket_allocator_type &bucket_alloc = {})
+			: sparse_set(0, key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 			insert(first, last);
 		}
@@ -111,25 +122,25 @@ namespace sek
 		 * @param key_hash Key hasher.
 		 * @param value_alloc Allocator used to allocate set's elements.
 		 * @param bucket_alloc Allocator used to allocate set's internal bucket array. */
-		constexpr hset(std::initializer_list<value_type> init_list,
-					   const KeyComp &key_compare = {},
-					   const KeyHash &key_hash = {},
-					   const allocator_type &value_alloc = {},
-					   const bucket_allocator_type &bucket_alloc = {})
-			: hset(init_list.begin(), init_list.end(), key_compare, key_hash, value_alloc, bucket_alloc)
+		constexpr sparse_set(std::initializer_list<value_type> init_list,
+							 const KeyComp &key_compare = {},
+							 const KeyHash &key_hash = {},
+							 const allocator_type &value_alloc = {},
+							 const bucket_allocator_type &bucket_alloc = {})
+			: sparse_set(init_list.begin(), init_list.end(), key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}
 
 		/** Copy-constructs the set. Both allocators are copied via `select_on_container_copy_construction`.
 		 * @param other Map to copy data and allocators from. */
-		constexpr hset(const hset &other) noexcept(std::is_nothrow_copy_constructible_v<table_type>)
+		constexpr sparse_set(const sparse_set &other) noexcept(std::is_nothrow_copy_constructible_v<table_type>)
 			: data_table(other.data_table)
 		{
 		}
 		/** Copy-constructs the set. Bucket allocator is copied via `select_on_container_copy_construction`.
 		 * @param other Map to copy data and bucket allocator from.
 		 * @param value_alloc Allocator used to allocate set's elements. */
-		constexpr hset(const hset &other, const allocator_type &value_alloc) noexcept(
+		constexpr sparse_set(const sparse_set &other, const allocator_type &value_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, const table_type &, const allocator_type &>)
 			: data_table(other.data_table, value_alloc)
 		{
@@ -138,7 +149,7 @@ namespace sek
 		 * @param other Map to copy data from.
 		 * @param value_alloc Allocator used to allocate set's elements.
 		 * @param bucket_alloc Allocator used to allocate set's internal bucket array. */
-		constexpr hset(const hset &other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
+		constexpr sparse_set(const sparse_set &other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, const table_type &, const allocator_type &, const bucket_allocator_type &>)
 			: data_table(other.data_table, value_alloc, bucket_alloc)
 		{
@@ -146,14 +157,14 @@ namespace sek
 
 		/** Move-constructs the set. Both allocators are move-constructed.
 		 * @param other Map to move elements and allocators from. */
-		constexpr hset(hset &&other) noexcept(std::is_nothrow_move_constructible_v<table_type>)
+		constexpr sparse_set(sparse_set &&other) noexcept(std::is_nothrow_move_constructible_v<table_type>)
 			: data_table(std::move(other.data_table))
 		{
 		}
 		/** Move-constructs the set. Bucket allocator is move-constructed.
 		 * @param other Map to move elements and bucket allocator from.
 		 * @param value_alloc Allocator used to allocate set's elements. */
-		constexpr hset(hset &&other, const allocator_type &value_alloc) noexcept(
+		constexpr sparse_set(sparse_set &&other, const allocator_type &value_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &>)
 			: data_table(std::move(other.data_table), value_alloc)
 		{
@@ -162,7 +173,7 @@ namespace sek
 		 * @param other Map to move elements from.
 		 * @param value_alloc Allocator used to allocate set's elements.
 		 * @param bucket_alloc Allocator used to allocate set's internal bucket array. */
-		constexpr hset(hset &&other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
+		constexpr sparse_set(sparse_set &&other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &, const bucket_allocator_type &>)
 			: data_table(std::move(other.data_table), value_alloc, bucket_alloc)
 		{
@@ -170,14 +181,14 @@ namespace sek
 
 		/** Copy-assigns the set.
 		 * @param other Map to copy elements from. */
-		constexpr hset &operator=(const hset &other)
+		constexpr sparse_set &operator=(const sparse_set &other)
 		{
 			if (this != &other) data_table = other.data_table;
 			return *this;
 		}
 		/** Move-assigns the set.
 		 * @param other Map to move elements from. */
-		constexpr hset &operator=(hset &&other) noexcept(std::is_nothrow_move_assignable_v<table_type>)
+		constexpr sparse_set &operator=(sparse_set &&other) noexcept(std::is_nothrow_move_assignable_v<table_type>)
 		{
 			data_table = std::move(other.data_table);
 			return *this;
@@ -198,7 +209,7 @@ namespace sek
 
 		/** Locates an element within the set.
 		 * @param key Key to search for.
-		 * @return Iterator to the element mapped to key. */
+		 * @return Iterator to the element setped to key. */
 		constexpr iterator find(const key_type &key) noexcept { return data_table.find(key); }
 		/** @copydoc find */
 		constexpr const_iterator find(const key_type &key) const noexcept { return data_table.find(key); }
@@ -399,6 +410,19 @@ namespace sek
 		/** Returns current amount of buckets in the set. */
 		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return data_table.bucket_count(); }
 
+		/** Returns current load factor of the set. */
+		[[nodiscard]] constexpr auto load_factor() const noexcept { return data_table.load_factor(); }
+		/** Returns current max load factor of the set. */
+		[[nodiscard]] constexpr auto max_load_factor() const noexcept { return data_table.max_load_factor; }
+		/** Sets current max load factor of the set. */
+		constexpr void max_load_factor(float f) noexcept { data_table.max_load_factor = f; }
+		/** Returns current tombstone factor of the set. */
+		[[nodiscard]] constexpr auto tombstone_factor() const noexcept { return data_table.tombstone_factor(); }
+		/** Returns current max tombstone factor of the set. */
+		[[nodiscard]] constexpr auto max_tombstone_factor() const noexcept { return data_table.max_tombstone_factor; }
+		/** Sets current max tombstone factor of the set. */
+		constexpr void max_tombstone_factor(float f) noexcept { data_table.max_tombstone_factor = f; }
+
 		[[nodiscard]] constexpr allocator_type &get_allocator() noexcept { return data_table.get_value_allocator(); }
 		[[nodiscard]] constexpr const allocator_type &get_allocator() const noexcept
 		{
@@ -416,13 +440,13 @@ namespace sek
 		[[nodiscard]] constexpr hash_type &hasher() noexcept { return data_table.get_hash(); }
 		[[nodiscard]] constexpr const hash_type &hasher() const noexcept { return data_table.get_hash(); }
 
-		[[nodiscard]] constexpr bool operator==(const hset &other) const noexcept
+		[[nodiscard]] constexpr bool operator==(const sparse_set &other) const noexcept
 		{
 			return std::is_permutation(begin(), end(), other.begin(), other.end());
 		}
 
-		constexpr void swap(hset &other) noexcept { data_table.swap(other.data_table); }
-		friend constexpr void swap(hset &a, hset &b) noexcept { a.swap(b); }
+		constexpr void swap(sparse_set &other) noexcept { data_table.swap(other.data_table); }
+		friend constexpr void swap(sparse_set &a, sparse_set &b) noexcept { a.swap(b); }
 
 	private:
 		/** Hash table used to implement the set. */

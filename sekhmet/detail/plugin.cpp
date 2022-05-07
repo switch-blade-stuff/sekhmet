@@ -4,7 +4,7 @@
 
 #include "plugin.hpp"
 
-#include "hset.hpp"
+#include "sparse_set.hpp"
 #include <shared_mutex>
 
 namespace sek
@@ -28,7 +28,7 @@ namespace sek
 			static plugin_db instance;
 
 			std::shared_mutex mtx;
-			hset<plugin_data *, ptr_hash> data;
+			sparse_set<plugin_data *, ptr_hash> data;
 		};
 
 		plugin_db plugin_db::instance = {};

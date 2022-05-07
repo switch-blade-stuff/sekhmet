@@ -9,6 +9,12 @@
 #include "sekhmet/hash.hpp"
 #include "sekhmet/utility.hpp"
 
+struct empty_t
+{
+};
+static_assert(sizeof(sek::packed_pair<empty_t, int>) == sizeof(int));
+static_assert(sizeof(sek::packed_pair<int, int>) == sizeof(int) * 2);
+
 TEST(utility_tests, version_test)
 {
 	sek::version v1 = {0, 0, 1};

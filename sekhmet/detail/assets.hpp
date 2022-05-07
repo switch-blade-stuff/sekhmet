@@ -10,8 +10,8 @@
 
 #include "basic_service.hpp"
 #include "filemap.hpp"
-#include "hmap.hpp"
-#include "hset.hpp"
+#include "sparse_map.hpp"
+#include "sparse_set.hpp"
 #include <shared_mutex>
 
 #define SEK_PACKAGE_SIGNATURE "\3SEKPAK"
@@ -38,7 +38,7 @@ namespace sek
 			package_fragment *parent = nullptr;
 
 			std::string id;
-			hset<std::string> tags;
+			sparse_set<std::string> tags;
 		};
 		struct loose_asset_record final : asset_record_base
 		{
@@ -186,10 +186,7 @@ namespace sek
 		/** Creates an `asset_stream` from this asset.
 		 * @param mode Mode to use while creating the stream. */
 		 template<typename C, typename T = std::char_traits<C>>
-		[[nodiscard]] asset_stream get_stream(std::ios::openmode mode = std::ios::in) const
-		 {
-
-		 }
+		[[nodiscard]] asset_stream get_stream(std::ios::openmode mode = std::ios::in) const;
 		/** Creates a `filemap` from this asset.
 		 * @param mode Mode to use while creating the `filemap`. */
 		[[nodiscard]] filemap get_filemap(filemap::openmode mode = filemap::in) const { return record->map_file(mode); }
@@ -230,8 +227,8 @@ namespace sek
 
 	protected:
 		using path_string_view = std::basic_string_view<typename std::filesystem::path::value_type>;
-		using packages_map_t = hmap<path_string_view, detail::master_package *>;
-		using assets_map_t = hmap<std::string_view, detail::asset_record_base *>;
+		using packages_map_t = sparse_map<path_string_view, detail::master_package *>;
+		using assets_map_t = sparse_map<std::string_view, detail::asset_record_base *>;
 
 	public:
 		/** Searches an asset using it's id within this repository.

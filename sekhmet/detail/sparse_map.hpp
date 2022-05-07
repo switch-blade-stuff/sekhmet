@@ -7,11 +7,22 @@
 #include <iterator>
 #include <stdexcept>
 
-#include "basic_hash_table.hpp"
+#include "sparse_hash_table.hpp"
 
 namespace sek
 {
-	/** One-to-one hashtable-based associative container providing fast insertion & deletion, but higher memory overhead than tree-based map.
+	/** @brief One-to-one sparse table based associative container providing fast insertion & deletion, but higher memory overhead than a tree-based map.
+	 *
+	 * Sparse maps are implemented via an open-addressing hash table.
+	 * This allows for efficient insertion & deletion at the expense of greater memory overhead.
+	 * Sparse maps always retain iterator validity on erasure.
+	 * Iterators are invalidated on insertion if a re-hash is required.
+	 *
+	 * @note Iteration over a sparse map is O(n), where n is the amount of buckets within the map.
+	 * This comes from a requirement for iterators to be valid after erasure operations
+	 * (thus bucket list may contain tombstones). In addition, de-referencing sparse map iterators requires one level of indirection,
+	 * since the buckets do not contain map values themselves.
+	 *
 	 * @tparam K Type of objects used as keys.
 	 * @tparam M Type of objects associated with keys.
 	 * @tparam KeyHash Functor used to generate hashes for keys. By default uses `default_hash` which calls static non-member
@@ -19,7 +30,7 @@ namespace sek
 	 * @tparam KeyComp Predicate used to compare keys.
 	 * @tparam Alloc Allocator used for the map. */
 	template<typename K, typename M, typename KeyHash = default_hash, typename KeyComp = std::equal_to<K>, typename Alloc = std::allocator<std::pair<const K, M>>>
-	class hmap
+	class sparse_map
 	{
 	public:
 		typedef K key_type;
@@ -27,7 +38,7 @@ namespace sek
 		typedef std::pair<const key_type, mapped_type> value_type;
 
 	private:
-		using table_type = detail::basic_hash_table<K, value_type, KeyHash, KeyComp, pair_first, Alloc>;
+		using table_type = detail::sparse_hash_table<K, value_type, KeyHash, KeyComp, pair_first, Alloc>;
 
 	public:
 		typedef typename table_type::pointer pointer;
@@ -46,8 +57,8 @@ namespace sek
 		typedef typename table_type::node_handle node_handle;
 
 	public:
-		constexpr hmap() noexcept(std::is_nothrow_default_constructible_v<table_type>) = default;
-		constexpr ~hmap() = default;
+		constexpr sparse_map() noexcept(std::is_nothrow_default_constructible_v<table_type>) = default;
+		constexpr ~sparse_map() = default;
 
 		/** Constructs a map with the specified minimum capacity.
 		 * @param capacity Capacity of the map.
@@ -55,11 +66,11 @@ namespace sek
 		 * @param key_hash Key hasher.
 		 * @param value_alloc Allocator used to allocate map's elements.
 		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
-		constexpr explicit hmap(size_type capacity,
-								const KeyComp &key_compare = {},
-								const KeyHash &key_hash = {},
-								const allocator_type &value_alloc = {},
-								const bucket_allocator_type &bucket_alloc = {})
+		constexpr explicit sparse_map(size_type capacity,
+									  const KeyComp &key_compare = {},
+									  const KeyHash &key_hash = {},
+									  const allocator_type &value_alloc = {},
+									  const bucket_allocator_type &bucket_alloc = {})
 			: data_table(capacity, key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}
@@ -72,13 +83,13 @@ namespace sek
 		 * @param value_alloc Allocator used to allocate map's elements.
 		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
 		template<std::random_access_iterator Iterator>
-		constexpr hmap(Iterator first,
-					   Iterator last,
-					   const KeyComp &key_compare = {},
-					   const KeyHash &key_hash = {},
-					   const allocator_type &value_alloc = {},
-					   const bucket_allocator_type &bucket_alloc = {})
-			: hmap(static_cast<size_type>(std::distance(first, last)), key_compare, key_hash, value_alloc, bucket_alloc)
+		constexpr sparse_map(Iterator first,
+							 Iterator last,
+							 const KeyComp &key_compare = {},
+							 const KeyHash &key_hash = {},
+							 const allocator_type &value_alloc = {},
+							 const bucket_allocator_type &bucket_alloc = {})
+			: sparse_map(static_cast<size_type>(std::distance(first, last)), key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 			insert(first, last);
 		}
@@ -90,13 +101,13 @@ namespace sek
 		 * @param value_alloc Allocator used to allocate map's elements.
 		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
 		template<std::forward_iterator Iterator>
-		constexpr hmap(Iterator first,
-					   Iterator last,
-					   const KeyComp &key_compare = {},
-					   const KeyHash &key_hash = {},
-					   const allocator_type &value_alloc = {},
-					   const bucket_allocator_type &bucket_alloc = {})
-			: hmap(0, key_compare, key_hash, value_alloc, bucket_alloc)
+		constexpr sparse_map(Iterator first,
+							 Iterator last,
+							 const KeyComp &key_compare = {},
+							 const KeyHash &key_hash = {},
+							 const allocator_type &value_alloc = {},
+							 const bucket_allocator_type &bucket_alloc = {})
+			: sparse_map(0, key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 			insert(first, last);
 		}
@@ -106,25 +117,25 @@ namespace sek
 		 * @param key_hash Key hasher.
 		 * @param value_alloc Allocator used to allocate map's elements.
 		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
-		constexpr hmap(std::initializer_list<value_type> init_list,
-					   const KeyComp &key_compare = {},
-					   const KeyHash &key_hash = {},
-					   const allocator_type &value_alloc = {},
-					   const bucket_allocator_type &bucket_alloc = {})
-			: hmap(init_list.begin(), init_list.end(), key_compare, key_hash, value_alloc, bucket_alloc)
+		constexpr sparse_map(std::initializer_list<value_type> init_list,
+							 const KeyComp &key_compare = {},
+							 const KeyHash &key_hash = {},
+							 const allocator_type &value_alloc = {},
+							 const bucket_allocator_type &bucket_alloc = {})
+			: sparse_map(init_list.begin(), init_list.end(), key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}
 
 		/** Copy-constructs the map. Both allocators are copied via `select_on_container_copy_construction`.
 		 * @param other Map to copy data and allocators from. */
-		constexpr hmap(const hmap &other) noexcept(std::is_nothrow_copy_constructible_v<table_type>)
+		constexpr sparse_map(const sparse_map &other) noexcept(std::is_nothrow_copy_constructible_v<table_type>)
 			: data_table(other.data_table)
 		{
 		}
 		/** Copy-constructs the map. Bucket allocator is copied via `select_on_container_copy_construction`.
 		 * @param other Map to copy data and bucket allocator from.
 		 * @param value_alloc Allocator used to allocate map's elements. */
-		constexpr hmap(const hmap &other, const allocator_type &value_alloc) noexcept(
+		constexpr sparse_map(const sparse_map &other, const allocator_type &value_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, const table_type &, const allocator_type &>)
 			: data_table(other.data_table, value_alloc)
 		{
@@ -133,7 +144,7 @@ namespace sek
 		 * @param other Map to copy data from.
 		 * @param value_alloc Allocator used to allocate map's elements.
 		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
-		constexpr hmap(const hmap &other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
+		constexpr sparse_map(const sparse_map &other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, const table_type &, const allocator_type &, const bucket_allocator_type &>)
 			: data_table(other.data_table, value_alloc, bucket_alloc)
 		{
@@ -141,14 +152,14 @@ namespace sek
 
 		/** Move-constructs the map. Both allocators are move-constructed.
 		 * @param other Map to move elements and allocators from. */
-		constexpr hmap(hmap &&other) noexcept(std::is_nothrow_move_constructible_v<table_type>)
+		constexpr sparse_map(sparse_map &&other) noexcept(std::is_nothrow_move_constructible_v<table_type>)
 			: data_table(std::move(other.data_table))
 		{
 		}
 		/** Move-constructs the map. Bucket allocator is move-constructed.
 		 * @param other Map to move elements and bucket allocator from.
 		 * @param value_alloc Allocator used to allocate map's elements. */
-		constexpr hmap(hmap &&other, const allocator_type &value_alloc) noexcept(
+		constexpr sparse_map(sparse_map &&other, const allocator_type &value_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &>)
 			: data_table(std::move(other.data_table), value_alloc)
 		{
@@ -157,7 +168,7 @@ namespace sek
 		 * @param other Map to move elements from.
 		 * @param value_alloc Allocator used to allocate map's elements.
 		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
-		constexpr hmap(hmap &&other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
+		constexpr sparse_map(sparse_map &&other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &, const bucket_allocator_type &>)
 			: data_table(std::move(other.data_table), value_alloc, bucket_alloc)
 		{
@@ -165,14 +176,14 @@ namespace sek
 
 		/** Copy-assigns the map.
 		 * @param other Map to copy elements from. */
-		constexpr hmap &operator=(const hmap &other)
+		constexpr sparse_map &operator=(const sparse_map &other)
 		{
 			if (this != &other) data_table = other.data_table;
 			return *this;
 		}
 		/** Move-assigns the map.
 		 * @param other Map to move elements from. */
-		constexpr hmap &operator=(hmap &&other) noexcept(std::is_nothrow_move_assignable_v<table_type>)
+		constexpr sparse_map &operator=(sparse_map &&other) noexcept(std::is_nothrow_move_assignable_v<table_type>)
 		{
 			data_table = std::move(other.data_table);
 			return *this;
@@ -451,6 +462,19 @@ namespace sek
 		/** Returns current amount of buckets in the map. */
 		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return data_table.bucket_count(); }
 
+		/** Returns current load factor of the map. */
+		[[nodiscard]] constexpr auto load_factor() const noexcept { return data_table.load_factor(); }
+		/** Returns current max load factor of the map. */
+		[[nodiscard]] constexpr auto max_load_factor() const noexcept { return data_table.max_load_factor; }
+		/** Sets current max load factor of the map. */
+		constexpr void max_load_factor(float f) noexcept { data_table.max_load_factor = f; }
+		/** Returns current tombstone factor of the map. */
+		[[nodiscard]] constexpr auto tombstone_factor() const noexcept { return data_table.tombstone_factor(); }
+		/** Returns current max tombstone factor of the map. */
+		[[nodiscard]] constexpr auto max_tombstone_factor() const noexcept { return data_table.max_tombstone_factor; }
+		/** Sets current max tombstone factor of the map. */
+		constexpr void max_tombstone_factor(float f) noexcept { data_table.max_tombstone_factor = f; }
+
 		[[nodiscard]] constexpr allocator_type &get_allocator() noexcept { return data_table.get_value_allocator(); }
 		[[nodiscard]] constexpr const allocator_type &get_allocator() const noexcept
 		{
@@ -468,13 +492,13 @@ namespace sek
 		[[nodiscard]] constexpr hash_type &hasher() noexcept { return data_table.get_hash(); }
 		[[nodiscard]] constexpr const hash_type &hasher() const noexcept { return data_table.get_hash(); }
 
-		[[nodiscard]] constexpr bool operator==(const hmap &other) const noexcept
+		[[nodiscard]] constexpr bool operator==(const sparse_map &other) const noexcept
 		{
 			return std::is_permutation(begin(), end(), other.begin(), other.end());
 		}
 
-		constexpr void swap(hmap &other) noexcept { data_table.swap(other.data_table); }
-		friend constexpr void swap(hmap &a, hmap &b) noexcept { a.swap(b); }
+		constexpr void swap(sparse_map &other) noexcept { data_table.swap(other.data_table); }
+		friend constexpr void swap(sparse_map &a, sparse_map &b) noexcept { a.swap(b); }
 
 	private:
 		/** Hash table used to implement the map. */

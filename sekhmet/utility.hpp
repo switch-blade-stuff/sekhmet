@@ -8,6 +8,7 @@
 #include "detail/ebo_base_helper.hpp"
 #include "detail/flagged_integer.hpp"
 #include "detail/flagged_ptr.hpp"
+#include "detail/packed_pair.hpp"
 #include "detail/uuid.hpp"
 #include "detail/version.hpp"
 #include "math/detail/util.hpp"

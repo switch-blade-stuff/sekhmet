@@ -70,15 +70,15 @@ namespace sek
 		 * A multiset can be easily implemented as a map of counters that would be used to track the amount of specific keys within the set.
 		 * */
 		template<typename KeyType, typename ValueType, typename KeyHash, typename KeyCompare, typename KeyExtract, typename Allocator>
-		class basic_hash_table;
+		class sparse_hash_table;
 
 		template<typename KeyType, typename ValueType, typename KeyExtract>
-		struct hash_table_bucket
+		struct sparse_table_bucket
 		{
 			[[nodiscard]] constexpr static auto tombstone_ptr() noexcept { return std::bit_cast<ValueType *>(1UL); }
 
-			constexpr hash_table_bucket() noexcept = default;
-			constexpr explicit hash_table_bucket(ValueType *ptr, auto hash) noexcept : hash(hash), data(ptr) {}
+			constexpr sparse_table_bucket() noexcept = default;
+			constexpr explicit sparse_table_bucket(ValueType *ptr, auto hash) noexcept : hash(hash), data(ptr) {}
 
 			[[nodiscard]] constexpr bool is_empty() const noexcept { return data == nullptr; }
 			[[nodiscard]] constexpr bool is_tombstone() const noexcept { return data == tombstone_ptr(); }
@@ -89,7 +89,7 @@ namespace sek
 			[[nodiscard]] constexpr ValueType &value() const noexcept { return *data; }
 			[[nodiscard]] constexpr const KeyType &key() const noexcept { return KeyExtract{}(value()); }
 
-			constexpr void swap(hash_table_bucket &other) noexcept
+			constexpr void swap(sparse_table_bucket &other) noexcept
 			{
 				using std::swap;
 				swap(hash, other.hash);
@@ -101,13 +101,13 @@ namespace sek
 		};
 
 		template<typename KeyType, typename ValueType, typename KeyHash, typename KeyCompare, typename KeyExtract, typename Allocator>
-		class basic_hash_table
+		class sparse_hash_table
 			: ebo_base_helper<Allocator>,
-			  ebo_base_helper<rebind_alloc_t<Allocator, hash_table_bucket<KeyType, ValueType, KeyExtract>>>,
+			  ebo_base_helper<rebind_alloc_t<Allocator, sparse_table_bucket<KeyType, ValueType, KeyExtract>>>,
 			  ebo_base_helper<KeyCompare>,
 			  ebo_base_helper<KeyHash>
 		{
-			using bucket_type = hash_table_bucket<KeyType, ValueType, KeyExtract>;
+			using bucket_type = sparse_table_bucket<KeyType, ValueType, KeyExtract>;
 
 		public:
 			typedef KeyType key_type;
@@ -133,17 +133,17 @@ namespace sek
 			using hash_ebo_base = ebo_base_helper<KeyHash>;
 
 			template<bool IsConst>
-			class hash_table_iterator
+			class sparse_table_iterator
 			{
 				template<bool B>
 				friend class hash_table_iterator;
 
-				friend class basic_hash_table;
+				friend class sparse_hash_table;
 
 			public:
-				typedef ValueType value_type;
-				typedef std::conditional_t<IsConst, const value_type, value_type> *pointer;
-				typedef std::conditional_t<IsConst, const value_type, value_type> &reference;
+				typedef std::conditional_t<IsConst, const ValueType, ValueType> value_type;
+				typedef value_type *pointer;
+				typedef value_type &reference;
 				typedef std::size_t size_type;
 				typedef std::ptrdiff_t difference_type;
 				typedef std::forward_iterator_tag iterator_category;
@@ -151,27 +151,27 @@ namespace sek
 			private:
 				using bucket_ptr_type = bucket_type *;
 
-				constexpr explicit hash_table_iterator(bucket_ptr_type current, bucket_ptr_type end) noexcept
+				constexpr explicit sparse_table_iterator(bucket_ptr_type current, bucket_ptr_type end) noexcept
 					: bucket_ptr(current), end_ptr(end)
 				{
 					skip_to_next_occupied();
 				}
 
 			public:
-				constexpr hash_table_iterator() noexcept = default;
+				constexpr sparse_table_iterator() noexcept = default;
 				template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
-				constexpr hash_table_iterator(const hash_table_iterator<OtherConst> &other) noexcept
-					: hash_table_iterator(other.bucket_ptr, other.end_ptr)
+				constexpr sparse_table_iterator(const sparse_table_iterator<OtherConst> &other) noexcept
+					: sparse_table_iterator(other.bucket_ptr, other.end_ptr)
 				{
 				}
 
-				constexpr hash_table_iterator operator++(int) noexcept
+				constexpr sparse_table_iterator operator++(int) noexcept
 				{
 					auto temp = *this;
 					++(*this);
 					return temp;
 				}
-				constexpr hash_table_iterator &operator++() noexcept
+				constexpr sparse_table_iterator &operator++() noexcept
 				{
 					++bucket_ptr;
 					skip_to_next_occupied();
@@ -185,13 +185,13 @@ namespace sek
 				/** Returns reference to the target element. */
 				[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
 
-				[[nodiscard]] constexpr auto operator<=>(const hash_table_iterator &other) const noexcept
+				[[nodiscard]] constexpr auto operator<=>(const sparse_table_iterator &other) const noexcept
 				{
 					return bucket_ptr <=> other.bucket_ptr;
 				}
-				[[nodiscard]] constexpr bool operator==(const hash_table_iterator &) const noexcept = default;
+				[[nodiscard]] constexpr bool operator==(const sparse_table_iterator &) const noexcept = default;
 
-				friend constexpr void swap(hash_table_iterator &a, hash_table_iterator &b) noexcept
+				friend constexpr void swap(sparse_table_iterator &a, sparse_table_iterator &b) noexcept
 				{
 					using std::swap;
 					swap(a.bucket_ptr, b.bucket_ptr);
@@ -208,28 +208,17 @@ namespace sek
 				bucket_ptr_type end_ptr;
 			};
 
-			[[nodiscard]] constexpr static size_type apply_load_factor(size_type value) noexcept
-			{
-				return value * 11 / 16;
-			}
-			[[nodiscard]] constexpr static size_type apply_load_factor_inv(size_type value) noexcept
-			{
-				return value * 16 / 11;
-			}
-			[[nodiscard]] constexpr static size_type apply_tombstone_factor(size_type value) noexcept
-			{
-				return value * 5 / 16;
-			}
-
-			constexpr static size_type initial_capacity = 4;
+			constexpr static float initial_load_factor = .65f;
+			constexpr static float initial_tombstone_factor = .36f;
+			constexpr static size_type initial_capacity = 8;
 
 		public:
-			typedef hash_table_iterator<false> iterator;
-			typedef hash_table_iterator<true> const_iterator;
+			typedef sparse_table_iterator<false> iterator;
+			typedef sparse_table_iterator<true> const_iterator;
 
 			class node_handle : ebo_base_helper<value_allocator_type>
 			{
-				friend class basic_hash_table;
+				friend class sparse_hash_table;
 
 				using ebo_base = ebo_base_helper<value_allocator_type>;
 
@@ -337,31 +326,31 @@ namespace sek
 			}
 
 		public:
-			constexpr basic_hash_table() noexcept(nothrow_alloc_default_construct<value_allocator_type, bucket_allocator_type>) = default;
+			constexpr sparse_hash_table() noexcept(nothrow_alloc_default_construct<value_allocator_type, bucket_allocator_type>) = default;
 
-			constexpr explicit basic_hash_table(size_type capacity,
-												const KeyCompare &key_compare,
-												const KeyHash &key_hash,
-												const value_allocator_type &value_alloc,
-												const bucket_allocator_type &bucket_alloc)
+			constexpr explicit sparse_hash_table(size_type capacity,
+												 const KeyCompare &key_compare,
+												 const KeyHash &key_hash,
+												 const value_allocator_type &value_alloc,
+												 const bucket_allocator_type &bucket_alloc)
 				: value_ebo_base(value_alloc), bucket_ebo_base(bucket_alloc), compare_ebo_base(key_compare), hash_ebo_base(key_hash)
 			{
 				if (capacity) [[likely]]
 					buckets_data = allocate_buckets(buckets_capacity = math::next_pow_2(capacity));
 			}
 
-			constexpr basic_hash_table(const basic_hash_table &other)
-				: basic_hash_table(
+			constexpr sparse_hash_table(const sparse_hash_table &other)
+				: sparse_hash_table(
 					  other, make_alloc_copy(other.get_value_allocator()), make_alloc_copy(other.get_bucket_allocator()))
 			{
 			}
-			constexpr basic_hash_table(const basic_hash_table &other, const value_allocator_type &value_alloc)
-				: basic_hash_table(other, value_alloc, make_alloc_copy(other.get_bucket_allocator()))
+			constexpr sparse_hash_table(const sparse_hash_table &other, const value_allocator_type &value_alloc)
+				: sparse_hash_table(other, value_alloc, make_alloc_copy(other.get_bucket_allocator()))
 			{
 			}
-			constexpr basic_hash_table(const basic_hash_table &other,
-									   const value_allocator_type &value_alloc,
-									   const bucket_allocator_type &bucket_alloc)
+			constexpr sparse_hash_table(const sparse_hash_table &other,
+										const value_allocator_type &value_alloc,
+										const bucket_allocator_type &bucket_alloc)
 				: value_ebo_base(value_alloc),
 				  bucket_ebo_base(bucket_alloc),
 				  compare_ebo_base(other.get_compare()),
@@ -370,8 +359,8 @@ namespace sek
 				insert(other.begin(), other.end());
 			}
 
-			constexpr basic_hash_table(
-				basic_hash_table &&other,
+			constexpr sparse_hash_table(
+				sparse_hash_table &&other,
 				const value_allocator_type &value_alloc,
 				const bucket_allocator_type &bucket_alloc) noexcept(nothrow_alloc_copy_transfer<value_allocator_type, bucket_allocator_type>)
 				: value_ebo_base(value_alloc),
@@ -385,7 +374,7 @@ namespace sek
 				else
 					move_values(std::move(other));
 			}
-			constexpr basic_hash_table(basic_hash_table &&other, const value_allocator_type &value_alloc) noexcept(
+			constexpr sparse_hash_table(sparse_hash_table &&other, const value_allocator_type &value_alloc) noexcept(
 				nothrow_alloc_copy_move_transfer<value_allocator_type, bucket_allocator_type>)
 				: value_ebo_base(value_alloc),
 				  bucket_ebo_base(std::move(other.get_bucket_allocator())),
@@ -397,7 +386,7 @@ namespace sek
 				else
 					move_values(std::move(other));
 			}
-			constexpr basic_hash_table(basic_hash_table &&other) noexcept(
+			constexpr sparse_hash_table(sparse_hash_table &&other) noexcept(
 				nothrow_alloc_move_construct<value_allocator_type, bucket_allocator_type>)
 				: value_ebo_base(std::move(other.get_value_allocator())),
 				  bucket_ebo_base(std::move(other.get_bucket_allocator())),
@@ -407,20 +396,20 @@ namespace sek
 				take_data(std::move(other));
 			}
 
-			constexpr basic_hash_table &operator=(const basic_hash_table &other)
+			constexpr sparse_hash_table &operator=(const sparse_hash_table &other)
 			{
 				if (this != &other) copy_assign_impl(other);
 				return *this;
 			}
 
-			constexpr basic_hash_table &operator=(basic_hash_table &&other) noexcept(
+			constexpr sparse_hash_table &operator=(sparse_hash_table &&other) noexcept(
 				nothrow_alloc_move_assign<value_allocator_type, bucket_allocator_type>)
 			{
 				move_assign_impl(std::move(other));
 				return *this;
 			}
 
-			constexpr ~basic_hash_table()
+			constexpr ~sparse_hash_table()
 			{
 				clear();
 				delete_buckets(buckets_data, buckets_capacity);
@@ -435,11 +424,14 @@ namespace sek
 			[[nodiscard]] constexpr const_iterator end() const noexcept { return iterator_from_bucket(buckets_end()); }
 
 			[[nodiscard]] constexpr size_type size() const noexcept { return load_count; }
-			[[nodiscard]] constexpr size_type capacity() const noexcept { return max_load_factor(); }
+			[[nodiscard]] constexpr size_type capacity() const noexcept
+			{
+				return static_cast<size_type>(static_cast<float>(buckets_capacity) * max_load_factor);
+			}
 			[[nodiscard]] constexpr size_type max_size() const noexcept
 			{
 				/* Max size cannot exceed max load factor of max capacity. */
-				return apply_load_factor(std::numeric_limits<size_type>::max());
+				return static_cast<size_type>(static_cast<float>(std::numeric_limits<size_type>::max()) * max_load_factor);
 			}
 			[[nodiscard]] constexpr size_type bucket_count() const noexcept { return buckets_capacity; }
 
@@ -461,7 +453,8 @@ namespace sek
 			constexpr void rehash(size_type new_capacity)
 			{
 				/* Adjust the capacity to be at least large enough to fit the current load count. */
-				new_capacity = math::max(apply_load_factor_inv(load_count), new_capacity);
+				new_capacity =
+					math::max(static_cast<size_type>(static_cast<float>(load_count) / max_load_factor), new_capacity);
 
 				/* Quadratic search implementation requires power of 2 capacity, since the c1 and c2 constants are 0.5. */
 				new_capacity = math::next_pow_2(new_capacity);
@@ -470,7 +463,10 @@ namespace sek
 				if (new_capacity != buckets_capacity) [[likely]]
 					rehash_impl(new_capacity);
 			}
-			constexpr void reserve(size_type n) { rehash(apply_load_factor_inv(n)); }
+			constexpr void reserve(size_type n)
+			{
+				rehash(static_cast<size_type>(static_cast<float>(n) / max_load_factor));
+			}
 
 			template<typename... Args>
 			constexpr std::pair<iterator, bool> emplace(Args &&...args)
@@ -599,6 +595,15 @@ namespace sek
 				return iterator_from_bucket(first.bucket_ptr);
 			}
 
+			[[nodiscard]] constexpr auto load_factor() const noexcept
+			{
+				return static_cast<float>(size()) / static_cast<float>(bucket_count());
+			}
+			[[nodiscard]] constexpr auto tombstone_factor() const noexcept
+			{
+				return static_cast<float>(tombstone_count) / static_cast<float>(bucket_count());
+			}
+
 			[[nodiscard]] constexpr value_allocator_type &get_value_allocator() noexcept
 			{
 				return *value_ebo_base::get();
@@ -620,7 +625,7 @@ namespace sek
 			[[nodiscard]] constexpr KeyHash &get_hash() noexcept { return *hash_ebo_base::get(); }
 			[[nodiscard]] constexpr const KeyHash &get_hash() const noexcept { return *hash_ebo_base::get(); }
 
-			constexpr void swap(basic_hash_table &other) noexcept
+			constexpr void swap(sparse_hash_table &other) noexcept
 			{
 				alloc_assert_swap(get_value_allocator(), other.get_value_allocator());
 				alloc_assert_swap(get_bucket_allocator(), other.get_bucket_allocator());
@@ -630,8 +635,13 @@ namespace sek
 				alloc_swap(get_bucket_allocator(), other.get_bucket_allocator());
 			}
 
+			/** Current max load factor. */
+			float max_load_factor = initial_load_factor;
+			/** Current min tombstone factor. */
+			float max_tombstone_factor = initial_tombstone_factor;
+
 		private:
-			constexpr void take_data(basic_hash_table &&other) noexcept
+			constexpr void take_data(sparse_hash_table &&other) noexcept
 			{
 				buckets_data = std::exchange(other.buckets_data, nullptr);
 				buckets_capacity = std::exchange(other.buckets_capacity, 0);
@@ -639,7 +649,7 @@ namespace sek
 				tombstone_count = std::exchange(other.tombstone_count, 0);
 				consider_shrink = std::exchange(other.consider_shrink, false);
 			}
-			constexpr void swap_data(basic_hash_table &other) noexcept
+			constexpr void swap_data(sparse_hash_table &other) noexcept
 			{
 				compare_ebo_base::swap(other);
 				hash_ebo_base::swap(other);
@@ -651,7 +661,7 @@ namespace sek
 				swap(tombstone_count, other.tombstone_count);
 				swap(consider_shrink, other.consider_shrink);
 			}
-			constexpr void move_values(basic_hash_table &&other)
+			constexpr void move_values(sparse_hash_table &&other)
 			{
 				auto new_size = other.size();
 				reserve(new_size);
@@ -659,7 +669,7 @@ namespace sek
 				for (auto &value : other) emplace(std::move(value));
 				other.clear();
 			}
-			constexpr void move_assign_impl(basic_hash_table &&other)
+			constexpr void move_assign_impl(sparse_hash_table &&other)
 			{
 				compare_ebo_base::operator=(std::forward<compare_ebo_base>(other));
 				hash_ebo_base::operator=(std::forward<hash_ebo_base>(other));
@@ -669,7 +679,7 @@ namespace sek
 					(bucket_alloc_traits::propagate_on_container_move_assignment::value ||
 					 alloc_eq(get_bucket_allocator(), other.get_bucket_allocator())))
 				{
-					basic_hash_table tmp{0, KeyCompare{}, KeyHash{}, get_value_allocator(), get_bucket_allocator()};
+					sparse_hash_table tmp{0, KeyCompare{}, KeyHash{}, get_value_allocator(), get_bucket_allocator()};
 					swap_data(other);
 					tmp.swap_data(other);
 					alloc_move_assign(get_value_allocator(), other.get_value_allocator());
@@ -681,7 +691,7 @@ namespace sek
 					move_values(std::move(other));
 				}
 			}
-			constexpr void copy_assign_impl(const basic_hash_table &other)
+			constexpr void copy_assign_impl(const sparse_hash_table &other)
 			{
 				compare_ebo_base::operator=(other);
 				hash_ebo_base::operator=(other);
@@ -733,17 +743,6 @@ namespace sek
 				tombstone_count = 0;
 			}
 
-			[[nodiscard]] constexpr size_type load_factor() const noexcept { return size(); }
-			[[nodiscard]] constexpr size_type max_load_factor() const noexcept
-			{
-				return apply_load_factor(buckets_capacity);
-			}
-			[[nodiscard]] constexpr size_type tombstone_factor() const noexcept { return tombstone_count; }
-			[[nodiscard]] constexpr size_type min_tombstone_factor() const noexcept
-			{
-				return apply_tombstone_factor(buckets_capacity);
-			}
-
 			template<bool RequireOccupied = true>
 			[[nodiscard]] constexpr bucket_type *find_bucket(const key_type &key) const noexcept
 			{
@@ -784,10 +783,10 @@ namespace sek
 			{
 				if (!buckets_capacity) [[unlikely]]
 					buckets_data = allocate_buckets(buckets_capacity = initial_capacity);
-				else if (load_factor() >= max_load_factor())
+				else if (load_factor() >= max_load_factor)
 					rehash_impl(buckets_capacity * 2);
-				else if (consider_shrink && tombstone_factor() > min_tombstone_factor())
-					rehash_impl(math::next_pow_2(load_factor()));
+				else if (consider_shrink && tombstone_factor() > max_tombstone_factor)
+					rehash_impl(math::next_pow_2(static_cast<size_type>(static_cast<float>(size()) / max_load_factor)));
 			}
 
 			template<typename... Args>
