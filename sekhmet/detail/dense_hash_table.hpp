@@ -225,8 +225,8 @@ namespace sek::detail
 
 		public:
 			constexpr dense_table_bucket_iterator() noexcept = default;
-			template<typename OtherIter, typename = std::enable_if_t<is_const && !dense_table_iterator<OtherIter>::is_const>>
-			constexpr dense_table_bucket_iterator(const dense_table_iterator<OtherIter> &other) noexcept
+			template<typename OtherIter, typename = std::enable_if_t<is_const && !dense_table_bucket_iterator<OtherIter>::is_const>>
+			constexpr dense_table_bucket_iterator(const dense_table_bucket_iterator<OtherIter> &other) noexcept
 				: dense_table_bucket_iterator(other.i, other.off)
 			{
 			}
@@ -239,7 +239,7 @@ namespace sek::detail
 			}
 			constexpr dense_table_bucket_iterator &operator++() noexcept
 			{
-				off = i[off].next;
+				off = i[static_cast<difference_type>(off)].next;
 				return *this;
 			}
 
@@ -287,7 +287,7 @@ namespace sek::detail
 		}
 
 	public:
-		constexpr dense_hash_table() : sparse_data{initial_capacity, key_equal{}} {}
+		constexpr dense_hash_table() = default;
 		constexpr dense_hash_table(const dense_hash_table &) = default;
 		constexpr dense_hash_table &operator=(const dense_hash_table &) = default;
 		constexpr dense_hash_table(dense_hash_table &&) = default;
@@ -306,9 +306,11 @@ namespace sek::detail
 								   const hash_type &hash,
 								   const value_allocator_type &value_alloc,
 								   const bucket_allocator_type &bucket_alloc)
-			: dense_data{value_alloc, equal}, sparse_data{bucket_alloc, hash}
+			: dense_data{value_alloc, equal},
+			  sparse_data{std::piecewise_construct,
+						  std::forward_as_tuple(bucket_count, npos, bucket_alloc),
+						  std::forward_as_tuple(hash)}
 		{
-			rehash(bucket_count);
 		}
 		constexpr dense_hash_table(const dense_hash_table &other, const value_allocator_type &value_alloc)
 			: dense_data{std::piecewise_construct,
@@ -419,9 +421,12 @@ namespace sek::detail
 		}
 		[[nodiscard]] constexpr size_type bucket(const key_type &key) const noexcept
 		{
-			return get_chain(key_hash(key));
+			return *get_chain(key_hash(key));
 		}
-		[[nodiscard]] constexpr size_type bucket(const_iterator iter) const noexcept { return get_chain(iter.i->hash); }
+		[[nodiscard]] constexpr size_type bucket(const_iterator iter) const noexcept
+		{
+			return *get_chain(iter.i->hash);
+		}
 
 		[[nodiscard]] constexpr iterator find(const key_type &key) noexcept
 		{
@@ -457,14 +462,13 @@ namespace sek::detail
 		constexpr std::pair<iterator, bool> emplace(Args &&...args)
 			requires std::constructible_from<value_type, Args...>
 		{
-			maybe_rehash();
-
 			/* Temporary entry needs to be created at first. */
 			auto &entry = value_vector().emplace_back(std::forward<Args>(args)...);
 			const auto h = entry.hash = key_hash(entry.key());
-			auto &chain_idx = get_chain(h);
-			while (chain_idx != npos)
-				if (auto &candidate = value_vector()[chain_idx]; candidate.hash == h && key_comp(entry.key(), candidate.key()))
+			auto *chain_idx = get_chain(h);
+			while (*chain_idx != npos)
+				if (auto &candidate = value_vector()[*chain_idx];
+					candidate.hash == h && key_comp(entry.key(), candidate.key()))
 				{
 					/* Found a candidate for replacing. Move-assign or swap it from the temporary back entry. */
 					if constexpr (std::is_move_assignable_v<entry_type>)
@@ -475,11 +479,15 @@ namespace sek::detail
 						swap(candidate, value_vector().back());
 					}
 					value_vector().pop_back(); /* Pop the temporary. */
-					return {begin() + static_cast<difference_type>(chain_idx), false};
+					return {begin() + static_cast<difference_type>(*chain_idx), false};
 				}
+				else
+					chain_idx = &candidate.next;
 
 			/* No suitable entry for replacing was found, add new link. */
-			return {begin() + static_cast<difference_type>(chain_idx = size() - 1), true};
+			const auto pos = *chain_idx = size() - 1;
+			maybe_rehash();
+			return {begin() + static_cast<difference_type>(pos), true};
 		}
 		template<typename... Args>
 		constexpr std::pair<iterator, bool> try_emplace(const key_type &key, Args &&...args)
@@ -569,35 +577,35 @@ namespace sek::detail
 		{
 			return dense_data.second()(a, b);
 		}
-		[[nodiscard]] constexpr auto &get_chain(hash_t h) noexcept
+		[[nodiscard]] constexpr auto *get_chain(hash_t h) noexcept
 		{
-			return bucket_vector()[h % bucket_vector().size()];
+			auto idx = h % bucket_vector().size();
+			return bucket_vector().data() + idx;
 		}
-		[[nodiscard]] constexpr const auto &get_chain(hash_t h) const noexcept
+		[[nodiscard]] constexpr auto *get_chain(hash_t h) const noexcept
 		{
-			return bucket_vector()[h % bucket_vector().size()];
+			auto idx = h % bucket_vector().size();
+			return bucket_vector().data() + idx;
 		}
 
 		[[nodiscard]] constexpr size_type find_impl(hash_t h, const key_type &key) const noexcept
 		{
-			for (auto idx = get_chain(h); idx != npos;)
-				if (auto &entry = value_vector()[idx]; entry.hash == h && key_comp(key, entry.key()))
-					return idx;
+			for (auto *idx = get_chain(h); *idx != npos;)
+				if (auto &entry = value_vector()[*idx]; entry.hash == h && key_comp(key, entry.key()))
+					return *idx;
 				else
-					idx = entry.next;
+					idx = &entry.next;
 			return value_vector().size();
 		}
 
 		template<typename T>
 		[[nodiscard]] constexpr std::pair<iterator, bool> insert_impl(const key_type &key, T &&value) noexcept
 		{
-			maybe_rehash();
-
 			/* See if we can replace any entry. */
 			const auto h = key_hash(key);
-			auto &chain_idx = get_chain(h);
-			while (chain_idx != npos)
-				if (auto &candidate = value_vector()[chain_idx]; candidate.hash == h && key_comp(key, candidate.key()))
+			auto *chain_idx = get_chain(h);
+			while (*chain_idx != npos)
+				if (auto &candidate = value_vector()[*chain_idx]; candidate.hash == h && key_comp(key, candidate.key()))
 				{
 					/* Found a candidate for replacing, replace the value & hash. */
 					if constexpr (requires { candidate.value() = std::forward<T>(value); })
@@ -608,36 +616,40 @@ namespace sek::detail
 						std::construct_at(&candidate, std::forward<T>(value));
 					}
 					candidate.hash = h;
-					return {begin() + static_cast<difference_type>(chain_idx), false};
+					return {begin() + static_cast<difference_type>(*chain_idx), false};
 				}
+				else
+					chain_idx = &candidate.next;
 
 			/* No candidate for replacing found, create new entry. */
+			const auto pos = *chain_idx = size();
 			value_vector().emplace_back(std::forward<T>(value)).hash = h;
-			return {begin() + static_cast<difference_type>(chain_idx = size() - 1), true};
+			maybe_rehash();
+			return {begin() + static_cast<difference_type>(pos), true};
 		}
 		template<typename... Args>
 		[[nodiscard]] constexpr std::pair<iterator, bool> try_insert_impl(const key_type &key, Args &&...args) noexcept
 		{
-			maybe_rehash();
-
 			/* See if an entry already exists. */
 			const auto h = key_hash(key);
-			auto &chain_idx = get_chain(h);
-			while (chain_idx != npos)
-			{
-				if (auto &existing = value_vector()[chain_idx]; existing.hash == h && key_comp(key, existing.key()))
-					return {begin() + static_cast<difference_type>(chain_idx), false};
-			}
+			auto *chain_idx = get_chain(h);
+			while (*chain_idx != npos)
+				if (auto &existing = value_vector()[*chain_idx]; existing.hash == h && key_comp(key, existing.key()))
+					return {begin() + static_cast<difference_type>(*chain_idx), false};
+				else
+					chain_idx = &existing.next;
 
 			/* No existing entry found, create new entry. */
+			const auto pos = *chain_idx = size();
 			value_vector().emplace_back(std::forward<Args>(args)...).hash = h;
-			return {begin() + static_cast<difference_type>(chain_idx = size() - 1), true};
+			maybe_rehash();
+			return {begin() + static_cast<difference_type>(pos), true};
 		}
 
 		constexpr void maybe_rehash()
 		{
-			if (size() >= static_cast<size_type>(static_cast<float>(bucket_count()) * max_load_factor)) [[unlikely]]
-				rehash_impl(bucket_count() * 2);
+			if (load_factor() > max_load_factor) [[unlikely]]
+				rehash(bucket_count() * 2);
 		}
 		constexpr void rehash_impl(size_type new_cap)
 		{
@@ -649,26 +661,26 @@ namespace sek::detail
 			for (std::size_t i = 0; i < value_vector().size(); ++i)
 			{
 				auto &entry = value_vector()[i];
-				auto &chain_idx = get_chain(entry.hash);
+				auto *chain_idx = get_chain(entry.hash);
 
 				/* Will also handle cases where chain_idx is npos (empty chain). */
-				entry.next = chain_idx;
-				chain_idx = i;
+				entry.next = *chain_idx;
+				*chain_idx = i;
 			}
 		}
 
 		constexpr iterator erase_impl(hash_t h, const key_type &key)
 		{
 			/* Remove the entry from it's chain. */
-			for (auto &chain_idx = get_chain(h); chain_idx != npos;)
+			for (auto *chain_idx = get_chain(h); *chain_idx != npos;)
 			{
-				const auto pos = chain_idx;
+				const auto pos = *chain_idx;
 				auto entry_iter = value_vector().begin() + static_cast<difference_type>(pos);
 
 				/* Un-link the entry from the chain & swap with the last entry. */
-				chain_idx = entry_iter->next;
 				if (entry_iter->hash == h && key_comp(key, entry_iter->key()))
 				{
+					*chain_idx = entry_iter->next;
 					if constexpr (std::is_move_assignable_v<entry_type>)
 						*entry_iter = std::move(value_vector().back());
 					else
@@ -676,20 +688,22 @@ namespace sek::detail
 
 					/* Find the chain offset pointing to the old position & replace it with the new position. */
 					value_vector().pop_back();
-					for (chain_idx = get_chain(entry_iter->hash); chain_idx != npos;)
-						if (chain_idx == size()) /* Since we popped the back entry, size will be the index of the old back. */
+					for (chain_idx = get_chain(entry_iter->hash); *chain_idx != npos;
+						 chain_idx = &value_vector()[*chain_idx].next)
+						if (*chain_idx == size()) /* Since we popped the back entry, size will be the index of the old back. */
 						{
-							chain_idx = pos;
+							*chain_idx = pos;
 							break;
 						}
 					return iterator{entry_iter};
 				}
+				chain_idx = &entry_iter->next;
 			}
 			return end();
 		}
 
 		packed_pair<dense_data_t, key_equal> dense_data;
-		packed_pair<sparse_data_t, hash_type> sparse_data;
+		packed_pair<sparse_data_t, hash_type> sparse_data = {sparse_data_t(initial_capacity, npos), hash_type{}};
 
 	public:
 		float max_load_factor = initial_load_factor;

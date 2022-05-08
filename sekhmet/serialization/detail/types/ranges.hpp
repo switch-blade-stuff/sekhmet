@@ -77,7 +77,8 @@ namespace sek::serialization
 		// clang-format off
 		if constexpr (std::ranges::sized_range<R>)
 			archive << container_size(std::ranges::size(range));
-		for (auto &item : range)
+
+		for (decltype(auto) item : range)
 			archive << item;
 		// clang-format on
 	}
@@ -141,7 +142,7 @@ namespace sek::serialization
 		detail::reserve_range(m, a);
 
 		if constexpr (container_like_archive<A>)
-			for (auto &entry : a)
+			for (decltype(auto) entry : a)
 			{
 				auto value = entry.template read<value_t>();
 				m.emplace(forward_key(value.key), forward_mapped(value.mapped));
@@ -164,7 +165,7 @@ namespace sek::serialization
 		using V = std::ranges::range_value_t<R>;
 		auto inserter = std::back_inserter(r);
 		if constexpr (container_like_archive<A>)
-			for (auto &entry : a) *inserter = entry.template read<V>();
+			for (decltype(auto) entry : a) *inserter = entry.template read<V>();
 		else
 			for (;;)
 			{
@@ -188,7 +189,7 @@ namespace sek::serialization
 		if constexpr (container_like_archive<A>)
 		{
 			// clang-format off
-			for (auto &entry : a)
+			for (decltype(auto) entry : a)
 				r.insert(r.end(), entry.template read<V>());
 			// clang-format on
 		}

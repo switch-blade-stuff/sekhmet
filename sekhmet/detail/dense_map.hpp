@@ -12,9 +12,9 @@
 
 namespace sek
 {
-	/** @brief One-to-one dense table based associative container providing fast iteration & insertion, but higher memory overhead than a tree-based map.
+	/** @brief One-to-one dense table based associative container providing fast iteration & insertion.
 	 *
-	 * Dense maps are implemented via a closed-addressing contiguous (packed) storage hash table .
+	 * Dense maps are implemented via a closed-addressing contiguous (packed) storage hash table.
 	 * This allows for efficient iteration & insertion (iterate over a packed array & push on top of the array).
 	 * Dense maps may invalidate iterators on insertion due to the internal packed storage being re-sized.
 	 * On erasure, iterators to the erased element and elements after the erased one may be invalidated.
@@ -26,8 +26,8 @@ namespace sek
 	 *
 	 * @tparam K Type of objects used as keys.
 	 * @tparam M Type of objects associated with keys.
-	 * @tparam KeyHash Functor used to generate hashes for keys. By default uses `default_hash` which calls static non-member
-	 * `hash` function via ADL if available, otherwise invokes `std::hash`.
+	 * @tparam KeyHash Functor used to generate hashes for keys. By default uses `default_hash` which calls static
+	 * non-member `hash` function via ADL if available, otherwise invokes `std::hash`.
 	 * @tparam KeyComp Predicate used to compare keys.
 	 * @tparam Alloc Allocator used for the map. */
 	template<typename K, typename M, typename KeyHash = default_hash, typename KeyComp = std::equal_to<K>, typename Alloc = std::allocator<std::pair<const K, M>>>
@@ -46,21 +46,51 @@ namespace sek
 		template<bool Const>
 		class value_pointer;
 		template<bool Const>
-		class value_reference : public std::pair<const key_type &, std::conditional_t<Const, const mapped_type, mapped_type> &>
+		class value_reference
 		{
-			using base_pair = std::pair<const key_type &, std::conditional_t<Const, const mapped_type, mapped_type> &>;
-
 		public:
-			constexpr value_reference() noexcept = default;
+			value_reference() = delete;
 
 			/* Conversions from relevant references. */
-			constexpr value_reference(value_type &ref) noexcept requires(!Const) : base_pair{ref.first, ref.second} {}
-			constexpr value_reference(std::pair<key_type, mapped_type> &ref) noexcept requires(!Const) : base_pair{ref.first, ref.second} {}
-			constexpr value_reference(const value_type &ref) noexcept : base_pair{ref.first, ref.second} {}
-			constexpr value_reference(const std::pair<key_type, mapped_type> &ref) noexcept : base_pair{ref.first, ref.second} {}
+			constexpr value_reference(value_type &ref) noexcept requires(!Const) : first{ref.first}, second{ref.second} {}
+			constexpr value_reference(std::pair<key_type, mapped_type> &ref) noexcept requires(!Const) : first{ref.first}, second{ref.second} {}
+			constexpr value_reference(const value_type &ref) noexcept : first{ref.first}, second{ref.second} {}
+			constexpr value_reference(const std::pair<key_type, mapped_type> &ref) noexcept : first{ref.first}, second{ref.second} {}
 
 			/* Here overloading operator& is fine, since we want to use value_pointer for pointers. */
 			[[nodiscard]] constexpr value_pointer<Const> operator&() const noexcept { return value_pointer<Const>{this}; }
+
+			[[nodiscard]] constexpr auto operator<=>(const value_reference &other) const noexcept
+			{
+				using res_t = typename std::common_comparison_category<decltype(std::compare_three_way{}(first, other.first)),
+				                                                       decltype(std::compare_three_way{}(second, other.second))>::type;
+
+				if (const res_t cmp_first = std::compare_three_way{}(first, other.first); cmp_first == std::strong_ordering::equal)
+					return res_t{std::compare_three_way{}(second, other.second)};
+				else
+					return cmp_first;
+			}
+			[[nodiscard]] constexpr auto operator<=>(const value_type &other) const noexcept
+			{
+				using res_t = typename std::common_comparison_category<decltype(std::compare_three_way{}(first, other.first)),
+																	   decltype(std::compare_three_way{}(second, other.second))>::type;
+
+				if (const res_t cmp_first = std::compare_three_way{}(first, other.first); cmp_first == std::strong_ordering::equal)
+					return res_t{std::compare_three_way{}(second, other.second)};
+				else
+					return cmp_first;
+			}
+			[[nodiscard]] constexpr bool operator==(const value_reference &other) const noexcept
+			{
+				return first == other.first ? true : second == other.second;
+			}
+			[[nodiscard]] constexpr bool operator==(const value_type &other) const noexcept
+			{
+				return first == other.first ? true : second == other.second;
+			}
+
+			const key_type &first;
+			std::conditional_t<Const, const mapped_type, mapped_type> &second;
 		};
 		template<bool Const>
 		class value_pointer
@@ -88,6 +118,16 @@ namespace sek
 			/* Pointer-like operators. */
 			[[nodiscard]] constexpr pointer operator->() noexcept { return std::addressof(ref); }
 			[[nodiscard]] constexpr value_reference<Const> operator*() const noexcept { return ref; }
+
+			/* Since value_reference stores reference to adjacent pair members, comparing the first element is enough. */
+			[[nodiscard]] constexpr auto operator<=>(const value_pointer &other) const noexcept
+			{
+				return std::to_address(ref.first) <=> std::to_address(other.ref.first);
+			}
+			[[nodiscard]] constexpr bool operator==(const value_pointer &other) const noexcept
+			{
+				return std::to_address(ref.first) == std::to_address(other.ref.first);
+			}
 
 		private:
 			value_reference<Const> ref;

@@ -123,7 +123,7 @@ template class sek::dense_map<std::string, float>;
 
 TEST(container_tests, dense_map_test)
 {
-	sek::sparse_map<std::string, float> m1 = {
+	sek::dense_map<std::string, float> m1 = {
 		{"0", 9.9f},
 		{"1", 7.6f},
 		{"2", std::numbers::pi_v<float>},
@@ -146,12 +146,13 @@ TEST(container_tests, dense_map_test)
 	m1.erase("1");
 	EXPECT_EQ(m1.size(), 6);
 
-	EXPECT_NE(m1.find("2"), m1.end());
-	EXPECT_EQ((*m1.find("2") <=> std::pair<const std::string, float>{"2", std::numbers::pi_v<float>}),
+	auto item = m1.find("2");
+	EXPECT_NE(item, m1.end());
+	EXPECT_EQ((*item <=> std::pair<const std::string, float>{"2", std::numbers::pi_v<float>}),
 			  std::weak_ordering::equivalent);
 	EXPECT_EQ(m1.find("1"), m1.end());
 
-	sek::sparse_map<std::string, int> m2;
+	sek::dense_map<std::string, int> m2;
 
 	for (auto i = 0; i < 1000; i++) m2.emplace(std::to_string(i), i);
 	for (auto i = 0; i < 200; i++) m2.erase(m2.find(std::to_string(i)));
@@ -166,6 +167,26 @@ TEST(container_tests, dense_map_test)
 		EXPECT_EQ(val, i);
 	}
 }
+
+#include "sekhmet/dense_set.hpp"
+
+template class sek::dense_set<std::string>;
+
+TEST(container_tests, dense_set_test)
+{
+	sek::dense_set<std::string> s1 = {"1", "2", "3", "4"};
+
+	EXPECT_EQ(s1.size(), 4);
+	EXPECT_FALSE(s1.contains("0"));
+	EXPECT_TRUE(s1.contains("1"));
+
+	s1.erase("1");
+
+	EXPECT_EQ(s1.size(), 3);
+	EXPECT_FALSE(s1.contains("1"));
+	EXPECT_EQ(s1.find("1"), s1.end());
+}
+
 
 #include "sekhmet/detail/basic_dynarray.hpp"
 

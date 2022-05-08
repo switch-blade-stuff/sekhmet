@@ -170,3 +170,32 @@ TEST(serialization_tests, math_test)
 		EXPECT_EQ(m, deserialized);
 	}
 }
+
+#include "sekhmet/dense_map.hpp"
+
+TEST(serialization_tests, dense_map_test)
+{
+	namespace json = sek::serialization::json;
+
+	std::string json_string;
+	const auto m = sek::dense_map<std::string, float>{
+		{"pi", std::numbers::pi_v<float>},
+		{"0.0", 0.0f},
+		{"2.0", 2.0f},
+	};
+
+	{
+		std::stringstream ss;
+		json::basic_output_archive<json::pretty_print | json::inline_arrays | json::extended_fp> archive_ex{ss};
+		archive_ex << m;
+
+		archive_ex.flush();
+		json_string = ss.str();
+	}
+	sek::dense_map<std::string, float> deserialized = {};
+	{
+		json::basic_input_archive<json::extended_fp> archive{json_string.data(), json_string.size()};
+		EXPECT_TRUE(archive.try_read(deserialized));
+	}
+	EXPECT_EQ(m, deserialized);
+}

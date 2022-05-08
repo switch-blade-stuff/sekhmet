@@ -4,4 +4,4 @@
 
 #pragma once
 
-//#include "detail/dense_set.hpp"
+#include "detail/dense_set.hpp"

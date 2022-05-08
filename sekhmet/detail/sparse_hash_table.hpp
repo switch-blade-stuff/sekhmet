@@ -461,7 +461,7 @@ namespace sek::detail
 		template<typename... Args>
 		constexpr std::pair<iterator, bool> emplace(Args &&...args)
 		{
-			resize_on_insert();
+			maybe_rehash();
 
 			auto new_bucket = make_bucket(std::forward<Args>(args)...);
 			auto dest = find_bucket<false>(new_bucket.key(), new_bucket.hash);
@@ -471,7 +471,7 @@ namespace sek::detail
 		template<typename... Args>
 		constexpr std::pair<iterator, bool> try_emplace(const key_type &key, Args &&...args)
 		{
-			resize_on_insert();
+			maybe_rehash();
 
 			auto dest = find_bucket<false>(key);
 			auto inserted = try_emplace_impl(
@@ -481,7 +481,7 @@ namespace sek::detail
 		template<typename... Args>
 		constexpr std::pair<iterator, bool> try_emplace(key_type &&key, Args &&...args)
 		{
-			resize_on_insert();
+			maybe_rehash();
 
 			auto dest = find_bucket<false>(key);
 			auto inserted = try_emplace_impl(dest,
@@ -493,7 +493,7 @@ namespace sek::detail
 
 		constexpr std::pair<iterator, bool> insert(const value_type &value)
 		{
-			resize_on_insert();
+			maybe_rehash();
 
 			auto dest = find_bucket<false>(key_extract(value));
 			auto inserted = insert_impl(dest, make_bucket(value));
@@ -501,7 +501,7 @@ namespace sek::detail
 		}
 		constexpr std::pair<iterator, bool> insert(value_type &&value)
 		{
-			resize_on_insert();
+			maybe_rehash();
 
 			auto dest = find_bucket<false>(key_extract(value));
 			auto inserted = insert_impl(dest, make_bucket(std::forward<value_type>(value)));
@@ -509,7 +509,7 @@ namespace sek::detail
 		}
 		constexpr std::pair<iterator, bool> try_insert(const value_type &value)
 		{
-			resize_on_insert();
+			maybe_rehash();
 
 			auto dest = find_bucket<false>(key_extract(value));
 			auto inserted = try_emplace_impl(dest, value);
@@ -517,7 +517,7 @@ namespace sek::detail
 		}
 		constexpr std::pair<iterator, bool> try_insert(value_type &&value)
 		{
-			resize_on_insert();
+			maybe_rehash();
 
 			auto dest = find_bucket<false>(key_extract(value));
 			auto inserted = try_emplace_impl(dest, std::forward<value_type>(value));
@@ -549,7 +549,7 @@ namespace sek::detail
 		}
 		constexpr std::pair<iterator, bool> insert_node(node_handle &&handle)
 		{
-			resize_on_insert();
+			maybe_rehash();
 
 			auto dest = find_bucket<false>(handle.bucket.key(), handle.bucket.hash);
 			auto inserted = insert_impl(dest, handle.reset());
@@ -557,7 +557,7 @@ namespace sek::detail
 		}
 		constexpr std::pair<iterator, bool> try_insert_node(node_handle &&handle)
 		{
-			resize_on_insert();
+			maybe_rehash();
 
 			if (auto dest = find_bucket<false>(handle.bucket.key(), handle.bucket.hash); dest->is_occupied())
 				return {iterator_from_bucket(dest), false};
@@ -760,14 +760,13 @@ namespace sek::detail
 			buckets_data = new_data;
 			buckets_capacity = new_cap;
 		}
-		constexpr void resize_on_insert()
+		constexpr void maybe_rehash()
 		{
 			if (!buckets_capacity) [[unlikely]]
 				buckets_data = allocate_buckets(buckets_capacity = initial_capacity);
-			else if (size() >= static_cast<size_type>(static_cast<float>(bucket_count()) * max_load_factor))
+			else if (load_factor() > max_load_factor)
 				rehash_impl(buckets_capacity * 2);
-			else if (consider_shrink &&
-					 tombstone_count > static_cast<size_type>(static_cast<float>(bucket_count()) * max_tombstone_factor))
+			else if (consider_shrink && tombstone_factor() > max_tombstone_factor)
 				rehash_impl(math::next_pow_2(static_cast<size_type>(static_cast<float>(size()) / max_load_factor)));
 		}
 
