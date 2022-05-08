@@ -67,15 +67,17 @@ namespace sek
 	}	 // namespace detail
 
 	template<std::integral... Components>
-	requires(sizeof...(Components) != 0) struct basic_version : detail::basic_version_base<0, Components...>
+		requires(sizeof...(Components) != 0)
+	struct basic_version : detail::basic_version_base<0, Components...>
 	{
-		template<std::integral... Ts>
+		template<typename... Ts>
 		friend constexpr hash_t hash(const basic_version<Ts...> &) noexcept;
 
 		constexpr basic_version() noexcept = default;
 		template<std::integral... Args>
-		constexpr basic_version(Args... args) noexcept requires std::conjunction_v<std::is_constructible<Components, Args>...>
-			: detail::basic_version_base<0, Components...>(args...)
+		constexpr basic_version(Args... args) noexcept
+			requires std::conjunction_v<std::is_constructible<Components, Args>
+										...> : detail::basic_version_base<0, Components...>(args...)
 		{
 		}
 
@@ -202,6 +204,30 @@ namespace sek
 		}
 	};
 
+	template<typename... Ts>
+	constexpr void swap(basic_version<Ts...> &a, basic_version<Ts...> &b) noexcept
+	{
+		a.swap(b);
+	}
+
+	template<typename... Ts>
+	[[nodiscard]] constexpr hash_t hash(const basic_version<Ts...> &v) noexcept
+	{
+		return v.template hash_impl<0>();
+	}
+}	 // namespace sek
+
+template<typename... Ts>
+struct std::hash<sek::basic_version<Ts...>>
+{
+	[[nodiscard]] constexpr sek::hash_t operator()(const sek::basic_version<Ts...> &v) const noexcept
+	{
+		return sek::hash(v);
+	}
+};
+
+namespace sek
+{
 	using version_base_t = basic_version<std::uint16_t, std::uint16_t, std::uint32_t>;
 
 	/** @brief Structure holding 3 integers representing a version number. Equivalent to `basic_version<std::uint16_t, std::uint16_t, std::uint32_t>`. */
@@ -240,31 +266,12 @@ namespace sek
 		}
 	};
 
-	template<std::integral... Ts>
-	constexpr void swap(basic_version<Ts...> &a, basic_version<Ts...> &b) noexcept
-	{
-		a.swap(b);
-	}
-
-	template<std::integral... Ts>
-	[[nodiscard]] constexpr hash_t hash(const basic_version<Ts...> &v) noexcept
-	{
-		return v.template hash_impl<0>();
-	}
 	[[nodiscard]] constexpr hash_t hash(const version &v) noexcept
 	{
 		return hash(static_cast<const version_base_t &>(v));
 	}
 }	 // namespace sek
 
-template<std::integral... Ts>
-struct std::hash<sek::basic_version<Ts...>>
-{
-	[[nodiscard]] constexpr sek::hash_t operator()(const sek::basic_version<Ts...> &v) const noexcept
-	{
-		return sek::hash(v);
-	}
-};
 template<>
 struct std::hash<sek::version>
 {

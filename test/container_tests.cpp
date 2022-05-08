@@ -4,11 +4,11 @@
 
 #include <gtest/gtest.h>
 
-#include "sekhmet/array_list.hpp"
-
+#include <numbers>
 #include <string>
 #include <vector>
-#include <numbers>
+
+#include "sekhmet/array_list.hpp"
 
 template class sek::array_list<int>;
 
@@ -48,11 +48,11 @@ TEST(container_tests, array_list_test)
 	EXPECT_EQ(l8, l7);
 }
 
-#include "sekhmet/hmap.hpp"
+#include "sekhmet/sparse_map.hpp"
 
 template class sek::sparse_map<std::string, float>;
 
-TEST(container_tests, hmap_test)
+TEST(container_tests, sparse_map_test)
 {
 	sek::sparse_map<std::string, float> m1 = {
 		{"0", 9.9f},
@@ -98,11 +98,11 @@ TEST(container_tests, hmap_test)
 	}
 }
 
-#include "sekhmet/hset.hpp"
+#include "sekhmet/sparse_set.hpp"
 
 template class sek::sparse_set<std::string>;
 
-TEST(container_tests, hset_test)
+TEST(container_tests, sparse_set_test)
 {
 	sek::sparse_set<std::string> s1 = {"1", "2", "3", "4"};
 
@@ -115,6 +115,56 @@ TEST(container_tests, hset_test)
 	EXPECT_EQ(s1.size(), 3);
 	EXPECT_FALSE(s1.contains("1"));
 	EXPECT_EQ(s1.find("1"), s1.end());
+}
+
+#include "sekhmet/dense_map.hpp"
+
+template class sek::dense_map<std::string, float>;
+
+TEST(container_tests, dense_map_test)
+{
+	sek::sparse_map<std::string, float> m1 = {
+		{"0", 9.9f},
+		{"1", 7.6f},
+		{"2", std::numbers::pi_v<float>},
+		{"3", 0.f},
+		{"4", 0.f},
+		{"5", 0.f},
+		{"6", 0.f},
+		{"7", 0.f},
+	};
+
+	EXPECT_TRUE(m1.contains("7"));
+	EXPECT_FALSE(m1.contains("8"));
+
+	EXPECT_FLOAT_EQ(m1["0"], 9.9f);
+	EXPECT_FLOAT_EQ(m1["1"], 7.6f);
+	EXPECT_FLOAT_EQ(m1["2"], std::numbers::pi_v<float>);
+	EXPECT_EQ(m1.size(), 8);
+
+	m1.erase("0");
+	m1.erase("1");
+	EXPECT_EQ(m1.size(), 6);
+
+	EXPECT_NE(m1.find("2"), m1.end());
+	EXPECT_EQ((*m1.find("2") <=> std::pair<const std::string, float>{"2", std::numbers::pi_v<float>}),
+			  std::weak_ordering::equivalent);
+	EXPECT_EQ(m1.find("1"), m1.end());
+
+	sek::sparse_map<std::string, int> m2;
+
+	for (auto i = 0; i < 1000; i++) m2.emplace(std::to_string(i), i);
+	for (auto i = 0; i < 200; i++) m2.erase(m2.find(std::to_string(i)));
+	for (auto i = 500; i < 1000; i++) m2.erase(m2.find(std::to_string(i)));
+
+	m2[std::to_string(500)] = 500;
+
+	for (auto i = 200; i <= 500; i++)
+	{
+		int val;
+		EXPECT_NO_THROW(val = m2.at(std::to_string(i)));
+		EXPECT_EQ(val, i);
+	}
 }
 
 #include "sekhmet/detail/basic_dynarray.hpp"

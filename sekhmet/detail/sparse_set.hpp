@@ -56,6 +56,7 @@ namespace sek
 		typedef typename table_type::value_allocator_type allocator_type;
 		typedef typename table_type::bucket_allocator_type bucket_allocator_type;
 		typedef typename table_type::hash_type hash_type;
+		typedef typename table_type::key_equal key_equal;
 
 		typedef typename table_type::const_iterator iterator;
 		typedef typename table_type::const_iterator const_iterator;
@@ -65,6 +66,35 @@ namespace sek
 		constexpr sparse_set() noexcept(std::is_nothrow_default_constructible_v<table_type>) = default;
 		constexpr ~sparse_set() = default;
 
+		/** Constructs a set with the specified allocators.
+		 * @param value_alloc Allocator used to allocate set's elements.
+		 * @param bucket_alloc Allocator used to allocate set's internal bucket array. */
+		constexpr explicit sparse_set(const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc = {})
+			: sparse_set(key_equal{}, hash_type{}, value_alloc, bucket_alloc)
+		{
+		}
+		/** Constructs a set with the specified hasher & allocators.
+		 * @param key_hash Key hasher.
+		 * @param value_alloc Allocator used to allocate set's elements.
+		 * @param bucket_alloc Allocator used to allocate set's internal bucket array. */
+		constexpr explicit sparse_set(const hash_type &key_hash,
+									  const allocator_type &value_alloc = {},
+									  const bucket_allocator_type &bucket_alloc = {})
+			: sparse_set(key_equal{}, key_hash, value_alloc, bucket_alloc)
+		{
+		}
+		/** Constructs a set with the specified comparator, hasher & allocators.
+		 * @param key_compare Key comparator.
+		 * @param key_hash Key hasher.
+		 * @param value_alloc Allocator used to allocate set's elements.
+		 * @param bucket_alloc Allocator used to allocate set's internal bucket array. */
+		constexpr explicit sparse_set(const key_equal &key_compare,
+									  const hash_type &key_hash = {},
+									  const allocator_type &value_alloc = {},
+									  const bucket_allocator_type &bucket_alloc = {})
+			: data_table(key_compare, key_hash, value_alloc, bucket_alloc)
+		{
+		}
 		/** Constructs a set with the specified minimum capacity.
 		 * @param capacity Capacity of the set.
 		 * @param key_compare Key comparator.
@@ -415,13 +445,21 @@ namespace sek
 		/** Returns current max load factor of the set. */
 		[[nodiscard]] constexpr auto max_load_factor() const noexcept { return data_table.max_load_factor; }
 		/** Sets current max load factor of the set. */
-		constexpr void max_load_factor(float f) noexcept { data_table.max_load_factor = f; }
+		constexpr void max_load_factor(float f) noexcept
+		{
+			SEK_ASSERT(f > .0f);
+			data_table.max_load_factor = f;
+		}
 		/** Returns current tombstone factor of the set. */
 		[[nodiscard]] constexpr auto tombstone_factor() const noexcept { return data_table.tombstone_factor(); }
 		/** Returns current max tombstone factor of the set. */
 		[[nodiscard]] constexpr auto max_tombstone_factor() const noexcept { return data_table.max_tombstone_factor; }
 		/** Sets current max tombstone factor of the set. */
-		constexpr void max_tombstone_factor(float f) noexcept { data_table.max_tombstone_factor = f; }
+		constexpr void max_tombstone_factor(float f) noexcept
+		{
+			SEK_ASSERT(f > .0f);
+			data_table.max_tombstone_factor = f;
+		}
 
 		[[nodiscard]] constexpr allocator_type &get_allocator() noexcept { return data_table.get_value_allocator(); }
 		[[nodiscard]] constexpr const allocator_type &get_allocator() const noexcept
@@ -437,8 +475,8 @@ namespace sek
 			return data_table.get_bucket_allocator();
 		}
 
-		[[nodiscard]] constexpr hash_type &hasher() noexcept { return data_table.get_hash(); }
-		[[nodiscard]] constexpr const hash_type &hasher() const noexcept { return data_table.get_hash(); }
+		[[nodiscard]] constexpr hash_type hash_function() const noexcept { return data_table.get_hash(); }
+		[[nodiscard]] constexpr key_equal key_eq() const noexcept { return data_table.get_comp(); }
 
 		[[nodiscard]] constexpr bool operator==(const sparse_set &other) const noexcept
 		{

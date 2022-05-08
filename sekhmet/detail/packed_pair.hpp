@@ -15,7 +15,7 @@ namespace sek
 	namespace detail
 	{
 		template<typename T, std::size_t>
-		class packed_pair_base : ebo_base_helper<T>
+		struct packed_pair_base : ebo_base_helper<T>
 		{
 			using ebo_base = ebo_base_helper<T>;
 
@@ -56,6 +56,16 @@ namespace sek
 		constexpr static bool first_nothrow_construct = std::is_nothrow_constructible_v<T0, Args...>;
 		template<typename... Args>
 		constexpr static bool second_nothrow_construct = std::is_nothrow_constructible_v<T1, Args...>;
+
+		template<typename... Args0, std::size_t... Is0, typename... Args1, std::size_t... Is1>
+		constexpr packed_pair(std::tuple<Args0...> &&args0,
+							  std::index_sequence<Is0...>,
+							  std::tuple<Args1...> &&args1,
+							  std::index_sequence<Is1...>)
+			: base_first(std::get<Is0>(std::forward<std::tuple<Args0...>>(args0))...),
+			  base_second(std::get<Is1>(std::forward<std::tuple<Args1...>>(args1))...)
+		{
+		}
 
 	public:
 		// clang-format off
@@ -140,7 +150,10 @@ namespace sek
 							  std::tuple<Args1...> args1)
 			noexcept(first_nothrow_construct<Args0...> && second_nothrow_construct<Args1...>)
 			requires std::is_constructible_v<T0, Args0...> && std::is_constructible_v<T1, Args1...>
-			: base_first(std::forward<Args0>(args0)...), base_second(std::forward<Args1>(args1)...)
+			: packed_pair(std::forward<std::tuple<Args0...>>(args0),
+						  std::make_index_sequence<std::tuple_size<std::tuple<Args0...>>::value>{},
+						  std::forward<std::tuple<Args1...>>(args1),
+						  std::make_index_sequence<std::tuple_size<std::tuple<Args1...>>::value>{})
 		{
 		}
 
@@ -168,9 +181,9 @@ namespace sek
 		/** @copydoc first */
 		[[nodiscard]] constexpr const T0 &first() const noexcept { return *base_first::get(); }
 		/** Returns reference to the second element of the pair. */
-		[[nodiscard]] constexpr T0 &second() noexcept { return *base_second::get(); }
+		[[nodiscard]] constexpr T1 &second() noexcept { return *base_second::get(); }
 		/** @copydoc second */
-		[[nodiscard]] constexpr const T0 &second() const noexcept { return *base_second::get(); }
+		[[nodiscard]] constexpr const T1 &second() const noexcept { return *base_second::get(); }
 
 		// clang-format off
 		constexpr void swap(packed_pair &other) noexcept(std::is_nothrow_swappable_v<base_first> && std::is_nothrow_swappable_v<base_second>)
