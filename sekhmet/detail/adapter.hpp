@@ -6,6 +6,7 @@
 
 #include <functional>
 
+#include "delegate.hpp"
 #include "meta_util.hpp"
 
 namespace sek
@@ -18,9 +19,6 @@ namespace sek
 		~adapter_error() override = default;
 	};
 
-	template<typename...>
-	class adapter_proxy;
-
 	namespace detail
 	{
 		struct adapter_instance
@@ -28,11 +26,7 @@ namespace sek
 			constexpr adapter_instance() noexcept = default;
 
 			template<typename T>
-			constexpr explicit adapter_instance(T &ptr) noexcept : mutable_data(&ptr)
-			{
-			}
-			template<typename T>
-			constexpr explicit adapter_instance(const T &ptr) noexcept : const_data(&ptr)
+			constexpr explicit adapter_instance(T &ptr) noexcept : data(&ptr)
 			{
 			}
 
@@ -40,9 +34,9 @@ namespace sek
 			[[nodiscard]] constexpr T &get() const noexcept
 			{
 				if constexpr (std::is_const_v<T>)
-					return *static_cast<T *>(const_data);
+					return *static_cast<T *>(data);
 				else
-					return *static_cast<T *>(mutable_data);
+					return *static_cast<T *>(const_cast<void *>(data));
 			}
 
 			[[nodiscard]] constexpr bool empty() const noexcept { return sentinel == 0; }
@@ -50,8 +44,7 @@ namespace sek
 			union
 			{
 				std::uintptr_t sentinel = 0;
-				void *mutable_data;
-				const void *const_data;
+				const void *data;
 			};
 		};
 
@@ -73,34 +66,23 @@ namespace sek
 			}
 
 			template<typename F>
-			constexpr auto get() const noexcept requires is_in_v<F, FuncTs...>
+			constexpr auto get() const noexcept
+				requires is_in_v<F, FuncTs...>
 			{
 				return adapter_vtable<FuncTs...>::template get<F>();
 			}
 			template<typename F>
-			constexpr FuncT get() const noexcept requires std::same_as<F, FuncT>
+			constexpr FuncT get() const noexcept
+				requires std::same_as<F, FuncT>
 			{
 				return func;
 			}
 
-		private :
+		private:
 			/** Actual function pointer stored by the vtable type. */
 			const FuncT func;
 		};
-
-		template<typename... Ts>
-		constexpr adapter_proxy<Ts...> adapter_proxy_parent(adapter_proxy<Ts...>) noexcept;
-
-		template<typename P>
-		using adapter_proxy_parent_t = decltype(adapter_proxy_parent(std::declval<P>()));
-
-		template<typename P>
-		concept valid_adapter_proxy = (std::is_base_of_v<adapter_proxy<>, P> &&
-									   template_extent<adapter_proxy_parent_t<P>> != 0);
 	}	 // namespace detail
-
-	template<detail::valid_adapter_proxy...>
-	class adapter;
 
 	template<>
 	class adapter_proxy<>
@@ -114,13 +96,22 @@ namespace sek
 		template<detail::valid_adapter_proxy...>
 		friend class adapter;
 
-		using proxy_func_type = R (*)(detail::adapter_instance, Args &&...);
+		using func_type = R (*)(detail::adapter_instance, Args &&...);
 
 		template<typename T, typename Proxy>
-		constexpr static proxy_func_type bind_proxy() noexcept
+		constexpr static func_type bind_proxy() noexcept
 		{
 			return +[](detail::adapter_instance i, Args &&...args) -> R
 			{ return Proxy{}(i.get<T>(), std::forward<Args>(args)...); };
+		}
+
+	private:
+		template<typename A>
+		constexpr static delegate<R(Args...)> make_delegate(const A *adapter) noexcept
+		{
+			constexpr auto proxy = +[](const void *p, Args &&...args)
+			{ return static_cast<const A *>(p)->template invoke<adapter_proxy>(std::forward<Args>(args)...); };
+			return sek::delegate<R(Args...)>{proxy, static_cast<const void *>(adapter)};
 		}
 	};
 
@@ -158,7 +149,7 @@ namespace sek
 	{
 	private:
 		template<typename Proxy>
-		using proxy_func_type = typename detail::adapter_proxy_parent_t<Proxy>::proxy_func_type;
+		using proxy_func_type = typename detail::adapter_proxy_parent_t<Proxy>::func_type;
 		using vtable_type = detail::adapter_vtable<proxy_func_type<ProxyTs>...>;
 
 		template<typename T, typename Proxy>
@@ -219,6 +210,14 @@ namespace sek
 				throw adapter_error("Attempted to invoke a proxy on an empty adapter");
 			else
 				return std::invoke(vtable->template get<proxy_func_type<Proxy>>(), instance, std::forward<Args>(args)...);
+		}
+		/** Returns a delegate used to call a specific proxy on this adapter.
+		 * @tparam Proxy Proxy to call.
+		 * @return Delegate used to call the proxy. */
+		template<typename Proxy>
+		[[nodiscard]] constexpr decltype(auto) delegate() const noexcept
+		{
+			return Proxy::make_delegate(this);
 		}
 
 		/** Checks if an adapter is empty. */

@@ -5,6 +5,7 @@ target_sources(${PROJECT_NAME} INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/utility.hpp
         ${CMAKE_CURRENT_LIST_DIR}/debug.hpp
         ${CMAKE_CURRENT_LIST_DIR}/adapter.hpp
+        ${CMAKE_CURRENT_LIST_DIR}/delegate.hpp
         ${CMAKE_CURRENT_LIST_DIR}/array_list.hpp
         ${CMAKE_CURRENT_LIST_DIR}/static_string.hpp
         ${CMAKE_CURRENT_LIST_DIR}/sparse_map.hpp

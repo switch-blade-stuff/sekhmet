@@ -79,7 +79,7 @@ namespace
 
 TEST(serialization_tests, json_test)
 {
-	namespace json = sek::serialization::json;
+	namespace json = ser::json;
 
 	std::string json_string;
 	{
@@ -103,7 +103,7 @@ TEST(serialization_tests, json_test)
 
 TEST(serialization_tests, ubjson_test)
 {
-	namespace ubj = sek::serialization::ubj;
+	namespace ubj = ser::ubj;
 
 	std::string ubj_string;
 	{
@@ -127,7 +127,7 @@ TEST(serialization_tests, ubjson_test)
 TEST(serialization_tests, math_test)
 {
 	namespace math = sek::math;
-	namespace json = sek::serialization::json;
+	namespace json = ser::json;
 
 	std::string json_string;
 
@@ -144,7 +144,7 @@ TEST(serialization_tests, math_test)
 		math::vector4f deserialized = {};
 		{
 			auto f = [&]() -> void { json::input_archive archive{json_string.data(), json_string.size()}; };
-			EXPECT_THROW(f(), sek::serialization::archive_error);
+			EXPECT_THROW(f(), ser::archive_error);
 
 			json::basic_input_archive<json::extended_fp> archive{json_string.data(), json_string.size()};
 			EXPECT_TRUE(archive.try_read(deserialized));
@@ -175,7 +175,7 @@ TEST(serialization_tests, math_test)
 
 TEST(serialization_tests, dense_map_test)
 {
-	namespace json = sek::serialization::json;
+	namespace json = ser::json;
 
 	std::string json_string;
 	const auto m = sek::dense_map<std::string, float>{

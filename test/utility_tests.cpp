@@ -98,11 +98,13 @@ TEST(utility_tests, adapter_test)
 	EXPECT_FALSE(adapter.empty());
 	EXPECT_EQ(adapter.invoke<size_proxy>(), const_adapter_int.invoke<size_proxy>());
 	EXPECT_EQ(adapter.invoke<size_proxy>(), sizeof(int));
+	EXPECT_EQ(adapter.delegate<size_proxy>().invoke(), sizeof(int));
 
 	adapter = adapter_long;
 	EXPECT_FALSE(adapter.empty());
 	EXPECT_EQ(adapter.invoke<size_proxy>(), adapter_long.invoke<size_proxy>());
 	EXPECT_EQ(adapter.invoke<size_proxy>(), sizeof(long));
+	EXPECT_EQ(adapter.delegate<size_proxy>().invoke(), sizeof(long));
 
 	adapter.reset();
 	EXPECT_TRUE(adapter.empty());
@@ -112,6 +114,7 @@ TEST(utility_tests, adapter_test)
 
 	EXPECT_FALSE(adapter.empty());
 	EXPECT_EQ(adapter.invoke<size_proxy>(), s.size());
+	EXPECT_EQ(adapter.delegate<size_proxy>().invoke(), s.size());
 }
 
 #include "sekhmet/thread_pool.hpp"
