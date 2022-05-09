@@ -15,8 +15,8 @@ archive & advances to the next entry on success. On failure, it throws `archive_
 the archive being exhausted (no more entries left), entry type mismatch, and any other implementation-defined
 error. `operator>>` simply calls `read`.
 
-Read has 2 overloads: `void read(T &)` uses the passed reference, while `T read()` uses a default-constructed instance &
-returns it.
+Read has 2 overloads: `void read(T &)` uses the passed reference to deserialize in-place,
+while `T read()` uses a default-constructed instance & returns it.
 
 To attempt a read without causing an exception, `try_read` function should be provided by all input archives. This
 function attempts to read the next entry and returns `true` if read successfully. If the read has failed, `try_read`
@@ -24,7 +24,8 @@ returns false and the archive state is left unmodified. `try_read` may throw exc
 such as stream IO errors, memory allocation errors and other fatal errors).
 
 Input archives may be treated as containers, who's `begin` & `end` member functions return iterators to entries of the
-archive. Entry iterators must implement the `forward_iterator` concept and point to an implementation-defined entries.
+archive. Entry iterators must implement the `forward_iterator` concept and point to implementation-defined entries.
+
 Entries should have `read`, `operator>>` & `try_read` member functions, which would preform the corresponding operations
 on the handle. They should also have a perfect explicit cast operator, which preforms a read on the entry.
 
@@ -34,7 +35,10 @@ Note that entry iterators are not required to preserve the actual order of entri
 ordered entry access. It is, however, guaranteed that entries can be read in the same order as they were written.
 
 If a container-like archive supports keyed entries, entry iterators should provide an ability to get keys of the
-pointed-to entries.
+pointed-to entries. In particular, they should provide a `has_key` member function returning a
+boolean indicating whether the pointed-to entry has a key, and a `key` member function returning a string-view (or a
+compatible type) containing the key of a keyed entry. In case a key for an entry is not available,
+the iterator may return a placeholder or throw `archive_error` exception.
 
 Input archives implementing container functionality must implement the `Container` standard keyed requirement
 with `value_type` being the implementation-defined entry type.

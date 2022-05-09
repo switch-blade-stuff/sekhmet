@@ -187,7 +187,6 @@ TEST(container_tests, dense_set_test)
 	EXPECT_EQ(s1.find("1"), s1.end());
 }
 
-
 #include "sekhmet/detail/dynarray.hpp"
 
 template class sek::dynarray<int>;

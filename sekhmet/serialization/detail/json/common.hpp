@@ -157,7 +157,8 @@ namespace sek::serialization::detail
 			}
 
 			/** Reads a character from the entry. Returns `true` if the entry contains a character, `false` otherwise. */
-			constexpr bool try_read(CharType &c) const noexcept requires((Config & char_value) == char_value)
+			constexpr bool try_read(CharType &c) const noexcept
+				requires((Config & char_value) == char_value)
 			{
 				if (type == CHAR) [[likely]]
 				{
@@ -169,7 +170,8 @@ namespace sek::serialization::detail
 			}
 			/** Reads a character from the entry.
 			 * @throw archive_error If the entry does not contain a character. */
-			constexpr const entry_t &read(CharType &c) const requires((Config & char_value) == char_value)
+			constexpr const entry_t &read(CharType &c) const
+				requires((Config & char_value) == char_value)
 			{
 				if (!try_read(c)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected char");
@@ -178,7 +180,8 @@ namespace sek::serialization::detail
 
 			/** Reads a number from the entry. Returns `true` if the entry contains a number, `false` otherwise. */
 			template<typename I>
-			constexpr bool try_read(I &value) const noexcept requires(std::integral<I> || std::floating_point<I>)
+			constexpr bool try_read(I &value) const noexcept
+				requires(std::integral<I> || std::floating_point<I>)
 			{
 				if (type & INT_MASK)
 				{
@@ -199,7 +202,8 @@ namespace sek::serialization::detail
 			/** Reads a number from the entry.
 			 * @throw archive_error If the entry does not contain a number. */
 			template<typename I>
-			constexpr const entry_t &read(I &value) const requires(std::integral<I> || std::floating_point<I>)
+			constexpr const entry_t &read(I &value) const
+				requires(std::integral<I> || std::floating_point<I>)
 			{
 				if (!try_read(value)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected number");
@@ -803,6 +807,8 @@ namespace sek::serialization::detail
 			/** Returns reference to the entry at `n` offset from the iterator. */
 			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return get()[n]; }
 
+			/** Checks if the associated entry has a key. */
+			[[nodiscard]] constexpr bool has_key() const noexcept { return type == OBJECT; }
 			/** Returns the key of the associated entry.
 			 * If the pointed-to entry is not a keyed entry (object member) returns an empty string view. */
 			[[nodiscard]] constexpr std::basic_string_view<CharType> key(std::nothrow_t) const noexcept
@@ -1213,7 +1219,8 @@ namespace sek::serialization::detail
 
 			void write_value(entry_t &entry, std::nullptr_t) const { entry.type = NULL_VALUE; }
 			template<typename T>
-			void write_value(entry_t &entry, T &&b) const requires(std::same_as<std::decay_t<T>, bool>)
+			void write_value(entry_t &entry, T &&b) const
+				requires(std::same_as<std::decay_t<T>, bool>)
 			{
 				entry.type = static_cast<entry_type>(BOOL | static_cast<int>(!!b));
 			}
@@ -1238,7 +1245,8 @@ namespace sek::serialization::detail
 				return int_size_category(i);
 			}
 			template<typename I>
-			void write_value(entry_t &entry, I &&i) const requires is_uint_value<std::decay_t<I>>
+			void write_value(entry_t &entry, I &&i) const
+				requires is_uint_value<std::decay_t<I>>
 			{
 				entry.type = static_cast<entry_type>(INT_U | int_size_type(i));
 				entry.literal.ui = static_cast<std::uintmax_t>(i);
@@ -1258,14 +1266,16 @@ namespace sek::serialization::detail
 				return int_size_category(size_mask);
 			}
 			template<typename I>
-			void write_value(entry_t &entry, I &&i) const requires is_int_value<std::decay_t<I>>
+			void write_value(entry_t &entry, I &&i) const
+				requires is_int_value<std::decay_t<I>>
 			{
 				entry.type = static_cast<entry_type>(INT_S | int_size_type(i));
 				entry.literal.si = static_cast<std::intmax_t>(i);
 			}
 
 			template<typename F>
-			void write_value(entry_t &entry, F &&f) const requires std::floating_point<std::decay_t<F>>
+			void write_value(entry_t &entry, F &&f) const
+				requires std::floating_point<std::decay_t<F>>
 			{
 				if constexpr (sizeof(F) > sizeof(float))
 				{
@@ -1310,7 +1320,8 @@ namespace sek::serialization::detail
 				write_value(entry, std::basic_string_view<CharType>{std::forward<T>(str)});
 			}
 			template<typename T>
-			void write_value(entry_t &entry, T &&str) const requires std::convertible_to<T, const CharType *>
+			void write_value(entry_t &entry, T &&str) const
+				requires std::convertible_to<T, const CharType *>
 			{
 				write_value(entry, static_cast<const CharType *>(str));
 			}

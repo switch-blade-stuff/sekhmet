@@ -22,7 +22,7 @@ namespace sek::serialization
 		T value;
 	};
 	/** Reads or writes an entry with an explicit key.
-	 * @param key Name of the entry.
+	 * @param key Key of the entry.
 	 * @param value Value to be read or written, forwarded by the manipulator.
 	 * @note If the current entry (entry of the object being deserialized) is an array entry,
 	 * specifying an explicit entry key will have no effect.
@@ -31,6 +31,13 @@ namespace sek::serialization
 	constexpr keyed_entry_t<C, T> keyed_entry(std::basic_string_view<C> key, T &&value) noexcept(detail::noexcept_fwd<T>)
 	{
 		return keyed_entry_t<C, T>{key, std::forward<T>(value)};
+	}
+	/** @copydoc keyed_entry */
+	template<typename K, typename T, typename C = typename std::decay_t<K>::traits_type::char_type>
+	constexpr keyed_entry_t<C, T> keyed_entry(K &&key, T &&value) noexcept(detail::noexcept_fwd<T>)
+		requires std::constructible_from<std::basic_string_view<C>, K>
+	{
+		return keyed_entry_t<C, T>{std::basic_string_view<C>{key}, std::forward<T>(value)};
 	}
 	/** @copydoc keyed_entry */
 	template<typename C, typename T>
@@ -50,7 +57,8 @@ namespace sek::serialization
 	 * @param size Size of the container, forwarded by the manipulator.
 	 * @note If the archive does not support fixed-size containers, size will be left unmodified.*/
 	template<typename T>
-	constexpr container_size_t<T> container_size(T &&size) noexcept requires std::integral<std::decay_t<T>>
+	constexpr container_size_t<T> container_size(T &&size) noexcept
+		requires std::integral<std::decay_t<T>>
 	{
 		return container_size_t<T>{std::forward<T>(size)};
 	}

@@ -14,15 +14,9 @@ namespace sek::serialization
 	namespace detail
 	{
 		template<typename R>
-		concept has_push_back = requires(R &r, std::ranges::range_value_t<R> &value)
-		{
-			r.push_back(value);
-		};
+		concept has_push_back = requires(R &r, std::ranges::range_value_t<R> &value) { r.push_back(value); };
 		template<typename R>
-		concept has_end_insert = requires(R &r, std::ranges::range_value_t<R> &value)
-		{
-			r.insert(r.end(), value);
-		};
+		concept has_end_insert = requires(R &r, std::ranges::range_value_t<R> &value) { r.insert(r.end(), value); };
 
 		template<typename A, typename R>
 		constexpr void reserve_range(R &r, A &a)
@@ -36,28 +30,34 @@ namespace sek::serialization
 		}
 
 		template<typename R>
-		concept map_like = requires(R &r)
-		{
-			std::ranges::forward_range<R>;
-			has_end_insert<R>;
-			typename R::key_type;
-			typename R::mapped_type;
-			typename R::value_type;
+		concept map_like =
+			requires(R &r) {
+				std::ranges::forward_range<R>;
+				typename R::key_type;
+				typename R::mapped_type;
+				typename R::value_type;
 
-			// clang-format off
-			requires requires(typename R::value_type &v)
-			{
-				v.first;
-				std::same_as<std::decay_t<decltype(v.first)>, std::decay_t<typename R::key_type>>;
-				v.second;
-				std::same_as<std::decay_t<decltype(v.second)>, std::decay_t<typename R::mapped_type>>;
+				// clang-format off
+				requires requires(typename R::value_type &v)
+				{
+					v.first;
+					std::same_as<std::decay_t<decltype(v.first)>, std::decay_t<typename R::key_type>>;
+					v.second;
+					std::same_as<std::decay_t<decltype(v.second)>, std::decay_t<typename R::mapped_type>>;
+				};
+				requires requires(typename R::key_type &&k, typename R::mapped_type &&m)
+				{
+					r.emplace(std::forward<typename R::key_type>(k), std::forward<typename R::mapped_type>(m));
+				};
+				// clang-format on
 			};
-			requires requires(typename R::key_type &&k, typename R::mapped_type &&m)
-			{
-				r.emplace(std::forward<typename R::key_type>(k), std::forward<typename R::mapped_type>(m));
-			};
-			// clang-format on
-		};
+		template<typename R>
+		concept object_like = requires {
+								  // clang-format off
+								  map_like<R>;
+								  requires requires(const typename R::value_type &v) { sek::serialization::keyed_entry(v.first, v.second); };
+								  // clang-format on
+							  };
 
 		template<typename K, typename M>
 		struct map_entry
@@ -69,19 +69,6 @@ namespace sek::serialization
 			M mapped;
 		};
 	}	 // namespace detail
-
-	template<typename A, std::ranges::forward_range R>
-	void serialize(const R &range, A &archive)
-	{
-		archive << array_mode();
-		// clang-format off
-		if constexpr (std::ranges::sized_range<R>)
-			archive << container_size(std::ranges::size(range));
-
-		for (decltype(auto) item : range)
-			archive << item;
-		// clang-format on
-	}
 
 	template<typename A, typename T, std::size_t N>
 	void deserialize(T (&data)[N], A &archive)
@@ -101,7 +88,8 @@ namespace sek::serialization
 			}
 	}
 	template<typename A, std::ranges::forward_range T>
-	void deserialize(T &array, A &archive) requires(requires { typename std::tuple_size<T>::type; })
+	void deserialize(T &array, A &archive)
+		requires(requires { typename std::tuple_size<T>::type; })
 	{
 		auto data_item = std::ranges::begin(array), data_end = std::ranges::end(array);
 		if constexpr (container_like_archive<A>)
@@ -119,7 +107,8 @@ namespace sek::serialization
 	}
 
 	template<typename A, std::ranges::forward_range M>
-	void deserialize(M &m, A &a) requires detail::map_like<M>
+	void deserialize(M &m, A &a)
+		requires detail::map_like<M>
 	{
 		/* Dummy used to read value pairs, since maps usually have const keys. */
 		using value_t = detail::map_entry<typename M::key_type, typename M::mapped_type>;
@@ -142,11 +131,37 @@ namespace sek::serialization
 		detail::reserve_range(m, a);
 
 		if constexpr (container_like_archive<A>)
-			for (decltype(auto) entry : a)
+		{
+			std::size_t idx = 0;
+			auto entry_iter = a.begin();
+			auto archive_end = a.end();
+			for (; entry_iter != archive_end; ++entry_iter)
 			{
-				auto value = entry.template read<value_t>();
-				m.emplace(forward_key(value.key), forward_mapped(value.mapped));
+				// clang-format off
+				constexpr auto keyed_entry = requires{ { entry_iter.has_key() } -> std::convertible_to<bool>; entry_iter.key(); };
+
+				if constexpr (keyed_entry && requires { m[entry_iter.key()] = entry_iter->template read<typename M::mapped_type>(); })
+				{
+					if (entry_iter.has_key())
+						entry_iter->template read<typename M::mapped_type>(m[entry_iter.key()]);
+					else
+						entry_iter->template read<typename M::mapped_type>(m[std::to_string(idx++)]);
+				}
+				else if constexpr (keyed_entry && requires { m.emplace(entry_iter.key(), entry_iter->template read<typename M::mapped_type>()); })
+				{
+					if (entry_iter.has_key())
+						m.emplace(entry_iter.key(), std::move(entry_iter->template read<typename M::mapped_type>()));
+					else
+						m.emplace(std::to_string(idx++), std::move(entry_iter->template read<typename M::mapped_type>()));
+				}
+				else
+				{
+					auto value = archive_end->template read<value_t>();
+					m.emplace(forward_key(value.key), forward_mapped(value.mapped));
+				}
+				// clang-format on
 			}
+		}
 		else
 			for (;;)
 			{
@@ -156,9 +171,21 @@ namespace sek::serialization
 				m.emplace(forward_key(value.key), forward_mapped(value.mapped));
 			}
 	}
+	template<typename A, std::ranges::forward_range M>
+	void serialize(const M &m, A &a)
+		requires detail::object_like<M>
+	{
+		// clang-format off
+		if constexpr (std::ranges::sized_range<M>)
+			a << container_size(std::ranges::size(m));
+		for (decltype(auto) pair : m)
+			a << keyed_entry(pair.first, pair.second);
+		// clang-format on
+	}
 
 	template<typename A, std::ranges::forward_range R>
-	void deserialize(R &r, A &a) requires(!detail::map_like<R> && detail::has_push_back<R>)
+	void deserialize(R &r, A &a)
+		requires(!detail::map_like<R> && detail::has_push_back<R>)
 	{
 		detail::reserve_range(r, a);
 
@@ -181,7 +208,8 @@ namespace sek::serialization
 			}
 	}
 	template<typename A, std::ranges::forward_range R>
-	void deserialize(R &r, A &a) requires(!detail::map_like<R> && !detail::has_push_back<R> && detail::has_end_insert<R>)
+	void deserialize(R &r, A &a)
+		requires(!detail::map_like<R> && !detail::has_push_back<R> && detail::has_end_insert<R>)
 	{
 		detail::reserve_range(r, a);
 
@@ -205,5 +233,18 @@ namespace sek::serialization
 				else
 					r.insert(r.end(), value);
 			}
+	}
+
+	template<typename A, std::ranges::forward_range R>
+	void serialize(const R &range, A &archive)
+	{
+		archive << array_mode();
+		// clang-format off
+		if constexpr (std::ranges::sized_range<R>)
+			archive << container_size(std::ranges::size(range));
+
+		for (decltype(auto) item : range)
+			archive << item;
+		// clang-format on
 	}
 }	 // namespace sek::serialization
