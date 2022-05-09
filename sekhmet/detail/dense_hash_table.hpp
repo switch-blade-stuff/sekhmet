@@ -384,8 +384,8 @@ namespace sek::detail
 		}
 		[[nodiscard]] constexpr size_type max_size() const noexcept
 		{
-			/* Max size cannot exceed max load factor of max capacity. */
-			return static_cast<size_type>(static_cast<float>(std::numeric_limits<size_type>::max()) * max_load_factor);
+			/* Max size cannot exceed max load factor of max entry capacity. */
+			return static_cast<size_type>(static_cast<float>(value_vector().max_size()) * max_load_factor);
 		}
 		[[nodiscard]] constexpr float load_factor() const noexcept
 		{

@@ -23,8 +23,8 @@ namespace sek
 	 * This *may* be preferable over `std::vector` since vector always does copy on resize,
 	 * while `realloc` may simply expand the used heap chunk or mmap more memory. */
 	template<typename T>
-	requires std::is_trivially_copyable_v<T>
-	class basic_dynarray
+		requires std::is_trivially_copyable_v<T>
+	class dynarray
 	{
 	public:
 		typedef T value_type;
@@ -88,33 +88,35 @@ namespace sek
 		}
 
 	public:
-		constexpr basic_dynarray() noexcept = default;
+		constexpr dynarray() noexcept = default;
 		template<typename... Args>
-		constexpr basic_dynarray(size_type n, Args &&...args) requires std::constructible_from<T, Args...> : data_size(n)
+		constexpr dynarray(size_type n, Args &&...args)
+			requires std::constructible_from<T, Args...>
+		: data_size(n)
 		{
 			init_impl(n);
 			while (n-- > 0) ::new (data() + n) value_type{std::forward<Args>(args)...};
 		}
 		template<std::forward_iterator I>
-		constexpr basic_dynarray(I first, I last) requires std::constructible_from<T, std::iter_value_t<I>>
+		constexpr dynarray(I first, I last)
+			requires std::constructible_from<T, std::iter_value_t<I>>
 		{
 			insert(end(), first, last);
 		}
 		template<std::ranges::forward_range R>
-		constexpr basic_dynarray(const R &r) : basic_dynarray(std::ranges::begin(r), std::ranges::end(r))
+		constexpr dynarray(const R &r) : dynarray(std::ranges::begin(r), std::ranges::end(r))
 		{
 		}
-		constexpr basic_dynarray(std::initializer_list<value_type> init_list)
-			: basic_dynarray(init_list.begin(), init_list.end())
+		constexpr dynarray(std::initializer_list<value_type> init_list) : dynarray(init_list.begin(), init_list.end())
 		{
 		}
 
-		constexpr basic_dynarray(const basic_dynarray &other)
+		constexpr dynarray(const dynarray &other)
 		{
 			init_impl(data_size = other.data_size);
 			std::copy_n(other.data(), data_size, data());
 		}
-		constexpr basic_dynarray &operator=(const basic_dynarray &other)
+		constexpr dynarray &operator=(const dynarray &other)
 		{
 			if (this != &other)
 			{
@@ -123,14 +125,14 @@ namespace sek
 			}
 			return *this;
 		}
-		constexpr basic_dynarray(basic_dynarray &&other) noexcept { take_data(std::forward<basic_dynarray>(other)); }
-		constexpr basic_dynarray &operator=(basic_dynarray &&other) noexcept
+		constexpr dynarray(dynarray &&other) noexcept { take_data(std::forward<dynarray>(other)); }
+		constexpr dynarray &operator=(dynarray &&other) noexcept
 		{
 			swap(other);
 			return *this;
 		}
 
-		constexpr ~basic_dynarray() { destroy_impl(); }
+		constexpr ~dynarray() { destroy_impl(); }
 
 		constexpr void clear() { data_size = 0; }
 		constexpr void shrink_to_fit() { resize_impl(data_size); }
@@ -139,7 +141,8 @@ namespace sek
 			if (n > data_capacity) resize_impl(n);
 		}
 		template<typename... Args>
-		constexpr void resize(size_type n, Args &&...args) requires std::constructible_from<T, Args...>
+		constexpr void resize(size_type n, Args &&...args)
+			requires std::constructible_from<T, Args...>
 		{
 			resize_impl(n);
 			if (n > data_size)
@@ -152,12 +155,18 @@ namespace sek
 		}
 
 		[[nodiscard]] constexpr size_type size() const noexcept { return data_size; }
-		[[nodiscard]] constexpr size_type max_size() const noexcept { return std::numeric_limits<size_type>::max(); }
+		[[nodiscard]] constexpr size_type max_size() const noexcept
+		{
+			return static_cast<size_type>(std::numeric_limits<difference_type>::max() / sizeof(value_type));
+		}
 		[[nodiscard]] constexpr size_type capacity() const noexcept { return data_capacity; }
 		[[nodiscard]] constexpr size_type empty() const noexcept { return size() == 0; }
 
 		[[nodiscard]] constexpr pointer data() noexcept { return static_cast<pointer>(align_ptr(data_begin)); }
-		[[nodiscard]] constexpr const_pointer data() const noexcept { return static_cast<const_pointer>(align_ptr(data_begin)); }
+		[[nodiscard]] constexpr const_pointer data() const noexcept
+		{
+			return static_cast<const_pointer>(align_ptr(data_begin));
+		}
 
 		[[nodiscard]] constexpr reference at(size_type i) noexcept { return data()[i]; }
 		[[nodiscard]] constexpr const_reference at(size_type i) const noexcept { return data()[i]; }
@@ -177,7 +186,8 @@ namespace sek
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
 
 		template<typename... Args>
-		constexpr iterator emplace(const_iterator where, Args &&...args) requires std::constructible_from<T, Args...>
+		constexpr iterator emplace(const_iterator where, Args &&...args)
+			requires std::constructible_from<T, Args...>
 		{
 			return emplace_impl(where, 1, std::forward<Args>(args)...);
 		}
@@ -231,16 +241,16 @@ namespace sek
 		}
 		constexpr iterator erase(const_iterator where) { return erase(where, std::next(where)); }
 
-		[[nodiscard]] constexpr auto operator<=>(const basic_dynarray &other) const noexcept
+		[[nodiscard]] constexpr auto operator<=>(const dynarray &other) const noexcept
 		{
 			return std::lexicographical_compare_three_way(begin(), end(), other.begin(), other.end());
 		}
-		[[nodiscard]] constexpr bool operator==(const basic_dynarray &other) const noexcept
+		[[nodiscard]] constexpr bool operator==(const dynarray &other) const noexcept
 		{
 			return std::equal(begin(), end(), other.begin(), other.end());
 		}
 
-		constexpr void swap(basic_dynarray &other) noexcept
+		constexpr void swap(dynarray &other) noexcept
 		{
 			using std::swap;
 			swap(data_begin, other.data_begin);
@@ -248,10 +258,10 @@ namespace sek
 			swap(data_capacity, other.data_capacity);
 		}
 
-		friend constexpr void swap(basic_dynarray &a, basic_dynarray &b) noexcept { a.swap(b); }
+		friend constexpr void swap(dynarray &a, dynarray &b) noexcept { a.swap(b); }
 
 	private:
-		constexpr void take_data(basic_dynarray &&other) noexcept
+		constexpr void take_data(dynarray &&other) noexcept
 		{
 			data_begin = other.data_begin;
 			data_size = other.data_size;

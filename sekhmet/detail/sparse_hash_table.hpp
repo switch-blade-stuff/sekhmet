@@ -424,8 +424,12 @@ namespace sek::detail
 		}
 		[[nodiscard]] constexpr size_type max_size() const noexcept
 		{
+			constexpr auto absolute_max = static_cast<size_type>(std::numeric_limits<difference_type>::max());
+			const auto alloc_max = static_cast<size_type>(bucket_alloc_traits::max_size(get_value_allocator()));
+
 			/* Max size cannot exceed max load factor of max capacity. */
-			return static_cast<size_type>(static_cast<float>(std::numeric_limits<size_type>::max()) * max_load_factor);
+			return static_cast<size_type>(static_cast<float>(math::min(absolute_max, alloc_max) / sizeof(value_type)) *
+										  max_load_factor);
 		}
 		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return buckets_capacity; }
 

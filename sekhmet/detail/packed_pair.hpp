@@ -105,7 +105,7 @@ namespace sek
 		constexpr explicit packed_pair(U0 &&x, U1 &&y)
 			noexcept(first_nothrow_construct<U0> && second_nothrow_construct<U1>)
 			requires(std::is_constructible_v<T0, U0> && std::is_constructible_v<T1, U1> &&
-					 (!std::is_convertible_v<U0, T0> || std::is_convertible_v<U1, T1>))
+					 (!std::is_convertible_v<U0, T0> || !std::is_convertible_v<U1, T1>))
 			: base_first(std::forward<U0>(x)), base_second(std::forward<U1>(y))
 		{
 		}
@@ -122,7 +122,7 @@ namespace sek
 		constexpr explicit packed_pair(const packed_pair<U0, U1> &p)
 			noexcept(first_nothrow_construct<const U0 &> && second_nothrow_construct<const U1 &>)
 			requires(std::is_constructible_v<T0, const U0 &> && std::is_constructible_v<T1, const U1 &> &&
-					 (!std::is_convertible_v<const U0 &, T0> || std::is_convertible_v<const U1 &, T1>))
+					 (!std::is_convertible_v<const U0 &, T0> || !std::is_convertible_v<const U1 &, T1>))
 			: base_first(p.first()), base_second(p.second())
 		{
 		}
@@ -139,7 +139,7 @@ namespace sek
 		constexpr explicit packed_pair(packed_pair<U0, U1> &&p)
 			noexcept(first_nothrow_construct<U0> && second_nothrow_construct<U1>)
 			requires(std::is_constructible_v<T0, U0> && std::is_constructible_v<T1, U1> &&
-					 (!std::is_convertible_v<U0, T0> || std::is_convertible_v<U1, T1>))
+					 (!std::is_convertible_v<U0, T0> || !std::is_convertible_v<U1, T1>))
 			: base_first(std::move(p.first())), base_second(std::move(p.second()))
 		{
 		}

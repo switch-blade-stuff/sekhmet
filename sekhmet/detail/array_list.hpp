@@ -6,10 +6,10 @@
 
 #include <iterator>
 
-#include "sekhmet/math/detail/util.hpp"
 #include "alloc_util.hpp"
 #include "assert.hpp"
 #include "ebo_base_helper.hpp"
+#include "sekhmet/math/detail/util.hpp"
 
 namespace sek
 {
@@ -648,7 +648,9 @@ namespace sek
 		/** Returns max size of the list. */
 		[[nodiscard]] constexpr size_type max_size() const noexcept
 		{
-			return std::numeric_limits<size_type>::max() - 1;
+			constexpr auto absolute_max = static_cast<size_type>(std::numeric_limits<difference_type>::max());
+			const auto alloc_max = static_cast<size_type>(value_alloc_traits::max_size(get_allocator()));
+			return math::min(absolute_max, alloc_max) / sizeof(value_type);
 		}
 		/** Returns current capacity of the list. */
 		[[nodiscard]] constexpr size_type capacity() const noexcept { return data_capacity; }

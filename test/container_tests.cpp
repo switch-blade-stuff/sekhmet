@@ -188,14 +188,14 @@ TEST(container_tests, dense_set_test)
 }
 
 
-#include "sekhmet/detail/basic_dynarray.hpp"
+#include "sekhmet/detail/dynarray.hpp"
 
-template class sek::basic_dynarray<int>;
+template class sek::dynarray<int>;
 
 TEST(container_tests, basic_dynarray_test)
 {
 	std::vector<int> v = {0, 1, 2, 3, 4};
-	sek::basic_dynarray<int> da = {0, 1, 2, 3, 4};
+	sek::dynarray<int> da = {0, 1, 2, 3, 4};
 
 	EXPECT_FALSE(da.empty());
 	EXPECT_EQ(da.size(), v.size());
