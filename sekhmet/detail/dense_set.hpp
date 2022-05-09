@@ -76,7 +76,7 @@ namespace sek
 		/** Constructs a set with the specified allocators.
 		 * @param value_alloc Allocator used to allocate set's value array.
 		 * @param bucket_alloc Allocator used to allocate set's bucket array. */
-		constexpr explicit dense_set(const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc = {})
+		constexpr explicit dense_set(const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: dense_set(key_equal{}, hash_type{}, value_alloc, bucket_alloc)
 		{
 		}
@@ -85,8 +85,8 @@ namespace sek
 		 * @param value_alloc Allocator used to allocate set's value array.
 		 * @param bucket_alloc Allocator used to allocate set's bucket array. */
 		constexpr explicit dense_set(const hash_type &key_hash,
-									 const allocator_type &value_alloc = {},
-									 const bucket_allocator_type &bucket_alloc = {})
+									 const allocator_type &value_alloc = allocator_type{},
+									 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: dense_set(key_equal{}, key_hash, value_alloc, bucket_alloc)
 		{
 		}
@@ -97,8 +97,8 @@ namespace sek
 		 * @param bucket_alloc Allocator used to allocate set's bucket array. */
 		constexpr explicit dense_set(const key_equal &key_compare,
 									 const hash_type &key_hash = {},
-									 const allocator_type &value_alloc = {},
-									 const bucket_allocator_type &bucket_alloc = {})
+									 const allocator_type &value_alloc = allocator_type{},
+									 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: data_table(key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}
@@ -111,8 +111,8 @@ namespace sek
 		constexpr explicit dense_set(size_type capacity,
 									 const KeyComp &key_compare = {},
 									 const KeyHash &key_hash = {},
-									 const allocator_type &value_alloc = {},
-									 const bucket_allocator_type &bucket_alloc = {})
+									 const allocator_type &value_alloc = allocator_type{},
+									 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: data_table(capacity, key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}
@@ -129,8 +129,8 @@ namespace sek
 							Iterator last,
 							const KeyComp &key_compare = {},
 							const KeyHash &key_hash = {},
-							const allocator_type &value_alloc = {},
-							const bucket_allocator_type &bucket_alloc = {})
+							const allocator_type &value_alloc = allocator_type{},
+							const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: dense_set(static_cast<size_type>(std::distance(first, last)), key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 			insert(first, last);
@@ -147,8 +147,8 @@ namespace sek
 							Iterator last,
 							const KeyComp &key_compare = {},
 							const KeyHash &key_hash = {},
-							const allocator_type &value_alloc = {},
-							const bucket_allocator_type &bucket_alloc = {})
+							const allocator_type &value_alloc = allocator_type{},
+							const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: dense_set(0, key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 			insert(first, last);
@@ -162,8 +162,8 @@ namespace sek
 		constexpr dense_set(std::initializer_list<value_type> init_list,
 							const KeyComp &key_compare = {},
 							const KeyHash &key_hash = {},
-							const allocator_type &value_alloc = {},
-							const bucket_allocator_type &bucket_alloc = {})
+							const allocator_type &value_alloc = allocator_type{},
+							const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: dense_set(init_list.begin(), init_list.end(), key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}

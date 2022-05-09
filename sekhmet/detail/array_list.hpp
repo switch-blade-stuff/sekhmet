@@ -233,8 +233,8 @@ namespace sek
 		 * @param value_alloc Allocator used to allocate list's elements.
 		 * @param node_alloc Allocator used to allocate list's internal node array. */
 		constexpr explicit array_list(size_type n,
-									  const allocator_type &value_alloc = {},
-									  const node_allocator_type &node_alloc = {})
+									  const allocator_type &value_alloc = allocator_type{},
+									  const node_allocator_type &node_alloc = node_allocator_type{})
 			: array_list(value_alloc, node_alloc)
 		{
 			init_impl(n);
@@ -246,8 +246,8 @@ namespace sek
 		 * @param node_alloc Allocator used to allocate list's internal node array. */
 		constexpr explicit array_list(size_type n,
 									  const value_type &value,
-									  const allocator_type &value_alloc = {},
-									  const node_allocator_type &node_alloc = {})
+									  const allocator_type &value_alloc = allocator_type{},
+									  const node_allocator_type &node_alloc = node_allocator_type{})
 			: array_list(n, value_alloc, node_alloc)
 		{
 			push_back(n, value);
@@ -260,8 +260,8 @@ namespace sek
 		template<std::forward_iterator Iterator>
 		constexpr array_list(Iterator first,
 							 Iterator last,
-							 const allocator_type &value_alloc = {},
-							 const node_allocator_type &node_alloc = {})
+							 const allocator_type &value_alloc = allocator_type{},
+							 const node_allocator_type &node_alloc = node_allocator_type{})
 			: array_list(value_alloc, node_alloc)
 		{
 			push_back(first, last);
@@ -272,8 +272,8 @@ namespace sek
 		 * @param node_alloc Allocator used to allocate list's internal node array. */
 		template<typename U>
 		constexpr array_list(std::initializer_list<U> init_list,
-							 const allocator_type &value_alloc = {},
-							 const node_allocator_type &node_alloc = {})
+							 const allocator_type &value_alloc = allocator_type{},
+							 const node_allocator_type &node_alloc = node_allocator_type{})
 			: array_list(init_list.begin(), init_list.end(), value_alloc, node_alloc)
 		{
 		}

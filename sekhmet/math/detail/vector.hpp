@@ -164,13 +164,10 @@ namespace sek::math
 		constexpr basic_vector(T x, T y) noexcept : data({x, y}) {}
 		constexpr explicit basic_vector(T x) noexcept : basic_vector(x, T{}) {}
 
-#ifndef SEK_NO_ANONYMOUS_STRUCT
-		struct
-		{
-			T x;
-			T y;
-		};
-#endif
+		[[nodiscard]] constexpr T &x() noexcept { return data[0]; }
+		[[nodiscard]] constexpr const T &x() const noexcept { return data[0]; }
+		[[nodiscard]] constexpr T &y() noexcept { return data[1]; }
+		[[nodiscard]] constexpr const T &y() const noexcept { return data[1]; }
 	};
 
 	template<arithmetic T>
@@ -182,26 +179,19 @@ namespace sek::math
 		constexpr basic_vector(T x, T y) noexcept : basic_vector(x, y, T{}) {}
 		constexpr explicit basic_vector(T x) noexcept : basic_vector(x, T{}, T{}) {}
 
-#ifndef SEK_NO_ANONYMOUS_STRUCT
-		struct
-		{
-			T x;
-			T y;
-			T z;
-		};
-		struct
-		{
-			T r;
-			T g;
-			T b;
-		};
-		struct
-		{
-			T s;
-			T t;
-			T p;
-		};
-#endif
+		[[nodiscard]] constexpr T &x() noexcept { return data[0]; }
+		[[nodiscard]] constexpr const T &x() const noexcept { return data[0]; }
+		[[nodiscard]] constexpr T &y() noexcept { return data[1]; }
+		[[nodiscard]] constexpr const T &y() const noexcept { return data[1]; }
+		[[nodiscard]] constexpr T &z() noexcept { return data[2]; }
+		[[nodiscard]] constexpr const T &z() const noexcept { return data[2]; }
+
+		[[nodiscard]] constexpr T &r() noexcept { return data[0]; }
+		[[nodiscard]] constexpr const T &r() const noexcept { return data[0]; }
+		[[nodiscard]] constexpr T &g() noexcept { return data[1]; }
+		[[nodiscard]] constexpr const T &g() const noexcept { return data[1]; }
+		[[nodiscard]] constexpr T &b() noexcept { return data[2]; }
+		[[nodiscard]] constexpr const T &b() const noexcept { return data[2]; }
 	};
 
 	template<arithmetic T>
@@ -214,29 +204,32 @@ namespace sek::math
 		constexpr basic_vector(T x, T y) noexcept : basic_vector(x, y, T{}, T{}) {}
 		constexpr explicit basic_vector(T x) noexcept : basic_vector(x, T{}, T{}, T{}) {}
 
-#ifndef SEK_NO_ANONYMOUS_STRUCT
-		struct
-		{
-			T x;
-			T y;
-			T z;
-			T w;
-		};
-		struct
-		{
-			T r;
-			T g;
-			T b;
-			T a;
-		};
-		struct
-		{
-			T s;
-			T t;
-			T p;
-			T q;
-		};
-#endif
+		[[nodiscard]] constexpr T &x() noexcept { return data[0]; }
+		[[nodiscard]] constexpr const T &x() const noexcept { return data[0]; }
+		[[nodiscard]] constexpr T &y() noexcept { return data[1]; }
+		[[nodiscard]] constexpr const T &y() const noexcept { return data[1]; }
+		[[nodiscard]] constexpr T &z() noexcept { return data[2]; }
+		[[nodiscard]] constexpr const T &z() const noexcept { return data[2]; }
+		[[nodiscard]] constexpr T &w() noexcept { return data[3]; }
+		[[nodiscard]] constexpr const T &w() const noexcept { return data[3]; }
+
+		[[nodiscard]] constexpr T &r() noexcept { return data[0]; }
+		[[nodiscard]] constexpr const T &r() const noexcept { return data[0]; }
+		[[nodiscard]] constexpr T &g() noexcept { return data[1]; }
+		[[nodiscard]] constexpr const T &g() const noexcept { return data[1]; }
+		[[nodiscard]] constexpr T &b() noexcept { return data[2]; }
+		[[nodiscard]] constexpr const T &b() const noexcept { return data[2]; }
+		[[nodiscard]] constexpr T &a() noexcept { return data[3]; }
+		[[nodiscard]] constexpr const T &a() const noexcept { return data[3]; }
+
+		[[nodiscard]] constexpr T &s() noexcept { return data[0]; }
+		[[nodiscard]] constexpr const T &s() const noexcept { return data[0]; }
+		[[nodiscard]] constexpr T &t() noexcept { return data[1]; }
+		[[nodiscard]] constexpr const T &t() const noexcept { return data[1]; }
+		[[nodiscard]] constexpr T &p() noexcept { return data[2]; }
+		[[nodiscard]] constexpr const T &p() const noexcept { return data[2]; }
+		[[nodiscard]] constexpr T &q() noexcept { return data[3]; }
+		[[nodiscard]] constexpr const T &q() const noexcept { return data[3]; }
 	};
 
 	template<typename T, std::size_t N>

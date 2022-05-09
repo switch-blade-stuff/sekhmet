@@ -64,7 +64,7 @@ namespace sek
 		/** Constructs a map with the specified allocators.
 		 * @param value_alloc Allocator used to allocate map's elements.
 		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
-		constexpr explicit sparse_map(const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc = {})
+		constexpr explicit sparse_map(const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: sparse_map(key_equal{}, hash_type{}, value_alloc, bucket_alloc)
 		{
 		}
@@ -73,8 +73,8 @@ namespace sek
 		 * @param value_alloc Allocator used to allocate map's elements.
 		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
 		constexpr explicit sparse_map(const hash_type &key_hash,
-									  const allocator_type &value_alloc = {},
-									  const bucket_allocator_type &bucket_alloc = {})
+									  const allocator_type &value_alloc = allocator_type{},
+									  const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: sparse_map(key_equal{}, key_hash, value_alloc, bucket_alloc)
 		{
 		}
@@ -85,8 +85,8 @@ namespace sek
 		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
 		constexpr explicit sparse_map(const key_equal &key_compare,
 									  const hash_type &key_hash = {},
-									  const allocator_type &value_alloc = {},
-									  const bucket_allocator_type &bucket_alloc = {})
+									  const allocator_type &value_alloc = allocator_type{},
+									  const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: data_table(key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}
@@ -99,8 +99,8 @@ namespace sek
 		constexpr explicit sparse_map(size_type capacity,
 									  const key_equal &key_compare = {},
 									  const hash_type &key_hash = {},
-									  const allocator_type &value_alloc = {},
-									  const bucket_allocator_type &bucket_alloc = {})
+									  const allocator_type &value_alloc = allocator_type{},
+									  const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: data_table(capacity, key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}
@@ -117,8 +117,8 @@ namespace sek
 							 Iterator last,
 							 const KeyComp &key_compare = {},
 							 const KeyHash &key_hash = {},
-							 const allocator_type &value_alloc = {},
-							 const bucket_allocator_type &bucket_alloc = {})
+							 const allocator_type &value_alloc = allocator_type{},
+							 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: sparse_map(static_cast<size_type>(std::distance(first, last)), key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 			insert(first, last);
@@ -135,8 +135,8 @@ namespace sek
 							 Iterator last,
 							 const KeyComp &key_compare = {},
 							 const KeyHash &key_hash = {},
-							 const allocator_type &value_alloc = {},
-							 const bucket_allocator_type &bucket_alloc = {})
+							 const allocator_type &value_alloc = allocator_type{},
+							 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: sparse_map(0, key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 			insert(first, last);
@@ -150,8 +150,8 @@ namespace sek
 		constexpr sparse_map(std::initializer_list<value_type> init_list,
 							 const KeyComp &key_compare = {},
 							 const KeyHash &key_hash = {},
-							 const allocator_type &value_alloc = {},
-							 const bucket_allocator_type &bucket_alloc = {})
+							 const allocator_type &value_alloc = allocator_type{},
+							 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: sparse_map(init_list.begin(), init_list.end(), key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}
