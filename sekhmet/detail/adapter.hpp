@@ -4,8 +4,6 @@
 
 #pragma once
 
-#include <functional>
-
 #include "delegate.hpp"
 #include "meta_util.hpp"
 
@@ -209,7 +207,7 @@ namespace sek
 			if (empty()) [[unlikely]]
 				throw adapter_error("Attempted to invoke a proxy on an empty adapter");
 			else
-				return std::invoke(vtable->template get<proxy_func_type<Proxy>>(), instance, std::forward<Args>(args)...);
+				return vtable->template get<proxy_func_type<Proxy>>()(instance, std::forward<Args>(args)...);
 		}
 		/** Returns a delegate used to call a specific proxy on this adapter.
 		 * @tparam Proxy Proxy to call.
