@@ -196,16 +196,8 @@ TEST(utility_tests, event_test)
 	sek::event<void(int &)> event;
 
 	auto i = 0;
-	auto sub1 = event += sek::delegate{+[](int &i)
-									   {
-										   EXPECT_EQ(i, 0);
-										   i = 1;
-									   }};
-	auto sub2 = event += sek::delegate{+[](int &i)
-									   {
-										   EXPECT_EQ(i, 1);
-										   i = 2;
-									   }};
+	auto sub1 = event += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 0); }};
+	auto sub2 = event += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 1); }};
 
 	event(i);
 	EXPECT_EQ(i, 2);
@@ -215,27 +207,21 @@ TEST(utility_tests, event_test)
 	EXPECT_TRUE(event.empty());
 	EXPECT_EQ(event.size(), 0);
 
-	sub1 = event += sek::delegate{+[](int &i)
-								  {
-									  EXPECT_EQ(i, 2);
-									  i = 0;
-								  }};
-	sub2 = event += sek::delegate{+[](int &i)
-								  {
-									  EXPECT_EQ(i, 0);
-									  i = 2;
-								  }};
+	sub1 = event += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 0); }};
+	sub2 = event += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 1); }};
 	EXPECT_EQ(event.size(), 2);
 
+	i = 0;
 	event(i);
 	EXPECT_EQ(i, 2);
 
 	auto sub2_pos = event.find(sub2);
 	EXPECT_NE(sub2_pos, event.end());
 
-	event.subscribe(sub2_pos, sek::delegate{+[](int &i) { EXPECT_EQ(i, 0); }});
+	event.subscribe(sub2_pos, sek::delegate{+[](int &i) { EXPECT_EQ(i, 1); }});
 	EXPECT_EQ(event.size(), 3);
 
+	i = 0;
 	event(i);
 	EXPECT_EQ(i, 2);
 }

@@ -195,9 +195,37 @@ namespace sek
 		 * @return Id of the subscription. */
 		constexpr event_id subscribe(const_iterator where, delegate<R(Args...)> subscriber)
 		{
+			/* If there already is a subscriber at that position, increment it's id. */
 			const auto pos = std::distance(begin(), where);
+			if (where < end()) ++(id_data.begin()[sub_data.begin()[pos].id]);
+
+			/* Insert the subscriber & resize the id list if needed. */
 			sub_data.emplace(where.iter, subscriber);
-			return generate_id(pos);
+			if (sub_data.size() > id_data.size()) [[unlikely]]
+				id_data.resize(sub_data.size() * 2, placeholder);
+
+			/* If there already is an id we can re-use, use that id. */
+			if (next_id != placeholder)
+			{
+				const auto id = next_id;
+				auto id_iter = id_data.begin() + id;
+
+				next_id = *id_iter;
+				*id_iter = pos;
+				return sub_data.begin()[pos].id = static_cast<event_id>(id);
+			}
+
+			/* Otherwise, generate new id starting at subscriber position. If there are no empty id slots,
+			 * it is likely that every slot before the insert position is already occupied. */
+			for (auto id_iter = id_data.begin() + pos;; ++id_iter)
+			{
+				SEK_ASSERT(id_iter != id_data.end(), "End of id list should never be reached");
+				if (*id_iter == placeholder)
+				{
+					*id_iter = pos;
+					return sub_data.begin()[pos].id = static_cast<event_id>(std::distance(id_data.begin(), id_iter));
+				}
+			}
 		}
 		/** Adds a subscriber delegate to the event and returns it's subscription id.
 		 * @param subscriber Delegate used to subscribe on the event.
@@ -367,34 +395,6 @@ namespace sek
 		friend constexpr void swap(basic_event &a, basic_event &b) noexcept { a.swap(b); }
 
 	private:
-		constexpr event_id generate_id(difference_type pos)
-		{
-			if (sub_data.size() >= id_data.size()) [[unlikely]]
-				id_data.resize(sub_data.size() * 2, placeholder);
-
-			/* If there already is an id we can re-use, use that id. */
-			if (next_id != placeholder)
-			{
-				const auto id = next_id;
-				auto id_iter = id_data.begin() + id;
-
-				next_id = *id_iter;
-				*id_iter = pos;
-				return sub_data.begin()[pos].id = static_cast<event_id>(id);
-			}
-
-			/* Otherwise, generate new id starting at subscriber position. */
-			for (auto id_iter = id_data.begin() + pos;; ++id_iter)
-			{
-				SEK_ASSERT(id_iter != id_data.end(), "End of id list should never be reached");
-				if (*id_iter == placeholder)
-				{
-					*id_iter = pos;
-					return sub_data.begin()[pos].id = static_cast<event_id>(std::distance(id_data.begin(), id_iter));
-				}
-			}
-		}
-
 		id_data_t id_data;
 		sub_data_t sub_data;
 		event_id next_id = placeholder;
