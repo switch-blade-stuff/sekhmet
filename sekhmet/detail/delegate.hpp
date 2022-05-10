@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include <utility>
 #include <bit>
+#include <utility>
 
 #include "define.h"
 
@@ -19,19 +19,8 @@ namespace sek
 		~delegate_error() override = default;
 	};
 
-	template<typename...>
-	class adapter_proxy;
-
 	namespace detail
 	{
-		template<typename... Ts>
-		constexpr adapter_proxy<Ts...> adapter_proxy_parent(adapter_proxy<Ts...>) noexcept;
-		template<typename P>
-		using adapter_proxy_parent_t = decltype(adapter_proxy_parent(std::declval<P>()));
-		template<typename P>
-		concept valid_adapter_proxy = (std::is_base_of_v<adapter_proxy<>, P> &&
-									   template_extent<adapter_proxy_parent_t<P>> != 0);
-
 		// clang-format off
 		template<typename R, typename F, typename... Args>
 		concept delegate_free_func = std::is_function_v<F> && std::is_invocable_r_v<R, F, Args...>;
@@ -42,9 +31,6 @@ namespace sek
 									};
 		// clang-format on
 	}	 // namespace detail
-
-	template<detail::valid_adapter_proxy... ProxyTs>
-	class adapter;
 
 	// clang-format off
 	/** @brief Helper type used to specify a compile-time function. */
@@ -75,9 +61,6 @@ namespace sek
 	template<typename R, typename... Args>
 	class delegate<R(Args...)>
 	{
-		template<typename...>
-		friend class adapter_proxy;
-
 	private:
 		template<auto F, typename... Inject>
 		constexpr static bool free_func = detail::delegate_free_func<R, decltype(F), Inject..., Args...>;
@@ -100,6 +83,12 @@ namespace sek
 		constexpr delegate(R (*f)(Args...)) noexcept
 		{
 			assign(f);
+		}
+		/** Initializes a delegate from a free function pointer and a bound argument. */
+		template<typename Arg>
+		constexpr delegate(R (*f)(Arg *, Args...), Arg *arg) noexcept
+		{
+			assign(f, arg);
 		}
 
 		/** Initializes a delegate from a free function. */
@@ -147,6 +136,19 @@ namespace sek
 		{
 			proxy = +[](const void *p, Args &&...args) { return std::bit_cast<R (*)(Args...)>(p)(std::forward<Args>(args)...); };
 			data_ptr = std::bit_cast<const void *>(f);
+			return *this;
+		}
+		/** @copydoc assign */
+		constexpr delegate &operator=(R (*f)(Args...)) noexcept
+		{
+			return assign(f);
+		}
+		/** Binds a free function pointer to the delegate. */
+		template<typename Arg>
+		constexpr delegate &assign(R (*f)(Arg *, Args...), Arg *arg)  noexcept
+		{
+			proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
+			data_ptr = static_cast<const void *>(arg);
 			return *this;
 		}
 
@@ -301,8 +303,8 @@ namespace sek
 
 	template<typename R, typename... Args>
 	delegate(R (*)(Args...)) -> delegate<R(Args...)>;
-	template<typename R, typename... Args>
-	delegate(R (&)(Args...)) -> delegate<R(Args...)>;
+	template<typename R, typename Arg, typename... Args>
+	delegate(R (*)(Arg *, Args...), Arg *) -> delegate<R(Args...)>;
 
 	template<typename R, typename... Args, R (*F)(Args...)>
 	delegate(func_t<F>) -> delegate<R(Args...)>;

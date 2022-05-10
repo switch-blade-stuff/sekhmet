@@ -17,8 +17,19 @@ namespace sek
 		~adapter_error() override = default;
 	};
 
+	template<typename...>
+	class adapter_proxy;
+
 	namespace detail
 	{
+		template<typename... Ts>
+		constexpr adapter_proxy<Ts...> adapter_proxy_parent(adapter_proxy<Ts...>) noexcept;
+		template<typename P>
+		using adapter_proxy_parent_t = decltype(adapter_proxy_parent(std::declval<P>()));
+		template<typename P>
+		concept valid_adapter_proxy = (std::is_base_of_v<adapter_proxy<>, P> &&
+									   template_extent<adapter_proxy_parent_t<P>> != 0);
+
 		struct adapter_instance
 		{
 			constexpr adapter_instance() noexcept = default;
@@ -107,9 +118,9 @@ namespace sek
 		template<typename A>
 		constexpr static delegate<R(Args...)> make_delegate(const A *adapter) noexcept
 		{
-			constexpr auto proxy = +[](const void *p, Args &&...args)
-			{ return static_cast<const A *>(p)->template invoke<adapter_proxy>(std::forward<Args>(args)...); };
-			return sek::delegate<R(Args...)>{proxy, static_cast<const void *>(adapter)};
+			return sek::delegate{+[](const A *a, Args... args)
+								 { return a->template invoke<adapter_proxy>(std::forward<Args>(args)...); },
+								 adapter};
 		}
 	};
 
