@@ -123,10 +123,9 @@ namespace sek
 
 		// clang-format off
 		/** Sets logger formatter. */
-		template<typename F>
-		constexpr void formatter(F &&f) noexcept requires std::is_invocable_r_v<str_t, F, sv_t, sv_t>
+		constexpr void formatter(delegate<str_t(sv_t, sv_t)> f) noexcept
 		{
-			sync_busy([&]() { format_func = std::forward<F>(f); });
+			sync_busy([&]() { format_func = std::move(f); });
 		}
 		// clang-format on
 
@@ -160,11 +159,11 @@ namespace sek
 		template<detail::log_listener<C, T> L>
 		bool silence(L &listener)
 		{
-			bool res = false;
+			bool res;
 			sync_busy(
 				[&]()
 				{
-					auto log_iter = log_event.find(&listener);
+					const auto log_iter = log_event.find(&listener);
 					if ((res = log_iter != log_event.end())) log_event.unsubscribe(log_iter);
 				});
 			return res;
