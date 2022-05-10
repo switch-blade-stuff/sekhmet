@@ -5,6 +5,7 @@
 #pragma once
 
 #include <utility>
+#include <bit>
 
 #include "define.h"
 
@@ -80,6 +81,8 @@ namespace sek
 	private:
 		template<auto F, typename... Inject>
 		constexpr static bool free_func = detail::delegate_free_func<R, decltype(F), Inject..., Args...>;
+		template<typename F>
+		constexpr static bool free_func_ptr = detail::delegate_free_func<R, F, Args...>;
 		template<auto F, typename I>
 		constexpr static bool mem_func = detail::delegate_mem_func<R, decltype(F), I, Args...>;
 
@@ -93,6 +96,17 @@ namespace sek
 		constexpr delegate() noexcept = default;
 
 		// clang-format off
+		/** Initializes a delegate from a free function pointer. */
+		constexpr delegate(R (*f)(Args...)) noexcept
+		{
+			assign(f);
+		}
+		/** Initializes a delegate from a free function reference. */
+		constexpr delegate(R (&f)(Args...)) noexcept
+		{
+			assign(f);
+		}
+
 		/** Initializes a delegate from a free function. */
 		template<auto F>
 		constexpr delegate(func_t<F>) noexcept requires free_func<F>
@@ -131,6 +145,19 @@ namespace sek
 		constexpr delegate(func_t<F>, I &instance) noexcept requires mem_func<F, I>
 		{
 			assign<F>(instance);
+		}
+
+		/** Binds a free function pointer to the delegate. */
+		constexpr delegate &assign(R (*f)(Args...))  noexcept
+		{
+			proxy = +[](const void *p, Args &&...args) { return std::bit_cast<R (*)(Args...)>(p)(std::forward<Args>(args)...); };
+			data_ptr = std::bit_cast<const void *>(f);
+			return *this;
+		}
+		/** Binds a free function reference to the delegate. */
+		constexpr delegate &assign(R (&f)(Args...))  noexcept
+		{
+			return assign(&f);
 		}
 
 		/** Binds a free function to the delegate. */
@@ -281,6 +308,11 @@ namespace sek
 		/* Optional. No mutable version, const_cast is used instead. */
 		const void *data_ptr = nullptr;
 	};
+
+	template<typename R, typename... Args>
+	delegate(R (*)(Args...)) -> delegate<R(Args...)>;
+	template<typename R, typename... Args>
+	delegate(R (&)(Args...)) -> delegate<R(Args...)>;
 
 	template<typename R, typename... Args, R (*F)(Args...)>
 	delegate(func_t<F>) -> delegate<R(Args...)>;
