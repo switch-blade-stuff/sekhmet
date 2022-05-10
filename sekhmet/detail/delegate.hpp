@@ -101,11 +101,6 @@ namespace sek
 		{
 			assign(f);
 		}
-		/** Initializes a delegate from a free function reference. */
-		constexpr delegate(R (&f)(Args...)) noexcept
-		{
-			assign(f);
-		}
 
 		/** Initializes a delegate from a free function. */
 		template<auto F>
@@ -153,11 +148,6 @@ namespace sek
 			proxy = +[](const void *p, Args &&...args) { return std::bit_cast<R (*)(Args...)>(p)(std::forward<Args>(args)...); };
 			data_ptr = std::bit_cast<const void *>(f);
 			return *this;
-		}
-		/** Binds a free function reference to the delegate. */
-		constexpr delegate &assign(R (&f)(Args...))  noexcept
-		{
-			return assign(&f);
 		}
 
 		/** Binds a free function to the delegate. */

@@ -188,6 +188,9 @@ TEST(utility_tests, logger_test)
 
 #include "sekhmet/event.hpp"
 
+template class sek::delegate<void(int &)>;
+template class sek::basic_event<void(int &), std::allocator<sek::delegate<void(int &)>>>;
+
 TEST(utility_tests, event_test)
 {
 	sek::event<void(int &)> event;
