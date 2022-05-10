@@ -47,12 +47,12 @@ namespace sek
 			using iterator_pointer = std::conditional_t<Const, const value_type, value_type> *;
 		};
 
-		using table_type = detail::dense_hash_table<T, value_type, value_traits, KeyHash, KeyComp, forward_identity, Alloc>;
+		using table_type = detail::dense_hash_table<T, T, value_traits, KeyHash, KeyComp, forward_identity, Alloc>;
 
 	public:
-		typedef typename table_type::pointer pointer;
+		typedef typename table_type::const_pointer pointer;
 		typedef typename table_type::const_pointer const_pointer;
-		typedef typename table_type::reference reference;
+		typedef typename table_type::const_reference reference;
 		typedef typename table_type::const_reference const_reference;
 		typedef typename table_type::size_type size_type;
 		typedef typename table_type::difference_type difference_type;
@@ -76,7 +76,8 @@ namespace sek
 		/** Constructs a set with the specified allocators.
 		 * @param value_alloc Allocator used to allocate set's value array.
 		 * @param bucket_alloc Allocator used to allocate set's bucket array. */
-		constexpr explicit dense_set(const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
+		constexpr explicit dense_set(const allocator_type &value_alloc,
+									 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: dense_set(key_equal{}, hash_type{}, value_alloc, bucket_alloc)
 		{
 		}
@@ -243,7 +244,7 @@ namespace sek
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return cbegin(); }
 		/** @copydoc cend */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
-		
+
 		/** Returns reverse iterator to the start of the set. */
 		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return data_table.rbegin(); }
 		/** Returns reverse iterator to the end of the set. */

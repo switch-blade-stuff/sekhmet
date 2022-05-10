@@ -179,7 +179,7 @@ namespace sek::detail
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return &i->value(); }
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{&i->value()}; }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 

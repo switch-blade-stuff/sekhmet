@@ -152,7 +152,6 @@ namespace sek
 		{
 			return listen(listener);
 		}
-
 		/** Removes (silences) a listener associated with this logger.
 		 * @param listener Reference to a previously added listener.
 		 * @return True if the listener was removed, false otherwise. */

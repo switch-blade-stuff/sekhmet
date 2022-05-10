@@ -9,8 +9,8 @@
 
 #include "contiguous_iterator.hpp"
 #include "hash.hpp"
-#include "meta_util.hpp"
 #include "string_util.hpp"
+#include <string_view>
 
 namespace sek
 {
@@ -100,9 +100,18 @@ namespace sek
 		/** @copydoc size */
 		[[nodiscard]] constexpr size_type length() const noexcept { return size(); }
 		/** Returns maximum value for size. */
-		[[nodiscard]] constexpr size_type max_size() const noexcept { return std::numeric_limits<size_type>::max(); }
+		[[nodiscard]] constexpr size_type max_size() const noexcept
+		{
+			return std::numeric_limits<size_type>::max() - 1;
+		}
 		/** Checks if the string is empty. */
 		[[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
+
+		/** Converts the static string to a string view. */
+		[[nodiscard]] constexpr operator std::basic_string_view<C, Traits>() const noexcept
+		{
+			return std::basic_string_view<C, Traits>{data(), size()};
+		}
 
 		/** Finds left-most location of a sequence of character within the string. */
 		template<forward_iterator_for<value_type> Iterator>
@@ -118,7 +127,7 @@ namespace sek
 		/** Finds left-most location of a c-style substring within the string. */
 		[[nodiscard]] constexpr size_type find_first(const value_type *str) const noexcept
 		{
-			return find_first(str, str_length(str));
+			return find_first(str, detail::str_length(str));
 		}
 		/** Finds left-most location of a character range within the string. */
 		template<forward_range_for<value_type> R>
@@ -148,7 +157,7 @@ namespace sek
 		/** Finds right-most location of a c-style substring within the string. */
 		[[nodiscard]] constexpr size_type find_last(const value_type *str) const noexcept
 		{
-			return find_last(str, str_length(str));
+			return find_last(str, detail::str_length(str));
 		}
 		/** Finds right-most location of a character range within the string. */
 		template<forward_range_for<value_type> R>
@@ -183,7 +192,7 @@ namespace sek
 		/** Finds left-most location of a character from a c-style string within the string. */
 		[[nodiscard]] constexpr size_type find_first_of(const value_type *str) const noexcept
 		{
-			return find_first_of(str, str_length(str));
+			return find_first_of(str, detail::str_length(str));
 		}
 		/** Finds left-most location of a character from a range within the string. */
 		template<forward_range_for<value_type> R>
@@ -211,7 +220,7 @@ namespace sek
 		/** Finds right-most location of a character from a c-style string within the string. */
 		[[nodiscard]] constexpr size_type find_last_of(const value_type *str) const noexcept
 		{
-			return find_last_of(str, str_length(str));
+			return find_last_of(str, detail::str_length(str));
 		}
 		/** Finds right-most location of a character from a range within the string. */
 		template<forward_range_for<value_type> R>
@@ -234,7 +243,7 @@ namespace sek
 		/** Finds left-most location of a character not from a c-style string within the string. */
 		[[nodiscard]] constexpr size_type find_first_not_of(const value_type *str) const noexcept
 		{
-			return find_first_not_of(str, str_length(str));
+			return find_first_not_of(str, detail::str_length(str));
 		}
 		/** Finds left-most location of a character not from a raw character array within the string. */
 		[[nodiscard]] constexpr size_type find_first_not_of(const value_type *str, size_type len) const noexcept
@@ -262,7 +271,7 @@ namespace sek
 		/** Finds right-most location of a character not from a c-style string within the string. */
 		[[nodiscard]] constexpr size_type find_last_not_of(const value_type *str) const noexcept
 		{
-			return find_last_not_of(str, str_length(str));
+			return find_last_not_of(str, detail::str_length(str));
 		}
 		/** Finds right-most location of a character not from a raw character array within the string. */
 		[[nodiscard]] constexpr size_type find_last_not_of(const value_type *str, size_type len) const noexcept
@@ -290,7 +299,7 @@ namespace sek
 		/** Checks if a substring is present within the string. */
 		[[nodiscard]] constexpr bool contains(const value_type *str) const noexcept
 		{
-			return contains(str, str_length(str));
+			return contains(str, detail::str_length(str));
 		}
 		/** Checks if a range of characters is present within the string. */
 		template<forward_range_for<value_type> R>
@@ -310,7 +319,7 @@ namespace sek
 		/** Checks if a substring is located at the start of the string. */
 		[[nodiscard]] constexpr bool has_prefix(const value_type *str) const noexcept
 		{
-			return has_prefix(str, str_length(str));
+			return has_prefix(str, detail::str_length(str));
 		}
 		/** Checks if a substring is located at the start of the string. */
 		[[nodiscard]] constexpr bool has_prefix(const value_type *str, size_type len) const noexcept
@@ -335,7 +344,7 @@ namespace sek
 		/** Checks if a substring is located at the end of the string. */
 		[[nodiscard]] constexpr bool has_postfix(const value_type *str) const noexcept
 		{
-			return has_postfix(str, str_length(str));
+			return has_postfix(str, detail::str_length(str));
 		}
 		/** Checks if a substring is located at the end of the string. */
 		[[nodiscard]] constexpr bool has_postfix(const value_type *str, size_type len) const noexcept
