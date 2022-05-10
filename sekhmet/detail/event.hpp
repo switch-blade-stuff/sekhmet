@@ -4,8 +4,10 @@
 
 #pragma once
 
+#include <limits>
 #include <vector>
 
+#include "assert.hpp"
 #include "delegate.hpp"
 
 namespace sek
@@ -13,79 +15,8 @@ namespace sek
 	template<typename, typename>
 	class basic_event;
 
-	template<typename>
-	class event_view;
-
-	class event_connection;
-
-	namespace detail
-	{
-		template<typename Alloc, typename R, typename... Args>
-		constexpr event_connection connect_event(basic_event<R(Args...), Alloc> *, const delegate<R(Args...)> *);
-		template<typename Alloc, typename R, typename... Args>
-		constexpr bool disconnect_event(basic_event<R(Args...), Alloc> *, event_connection &);
-	}	 // namespace detail
-
-	/** @brief RAII structure used to manage a listener delegate connected to an event.
-	 * @warning Connection may not outlive it's parent event! */
-	class event_connection
-	{
-		template<typename Alloc, typename R, typename... Args>
-		friend constexpr event_connection detail::connect_event(basic_event<R(Args...), Alloc> *,
-																const delegate<R(Args...)> *);
-		template<typename Alloc, typename R, typename... Args>
-		friend constexpr bool detail::disconnect_event(basic_event<R(Args...), Alloc> *, event_connection &);
-
-		constexpr event_connection(delegate<void(void *)> disconnect_func, void *event)
-			: disconnect_func(disconnect_func), event(event)
-		{
-		}
-
-	public:
-		event_connection() = delete;
-
-		constexpr event_connection(const event_connection &) noexcept = default;
-		constexpr event_connection &operator=(const event_connection &) noexcept = default;
-		constexpr event_connection(event_connection &&) noexcept = default;
-		constexpr event_connection &operator=(event_connection &&) noexcept = default;
-		constexpr ~event_connection() { disconnect(); }
-
-		/** Disconnects the managed listener from it's event. */
-		constexpr void disconnect()
-		{
-			if (event) disconnect_func(event);
-			event = nullptr;
-		}
-
-	private:
-		delegate<void(void *)> disconnect_func;
-		void *event;
-	};
-
-	namespace detail
-	{
-		template<typename Alloc, typename R, typename... Args>
-		constexpr event_connection connect_event(basic_event<R(Args...), Alloc> *e, const delegate<R(Args...)> *l)
-		{
-			constexpr auto disconnect = +[](const delegate<R(Args...)> &listener, void *p)
-			{
-				auto *event = static_cast<basic_event<R(Args...), Alloc> *>(p);
-				event->disconnect(listener);
-			};
-			return event_connection{delegate{disconnect, l}, e};
-		}
-		template<typename Alloc, typename R, typename... Args>
-		constexpr bool disconnect_event(basic_event<R(Args...), Alloc> *e, event_connection &c)
-		{
-			if (c.event == e)
-			{
-				c.disconnect();
-				return true;
-			}
-			else
-				return false;
-		}
-	}	 // namespace detail
+	/** @brief Id used to uniquely reference event subscribers. */
+	using event_id = std::ptrdiff_t;
 
 	/** @brief Structure used to manage a set of delegates.
 	 *
@@ -95,145 +26,234 @@ namespace sek
 	template<typename Alloc, typename R, typename... Args>
 	class basic_event<R(Args...), Alloc>
 	{
-		friend constexpr event_connection detail::connect_event(basic_event<R(Args...), Alloc> *,
-																const delegate<R(Args...)> *);
-		friend class event_view<basic_event>;
+		using id_alloc_t = typename std::allocator_traits<Alloc>::template rebind_alloc<event_id>;
+		using id_data_t = std::vector<event_id, id_alloc_t>;
 
 		using delegate_t = delegate<R(Args...)>;
-		using alloc_t = typename std::allocator_traits<Alloc>::template rebind_alloc<delegate_t>;
-		using data_t = std::vector<delegate_t, alloc_t>;
+		struct subscriber
+		{
+			constexpr subscriber() noexcept = default;
+			constexpr explicit subscriber(delegate_t &&d) noexcept : callback(std::forward<delegate_t>(d)) {}
+
+			constexpr bool operator==(const delegate_t &d) const noexcept { return callback == d; }
+
+			delegate_t callback;
+			id_t id;
+		};
+
+		using sub_alloc_t = typename std::allocator_traits<Alloc>::template rebind_alloc<subscriber>;
+		using sub_data_t = std::vector<subscriber, sub_alloc_t>;
 
 		// clang-format off
 		template<typename F>
 		constexpr static bool valid_collector = !std::is_void_v<R> && requires(F &&f, const delegate_t &d, Args &&...args) { f(d(std::forward<Args>(args)...)); };
 		// clang-format on
 
+		class event_iterator
+		{
+			using iter_t = typename sub_data_t::const_iterator;
+
+			constexpr explicit event_iterator(iter_t iter) noexcept : iter(iter) {}
+
+		public:
+			typedef delegate_t value_type;
+			typedef const value_type *pointer;
+			typedef const value_type &reference;
+			typedef std::size_t size_type;
+			typedef typename iter_t::difference_type difference_type;
+			typedef std::random_access_iterator_tag iterator_category;
+
+		public:
+			constexpr event_iterator() noexcept = default;
+
+			constexpr event_iterator operator++(int) noexcept
+			{
+				auto temp = *this;
+				++(*this);
+				return temp;
+			}
+			constexpr event_iterator &operator++() noexcept
+			{
+				++iter;
+				return *this;
+			}
+			constexpr event_iterator &operator+=(difference_type n) noexcept
+			{
+				iter += n;
+				return *this;
+			}
+			constexpr event_iterator operator--(int) noexcept
+			{
+				auto temp = *this;
+				--(*this);
+				return temp;
+			}
+			constexpr event_iterator &operator--() noexcept
+			{
+				--iter;
+				return *this;
+			}
+			constexpr event_iterator &operator-=(difference_type n) noexcept
+			{
+				iter -= n;
+				return *this;
+			}
+
+			constexpr event_iterator operator+(difference_type n) const noexcept { return event_iterator{iter + n}; }
+			constexpr event_iterator operator-(difference_type n) const noexcept { return event_iterator{iter - n}; }
+			constexpr difference_type operator-(const event_iterator &other) const noexcept { return iter - other.i; }
+
+			/** Returns pointer to the target element. */
+			[[nodiscard]] constexpr pointer get() const noexcept { return &iter->callback; }
+			/** @copydoc value */
+			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
+
+			/** Returns reference to the element at an offset. */
+			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return iter[n].callback; }
+			/** Returns reference to the target element. */
+			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
+
+			[[nodiscard]] constexpr auto operator<=>(const event_iterator &) const noexcept = default;
+			[[nodiscard]] constexpr bool operator==(const event_iterator &) const noexcept = default;
+
+			friend constexpr void swap(event_iterator &a, event_iterator &b) noexcept
+			{
+				using std::swap;
+				swap(a.i, b.i);
+			}
+
+		private:
+			iter_t iter;
+		};
+
 	public:
-		typedef typename data_t::const_iterator iterator;
-		typedef typename data_t::const_iterator const_iterator;
-		typedef typename data_t::const_reverse_iterator reverse_iterator;
-		typedef typename data_t::const_reverse_iterator const_reverse_iterator;
-		typedef typename data_t::allocator_type allocator_type;
-		typedef typename data_t::size_type size_type;
-		typedef typename data_t::difference_type difference_type;
+		typedef event_iterator iterator;
+		typedef event_iterator const_iterator;
+		typedef std::reverse_iterator<event_iterator> reverse_iterator;
+		typedef std::reverse_iterator<event_iterator> const_reverse_iterator;
+		typedef typename sub_data_t::allocator_type allocator_type;
+		typedef typename sub_data_t::size_type size_type;
+		typedef typename iterator::difference_type difference_type;
+		typedef typename id_data_t::allocator_type id_allocator_type;
+
+	private:
+		constexpr static auto placeholder = std::numeric_limits<event_id>::max();
 
 	public:
 		/** Initializes an empty event. */
-		constexpr basic_event() noexcept(noexcept(data_t{})) = default;
+		constexpr basic_event() noexcept(noexcept(sub_data_t{}) &&noexcept(id_data_t{})) = default;
 
 		/** Initializes an empty event.
-		 * @param alloc Allocator used to initialize internal state. */
-		constexpr explicit basic_event(const allocator_type &alloc) : data(alloc) {}
+		 * @param sub_alloc Allocator used to initialize internal subscriber storage. */
+		constexpr explicit basic_event(const allocator_type &sub_alloc, const id_allocator_type &id_alloc = id_allocator_type{})
+			: sub_data(sub_alloc), id_data(id_alloc)
+		{
+		}
 		/** Initializes event with a set of delegates.
 		 * @param init_list Initializer list containing delegates of the event.
-		 * @param alloc Allocator used to initialize internal state. */
-		constexpr basic_event(std::initializer_list<delegate<R(Args...)>> init_list, const allocator_type &alloc = alloc_t{})
-			: data(init_list, alloc)
+		 * @param sub_alloc Allocator used to initialize internal subscriber storage.
+		 * @param id_alloc Allocator used to initialize internal id storage. */
+		constexpr basic_event(std::initializer_list<delegate<R(Args...)>> init_list,
+							  const allocator_type &sub_alloc = allocator_type{},
+							  const id_allocator_type &id_alloc = id_allocator_type{})
+			: sub_data(init_list, sub_alloc), id_data(id_alloc)
 		{
 		}
 
-		/** Checks if the event is empty (has no listeners). */
-		[[nodiscard]] constexpr bool empty() const noexcept { return data.empty(); }
-		/** Returns amount of listeners bound to this event. */
-		[[nodiscard]] constexpr size_type size() const noexcept { return data.size(); }
+		/** Checks if the event is empty (has no subscribers). */
+		[[nodiscard]] constexpr bool empty() const noexcept { return sub_data.empty(); }
+		/** Returns amount of subscribers bound to this event. */
+		[[nodiscard]] constexpr size_type size() const noexcept { return sub_data.size(); }
 
-		/** Returns iterator to the fist listener of the event. */
-		[[nodiscard]] constexpr const_iterator begin() const noexcept { return data.begin(); }
+		/** Returns iterator to the fist subscriber of the event. */
+		[[nodiscard]] constexpr const_iterator begin() const noexcept { return sub_data.begin(); }
 		/** @copydoc begin */
-		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return data.cbegin(); }
-		/** Returns iterator one past the last listener of the event. */
-		[[nodiscard]] constexpr const_iterator end() const noexcept { return data.end(); }
+		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return sub_data.cbegin(); }
+		/** Returns iterator one past the last subscriber of the event. */
+		[[nodiscard]] constexpr const_iterator end() const noexcept { return sub_data.end(); }
 		/** @copydoc end */
-		[[nodiscard]] constexpr const_iterator cend() const noexcept { return data.cend(); }
-		/** Returns reverse iterator one past the last listener of the event. */
-		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return data.rbegin(); }
+		[[nodiscard]] constexpr const_iterator cend() const noexcept { return sub_data.cend(); }
+		/** Returns reverse iterator one past the last subscriber of the event. */
+		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return sub_data.rbegin(); }
 		/** @copydoc rbegin */
-		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return data.crbegin(); }
-		/** Returns reverse iterator to the first listener of the event. */
-		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return data.rend(); }
+		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return sub_data.crbegin(); }
+		/** Returns reverse iterator to the first subscriber of the event. */
+		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return sub_data.rend(); }
 		/** @copydoc rend */
-		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return data.crend(); }
+		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return sub_data.crend(); }
 
-		/** Adds a listener delegate to the event at the specified position.
-		 * @param where Position within the event's set of listeners at which to add the new listener.
-		 * @param listener Delegate used to listen on the event.
-		 * @return Reference to this event. */
-		constexpr basic_event &listen(const_iterator where, delegate<delegate<R(Args...)>> listener)
+		/** Adds a subscriber delegate to the event at the specified position and returns it's subscription id.
+		 * @param where Position within the event's set of subscribers at which to add the new subscriber.
+		 * @param subscriber Delegate used to subscribe on the event.
+		 * @return Id of the subscription. */
+		[[nodiscard]] constexpr event_id subscribe(const_iterator where, delegate<delegate<R(Args...)>> subscriber)
 		{
-			data.insert(where, listener);
-			return *this;
+			return generate_id(sub_data.insert(where, subscriber));
 		}
-		/** Adds a listener delegate to the event.
-		 * @param listener Delegate used to listen on the event.
-		 * @return Reference to this event.
-		 * @note Listener is added to the end of the event. */
-		constexpr basic_event &listen(delegate<delegate<R(Args...)>> listener)
+		/** Adds a subscriber delegate to the event and returns it's subscription id.
+		 * @param subscriber Delegate used to subscribe on the event.
+		 * @return Subscription handle of the subscriber.
+		 * @return Id of the subscription. */
+		[[nodiscard]] constexpr event_id subscribe(delegate<delegate<R(Args...)>> subscriber)
 		{
-			data.push_back(listener);
-			return *this;
+			return subscribe(end(), subscriber);
 		}
-		/** @copydoc listen */
-		constexpr basic_event &operator+=(delegate<delegate<R(Args...)>> listener) { return listen(listener); }
+		/** @copydoc subscribe */
+		constexpr event_id operator+=(delegate<delegate<R(Args...)>> subscriber) { return subscribe(subscriber); }
 
-		/** Adds a listener delegate to the event at the specified position and returns it's connection.
-		 * @param where Position within the event's set of listeners at which to add the new listener.
-		 * @param listener Delegate used to listen on the event.
-		 * @return RAII connection used to manage the listener. */
-		[[nodiscard]] constexpr event_connection connect(const_iterator where, delegate<delegate<R(Args...)>> listener)
+		/** Removes a subscriber delegate pointed to by the specified iterator from the event.
+		 * @param where Iterator pointing to the subscriber to be removed from the event.
+		 * @return True if the subscriber was unsubscribed, false otherwise. */
+		constexpr bool unsubscribe(const_iterator where)
 		{
-			listen(where, listener);
-			return detail::connect_event(this, listener);
-		}
-		/** Adds a listener delegate to the event and returns it's connection.
-		 * @param listener Delegate used to listen on the event.
-		 * @return RAII connection used to manage the listener.
-		 * @note Listener is added to the end of the event. */
-		[[nodiscard]] constexpr event_connection connect(delegate<delegate<R(Args...)>> listener)
-		{
-			listen(listener);
-			return detail::connect_event(this, listener);
-		}
-
-		/** Removes a listener delegate pointed to by the specified iterator from the event.
-		 * @param where Iterator pointing to the listener to be removed from the event.
-		 * @return True if the listener was disconnected, false otherwise. */
-		constexpr bool disconnect(const_iterator where)
-		{
-			if (where != data.end()) [[likely]]
+			if (where != sub_data.end()) [[likely]]
 			{
-				data.erase(where);
+				const auto pos = static_cast<size_type>(std::distance(begin(), where));
+				const auto old_id = sub_data[pos].id;
+
+				/* Release id of the subscriber & add it to the re-use list. */
+				id_data[old_id] = next_id;
+				next_id = static_cast<event_id>(old_id);
+
+				/* Swap & pop the subscriber, updating the replacement one's id. */
+				auto &replacement = (sub_data[pos] = std::move(sub_data.back()));
+				id_data[replacement.id] = static_cast<event_id>(pos);
+				sub_data.pop_back();
 				return true;
 			}
 			else
 				return false;
 		}
-		/** Removes a listener delegate from the event.
-		 * @param listener Delegate to remove from the event.
-		 * @return True if the listener was disconnected, false otherwise. */
-		constexpr bool disconnect(delegate<delegate<R(Args...)>> listener)
+		/** Removes a subscriber delegate from the event.
+		 * @param subscriber Delegate to remove from the event.
+		 * @return True if the subscriber was unsubscribed, false otherwise. */
+		constexpr bool unsubscribe(delegate<delegate<R(Args...)>> subscriber)
 		{
-			return disconnect(std::find(data.begin(), data.end(), listener));
+			return unsubscribe(std::find(begin(), end(), subscriber));
 		}
-		/** Removes a listener delegate from the event.
-		 * @param connection Connection of the listener to this event.
-		 * @return True if the listener was disconnected, false otherwise. */
-		constexpr bool disconnect(event_connection &connection) { return detail::disconnect_event(this, connection); }
+		/** Removes a subscriber delegate from the event.
+		 * @param sub_id Id of the event's subscription.
+		 * @return True if the subscriber was unsubscribed, false otherwise. */
+		constexpr bool unsubscribe(event_id sub_id)
+		{
+			SEK_ASSERT(sub_id < id_data.size());
+			return unsubscribe(begin() + id_data[sub_id]);
+		}
 
-		/** Invokes listeners of the event with the passed arguments.
-		 *
-		 * @param args Arguments passed to the listener delegates.
+		/** Invokes subscribers of the event with the passed arguments.
+		 * @param args Arguments passed to the subscriber delegates.
 		 * @return Reference to this event. */
 		constexpr basic_event &dispatch(Args... args) const
 		{
-			for (auto &listener : data) listener(std::forward<Args>(args)...);
+			for (auto &subscriber : sub_data) subscriber(std::forward<Args>(args)...);
 			return *this;
 		}
 		/** @copydoc dispatch */
 		constexpr basic_event &operator()(Args... args) const { return dispatch(std::forward<Args>(args)...); }
-		/** Invokes listeners of the event with the passed arguments and collects the results using a callback.
+		/** Invokes subscribers of the event with the passed arguments and collects the results using a callback.
 		 *
-		 * @param col Collector callback receiving results of listener calls.
-		 * @param args Arguments passed to the listener delegates.
+		 * @param col Collector callback receiving results of subscriber calls.
+		 * @param args Arguments passed to the subscriber delegates.
 		 * @return Reference to this event.
 		 *
 		 * @note Collector may return a boolean indicating whether to continue execution of delegates. */
@@ -241,30 +261,30 @@ namespace sek
 		constexpr basic_event &dispatch(F &&col, Args... args) const
 			requires valid_collector<F>
 		{
-			for (auto &listener : data)
+			for (auto &subscriber : sub_data)
 			{
 				// clang-format off
-				if constexpr (requires { { listener(std::forward<Args>(args)...) } -> std::same_as<bool>; })
+				if constexpr (requires { { col(subscriber(std::forward<Args>(args)...)) } -> std::same_as<bool>; })
 				{
-					if (!listener(std::forward<Args>(args)...))
+					if (!col(subscriber(std::forward<Args>(args)...)))
 						break;
 				}
 				else
-					listener(std::forward<Args>(args)...);
+					col(subscriber(std::forward<Args>(args)...));
 				// clang-format on
 			}
 			return *this;
 		}
 
-		/** Returns iterator to the listener delegate that compares equal to the provided delegate or the end
-		 * iterator if such listener is not found. */
-		[[nodiscard]] constexpr iterator find(delegate<delegate<R(Args...)>> listener) const noexcept
+		/** Returns iterator to the subscriber delegate that compares equal to the provided delegate or the end
+		 * iterator if such subscriber is not found. */
+		[[nodiscard]] constexpr iterator find(delegate<delegate<R(Args...)>> subscriber) const noexcept
 		{
-			return std::find(begin(), end(), listener);
+			return std::find(begin(), end(), subscriber);
 		}
 
-		/** Returns iterator to the listener delegate bound to the specified data instance, or an end iterator
-		 * if such listener is not found. */
+		/** Returns iterator to the subscriber delegate bound to the specified data instance, or an end iterator
+		 * if such subscriber is not found. */
 		template<typename T>
 		[[nodiscard]] constexpr iterator find(T *value) const noexcept
 		{
@@ -278,8 +298,8 @@ namespace sek
 		}
 
 		// clang-format off
-		/** Returns iterator to the listener delegate bound to the specified member or free function or an end iterator
-		 * if such listener is not found. */
+		/** Returns iterator to the subscriber delegate bound to the specified member or free function or an end iterator
+		 * if such subscriber is not found. */
 		template<auto F>
 		[[nodiscard]] constexpr iterator find() const noexcept
 			requires(requires{ delegate{func_t<F>{}}; })
@@ -293,8 +313,8 @@ namespace sek
 		{
 			return find<F>();
 		}
-		/** Returns iterator to the listener delegate bound to the specified member or free function and the specified
-		 * data instance, or an end iterator if such listener is not found. */
+		/** Returns iterator to the subscriber delegate bound to the specified member or free function and the specified
+		 * data instance, or an end iterator if such subscriber is not found. */
 		template<auto F, typename T>
 		[[nodiscard]] constexpr iterator find(T *value) const noexcept
 			requires(requires{ delegate{func_t<F>{}, value}; })
@@ -327,22 +347,47 @@ namespace sek
 		constexpr void swap(basic_event &other) noexcept
 		{
 			using std::swap;
-			swap(data, other.data);
+			swap(sub_data, other.sub_data);
 		}
 		friend constexpr void swap(basic_event &a, basic_event &b) noexcept { a.swap(b); }
 
 	private:
-		data_t data;
+		constexpr event_id generate_id(difference_type pos)
+		{
+			if (pos >= id_data.size()) [[unlikely]]
+				id_data.resize(pos * 2, placeholder);
+
+			/* If there already is an id we can re-use, use that id. */
+			if (next_id != placeholder)
+			{
+				const auto id = next_id;
+				auto id_iter = id_data.begin() + id;
+
+				next_id = *id_iter;
+				*id_iter = pos;
+				return sub_data[pos].id = static_cast<event_id>(id);
+			}
+
+			/* Otherwise, generate new id starting at subscriber position. */
+			for (auto id_iter = id_data.begin() + pos; id_iter != id_data.end(); ++id_iter)
+				if (*id_iter == placeholder)
+				{
+					*id_iter = pos;
+					return sub_data[pos].id = static_cast<event_id>(std::distance(id_data.begin(), id_iter));
+				}
+		}
+
+		id_data_t id_data;
+		sub_data_t sub_data;
+		event_id next_id = placeholder;
 	};
 
 	namespace detail
 	{
 		template<typename...>
-		class event_alloc
-		{
-		};
-		template<typename R, typename Alloc, typename... Args>
-		class event_alloc<R(Args...), Alloc>
+		class event_alloc;
+		template<typename R, typename... Args>
+		class event_alloc<R(Args...)>
 		{
 			using type = std::allocator<delegate<R(Args...)>>;
 		};
