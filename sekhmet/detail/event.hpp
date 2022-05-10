@@ -331,7 +331,7 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] constexpr iterator find(T *value) const noexcept
 		{
-			return std::find_if(begin(), end(), [value](auto &l) { l.data() == value; });
+			return std::find_if(begin(), end(), [value](auto &l) { return l.data() == value; });
 		}
 		/** @copydoc find */
 		template<typename T>
@@ -390,7 +390,9 @@ namespace sek
 		constexpr void swap(basic_event &other) noexcept
 		{
 			using std::swap;
+			swap(id_data, other.id_data);
 			swap(sub_data, other.sub_data);
+			swap(next_id, other.next_id);
 		}
 		friend constexpr void swap(basic_event &a, basic_event &b) noexcept { a.swap(b); }
 

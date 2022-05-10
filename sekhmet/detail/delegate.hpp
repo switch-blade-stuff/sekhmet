@@ -134,7 +134,7 @@ namespace sek
 		/** Binds a free function pointer to the delegate. */
 		constexpr delegate &assign(R (*f)(Args...))  noexcept
 		{
-			proxy = +[](const void *p, Args &&...args) { return std::bit_cast<R (*)(Args...)>(p)(std::forward<Args>(args)...); };
+			proxy = +[](const void *p, Args ...args) { return std::bit_cast<R (*)(Args...)>(p)(std::forward<Args>(args)...); };
 			data_ptr = std::bit_cast<const void *>(f);
 			return *this;
 		}
@@ -296,7 +296,7 @@ namespace sek
 		friend constexpr void swap(delegate &a, delegate &b) noexcept { a.swap(b); }
 
 	private:
-		R (*proxy)(const void *, Args &&...) = nullptr;
+		R (*proxy)(const void *, Args...) = nullptr;
 		/* Optional. No mutable version, const_cast is used instead. */
 		const void *data_ptr = nullptr;
 	};

@@ -165,6 +165,8 @@ TEST(utility_tests, logger_test)
 		auto output = ss.str();
 		EXPECT_NE(output.find(log_msg), std::string::npos);
 		EXPECT_NE(output.find("Message"), std::string::npos);
+
+		EXPECT_TRUE(sek::logger::msg() -= ss);
 	}
 	{
 		constexpr auto log_msg = "Test log warning";
@@ -174,6 +176,8 @@ TEST(utility_tests, logger_test)
 		auto output = ss.str();
 		EXPECT_NE(output.find(log_msg), std::string::npos);
 		EXPECT_NE(output.find("Warning"), std::string::npos);
+
+		EXPECT_TRUE(sek::logger::warn() -= ss);
 	}
 	{
 		constexpr auto log_msg = "Test log error";
@@ -183,6 +187,8 @@ TEST(utility_tests, logger_test)
 		auto output = ss.str();
 		EXPECT_NE(output.find(log_msg), std::string::npos);
 		EXPECT_NE(output.find("Error"), std::string::npos);
+
+		EXPECT_TRUE(sek::logger::error() -= ss);
 	}
 }
 

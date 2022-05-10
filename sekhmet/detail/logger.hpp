@@ -6,10 +6,10 @@
 
 #include <atomic>
 #include <ctime>
-#include <functional>
 #include <vector>
 
 #include "define.h"
+#include "event.hpp"
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <fmt/xchar.h>
@@ -138,41 +138,48 @@ namespace sek
 			sync_busy([&]() { category_str = cat; });
 		}
 
-		/** Constructs a listener in-place. */
-		template<detail::log_listener<C, T> S, typename... Args>
-		basic_logger &listen(std::in_place_type_t<S>, Args &&...args)
+		/** Adds a listener object to the logger.
+		 * @param listener Reference to the stream-like listener object.
+		 * @return Reference to this stream. */
+		template<detail::log_listener<C, T> L>
+		basic_logger &listen(L &listener)
 		{
-			sync_busy(
-				[&]()
-				{
-					/* Lambda must be mutable, since the listener is allocated in-place. */
-					listeners.emplace_back([s = S{std::forward<Args>(args)...}](sv_t msg) mutable { write(s, msg); });
-				});
-			return *this;
-		}
-		/** Adds a listener stream to the logger. */
-		template<detail::log_listener<C, T> S>
-		basic_logger &listen(S &s)
-		{
-			sync_busy([&]() { listeners.template emplace_back([sp = &s](sv_t msg) { write(*sp, msg); }); });
+			sync_busy([&]() { log_event += delegate{+[](L *lp, sv_t msg) { write(*lp, msg); }, &listener}; });
 			return *this;
 		}
 		/** @copydoc listen */
-		template<detail::log_listener<C, T> S>
-		basic_logger &operator+=(S &s)
+		template<detail::log_listener<C, T> L>
+		basic_logger &operator+=(L &listener)
 		{
-			return listen(s);
+			return listen(listener);
+		}
+
+		/** Removes (silences) a listener associated with this logger.
+		 * @param listener Reference to a previously added listener.
+		 * @return True if the listener was removed, false otherwise. */
+		template<detail::log_listener<C, T> L>
+		bool silence(L &listener)
+		{
+			bool res = false;
+			sync_busy(
+				[&]()
+				{
+					auto log_iter = log_event.find(&listener);
+					if ((res = log_iter != log_event.end())) log_event.unsubscribe(log_iter);
+				});
+			return res;
+		}
+		/** @copydoc silence */
+		template<detail::log_listener<C, T> L>
+		bool operator-=(L &listener)
+		{
+			return silence(listener);
 		}
 
 		/** Logs the provided message. */
 		basic_logger &log(std::basic_string_view<value_type, traits_type> msg)
 		{
-			sync_busy(
-				[&]()
-				{
-					const auto final_msg = format_func(category_str, msg);
-					for (auto &listener : listeners) listener(final_msg);
-				});
+			sync_busy([&]() { log_event(format_func(category_str, msg)); });
 			return *this;
 		}
 		/** @copydoc log */
@@ -182,9 +189,11 @@ namespace sek
 		{
 			using std::swap;
 			swap(format_func, other.format_func);
-			swap(listeners, other.listeners);
+			swap(log_event, other.log_event);
 			swap(category_str, other.category_str);
 		}
+
+		friend constexpr void swap(basic_logger &a, basic_logger &b) noexcept { a.swap(b); }
 
 	private:
 		void sync_busy(auto &&f)
@@ -202,10 +211,9 @@ namespace sek
 			busy.notify_one();
 		}
 
-		std::function<str_t(sv_t, sv_t)> format_func = default_format;
-		std::vector<std::function<void(sv_t)>> listeners;
+		delegate<str_t(sv_t, sv_t)> format_func = default_format;
+		event<void(sv_t)> log_event;
 		str_t category_str = msg_cat;
-
 		std::atomic_flag busy;
 	};
 
