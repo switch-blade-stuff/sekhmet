@@ -271,6 +271,16 @@ namespace sek
 		{
 		}
 
+		// clang-format off
+		/** @copydoc basic_interned_string */
+		template<typename S, typename A>
+		constexpr basic_interned_string(pool_type<A> &pool, const S &str)
+			requires std::is_convertible_v<S, std::basic_string_view<C, Traits>>
+			: basic_interned_string(pool, std::basic_string_view<C, Traits>{str})
+		{
+		}
+		// clang-format on
+
 		/** Interns the passed string using the global pool. */
 		constexpr basic_interned_string(std::basic_string_view<C, Traits> sv) : basic_interned_string(global_pool(), sv)
 		{
@@ -282,6 +292,16 @@ namespace sek
 			: basic_interned_string(std::basic_string_view<C, Traits>{str, n})
 		{
 		}
+
+		// clang-format off
+		/** @copydoc basic_interned_string */
+		template<typename S, typename A>
+		constexpr basic_interned_string(const S &str)
+			requires std::is_convertible_v<S, std::basic_string_view<C, Traits>>
+			: basic_interned_string(std::basic_string_view<C, Traits>{str})
+		{
+		}
+		// clang-format on
 
 		/** Returns iterator to the start of the string. */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return iterator{data()}; }

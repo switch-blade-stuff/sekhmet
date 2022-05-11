@@ -229,4 +229,10 @@ TEST(container_tests, intern_test)
 	std::string copy = is1;
 	EXPECT_EQ(is1, copy);
 	EXPECT_NE(is1.data(), copy.data());
+
+	is2 = sek::interned_string{pool, copy};
+	EXPECT_EQ(is2, copy);
+	EXPECT_NE(is2.data(), copy.data());
+	EXPECT_EQ(is2, is1);
+	EXPECT_EQ(is2.data(), is1.data());
 }
