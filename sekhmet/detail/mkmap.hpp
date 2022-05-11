@@ -957,10 +957,7 @@ namespace sek
 			/** Removes the specified element from the map.
 			 * @param where Iterator to the target element.
 			 * @return Iterator to the element after the erased one. */
-			constexpr iterator erase(const_iterator where)
-			{
-				return erase_impl<0>(where.entry().template hash<0>(), get_key<0>(*where.get()));
-			}
+			constexpr iterator erase(const_iterator where) { return erase_impl(entries.begin() + (where - cbegin())); }
 			/** Removes all elements in the [first, last) range.
 			 * @param first Iterator to the first element of the target range.
 			 * @param last Iterator to the last element of the target range.
@@ -980,7 +977,7 @@ namespace sek
 			{
 				if (auto target = find<I>(key); target != end())
 				{
-					erase_impl<I>(target.entry().template hash<I>(), key);
+					erase(target);
 					return true;
 				}
 				else
@@ -1175,15 +1172,15 @@ namespace sek
 						const auto h = key_hash<I>(key);
 						auto *chain_idx = get_chain<I>(h);
 						while (*chain_idx != npos)
-							if (auto &existing = entries[*chain_idx];
-								existing.template hash<I>() == h && key_comp<I>(key, existing.template key<I>()))
+							if (auto existing_iter = entries.begin() + *chain_idx;
+								existing_iter->template hash<I>() == h && key_comp<I>(key, existing_iter->template key<I>()))
 							{
-								erase_impl<I>(h, key);
+								erase_impl(existing_iter);
 								++erase_count;
 								break;
 							}
 							else
-								chain_idx = &existing.template next<I>();
+								chain_idx = &existing_iter->template next<I>();
 					});
 
 				return {insert_new(std::forward<T>(value)), erase_count};
@@ -1273,31 +1270,22 @@ namespace sek
 				}
 			}
 
-			template<size_type I>
-			constexpr iterator erase_impl(hash_t h, const key_type<I> &key)
+			constexpr iterator erase_impl(typename dense_data_t::iterator where)
 			{
-				/* Remove the entry from it's chain. */
-				for (auto *chain_idx = get_chain<I>(h); *chain_idx != npos;)
+				/* Un-link the entry from the chain & swap with the last entry. */
+				const auto pos = static_cast<size_type>(where - entries.begin());
+				remove_entry(*where, pos);
+				if (pos != size() - 1)
 				{
-					const auto pos = *chain_idx;
-					auto entry_iter = entries.begin() + static_cast<difference_type>(pos);
-
-					/* Un-link the entry from the chain & swap with the last entry. */
-					if (entry_iter->template hash<I>() == h && key_comp<I>(key, entry_iter->template key<I>()))
-					{
-						remove_entry(*entry_iter, pos);
-						if constexpr (std::is_move_assignable_v<entry_type>)
-							*entry_iter = std::move(entries.back());
-						else
-							entry_iter->swap(entries.back());
-
-						entries.pop_back();
-						move_entry(*entry_iter, size(), pos); /* Since we popped the back entry, size will be the index of the old back. */
-						return iterator{entry_iter};
-					}
-					chain_idx = &entry_iter->template next<I>();
+					if constexpr (std::is_move_assignable_v<entry_type>)
+						*where = std::move(entries.back());
+					else
+						where->swap(entries.back());
+					move_entry(*where, size() - 1, pos);
 				}
-				return end();
+
+				entries.pop_back();
+				return iterator{where};
 			}
 
 			dense_data_t entries;
