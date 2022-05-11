@@ -95,7 +95,7 @@ namespace sek::detail
 
 			/* Offset of the next bucket in the dense array. */
 			size_type next = npos;
-			/* Hash of the key. Cached by the bucket to avoid re-calculating hashes & allow for approximate comparison. */
+			/* Hash of the key. Cached by the entry to avoid re-calculating hashes & allow for approximate comparison. */
 			hash_t hash;
 		};
 
