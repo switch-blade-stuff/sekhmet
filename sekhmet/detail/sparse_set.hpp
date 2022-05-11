@@ -134,7 +134,7 @@ namespace sek
 							 const KeyHash &key_hash = {},
 							 const allocator_type &value_alloc = allocator_type{},
 							 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: sparse_set(0, key_compare, key_hash, value_alloc, bucket_alloc)
+			: sparse_set(key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 			insert(first, last);
 		}
@@ -346,7 +346,7 @@ namespace sek
 			return insert(init_list.begin(), init_list.end());
 		}
 
-		/** Removes the specified elements from the set.
+		/** Removes the specified element from the set.
 		 * @param where Iterator to the target element.
 		 * @return Iterator to the element after the erased one. */
 		constexpr iterator erase(const_iterator where) { return data_table.erase(where); }

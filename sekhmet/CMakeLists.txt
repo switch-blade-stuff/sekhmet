@@ -11,6 +11,10 @@ target_sources(${PROJECT_NAME} INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/static_string.hpp
         ${CMAKE_CURRENT_LIST_DIR}/sparse_map.hpp
         ${CMAKE_CURRENT_LIST_DIR}/sparse_set.hpp
+        ${CMAKE_CURRENT_LIST_DIR}/dense_map.hpp
+        ${CMAKE_CURRENT_LIST_DIR}/dense_set.hpp
+        ${CMAKE_CURRENT_LIST_DIR}/mkmap.hpp
+        ${CMAKE_CURRENT_LIST_DIR}/intern.hpp
         ${CMAKE_CURRENT_LIST_DIR}/logger.hpp
         ${CMAKE_CURRENT_LIST_DIR}/thread_pool.hpp
         ${CMAKE_CURRENT_LIST_DIR}/type_id.hpp

@@ -160,7 +160,8 @@ namespace sek
 
 	template<typename T>
 	[[nodiscard]] constexpr hash_t hash(const T &v) noexcept
-		requires(requires { std::hash<T>{}(v); })
+		requires(!std::integral<T> && !pointer_like<T> && !std::is_pointer_v<T> && !std::same_as<T, std::nullptr_t> &&
+				 !std::ranges::forward_range<T> && requires { std::hash<T>{}(v); })
 	{
 		return std::hash<T>{}(v);
 	}
@@ -169,11 +170,6 @@ namespace sek
 	 * If such function is not available, uses `std::hash`. */
 	struct default_hash
 	{
-		template<math::arithmetic T>
-		[[nodiscard]] constexpr hash_t operator()(T value) const noexcept
-		{
-			return hash(value);
-		}
 		template<typename T>
 		[[nodiscard]] constexpr hash_t operator()(const T &value) const noexcept
 		{

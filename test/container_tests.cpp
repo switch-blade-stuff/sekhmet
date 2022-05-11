@@ -148,8 +148,7 @@ TEST(container_tests, dense_map_test)
 
 	auto item = m1.find("2");
 	EXPECT_NE(item, m1.end());
-	EXPECT_EQ((*item <=> std::pair<const std::string, float>{"2", std::numbers::pi_v<float>}),
-			  std::weak_ordering::equivalent);
+	EXPECT_EQ((*item <=> std::pair<const std::string, float>{"2", std::numbers::pi_v<float>}), std::weak_ordering::equivalent);
 	EXPECT_EQ(m1.find("1"), m1.end());
 
 	sek::dense_map<std::string, int> m2;
@@ -235,4 +234,46 @@ TEST(container_tests, intern_test)
 	EXPECT_NE(is2.data(), copy.data());
 	EXPECT_EQ(is2, is1);
 	EXPECT_EQ(is2.data(), is1.data());
+}
+
+#include "sekhmet/mkmap.hpp"
+
+using multikey_t = sek::multikey<sek::key_t<std::string>, sek::key_t<int>>;
+template class sek::detail::mkmap_impl<multikey_t, float, std::allocator<sek::mkmap_value_t<multikey_t, float>>>;
+
+TEST(container_tests, mkmap_test)
+{
+	sek::mkmap<multikey_t, float> m1 = {
+		{multikey_t{"0", 0}, 9.9f},
+		{multikey_t{"1", 1}, 7.6f},
+		{multikey_t{"2", 2}, std::numbers::pi_v<float>},
+		{multikey_t{"3", 3}, 0.f},
+		{multikey_t{"4", 4}, 0.f},
+		{multikey_t{"5", 5}, 0.f},
+		{multikey_t{"6", 6}, 0.f},
+		{multikey_t{"7", 7}, 0.f},
+	};
+
+	EXPECT_TRUE(m1.contains(std::string{"7"}));
+	EXPECT_TRUE(m1.contains<0>("7"));
+	EXPECT_TRUE(m1.contains<1>(7));
+	EXPECT_FALSE(m1.contains(std::string{"8"}));
+	EXPECT_FALSE(m1.contains<0>("8"));
+	EXPECT_FALSE(m1.contains<1>(8));
+
+	EXPECT_EQ(m1.find<0>("7"), m1.find<1>(7));
+	EXPECT_EQ(m1.find(std::string{"7"}), m1.find<1>(7));
+	EXPECT_NE(m1.find<0>("6"), m1.find<1>(7));
+	EXPECT_NE(m1.find(std::string{"6"}), m1.find<1>(7));
+	EXPECT_EQ(m1.size(), 8);
+
+	m1.erase<0>("0");
+	m1.erase<0>("1");
+	EXPECT_EQ(m1.size(), 6);
+
+	auto item = m1.find<0>("2");
+	EXPECT_NE(item, m1.end());
+	EXPECT_EQ((*item <=> sek::mkmap_value_t<multikey_t, float>{multikey_t{"2", 2}, std::numbers::pi_v<float>}),
+			  std::weak_ordering::equivalent);
+	EXPECT_EQ(m1.find<0>("1"), m1.end());
 }

@@ -174,7 +174,8 @@ namespace sek
 		/** Constructs a map with the specified allocators.
 		 * @param value_alloc Allocator used to allocate map's value array.
 		 * @param bucket_alloc Allocator used to allocate map's bucket array. */
-		constexpr explicit dense_map(const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
+		constexpr explicit dense_map(const allocator_type &value_alloc,
+									 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: dense_map(key_equal{}, hash_type{}, value_alloc, bucket_alloc)
 		{
 		}
@@ -247,7 +248,7 @@ namespace sek
 							const hash_type &key_hash = {},
 							const allocator_type &value_alloc = allocator_type{},
 							const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: dense_map(0, key_compare, key_hash, value_alloc, bucket_alloc)
+			: dense_map(key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 			insert(first, last);
 		}
@@ -342,13 +343,13 @@ namespace sek
 		/** @copydoc cend */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
 
-		/** Returns reverse iterator to the start of the map. */
-		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return data_table.rbegin(); }
 		/** Returns reverse iterator to the end of the map. */
+		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return data_table.rbegin(); }
+		/** Returns reverse iterator to the start of the map. */
 		[[nodiscard]] constexpr reverse_iterator rend() noexcept { return data_table.rend(); }
-		/** Returns const reverse iterator to the start of the map. */
-		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return data_table.crbegin(); }
 		/** Returns const reverse iterator to the end of the map. */
+		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return data_table.crbegin(); }
+		/** Returns const reverse iterator to the start of the map. */
 		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return data_table.crend(); }
 		/** @copydoc crbegin */
 		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return crbegin(); }
@@ -396,9 +397,7 @@ namespace sek
 		{
 			return try_emplace(key, mapped_type{}).first->second;
 		}
-		/** Returns reference to object at the specific key or inserts a new value if it does not exist.
-		 * @param key Key to search for.
-		 * @return Reference to the object mapped to key. */
+		/** @copydoc operator[] */
 		constexpr mapped_type &operator[](key_type &&key) noexcept
 		{
 			return try_emplace(std::forward<key_type>(key), mapped_type{}).first->second;
@@ -528,7 +527,7 @@ namespace sek
 			return insert(init_list.begin(), init_list.end());
 		}
 
-		/** Removes the specified elements from the map.
+		/** Removes the specified element from the map.
 		 * @param where Iterator to the target element.
 		 * @return Iterator to the element after the erased one. */
 		constexpr iterator erase(const_iterator where) { return data_table.erase(where); }

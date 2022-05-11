@@ -59,7 +59,7 @@ namespace sek::detail
 		using sparse_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<size_type>;
 		using sparse_data_t = std::vector<size_type, sparse_alloc>;
 
-		constexpr static decltype(auto) key_get(const auto &v) { return KeyExtract{}(v); }
+		constexpr static decltype(auto) get_key(const auto &v) { return KeyExtract{}(v); }
 
 		constexpr static float initial_load_factor = .875f;
 		constexpr static size_type initial_capacity = 8;
@@ -83,7 +83,7 @@ namespace sek::detail
 
 			[[nodiscard]] constexpr value_type &value() noexcept { return *ebo_base::get(); }
 			[[nodiscard]] constexpr const value_type &value() const noexcept { return *ebo_base::get(); }
-			[[nodiscard]] constexpr decltype(auto) key() const noexcept { return key_get(value()); }
+			[[nodiscard]] constexpr decltype(auto) key() const noexcept { return get_key(value()); }
 
 			constexpr void swap(entry_type &other) noexcept(std::is_nothrow_swappable_v<ebo_base>)
 			{
@@ -244,7 +244,7 @@ namespace sek::detail
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return &i->value(); }
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{&i->value()}; }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 			/** Returns reference to the target element. */
@@ -369,15 +369,18 @@ namespace sek::detail
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return const_iterator{value_vector().cend()}; }
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
 
-		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return reverse_iterator{begin()}; }
+		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return reverse_iterator{end()}; }
 		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept
 		{
-			return const_reverse_iterator{cbegin()};
+			return const_reverse_iterator{cend()};
 		}
 		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return crbegin(); }
 
-		[[nodiscard]] constexpr reverse_iterator rend() noexcept { return reverse_iterator{end()}; }
-		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return const_reverse_iterator{cend()}; }
+		[[nodiscard]] constexpr reverse_iterator rend() noexcept { return reverse_iterator{begin()}; }
+		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept
+		{
+			return const_reverse_iterator{cbegin()};
+		}
 		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return crend(); }
 
 		[[nodiscard]] constexpr size_type size() const noexcept { return value_vector().size(); }
@@ -443,7 +446,7 @@ namespace sek::detail
 
 		constexpr void clear()
 		{
-			bucket_vector().clear();
+			std::fill_n(bucket_vector().data(), bucket_count(), npos);
 			value_vector().clear();
 		}
 
@@ -521,11 +524,11 @@ namespace sek::detail
 		}
 		constexpr std::pair<iterator, bool> insert(const value_type &value)
 		{
-			return insert_impl(key_get(value), value);
+			return insert_impl(get_key(value), value);
 		}
 		constexpr std::pair<iterator, bool> insert(value_type &&value)
 		{
-			return insert_impl(key_get(value), std::forward<value_type>(value));
+			return insert_impl(get_key(value), std::forward<value_type>(value));
 		}
 
 		template<std::forward_iterator Iter>
@@ -537,11 +540,11 @@ namespace sek::detail
 		}
 		constexpr std::pair<iterator, bool> try_insert(const value_type &value)
 		{
-			return try_insert_impl(key_get(value), value);
+			return try_insert_impl(get_key(value), value);
 		}
 		constexpr std::pair<iterator, bool> try_insert(value_type &&value)
 		{
-			return try_insert_impl(key_get(value), std::forward<value_type>(value));
+			return try_insert_impl(get_key(value), std::forward<value_type>(value));
 		}
 
 		constexpr iterator erase(const_iterator first, const_iterator last)
@@ -553,7 +556,7 @@ namespace sek::detail
 		}
 		constexpr iterator erase(const_iterator where)
 		{
-			return erase_impl(to_entry(where).hash, key_get(*where.get()));
+			return erase_impl(to_entry(where).hash, get_key(*where.get()));
 		}
 		constexpr iterator erase(const key_type &key) { return erase_impl(key_hash(key), key); }
 

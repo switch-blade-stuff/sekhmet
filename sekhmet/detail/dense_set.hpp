@@ -150,7 +150,7 @@ namespace sek
 							const KeyHash &key_hash = {},
 							const allocator_type &value_alloc = allocator_type{},
 							const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: dense_set(0, key_compare, key_hash, value_alloc, bucket_alloc)
+			: dense_set(key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 			insert(first, last);
 		}
@@ -245,13 +245,13 @@ namespace sek
 		/** @copydoc cend */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
 
-		/** Returns reverse iterator to the start of the set. */
-		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return data_table.rbegin(); }
 		/** Returns reverse iterator to the end of the set. */
+		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return data_table.rbegin(); }
+		/** Returns reverse iterator to the start of the set. */
 		[[nodiscard]] constexpr reverse_iterator rend() noexcept { return data_table.rend(); }
-		/** Returns const reverse iterator to the start of the set. */
-		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return data_table.crbegin(); }
 		/** Returns const reverse iterator to the end of the set. */
+		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return data_table.crbegin(); }
+		/** Returns const reverse iterator to the start of the set. */
 		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return data_table.crend(); }
 		/** @copydoc crbegin */
 		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return crbegin(); }
@@ -375,7 +375,7 @@ namespace sek
 			return insert(init_list.begin(), init_list.end());
 		}
 
-		/** Removes the specified elements from the set.
+		/** Removes the specified element from the set.
 		 * @param where Iterator to the target element.
 		 * @return Iterator to the element after the erased one. */
 		constexpr iterator erase(const_iterator where) { return data_table.erase(where); }
