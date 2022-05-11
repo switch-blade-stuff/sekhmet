@@ -206,3 +206,27 @@ TEST(container_tests, basic_dynarray_test)
 	da = v;
 	EXPECT_TRUE(std::equal(v.begin(), v.end(), da.begin(), da.end()));
 }
+
+#include "sekhmet/intern.hpp"
+
+TEST(container_tests, intern_test)
+{
+	constexpr auto literal = "String to intern";
+
+	sek::intern_pool pool;
+
+	sek::interned_string is1 = {pool, literal};
+	sek::interned_string is2 = pool.intern(literal);
+	sek::interned_string is3 = {literal};
+
+	EXPECT_EQ(is1, is2);
+	EXPECT_EQ(is1, is3);
+	EXPECT_EQ(is2, is3);
+	EXPECT_EQ(is1.data(), is2.data());
+	EXPECT_NE(is1.data(), is3.data());
+	EXPECT_NE(is2.data(), is3.data());
+
+	std::string copy = is1;
+	EXPECT_EQ(is1, copy);
+	EXPECT_NE(is1.data(), copy.data());
+}

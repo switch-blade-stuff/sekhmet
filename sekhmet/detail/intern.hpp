@@ -112,10 +112,13 @@ namespace sek
 		{
 			constexpr auto operator()(const value_type &s) const noexcept { return s.header->sv(); }
 		};
+		struct fnv_hash
+		{
+			constexpr hash_t operator()(const sv_t &sv) const noexcept { return fnv1a(sv.data(), sv.size()); }
+		};
 
 		using data_alloc_t = typename std::allocator_traits<Alloc>::template rebind_alloc<value_type>;
-		using data_t =
-			detail::dense_hash_table<sv_t, value_type, v_traits, default_hash, std::equal_to<>, to_sv, data_alloc_t>;
+		using data_t = detail::dense_hash_table<sv_t, value_type, v_traits, fnv_hash, std::equal_to<>, to_sv, data_alloc_t>;
 
 	public:
 		typedef const value_type &pointer;
