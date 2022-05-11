@@ -83,7 +83,7 @@ namespace sek::detail
 
 			[[nodiscard]] constexpr value_type &value() noexcept { return *ebo_base::get(); }
 			[[nodiscard]] constexpr const value_type &value() const noexcept { return *ebo_base::get(); }
-			[[nodiscard]] constexpr const key_type &key() const noexcept { return key_get(value()); }
+			[[nodiscard]] constexpr decltype(auto) key() const noexcept { return key_get(value()); }
 
 			constexpr void swap(entry_type &other) noexcept(std::is_nothrow_swappable_v<ebo_base>)
 			{
@@ -265,7 +265,7 @@ namespace sek::detail
 
 		private:
 			Iter i;
-			size_type off;
+			size_type off = 0;
 		};
 
 	public:
@@ -294,6 +294,10 @@ namespace sek::detail
 		constexpr dense_hash_table &operator=(dense_hash_table &&) = default;
 		constexpr ~dense_hash_table() = default;
 
+		constexpr explicit dense_hash_table(const value_allocator_type &value_alloc)
+			: dense_hash_table{key_equal{}, hash_type{}, value_alloc, bucket_allocator_type{}}
+		{
+		}
 		constexpr dense_hash_table(const key_equal &equal,
 								   const hash_type &hash,
 								   const value_allocator_type &value_alloc,

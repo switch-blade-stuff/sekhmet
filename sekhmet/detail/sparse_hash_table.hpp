@@ -75,8 +75,8 @@ namespace sek::detail
 		constexpr void set_empty() noexcept { data = nullptr; }
 		constexpr void set_tombstone() noexcept { data = tombstone_ptr(); }
 
-		[[nodiscard]] constexpr ValueType &value() const noexcept { return *data; }
-		[[nodiscard]] constexpr const KeyType &key() const noexcept { return KeyExtract{}(value()); }
+		[[nodiscard]] constexpr decltype(auto) value() const noexcept { return *data; }
+		[[nodiscard]] constexpr decltype(auto) key() const noexcept { return KeyExtract{}(value()); }
 
 		constexpr void swap(sparse_table_bucket &other) noexcept
 		{
@@ -270,7 +270,7 @@ namespace sek::detail
 		};
 
 	private:
-		[[nodiscard]] constexpr static const key_type &key_extract(const value_type &value) noexcept
+		[[nodiscard]] constexpr static decltype(auto) key_extract(const value_type &value) noexcept
 		{
 			return KeyExtract{}(value);
 		}

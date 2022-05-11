@@ -12,146 +12,116 @@
 #include "define.h"
 #include "dense_hash_table.hpp"
 #include "hash.hpp"
+#include "packed_pair.hpp"
 #include "string_util.hpp"
 
 namespace sek
 {
+	template<typename C, typename Traits = std::char_traits<C>>
+	class basic_interned_string;
+	template<typename C, typename Traits = std::char_traits<C>, typename Alloc = std::allocator<basic_interned_string<C, Traits>>>
+	class basic_intern_pool;
+
 	namespace detail
 	{
 		template<typename C, typename T>
 		struct intern_str_header
 		{
-			constexpr static intern_str_header *make_cb(const C *str, std::size_t n);
+			template<typename A>
+			using parent_t = basic_intern_pool<C, T, A>;
 
-			constexpr intern_str_header(const C *str, std::size_t n) noexcept : sv(static_cast<const C *>(data()), n)
+			template<typename A>
+			constexpr static intern_str_header *make_header(parent_t<A> *p, const C *s, std::size_t n)
 			{
-				*std::copy_n(str, n, static_cast<C *>(data())) = '\0';
+				auto cb = static_cast<intern_str_header *>(::operator new(sizeof(intern_str_header) + sizeof(C) * (n + 1)));
+				return std::construct_at(cb, p, s, n);
 			}
 
-			constexpr C *data() noexcept;
+			template<typename A>
+			constexpr intern_str_header(parent_t<A> *parent, const C *str, std::size_t n) noexcept
+				: parent(parent), length(n)
+			{
+				erase_func = +[](void *p, intern_str_header *h) { static_cast<parent_t<A> *>(p)->unintern(h); };
+				*std::copy_n(str, n, data()) = '\0';
+			}
+
+			[[nodiscard]] constexpr C *data() noexcept
+			{
+				return std::bit_cast<C *>(std::bit_cast<std::byte *>(this) + sizeof(intern_str_header));
+			}
+			[[nodiscard]] constexpr const C *data() const noexcept
+			{
+				return std::bit_cast<const C *>(std::bit_cast<const std::byte *>(this) + sizeof(intern_str_header));
+			}
+			[[nodiscard]] constexpr std::basic_string_view<C, T> sv() const noexcept { return {data(), length}; }
 
 			constexpr void acquire() noexcept { ref_count.fetch_add(1); }
 			constexpr void release() noexcept
 			{
 				if (ref_count.fetch_sub(1) == 1) [[unlikely]]
+				{
+					erase_func(parent, this);
 					::operator delete(this);
+				}
 			}
 
 			/* Reference count of the interned string. */
 			std::atomic<std::size_t> ref_count = 0;
-			/* String view pointing to this header. */
-			std::basic_string_view<C, T> sv;
+			/* Pointer to the pool that manages this string. */
+			void *parent;
+			/* Proxy function used to de-allocate the header using the parent pool. */
+			void (*erase_func)(void *, intern_str_header *);
+			/* Length (in characters) of this string. */
+			std::size_t length;
 			/* String data follows the header. */
 		};
-
-		template<typename C, typename T>
-		constexpr intern_str_header<C, T> *intern_str_header<C, T>::make_cb(const C *str, std::size_t n)
-		{
-			auto cb = static_cast<intern_str_header *>(::operator new(sizeof(intern_str_header) + sizeof(C) * (n + 1)));
-			return std::construct_at(cb, str, n);
-		}
-		template<typename C, typename T>
-		constexpr C *intern_str_header<C, T>::data() noexcept
-		{
-			return std::bit_cast<C *>(std::bit_cast<std::byte *>(this) + sizeof(intern_str_header));
-		}
-
-		template<typename C, typename T>
-		struct intern_str_ref
-		{
-			constexpr intern_str_ref() noexcept = default;
-
-			constexpr explicit intern_str_ref(intern_str_header<C, T> *header) noexcept : header(header)
-			{
-				header->acquire();
-			}
-
-			constexpr intern_str_ref(const intern_str_ref &other) noexcept : intern_str_ref(other.header) {}
-			constexpr intern_str_ref &operator=(const intern_str_ref &other)
-			{
-				release(other.header);
-				acquire();
-				return *this;
-			}
-			constexpr intern_str_ref(intern_str_ref &&other) noexcept : header(std::exchange(other.header, {})) {}
-			constexpr intern_str_ref &operator=(intern_str_ref &&other) noexcept
-			{
-				std::swap(header, other.header);
-				return *this;
-			}
-			constexpr ~intern_str_ref() { release(); }
-
-			constexpr void acquire()
-			{
-				if (header) [[likely]]
-					header->acquire();
-			}
-			constexpr void release()
-			{
-				if (header) [[likely]]
-					header->release();
-			}
-			constexpr void release(intern_str_header<C, T> *new_header)
-			{
-				release();
-				header = new_header;
-			}
-
-			constexpr void swap(intern_str_ref &other) noexcept { std::swap(header, other.header); }
-
-			intern_str_header<C, T> *header;
-		};
 	}	 // namespace detail
-
-	template<typename C, typename Traits = std::char_traits<C>>
-	class basic_interned_string;
 
 	/** @brief Memory pool used to allocate & manage interned strings.
 	 *
 	 * @tparam C Character type of the strings allocated by the pool.
-	 * @tparam Traits Character traits of `C`. */
-	template<typename C, typename Traits = std::char_traits<C>>
+	 * @tparam Traits Character traits of `C`.
+	 * @tparam Alloc Allocator used to allocate strings of the pool.
+	 *
+	 * @note Allocator is only used to initialize internal storage of strings,
+	 * actual string data is allocated using the global `::operator new`. */
+	template<typename C, typename Traits, typename Alloc>
 	class basic_intern_pool
 	{
 	public:
 		using string_type = basic_interned_string<C, Traits>;
-		using sv_type = std::basic_string_view<C, Traits>;
+		typedef string_type value_type;
 
 	private:
-		friend string_type;
-
 		using header_t = detail::intern_str_header<C, Traits>;
+		using sv_t = std::basic_string_view<C, Traits>;
 
-		class value_pointer;
-		class value_reference;
+		friend string_type;
+		friend header_t;
 
-		struct value_traits
+		struct v_traits
 		{
 			template<bool>
-			using iterator_value = string_type;
+			using iterator_value = value_type;
 			template<bool>
-			using iterator_reference = value_reference;
+			using iterator_reference = const value_type &;
 			template<bool>
-			using iterator_pointer = value_pointer;
-		};
-		struct fnv_hash
-		{
-			constexpr hash_t operator()(const sv_type &s) const noexcept { return fnv1a(s.data(), s.size()); }
+			using iterator_pointer = const value_type *;
 		};
 		struct to_sv
 		{
-			constexpr const sv_type &operator()(const header_t *h) const noexcept { return h->sv; }
+			constexpr auto operator()(const value_type &s) const noexcept { return s.header->sv(); }
 		};
 
+		using data_alloc_t = typename std::allocator_traits<Alloc>::template rebind_alloc<value_type>;
 		using data_t =
-			detail::dense_hash_table<sv_type, header_t *, value_traits, fnv_hash, std::equal_to<>, to_sv, std::allocator<header_t *>>;
+			detail::dense_hash_table<sv_t, value_type, v_traits, default_hash, std::equal_to<>, to_sv, data_alloc_t>;
 
 	public:
-		typedef string_type value_type;
-		typedef value_pointer pointer;
-		typedef value_pointer const_pointer;
-		typedef value_reference reference;
-		typedef value_reference const_reference;
+		typedef const value_type &pointer;
+		typedef const value_type &const_pointer;
+		typedef const value_type *reference;
+		typedef const value_type *const_reference;
 		typedef typename data_t::size_type size_type;
 		typedef typename data_t::difference_type difference_type;
 
@@ -159,106 +129,19 @@ namespace sek
 		typedef typename data_t::const_iterator const_iterator;
 		typedef typename data_t::const_reverse_iterator reverse_iterator;
 		typedef typename data_t::const_reverse_iterator const_reverse_iterator;
-
-	private:
-		class value_reference : detail::intern_str_ref<C, Traits>
-		{
-			friend data_t;
-			friend iterator;
-			friend string_type;
-			friend class value_pointer;
-			friend class basic_intern_pool;
-
-			using ref_base = detail::intern_str_ref<C, Traits>;
-
-			constexpr explicit value_reference(header_t *h) noexcept : ref_base(h) {}
-
-		public:
-			value_reference() = delete;
-
-			constexpr value_reference(const value_reference &) noexcept = default;
-			constexpr value_reference &operator=(const value_reference &) = default;
-			constexpr value_reference(value_reference &&) noexcept = default;
-			constexpr value_reference &operator=(value_reference &&) noexcept = default;
-			constexpr ~value_reference() = default;
-
-			constexpr string_type str() &&noexcept { return string_type{std::forward<ref_base>(*this)}; }
-			constexpr operator string_type() &&noexcept { return str(); }
-			constexpr string_type str() const &noexcept { return string_type{static_cast<const ref_base &>(*this)}; }
-			constexpr operator string_type() const &noexcept { return str(); }
-
-			[[nodiscard]] constexpr value_pointer operator&() &&noexcept
-			{
-				return value_pointer{std::forward<value_reference>(*this)};
-			}
-			[[nodiscard]] constexpr value_pointer operator&() const &noexcept { return value_pointer{*this}; }
-
-			[[nodiscard]] constexpr operator bool() const noexcept { return ref_base::header != nullptr; }
-
-			[[nodiscard]] constexpr auto operator<=>(const string_type &s) const noexcept
-			{
-				return sv_type{s} <=> ref_base::header->sv;
-			}
-			[[nodiscard]] constexpr auto operator<=>(sv_type sv) const noexcept { return sv <=> ref_base::header->sv; }
-			[[nodiscard]] constexpr auto operator<=>(const value_reference &other) const noexcept
-			{
-				return operator<=>(to_sv{}(other.header));
-			}
-
-			[[nodiscard]] constexpr bool operator==(const string_type &s) const noexcept
-			{
-				return sv_type{s} == ref_base::header->sv;
-			}
-			[[nodiscard]] constexpr bool operator==(sv_type sv) const noexcept { return sv == ref_base::header->sv; }
-			[[nodiscard]] constexpr bool operator==(const value_reference &other) const noexcept
-			{
-				return operator==(to_sv{}(other.header));
-			}
-		};
-		class value_pointer
-		{
-			friend data_t;
-			friend iterator;
-			friend class value_reference;
-			friend class basic_intern_pool;
-
-			constexpr explicit value_pointer(header_t **h) noexcept : ref(*h) {}
-			constexpr explicit value_pointer(value_reference &&ref) noexcept : ref(std::forward<value_reference>(ref))
-			{
-			}
-			constexpr explicit value_pointer(const value_reference &ref) noexcept : ref(ref) {}
-
-		public:
-			value_pointer() = delete;
-
-			constexpr value_pointer(const value_pointer &) noexcept = default;
-			constexpr value_pointer &operator=(const value_pointer &) = default;
-			constexpr value_pointer(value_pointer &&) noexcept = default;
-			constexpr value_pointer &operator=(value_pointer &&) noexcept = default;
-			constexpr ~value_pointer() = default;
-
-			[[nodiscard]] constexpr const value_reference *get() const noexcept { return std::addressof(ref); }
-			[[nodiscard]] constexpr const value_reference *operator->() const noexcept { return get(); }
-
-			[[nodiscard]] constexpr value_reference operator*() &&noexcept { return std::move(ref); }
-			[[nodiscard]] constexpr value_reference operator*() const &noexcept { return ref; }
-
-			[[nodiscard]] constexpr operator bool() const noexcept { return ref; }
-
-			[[nodiscard]] constexpr auto operator<=>(const value_pointer &other) const noexcept
-			{
-				return ref.header <=> other.ref.header;
-			}
-			[[nodiscard]] constexpr bool operator==(const value_pointer &other) const noexcept
-			{
-				return ref.header == other.ref.header;
-			}
-
-		private:
-			value_reference ref;
-		};
+		typedef data_alloc_t allocator_type;
 
 	public:
+		constexpr basic_intern_pool() = default;
+		constexpr basic_intern_pool(const basic_intern_pool &) = default;
+		constexpr basic_intern_pool &operator=(const basic_intern_pool &) = default;
+		constexpr basic_intern_pool(basic_intern_pool &&) noexcept(std::is_nothrow_move_constructible_v<data_t>) = default;
+		constexpr basic_intern_pool &operator=(basic_intern_pool &&) noexcept(std::is_nothrow_move_assignable_v<data_t>) = default;
+		constexpr ~basic_intern_pool() = default;
+
+		/** Initializes the pool using the provided allocator. */
+		constexpr explicit basic_intern_pool(const allocator_type &alloc) : data(alloc) {}
+
 		/** Returns iterator to the first interned string within internal storage. */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return data.cbegin(); }
 		/** Returns iterator one past the last interned string within internal storage. */
@@ -277,20 +160,21 @@ namespace sek
 		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return rend(); }
 
 		/** Interns the passed string view. */
-		[[nodiscard]] constexpr string_type intern(sv_type str);
+		[[nodiscard]] constexpr string_type intern(sv_t str);
 		/** Interns the passed string. */
 		[[nodiscard]] constexpr string_type intern(const C *str);
 		/** @copydoc intern */
 		[[nodiscard]] constexpr string_type intern(const C *str, size_type n);
 
 	private:
-		[[nodiscard]] constexpr value_reference intern_impl(sv_type sv)
+		[[nodiscard]] constexpr header_t *intern_impl(sv_t sv)
 		{
 			auto iter = data.find(sv);
 			if (iter == data.end()) [[unlikely]]
-				iter = data.insert(header_t::make_cb(sv.data(), sv.length())).first;
-			return *iter;
+				iter = data.insert(string_type{std::in_place, header_t::make_header(this, sv.data(), sv.length())}).first;
+			return iter->header;
 		}
+		constexpr void unintern(header_t *h) { data.erase(h->sv()); }
 
 		data_t data;
 	};
@@ -304,12 +188,9 @@ namespace sek
 	 * @tparam C Character type of the interned string.
 	 * @tparam Traits Character traits of `C`. */
 	template<typename C, typename Traits>
-	class basic_interned_string : detail::intern_str_ref<C, Traits>
+	class basic_interned_string
 	{
 	public:
-		typedef basic_intern_pool<C, Traits> pool_type;
-		typedef std::basic_string_view<C, Traits> sv_type;
-
 		typedef Traits traits_type;
 		typedef C value_type;
 		typedef const value_type *pointer;
@@ -326,44 +207,78 @@ namespace sek
 		constexpr static size_type npos = std::numeric_limits<size_type>::max();
 
 	private:
-		friend pool_type;
+		template<typename A>
+		using pool_type = basic_intern_pool<C, Traits, A>;
 
-		using ref_base = detail::intern_str_ref<C, Traits>;
+		template<typename, typename, typename>
+		friend class basic_intern_pool;
 
-		static pool_type &global_pool()
+		using header_t = detail::intern_str_header<C, Traits>;
+
+		static pool_type<std::allocator<basic_interned_string>> &global_pool()
 		{
-			static pool_type instance;
+			static pool_type<std::allocator<basic_interned_string>> instance;
 			return instance;
 		}
 
-		constexpr explicit basic_interned_string(ref_base &&ref) : ref_base(std::forward<ref_base>(ref)) {}
-		constexpr explicit basic_interned_string(const ref_base &ref) : ref_base(ref) {}
-		constexpr explicit basic_interned_string(typename pool_type::reference &&ref)
-			: ref_base(std::forward<ref_base>(ref))
-		{
-		}
-		constexpr explicit basic_interned_string(const typename pool_type::reference &ref) : ref_base(ref) {}
+		constexpr basic_interned_string(std::in_place_t, header_t *h) : header(h) {}
+		constexpr explicit basic_interned_string(header_t *h) : header(h) { acquire(); }
 
 	public:
 		/** Initializes an empty string. */
 		constexpr basic_interned_string() noexcept = default;
 
+		constexpr basic_interned_string(const basic_interned_string &other) noexcept
+			: basic_interned_string(other.header)
+		{
+		}
+		constexpr basic_interned_string &operator=(const basic_interned_string &other)
+		{
+			release(other.header);
+			acquire();
+			return *this;
+		}
+		constexpr basic_interned_string(basic_interned_string &&other) noexcept
+			: header(std::exchange(other.header, nullptr))
+		{
+		}
+		constexpr basic_interned_string &operator=(basic_interned_string &&other) noexcept
+		{
+			std::swap(header, other.header);
+			return *this;
+		}
+		constexpr ~basic_interned_string() { release(); }
+
 		/** Interns the passed string using the provided pool. */
-		constexpr basic_interned_string(pool_type &pool, sv_type sv) : basic_interned_string(pool.intern_impl(sv)) {}
+		template<typename A>
+		constexpr basic_interned_string(pool_type<A> &pool, std::basic_string_view<C, Traits> sv)
+			: basic_interned_string(pool.intern_impl(sv))
+		{
+		}
 		/** @copydoc basic_interned_string */
-		constexpr basic_interned_string(pool_type &pool, const C *str) : basic_interned_string(pool, sv_type{str}) {}
+		template<typename A>
+		constexpr basic_interned_string(pool_type<A> &pool, const C *str)
+			: basic_interned_string(pool, std::basic_string_view<C, Traits>{str})
+		{
+		}
 		/** @copydoc basic_interned_string */
-		constexpr basic_interned_string(pool_type &pool, const C *str, size_type n)
-			: basic_interned_string(pool, sv_type{str, n})
+		template<typename A>
+		constexpr basic_interned_string(pool_type<A> &pool, const C *str, size_type n)
+			: basic_interned_string(pool, std::basic_string_view<C, Traits>{str, n})
 		{
 		}
 
 		/** Interns the passed string using the global pool. */
-		constexpr basic_interned_string(sv_type sv) : basic_interned_string(global_pool(), sv) {}
+		constexpr basic_interned_string(std::basic_string_view<C, Traits> sv) : basic_interned_string(global_pool(), sv)
+		{
+		}
 		/** @copydoc basic_interned_string */
-		constexpr basic_interned_string(const C *str) : basic_interned_string(sv_type{str}) {}
+		constexpr basic_interned_string(const C *str) : basic_interned_string(std::basic_string_view<C, Traits>{str}) {}
 		/** @copydoc basic_interned_string */
-		constexpr basic_interned_string(const C *str, size_type n) : basic_interned_string(sv_type{str, n}) {}
+		constexpr basic_interned_string(const C *str, size_type n)
+			: basic_interned_string(std::basic_string_view<C, Traits>{str, n})
+		{
+		}
 
 		/** Returns iterator to the start of the string. */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return iterator{data()}; }
@@ -385,11 +300,13 @@ namespace sek
 		/** Returns pointer to the string's data. */
 		[[nodiscard]] constexpr const_pointer data() const noexcept
 		{
-			if (ref_base::header) [[likely]]
-				return ref_base::header->sv.data();
+			if (header) [[likely]]
+				return header->data();
 			else
-				return 0;
+				return nullptr;
 		}
+		/** @copydoc data */
+		[[nodiscard]] constexpr const_pointer c_str() const noexcept { return data(); }
 		/** Returns reference to the element at the specified offset within the string. */
 		[[nodiscard]] constexpr const_reference at(size_type i) const noexcept { return data()[i]; }
 		/** @copydoc at */
@@ -402,8 +319,8 @@ namespace sek
 		/** Returns size of the string. */
 		[[nodiscard]] constexpr size_type size() const noexcept
 		{
-			if (ref_base::header) [[likely]]
-				return ref_base::header->sv.size();
+			if (header) [[likely]]
+				return header->length;
 			else
 				return 0;
 		}
@@ -417,14 +334,31 @@ namespace sek
 		/** Checks if the string is empty. */
 		[[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
 
-		/** Converts the interned string to a string view. */
-		[[nodiscard]] constexpr operator sv_type() const noexcept
+		/** Returns a string copy of this interned string. */
+		template<typename Alloc = std::allocator<C>>
+		[[nodiscard]] constexpr std::basic_string<C, Traits, Alloc> str() const noexcept
 		{
-			if (ref_base::header) [[likely]]
-				return ref_base::header->sv;
+			if (header) [[likely]]
+				return std::basic_string<C, Traits, Alloc>{data(), size()};
 			else
 				return {};
 		}
+		/** @copydoc str */
+		template<typename Alloc = std::allocator<C>>
+		[[nodiscard]] constexpr operator std::basic_string<C, Traits, Alloc>() const noexcept
+		{
+			return str<Alloc>();
+		}
+		/** Converts the interned string to a string view. */
+		[[nodiscard]] constexpr std::basic_string_view<C, Traits> sv() const noexcept
+		{
+			if (header) [[likely]]
+				return header->sv();
+			else
+				return {};
+		}
+		/** @copydoc sv */
+		[[nodiscard]] constexpr operator std::basic_string_view<C, Traits>() const noexcept { return sv(); }
 
 		/** Finds left-most location of a sequence of character within the string. */
 		template<forward_iterator_for<value_type> Iterator>
@@ -675,29 +609,48 @@ namespace sek
 
 		[[nodiscard]] friend constexpr auto operator<=>(const basic_interned_string &a, const basic_interned_string &b) noexcept
 		{
-			return sv_type{a} <=> sv_type{b};
+			return a.sv() <=> b.sv();
 		}
 		[[nodiscard]] friend constexpr bool operator==(const basic_interned_string &a, const basic_interned_string &b) noexcept
 		{
-			return sv_type{a} == sv_type{b};
+			return a.sv() == b.sv();
 		}
 
-		constexpr void swap(basic_interned_string &other) noexcept { ref_base::swap(other); }
+		constexpr void swap(basic_interned_string &other) noexcept { std::swap(header, other.header); }
 		friend constexpr void swap(basic_interned_string &a, basic_interned_string &b) noexcept { a.swap(b); }
+
+	private:
+		constexpr void acquire()
+		{
+			if (header) [[likely]]
+				header->acquire();
+		}
+		constexpr void release()
+		{
+			if (header) [[likely]]
+				header->release();
+		}
+		constexpr void release(header_t *new_header)
+		{
+			release();
+			header = new_header;
+		}
+
+		header_t *header = nullptr;
 	};
 
-	template<typename C, typename T>
-	constexpr typename basic_intern_pool<C, T>::string_type basic_intern_pool<C, T>::intern(sv_type str)
+	template<typename C, typename T, typename A>
+	constexpr typename basic_intern_pool<C, T, A>::string_type basic_intern_pool<C, T, A>::intern(sv_t str)
 	{
 		return string_type{*this, str};
 	}
-	template<typename C, typename T>
-	constexpr typename basic_intern_pool<C, T>::string_type basic_intern_pool<C, T>::intern(const C *str)
+	template<typename C, typename T, typename A>
+	constexpr typename basic_intern_pool<C, T, A>::string_type basic_intern_pool<C, T, A>::intern(const C *str)
 	{
 		return string_type{*this, str};
 	}
-	template<typename C, typename T>
-	constexpr typename basic_intern_pool<C, T>::string_type basic_intern_pool<C, T>::intern(const C *str, size_type n)
+	template<typename C, typename T, typename A>
+	constexpr typename basic_intern_pool<C, T, A>::string_type basic_intern_pool<C, T, A>::intern(const C *str, size_type n)
 	{
 		return string_type{*this, str, n};
 	}
@@ -706,6 +659,47 @@ namespace sek
 	[[nodiscard]] constexpr hash_t hash(const basic_interned_string<C, T> &s) noexcept
 	{
 		return fnv1a(s.data(), s.size());
+	}
+
+	template<typename C, typename T, typename A>
+	[[nodiscard]] constexpr auto operator<=>(const basic_interned_string<C, T> &a, const std::basic_string<C, T, A> &b) noexcept
+	{
+		return a.sv() <=> b;
+	}
+	template<typename C, typename T, typename A>
+	[[nodiscard]] constexpr auto operator<=>(const std::basic_string<C, T, A> &a, const basic_interned_string<C, T> &b) noexcept
+	{
+		return a <=> b.sv();
+	}
+	template<typename C, typename T, typename A>
+	[[nodiscard]] constexpr bool operator==(const basic_interned_string<C, T> &a, const std::basic_string<C, T, A> &b) noexcept
+	{
+		return a.sv() == b;
+	}
+	template<typename C, typename T, typename A>
+	[[nodiscard]] constexpr bool operator==(const std::basic_string<C, T, A> &a, const basic_interned_string<C, T> &b) noexcept
+	{
+		return a == b.sv();
+	}
+	template<typename C, typename T>
+	[[nodiscard]] constexpr auto operator<=>(const basic_interned_string<C, T> &a, const std::basic_string_view<C, T> &b) noexcept
+	{
+		return a.sv() <=> b;
+	}
+	template<typename C, typename T>
+	[[nodiscard]] constexpr auto operator<=>(const std::basic_string_view<C, T> &a, const basic_interned_string<C, T> &b) noexcept
+	{
+		return a <=> b.sv();
+	}
+	template<typename C, typename T>
+	[[nodiscard]] constexpr bool operator==(const basic_interned_string<C, T> &a, const std::basic_string_view<C, T> &b) noexcept
+	{
+		return a.sv() == b;
+	}
+	template<typename C, typename T>
+	[[nodiscard]] constexpr bool operator==(const std::basic_string_view<C, T> &a, const basic_interned_string<C, T> &b) noexcept
+	{
+		return a == b.sv();
 	}
 
 	extern template class SEK_API_IMPORT basic_intern_pool<char>;

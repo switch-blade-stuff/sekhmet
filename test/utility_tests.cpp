@@ -250,4 +250,8 @@ TEST(utility_tests, intern_test)
 	EXPECT_EQ(is1.data(), is2.data());
 	EXPECT_NE(is1.data(), is3.data());
 	EXPECT_NE(is2.data(), is3.data());
+
+	std::string copy = is1;
+	EXPECT_EQ(is1, copy);
+	EXPECT_NE(is1.data(), copy.data());
 }
