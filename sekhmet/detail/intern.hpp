@@ -11,15 +11,14 @@
 #include "contiguous_iterator.hpp"
 #include "define.h"
 #include "dense_hash_table.hpp"
-#include "hash.hpp"
-#include "packed_pair.hpp"
 #include "string_util.hpp"
+#include <memory_resource>
 
 namespace sek
 {
 	template<typename C, typename Traits = std::char_traits<C>>
 	class basic_interned_string;
-	template<typename C, typename Traits = std::char_traits<C>, typename Alloc = std::allocator<basic_interned_string<C, Traits>>>
+	template<typename C, typename Traits = std::char_traits<C>>
 	class basic_intern_pool;
 
 	namespace detail
@@ -27,21 +26,11 @@ namespace sek
 		template<typename C, typename T>
 		struct intern_str_header
 		{
-			template<typename A>
-			using parent_t = basic_intern_pool<C, T, A>;
+			using parent_t = basic_intern_pool<C, T>;
 
-			template<typename A>
-			constexpr static intern_str_header *make_header(parent_t<A> *p, const C *s, std::size_t n)
-			{
-				auto cb = static_cast<intern_str_header *>(::operator new(sizeof(intern_str_header) + sizeof(C) * (n + 1)));
-				return std::construct_at(cb, p, s, n);
-			}
-
-			template<typename A>
-			constexpr intern_str_header(parent_t<A> *parent, const C *str, std::size_t n) noexcept
+			constexpr intern_str_header(parent_t *parent, const C *str, std::size_t n) noexcept
 				: parent(parent), length(n)
 			{
-				erase_func = +[](void *p, intern_str_header *h) { static_cast<parent_t<A> *>(p)->unintern(h); };
 				*std::copy_n(str, n, data()) = '\0';
 			}
 
@@ -59,18 +48,13 @@ namespace sek
 			constexpr void release() noexcept
 			{
 				if (ref_count.fetch_sub(1) == 1) [[unlikely]]
-				{
-					erase_func(parent, this);
-					::operator delete(this);
-				}
+					parent->unintern(this);
 			}
 
 			/* Reference count of the interned string. */
 			std::atomic<std::size_t> ref_count = 0;
 			/* Pointer to the pool that manages this string. */
-			void *parent;
-			/* Proxy function used to de-allocate the header using the parent pool. */
-			void (*erase_func)(void *, intern_str_header *);
+			parent_t *parent;
 			/* Length (in characters) of this string. */
 			std::size_t length;
 			/* String data follows the header. */
@@ -80,12 +64,8 @@ namespace sek
 	/** @brief Memory pool used to allocate & manage interned strings.
 	 *
 	 * @tparam C Character type of the strings allocated by the pool.
-	 * @tparam Traits Character traits of `C`.
-	 * @tparam Alloc Allocator used to allocate strings of the pool.
-	 *
-	 * @note Allocator is only used to initialize internal storage of strings,
-	 * actual string data is allocated using the global `::operator new`. */
-	template<typename C, typename Traits, typename Alloc>
+	 * @tparam Traits Character traits of `C`. */
+	template<typename C, typename Traits>
 	class basic_intern_pool
 	{
 	public:
@@ -117,7 +97,7 @@ namespace sek
 			constexpr hash_t operator()(const sv_t &sv) const noexcept { return fnv1a(sv.data(), sv.size()); }
 		};
 
-		using data_alloc_t = typename std::allocator_traits<Alloc>::template rebind_alloc<value_type>;
+		using data_alloc_t = std::pmr::polymorphic_allocator<string_type>;
 		using data_t = detail::dense_hash_table<sv_t, value_type, v_traits, fnv_hash, std::equal_to<>, to_sv, data_alloc_t>;
 
 	public:
@@ -132,7 +112,6 @@ namespace sek
 		typedef typename data_t::const_iterator const_iterator;
 		typedef typename data_t::const_reverse_iterator reverse_iterator;
 		typedef typename data_t::const_reverse_iterator const_reverse_iterator;
-		typedef data_alloc_t allocator_type;
 
 	public:
 		constexpr basic_intern_pool() = default;
@@ -142,8 +121,8 @@ namespace sek
 		constexpr basic_intern_pool &operator=(basic_intern_pool &&) noexcept(std::is_nothrow_move_assignable_v<data_t>) = default;
 		constexpr ~basic_intern_pool() = default;
 
-		/** Initializes the pool using the provided allocator. */
-		constexpr explicit basic_intern_pool(const allocator_type &alloc) : data(alloc) {}
+		/** Initializes the pool using the provided memory resource. */
+		constexpr explicit basic_intern_pool(std::pmr::memory_resource *alloc) : data(alloc) {}
 
 		/** Returns iterator to the first interned string within internal storage. */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return data.cbegin(); }
@@ -170,14 +149,22 @@ namespace sek
 		[[nodiscard]] constexpr string_type intern(const C *str, size_type n);
 
 	private:
+		[[nodiscard]] constexpr auto resource() const { return data.value_allocator().resource(); }
 		[[nodiscard]] constexpr header_t *intern_impl(sv_t sv)
 		{
 			auto iter = data.find(sv);
 			if (iter == data.end()) [[unlikely]]
-				iter = data.insert(string_type{std::in_place, header_t::make_header(this, sv.data(), sv.length())}).first;
+			{
+				auto h = static_cast<header_t *>(resource()->allocate(sizeof(header_t) + (sv.size() + 1)));
+				iter = data.insert(string_type{std::in_place, std::construct_at(h, this, sv.data(), sv.size())}).first;
+			}
 			return iter->header;
 		}
-		constexpr void unintern(header_t *h) { data.erase(h->sv()); }
+		constexpr void unintern(header_t *h)
+		{
+			data.erase(h->sv());
+			resource()->deallocate(h, sizeof(header_t) + (h->length + 1) * sizeof(C));
+		}
 
 		data_t data;
 	};
@@ -194,6 +181,8 @@ namespace sek
 	class basic_interned_string
 	{
 	public:
+		using pool_type = basic_intern_pool<C, Traits>;
+
 		typedef Traits traits_type;
 		typedef C value_type;
 		typedef const value_type *pointer;
@@ -210,17 +199,14 @@ namespace sek
 		constexpr static size_type npos = std::numeric_limits<size_type>::max();
 
 	private:
-		template<typename A>
-		using pool_type = basic_intern_pool<C, Traits, A>;
-
-		template<typename, typename, typename>
+		template<typename, typename>
 		friend class basic_intern_pool;
 
 		using header_t = detail::intern_str_header<C, Traits>;
 
-		static pool_type<std::allocator<basic_interned_string>> &global_pool()
+		static pool_type &global_pool()
 		{
-			static pool_type<std::allocator<basic_interned_string>> instance;
+			static pool_type instance;
 			return instance;
 		}
 
@@ -253,28 +239,25 @@ namespace sek
 		constexpr ~basic_interned_string() { release(); }
 
 		/** Interns the passed string using the provided pool. */
-		template<typename A>
-		constexpr basic_interned_string(pool_type<A> &pool, std::basic_string_view<C, Traits> sv)
+		constexpr basic_interned_string(pool_type &pool, std::basic_string_view<C, Traits> sv)
 			: basic_interned_string(pool.intern_impl(sv))
 		{
 		}
 		/** @copydoc basic_interned_string */
-		template<typename A>
-		constexpr basic_interned_string(pool_type<A> &pool, const C *str)
+		constexpr basic_interned_string(pool_type &pool, const C *str)
 			: basic_interned_string(pool, std::basic_string_view<C, Traits>{str})
 		{
 		}
 		/** @copydoc basic_interned_string */
-		template<typename A>
-		constexpr basic_interned_string(pool_type<A> &pool, const C *str, size_type n)
+		constexpr basic_interned_string(pool_type &pool, const C *str, size_type n)
 			: basic_interned_string(pool, std::basic_string_view<C, Traits>{str, n})
 		{
 		}
 
 		// clang-format off
 		/** @copydoc basic_interned_string */
-		template<typename S, typename A>
-		constexpr basic_interned_string(pool_type<A> &pool, const S &str)
+		template<typename S>
+		constexpr basic_interned_string(pool_type &pool, const S &str)
 			requires std::is_convertible_v<S, std::basic_string_view<C, Traits>>
 			: basic_interned_string(pool, std::basic_string_view<C, Traits>{str})
 		{
@@ -662,18 +645,18 @@ namespace sek
 		header_t *header = nullptr;
 	};
 
-	template<typename C, typename T, typename A>
-	constexpr typename basic_intern_pool<C, T, A>::string_type basic_intern_pool<C, T, A>::intern(sv_t str)
+	template<typename C, typename T>
+	constexpr typename basic_intern_pool<C, T>::string_type basic_intern_pool<C, T>::intern(sv_t str)
 	{
 		return string_type{*this, str};
 	}
-	template<typename C, typename T, typename A>
-	constexpr typename basic_intern_pool<C, T, A>::string_type basic_intern_pool<C, T, A>::intern(const C *str)
+	template<typename C, typename T>
+	constexpr typename basic_intern_pool<C, T>::string_type basic_intern_pool<C, T>::intern(const C *str)
 	{
 		return string_type{*this, str};
 	}
-	template<typename C, typename T, typename A>
-	constexpr typename basic_intern_pool<C, T, A>::string_type basic_intern_pool<C, T, A>::intern(const C *str, size_type n)
+	template<typename C, typename T>
+	constexpr typename basic_intern_pool<C, T>::string_type basic_intern_pool<C, T>::intern(const C *str, size_type n)
 	{
 		return string_type{*this, str, n};
 	}
