@@ -284,4 +284,19 @@ TEST(container_tests, mkmap_test)
 	EXPECT_EQ(m1.at<1>(3), 9999.f);
 	EXPECT_FALSE(m1.contains<1>(2));
 	EXPECT_FALSE(m1.contains<0>("3"));
+
+	sek::mkmap<multikey_t, int> m2;
+
+	for (auto i = 0; i < 1000; i++) m2.emplace(multikey_t{std::to_string(i), i}, ~i);
+	for (auto i = 0; i < 200; i++) m2.erase(m2.find<1>(i));
+	for (auto i = 500; i < 1000; i++) m2.erase(m2.find<0>(std::to_string(i)));
+
+	m2.emplace(multikey_t{"500", 500}, ~500);
+
+	for (auto i = 200; i <= 500; i++)
+	{
+		int val;
+		EXPECT_NO_THROW(val = m2.at<1>(i));
+		EXPECT_EQ(val, ~i);
+	}
 }

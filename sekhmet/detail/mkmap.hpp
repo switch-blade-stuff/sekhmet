@@ -1102,6 +1102,21 @@ namespace sek
 							}
 					});
 			}
+			constexpr void remove_entry(entry_type &entry, size_type pos)
+			{
+				foreach_key(
+					[&]<size_type I>(index_selector_t<I>)
+					{
+						/* Find the chain offset pointing to the entry position & replace it with the next position. */
+						for (auto chain_idx = get_chain<I>(entry.template hash<I>()); *chain_idx != npos;
+							 chain_idx = &entries[*chain_idx].template next<I>())
+							if (*chain_idx == pos)
+							{
+								*chain_idx = entry.template next<I>();
+								break;
+							}
+					});
+			}
 			constexpr void move_entry(entry_type &entry, size_type old_pos, size_type new_pos)
 			{
 				foreach_key(
@@ -1270,7 +1285,7 @@ namespace sek
 					/* Un-link the entry from the chain & swap with the last entry. */
 					if (entry_iter->template hash<I>() == h && key_comp<I>(key, entry_iter->template key<I>()))
 					{
-						*chain_idx = entry_iter->template next<I>();
+						remove_entry(*entry_iter, pos);
 						if constexpr (std::is_move_assignable_v<entry_type>)
 							*entry_iter = std::move(entries.back());
 						else
