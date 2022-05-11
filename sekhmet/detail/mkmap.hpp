@@ -96,6 +96,23 @@ namespace sek
 
 	namespace detail
 	{
+		template<std::size_t, typename...>
+		struct mkmap_key_select;
+		template<std::size_t I, typename T>
+		struct mkmap_key_select<I, T> : std::false_type
+		{
+		};
+		template<std::size_t I, typename T, typename K, typename... Ks>
+			requires std::constructible_from<K, T>
+		struct mkmap_key_select<I, T, K, Ks...> : std::true_type
+		{
+			constexpr static std::size_t idx = I;
+		};
+		template<std::size_t I, typename T, typename K, typename... Ks>
+		struct mkmap_key_select<I, T, K, Ks...> : mkmap_key_select<I + 1, T, Ks...>
+		{
+		};
+
 		template<typename...>
 		class mkmap_impl;
 
@@ -220,9 +237,9 @@ namespace sek
 			constexpr static std::size_t npos = std::numeric_limits<std::size_t>::max();
 
 			template<typename T>
-			constexpr static auto key_index = type_seq_index_v<T, type_seq_t<typename Ks::key_type...>>;
+			constexpr static auto key_index = mkmap_key_select<0, std::decay_t<T>, typename Ks::key_type...>::idx;
 			template<typename T>
-			constexpr static bool is_key = is_in_v<std::decay_t<T>, std::decay_t<typename Ks::key_type>...>;
+			constexpr static bool is_key = mkmap_key_select<0, std::decay_t<T>, typename Ks::key_type...>::value;
 
 			template<typename F, typename... Args>
 			constexpr static void foreach_key(F &&f, Args &&...args)
@@ -842,7 +859,7 @@ namespace sek
 			template<typename... Args>
 			constexpr std::pair<iterator, size_type> emplace(Args &&...args)
 			{
-				return insert_impl(value_type{args...});
+				return insert_impl(value_type{std::forward<Args>(args)...});
 			}
 
 			/** Attempts to insert a value into the map.
@@ -963,7 +980,7 @@ namespace sek
 			{
 				if (auto target = find<I>(key); target != end())
 				{
-					erase_impl<I>(target.entry().template hash<0>(), key);
+					erase_impl<I>(target.entry().template hash<I>(), key);
 					return true;
 				}
 				else
