@@ -237,7 +237,7 @@ namespace sek
 
 		/** Removes a subscriber delegate pointed to by the specified iterator from the event.
 		 * @param where Iterator pointing to the subscriber to be removed from the event.
-		 * @return True if the subscriber was unsubscribed, false otherwise. */
+		 * @return true if the subscriber was unsubscribed, false otherwise. */
 		constexpr bool unsubscribe(const_iterator where)
 		{
 			if (where != end()) [[likely]]
@@ -260,7 +260,7 @@ namespace sek
 		}
 		/** Removes a subscriber delegate from the event.
 		 * @param subscriber Delegate to remove from the event.
-		 * @return True if the subscriber was unsubscribed, false otherwise. */
+		 * @return true if the subscriber was unsubscribed, false otherwise. */
 		constexpr bool unsubscribe(delegate<R(Args...)> subscriber)
 		{
 			return unsubscribe(std::find(begin(), end(), subscriber));
@@ -269,7 +269,7 @@ namespace sek
 		constexpr bool operator-=(delegate<R(Args...)> subscriber) { return unsubscribe(subscriber); }
 		/** Removes a subscriber delegate from the event.
 		 * @param sub_id Id of the event's subscription.
-		 * @return True if the subscriber was unsubscribed, false otherwise. */
+		 * @return true if the subscriber was unsubscribed, false otherwise. */
 		constexpr bool unsubscribe(event_id sub_id)
 		{
 			SEK_ASSERT(static_cast<size_type>(sub_id) < id_data.size());

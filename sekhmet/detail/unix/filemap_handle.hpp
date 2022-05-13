@@ -13,7 +13,7 @@ namespace sek::detail
 		using native_file_type = int;
 
 	private:
-		SEK_API void init(native_file_type, std::ptrdiff_t, std::size_t, filemap_openmode, const char *);
+		SEK_API_IMPORT void init(native_file_type, std::ptrdiff_t, std::size_t, filemap_openmode, const char *);
 
 	public:
 		constexpr filemap_handle(filemap_handle &&other) noexcept
@@ -32,15 +32,15 @@ namespace sek::detail
 		{
 			init(fd, offset, size, mode, name);
 		}
-		SEK_API filemap_handle(const char *path, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *name);
+		SEK_API_IMPORT filemap_handle(const char *path, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *name);
 
 		[[nodiscard]] constexpr std::size_t size() const noexcept { return map_size; }
 		[[nodiscard]] constexpr void *data() const noexcept { return view_ptr; }
 
-		SEK_API bool reset() noexcept;
-		SEK_API void flush(std::ptrdiff_t off, std::ptrdiff_t n) const;
+		SEK_API_IMPORT bool reset() noexcept;
+		SEK_API_IMPORT void flush(std::ptrdiff_t off, std::ptrdiff_t n) const;
 
-		[[nodiscard]] SEK_API native_handle_type native_handle() const noexcept;
+		[[nodiscard]] SEK_API_IMPORT native_handle_type native_handle() const noexcept;
 
 		constexpr void swap(filemap_handle &other) noexcept
 		{

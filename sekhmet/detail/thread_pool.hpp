@@ -178,11 +178,11 @@ namespace sek
 				return std::construct_at(cb, res, n, mode);
 			}
 
-			SEK_API control_block(std::pmr::memory_resource *res, std::size_t n, queue_mode mode);
-			SEK_API ~control_block();
+			SEK_API_IMPORT control_block(std::pmr::memory_resource *res, std::size_t n, queue_mode mode);
+			SEK_API_IMPORT ~control_block();
 
-			SEK_API void resize(std::size_t n);
-			SEK_API void terminate();
+			SEK_API_IMPORT void resize(std::size_t n);
+			SEK_API_IMPORT void terminate();
 
 			template<typename T, typename F>
 			std::future<T> schedule(std::promise<T> &&promise, F &&task)

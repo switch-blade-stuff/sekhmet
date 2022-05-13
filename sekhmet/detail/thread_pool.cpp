@@ -15,7 +15,7 @@ namespace sek
 			throw std::runtime_error("`std::thread::hardware_concurrency` returned 0");
 	}
 
-	thread_pool::control_block::control_block(std::pmr::memory_resource *res, std::size_t n, thread_pool::queue_mode mode)
+	SEK_API_EXPORT thread_pool::control_block::control_block(std::pmr::memory_resource *res, std::size_t n, thread_pool::queue_mode mode)
 		: task_alloc(res), dispatch_mode(mode)
 	{
 		adjust_worker_count(n);
@@ -28,7 +28,7 @@ namespace sek
 		// clang-format on
 		workers_count = n;
 	}
-	thread_pool::control_block::~control_block()
+	SEK_API_EXPORT thread_pool::control_block::~control_block()
 	{
 		/* Workers should be terminated by now, no need to destroy them again. */
 		task_alloc.upstream_resource()->deallocate(workers_data, workers_capacity * sizeof(worker_t), alignof(worker_t));
@@ -36,7 +36,7 @@ namespace sek
 			delete_task(static_cast<task_base *>(std::exchange(task, task->next)));	   // NOLINT
 	}
 
-	void thread_pool::control_block::resize(std::size_t n)
+	SEK_API_EXPORT void thread_pool::control_block::resize(std::size_t n)
 	{
 		adjust_worker_count(n);
 
@@ -53,9 +53,12 @@ namespace sek
 		}
 		workers_count = n;
 	}
-	void thread_pool::control_block::terminate() { destroy_workers(workers_data, workers_data + workers_count); }
+	SEK_API_EXPORT void thread_pool::control_block::terminate()
+	{
+		destroy_workers(workers_data, workers_data + workers_count);
+	}
 
-	void thread_pool::worker_t::thread_main(std::stop_token st, control_block *cb) noexcept
+	SEK_API_EXPORT void thread_pool::worker_t::thread_main(std::stop_token st, control_block *cb) noexcept
 	{
 		cb->acquire();
 		for (;;)

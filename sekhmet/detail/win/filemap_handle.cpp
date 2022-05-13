@@ -25,7 +25,7 @@ namespace sek::detail
 
 		return CreateFileMappingW(fd, nullptr, PAGE_READWRITE, 0, 0, wide_name.get());
 	}
-	void filemap_handle::init(void *fd, std::ptrdiff_t offset, std::size_t size, int mode, const char *name)
+	SEK_API_EXPORT void filemap_handle::init(void *fd, std::ptrdiff_t offset, std::size_t size, int mode, const char *name)
 	{
 		struct raii_mapping
 		{
@@ -76,7 +76,7 @@ namespace sek::detail
 		view_ptr = std::bit_cast<void *>(std::bit_cast<std::intptr_t>(view_ptr) + offset_diff);
 		map_size = size;
 	}
-	filemap_handle::filemap_handle(const wchar_t *path, std::ptrdiff_t offset, std::size_t size, int mode, const char *name)
+	SEK_API_EXPORT filemap_handle::filemap_handle(const wchar_t *path, std::ptrdiff_t offset, std::size_t size, int mode, const char *name)
 	{
 		struct raii_file
 		{
@@ -96,13 +96,13 @@ namespace sek::detail
 		init(file.ptr, offset, size, mode, name);
 	}
 
-	bool filemap_handle::reset() noexcept
+	SEK_API_EXPORT bool filemap_handle::reset() noexcept
 	{
 		if (view_ptr) [[likely]]
 			return UnmapViewOfFile(native_handle());
 		return false;
 	}
-	void filemap_handle::flush(std::ptrdiff_t off, std::ptrdiff_t n) const
+	SEK_API_EXPORT void filemap_handle::flush(std::ptrdiff_t off, std::ptrdiff_t n) const
 	{
 		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr) + off;
 		auto diff = int_ptr % alignment;
@@ -111,7 +111,7 @@ namespace sek::detail
 			throw filemap_error("`FlushViewOfFile` returned 0");
 	}
 
-	filemap_handle::native_handle_type filemap_handle::native_handle() const noexcept
+	SEK_API_EXPORT filemap_handle::native_handle_type filemap_handle::native_handle() const noexcept
 	{
 		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
 		return std::bit_cast<HANDLE>(int_ptr - (int_ptr % alignment));

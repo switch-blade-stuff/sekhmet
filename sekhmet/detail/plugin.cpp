@@ -4,92 +4,186 @@
 
 #include "plugin.hpp"
 
-#include "sparse_set.hpp"
-#include <shared_mutex>
+#include <atomic>
+#include <mutex>
+
+#include "logger.hpp"
+#include "sparse_map.hpp"
+
+#define ENABLE_FAIL_MSG "Failed to enable plugin \"{}\". "
 
 namespace sek
 {
-	namespace detail
+	struct plugin::plugin_entry
 	{
-		struct plugin_db
+		enum status_t : int
 		{
-			struct ptr_hash
-			{
-				constexpr hash_t operator()(plugin_data *value) const noexcept
-				{
-#if UINTPTR_MAX > UINT32_MAX
-					return int64_hash(std::bit_cast<std::uint64_t>(value));
-#else
-					return int32_hash(std::bit_cast<std::uint32_t>(value));
-#endif
-				}
-			};
-
-			static plugin_db instance;
-
-			std::shared_mutex mtx;
-			sparse_set<plugin_data *, ptr_hash> data;
+			DISABLED,
+			ENABLED,
 		};
 
-		plugin_db plugin_db::instance = {};
+		constexpr plugin_entry(const plugin_info *info, void *data) noexcept : info(info), data(data) {}
 
-		void plugin_data::load(plugin_data *data) noexcept
+		plugin_entry() noexcept = default;
+		plugin_entry(plugin_entry &&other) noexcept : info(other.info), data(other.data), status(other.status.load()) {}
+
+		[[nodiscard]] std::string_view id() const noexcept { return info->id(data); }
+		bool enable() noexcept
 		{
-			std::lock_guard l(plugin_db::instance.mtx);
-			plugin_db::instance.data.insert(data);
+			try
+			{
+				if (!info->enable(data)) [[unlikely]]
+					logger::error() << fmt::format(ENABLE_FAIL_MSG "`on_enable` returned false", id());
+				logger::msg() << fmt::format("Plugin \"{}\" enabled successfully", id());
+				return true;
+			}
+			catch (std::exception &e)
+			{
+				logger::error() << fmt::format(ENABLE_FAIL_MSG "Got exception: {}", id(), e.what());
+			}
+			catch (...)
+			{
+				logger::error() << fmt::format(ENABLE_FAIL_MSG "Unknown exception", id());
+			}
+			status = plugin_entry::DISABLED;
+			return false;
 		}
-		void plugin_data::unload(plugin_data *data) noexcept
+		void disable() const noexcept
 		{
-			auto &db = plugin_db::instance;
-
-			std::lock_guard l(db.mtx);
-			if (auto pos = db.data.find(data); pos != db.data.end()) [[likely]]
-				db.data.erase(pos);
+			try
+			{
+				info->disable(data);
+				logger::msg() << fmt::format("Plugin \"{}\" disabled successfully", id());
+			}
+			catch (std::exception &e)
+			{
+				logger::error() << fmt::format("Exception in plugin \"{}\" `on_disable` function: {}", id(), e.what());
+			}
+			catch (...)
+			{
+				logger::error() << fmt::format("Unknown exception in plugin \"{}\" `on_disable` function", id());
+			}
 		}
-	}	 // namespace detail
 
-	std::vector<plugin> plugin::get_loaded()
+		const plugin_info *info;
+		void *data;
+		std::atomic<status_t> status = DISABLED;
+	};
+	struct plugin::plugin_db
 	{
-		auto &db = detail::plugin_db::instance;
+		std::mutex mtx;
+		sparse_map<std::string_view, plugin_entry> plugins;
+	};
 
-		std::shared_lock l(db.mtx);
+	SEK_API_EXPORT plugin::plugin_db &plugin::database()
+	{
+		static plugin_db instance;
+		return instance;
+	}
+
+	SEK_API_EXPORT void plugin::load_plugin(const plugin_info *info, void *data) noexcept
+	{
+		const auto id = info->id(data);
+		auto &db = database();
+		std::lock_guard<std::mutex> l(db.mtx);
+
+		if (db.plugins.try_emplace(id, info, data).second) [[likely]]
+			logger::msg() << fmt::format("Loaded plugin \"{}\"", id);
+		else
+			logger::warn() << fmt::format("Attempted to load duplicate plugin \"{}\"", id);
+	}
+	SEK_API_EXPORT void plugin::unload_plugin(const plugin_info *info, void *data) noexcept
+	{
+		const auto id = info->id(data);
+		auto &db = database();
+		std::lock_guard<std::mutex> l(db.mtx);
+
+		if (auto iter = db.plugins.find(id); iter == db.plugins.end()) [[unlikely]]
+			logger::warn() << fmt::format("Attempted to unload unknown plugin \"{}\"", id);
+		else
+		{
+			if (iter->second.status == plugin_entry::ENABLED)
+			{
+				logger::warn() << fmt::format("Disabling plugin \"{}\" on unload", id);
+				iter->second.disable();
+			}
+			db.plugins.erase(iter);
+			logger::msg() << fmt::format("Unloaded plugin \"{}\"", id);
+		}
+	}
+
+	SEK_API_EXPORT std::vector<plugin> plugin::get_loaded()
+	{
+		auto &db = database();
+		std::lock_guard<std::mutex> l(db.mtx);
+
 		std::vector<plugin> result;
-
-		// clang-format off
-		for (auto &ptr : db.data)
-			result.push_back(plugin{ptr});
-		// clang-format on
+		result.reserve(db.plugins.size());
+		for (auto &p : db.plugins) result.push_back(plugin{&p.second});
 
 		return result;
 	}
-	std::vector<plugin> plugin::get_enabled()
+	SEK_API_EXPORT std::vector<plugin> plugin::get_enabled()
 	{
-		auto &db = detail::plugin_db::instance;
+		auto &db = database();
+		std::lock_guard<std::mutex> l(db.mtx);
 
-		std::shared_lock l(db.mtx);
 		std::vector<plugin> result;
-
-		// clang-format off
-		for (auto &ptr : db.data)
-		{
-			if (ptr->status == detail::plugin_data::ENABLED)
-				result.push_back(plugin{ptr});
-		}
-		// clang-format on
+		result.reserve(db.plugins.size());
+		for (auto &p : db.plugins)
+			if (p.second.status == plugin_entry::ENABLED) result.push_back(plugin{&p.second});
 
 		return result;
 	}
+	SEK_API_EXPORT plugin plugin::get(std::string_view id)
+	{
+		auto &db = database();
+		std::lock_guard<std::mutex> l(db.mtx);
 
-	void plugin::enable()
-	{
-		auto expected = detail::plugin_data::DISABLED;
-		if (data->status.compare_exchange_strong(expected, detail::plugin_data::ENABLED)) [[likely]]
-			invoke_event(enable_event);
+		if (auto iter = db.plugins.find(id); iter == db.plugins.end()) [[unlikely]]
+		{
+			logger::error() << fmt::format("Attempted to get unknown plugin {}", id);
+			return {};
+		}
+		else
+			return plugin{&iter->second};
 	}
-	void plugin::disable()
+
+	SEK_API_EXPORT std::string_view plugin::id() const noexcept { return entry->id(); }
+	SEK_API_EXPORT bool plugin::enabled() const noexcept { return entry->status == plugin_entry::ENABLED; }
+	SEK_API_EXPORT void *plugin::data() const noexcept { return entry->data; }
+
+	SEK_API_EXPORT bool plugin::enable() const noexcept
 	{
-		auto expected = detail::plugin_data::ENABLED;
-		if (data->status.compare_exchange_strong(expected, detail::plugin_data::DISABLED)) [[likely]]
-			invoke_event(disable_event);
+		const auto entry_id = id();
+		auto expected = plugin_entry::DISABLED;
+
+		if (entry->status.compare_exchange_strong(expected, plugin_entry::ENABLED)) [[likely]]
+		{
+			logger::msg() << fmt::format("Enabling plugin \"{}\"...", entry_id);
+			return entry->enable();
+		}
+		else
+		{
+			logger::warn() << fmt::format("Attempted to enable already enabled plugin \"{}\"", entry_id);
+			return false;
+		}
+	}
+	SEK_API_EXPORT bool plugin::disable() const noexcept
+	{
+		const auto entry_id = id();
+		auto expected = plugin_entry::ENABLED;
+
+		if (entry->status.compare_exchange_strong(expected, plugin_entry::DISABLED)) [[likely]]
+		{
+			logger::msg() << fmt::format("Disabling plugin \"{}\"...", entry_id);
+			entry->disable();
+			return true;
+		}
+		else
+		{
+			logger::warn() << fmt::format("Attempted to disable already disabled plugin \"{}\"", entry_id);
+			return false;
+		}
 	}
 }	 // namespace sek

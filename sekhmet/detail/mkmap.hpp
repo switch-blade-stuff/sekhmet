@@ -1275,7 +1275,7 @@ namespace sek
 				/* Un-link the entry from the chain & swap with the last entry. */
 				const auto pos = static_cast<size_type>(where - entries.begin());
 				remove_entry(*where, pos);
-				if (pos != size() - 1)
+				if (pos != size() - 1) /* Make sure we are not erasing the last item. */
 				{
 					if constexpr (std::is_move_assignable_v<entry_type>)
 						*where = std::move(entries.back());

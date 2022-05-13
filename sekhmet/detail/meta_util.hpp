@@ -367,13 +367,6 @@ namespace sek
 	template<pointer_like T>
 	constexpr bool is_pointer_like_v<T> = true;
 
-	template<typename T>
-	concept trivial_type = std::is_trivial_v<T>;
-	template<typename T>
-	concept not_void = !std::is_void_v<T>;
-	template<typename T0, typename T1>
-	concept not_same = !std::is_same_v<T0, T1>;
-
 	/** @brief Transfers const & volatile qualifiers from the `From` type to the `To` type. */
 	template<typename From, typename To>
 	struct transfer_cv
@@ -396,10 +389,11 @@ namespace sek
 		using type = std::add_cv_t<std::remove_cv_t<To>>;
 	};
 
+	/** @brief Transfers const & volatile qualifiers from the `From` type to the `To` type. */
 	template<typename From, typename To>
 	using transfer_cv_t = typename transfer_cv<From, To>::type;
 
-	/** Checks if a cast from `From` to `To` will not cast away qualifiers. */
+	/** @brief Checks if a cast from `From` to `To` will not cast away qualifiers. */
 	template<typename From, typename To>
 	struct is_preserving_cv_cast : std::true_type
 	{
@@ -417,6 +411,7 @@ namespace sek
 	{
 	};
 
+	/** @brief Checks if a cast from `From` to `To` will not cast away qualifiers. */
 	template<typename From, typename To>
 	constexpr auto is_preserving_cv_cast_v = is_preserving_cv_cast<From, To>::value;
 }	 // namespace sek

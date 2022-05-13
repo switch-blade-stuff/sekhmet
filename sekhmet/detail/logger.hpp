@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <ctime>
+#include <iostream>
 #include <vector>
 
 #include "define.h"
@@ -21,7 +22,8 @@ namespace sek
 		// clang-format off
 		template<typename U, typename C, typename T>
 		concept log_listener = requires(U &dest, std::basic_string_view<C, T> msg) {
-				requires requires { dest << msg; } ||
+				requires requires { dest(msg); } ||
+						 requires { dest << msg; } ||
 						 requires { dest.write(msg); } ||
 						 requires { dest.write(msg.data(), msg.size()); } ||
 						 requires { dest.write(msg.data(), static_cast<std::streamsize>(msg.size())); } ||
@@ -31,7 +33,14 @@ namespace sek
 		// clang-format on
 	}	 // namespace detail
 
-	/** @brief Stream adapter used to preform logging. */
+	/** @brief Stream adapter used to preform logging.
+	 *
+	 * Internally, logger is a wrapper around a log event and additional formatting metadata.
+	 * Several builtin "global" loggers are provided:
+	 * 1. Message logger - Used to log generic messages.
+	 * 2. Warning logger - Used to log important non-error messages (ex. runtime deprecation warnings).
+	 * 3. Error logger - Used to log non-critical error messages (ex. from recoverable exceptions).
+	 * 4. Critical logger - Used to log critical (potentially fatal) messages (ex. graphics initialization failure). */
 	template<typename C, typename T = std::char_traits<C>>
 	class basic_logger
 	{
@@ -46,25 +55,12 @@ namespace sek
 		constexpr static const value_type *msg_cat = "Message";
 		constexpr static const value_type *warn_cat = "Warning";
 		constexpr static const value_type *error_cat = "Error";
+		constexpr static const value_type *crit_cat = "Critical";
 
-		static std::atomic<basic_logger *> &msg_ptr()
-		{
-			static basic_logger instance{msg_cat};
-			static std::atomic<basic_logger *> ptr = &instance;
-			return ptr;
-		}
-		static std::atomic<basic_logger *> &warn_ptr()
-		{
-			static basic_logger instance{warn_cat};
-			static std::atomic<basic_logger *> ptr = &instance;
-			return ptr;
-		}
-		static std::atomic<basic_logger *> &error_ptr()
-		{
-			static basic_logger instance{error_cat};
-			static std::atomic<basic_logger *> ptr = &instance;
-			return ptr;
-		}
+		static std::atomic<basic_logger *> &msg_ptr();
+		static std::atomic<basic_logger *> &warn_ptr();
+		static std::atomic<basic_logger *> &error_ptr();
+		static std::atomic<basic_logger *> &crit_ptr();
 
 	public:
 		/** Returns the global message logger. */
@@ -81,6 +77,11 @@ namespace sek
 		[[nodiscard]] static basic_logger &error() { return *error_ptr(); }
 		/** Sets the global error logger and returns reference to the old logger. */
 		static basic_logger &error(basic_logger &l) { return *error_ptr().exchange(&l); }
+
+		/** Returns the global critical logger. */
+		[[nodiscard]] static basic_logger &fatal() { return *crit_ptr(); }
+		/** Sets the global critical logger and returns reference to the old logger. */
+		static basic_logger &fatal(basic_logger &l) { return *crit_ptr().exchange(&l); }
 
 	private:
 		template<typename U>
@@ -112,6 +113,32 @@ namespace sek
 	public:
 		/** Initializes logger with a default format. */
 		constexpr basic_logger() = default;
+
+		constexpr basic_logger(const basic_logger &other)
+			: format_func(other.format_func), log_event(other.log_event), category_str(other.category_str)
+		{
+		}
+		constexpr basic_logger &operator=(const basic_logger &other)
+		{
+			format_func = other.format_func;
+			log_event = other.log_event;
+			category_str = other.category_str;
+			return *this;
+		}
+		constexpr basic_logger(basic_logger &&other) noexcept
+			: format_func(std::move(other.format_func)),
+			  log_event(std::move(other.log_event)),
+			  category_str(std::move(other.category_str))
+		{
+		}
+		constexpr basic_logger &operator=(basic_logger &&other) noexcept
+		{
+			format_func = std::move(other.format_func);
+			log_event = std::move(other.log_event);
+			category_str = std::move(other.category_str);
+			return *this;
+		}
+
 		/** Initializes logger with a specified category and default format. */
 		constexpr explicit basic_logger(std::basic_string_view<value_type, traits_type> cat) : category_str(cat) {}
 		/** Initializes logger with specified formatter and category. */
@@ -137,13 +164,23 @@ namespace sek
 			sync_busy([&]() { category_str = cat; });
 		}
 
+		/** Adds a listener delegate to the logger.
+		 * @param listener Listener delegate.
+		 * @return Reference to this stream. */
+		basic_logger &listen(delegate<void(std::basic_string_view<C, T>)> listener)
+		{
+			sync_busy([&]() { log_event += listener; });
+			return *this;
+		}
+		/** @copydoc listen */
+		basic_logger &operator+=(delegate<void(std::basic_string_view<C, T>)> listener) { return listen(listener); }
 		/** Adds a listener object to the logger.
 		 * @param listener Reference to the stream-like listener object.
 		 * @return Reference to this stream. */
 		template<detail::log_listener<C, T> L>
 		basic_logger &listen(L &listener)
 		{
-			sync_busy([&]() { log_event += delegate{+[](L *lp, sv_t msg) { write(*lp, msg); }, &listener}; });
+			listen(delegate{+[](L *lp, sv_t msg) { write(*lp, msg); }, &listener});
 			return *this;
 		}
 		/** @copydoc listen */
@@ -154,7 +191,7 @@ namespace sek
 		}
 		/** Removes (silences) a listener associated with this logger.
 		 * @param listener Reference to a previously added listener.
-		 * @return True if the listener was removed, false otherwise. */
+		 * @return true if the listener was removed, false otherwise. */
 		template<detail::log_listener<C, T> L>
 		bool silence(L &listener)
 		{
@@ -215,7 +252,45 @@ namespace sek
 		std::atomic_flag busy;
 	};
 
-	extern template class SEK_API basic_logger<char>;
-
 	typedef basic_logger<char> logger;
+
+	template<typename C, typename T>
+	std::atomic<basic_logger<C, T> *> &basic_logger<C, T>::msg_ptr()
+	{
+		static basic_logger instance{msg_cat};
+		static std::atomic<basic_logger *> ptr = &instance;
+		return ptr;
+	}
+	template<typename C, typename T>
+	std::atomic<basic_logger<C, T> *> &basic_logger<C, T>::warn_ptr()
+	{
+		static basic_logger instance{warn_cat};
+		static std::atomic<basic_logger *> ptr = &instance;
+		return ptr;
+	}
+	template<typename C, typename T>
+	std::atomic<basic_logger<C, T> *> &basic_logger<C, T>::error_ptr()
+	{
+		static basic_logger instance{error_cat};
+		static std::atomic<basic_logger *> ptr = &instance;
+		return ptr;
+	}
+	template<typename C, typename T>
+	std::atomic<basic_logger<C, T> *> &basic_logger<C, T>::crit_ptr()
+	{
+		static basic_logger instance{crit_cat};
+		static std::atomic<basic_logger *> ptr = &instance;
+		return ptr;
+	}
+
+	template<>
+	SEK_API_IMPORT std::atomic<logger *> &logger::msg_ptr();
+	template<>
+	SEK_API_IMPORT std::atomic<logger *> &logger::warn_ptr();
+	template<>
+	SEK_API_IMPORT std::atomic<logger *> &logger::error_ptr();
+	template<>
+	SEK_API_IMPORT std::atomic<logger *> &logger::crit_ptr();
+
+	extern template class SEK_API_IMPORT basic_logger<char>;
 }	 // namespace sek

@@ -163,7 +163,7 @@ namespace sek
 		void package_fragment::acquire() { master->acquire(); }
 		void package_fragment::release() { master->release(); }
 
-		SEK_API master_package *load_package(std::filesystem::path &&);
+		SEK_API_IMPORT master_package *load_package(std::filesystem::path &&);
 	}	 // namespace detail
 
 	/** @brief Structure used to reference an asset. */
@@ -223,7 +223,7 @@ namespace sek
 
 		/** Returns reference to the global repository mutex.
 		 * This mutex should be used to synchronize global repository operations. */
-		[[nodiscard]] static SEK_API std::shared_mutex &global_mtx() noexcept;
+		[[nodiscard]] static SEK_API_IMPORT std::shared_mutex &global_mtx() noexcept;
 
 	protected:
 		using path_string_view = std::basic_string_view<typename std::filesystem::path::value_type>;
@@ -234,12 +234,12 @@ namespace sek
 		/** Searches an asset using it's id within this repository.
 		 * @param id Id of the asset to look for.
 		 * @return The requested asset or an empty asset if it was not found. */
-		[[nodiscard]] SEK_API asset find(std::string_view id) const noexcept;
+		[[nodiscard]] SEK_API_IMPORT asset find(std::string_view id) const noexcept;
 
 		/** Merges other asset repository with this one.
 		 * @param other Repository to merge with this.
 		 * @return Reference to this repository. */
-		SEK_API asset_repository &merge(asset_repository &&other);
+		SEK_API_IMPORT asset_repository &merge(asset_repository &&other);
 
 	protected:
 		constexpr void add_asset_impl(detail::asset_record_base *record) { assets.emplace(record->id, record); }

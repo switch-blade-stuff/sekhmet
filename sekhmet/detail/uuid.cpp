@@ -31,7 +31,7 @@ namespace sek
 
 	static auto uuid_rng = math::xoroshiro<std::uint64_t, 256>{sysrandom_seq{}};
 
-	void uuid::version4_t::operator()(uuid &id) const noexcept
+	SEK_API_EXPORT void uuid::version4_t::operator()(uuid &id) const noexcept
 	{
 		/* Fill with random bits. */
 		for (std::size_t i = 0; i < SEK_ARRAY_SIZE(id.bytes) / sizeof(std::uint64_t); ++i)
