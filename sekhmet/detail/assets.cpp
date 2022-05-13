@@ -21,18 +21,18 @@
 namespace sek
 {
 	template<>
-	SEK_API_EXPORT std::atomic<asset_repository *> &basic_service<asset_repository>::global_ptr() noexcept
+	std::atomic<asset_repository *> &basic_service<asset_repository>::global_ptr() noexcept
 	{
 		static std::atomic<asset_repository *> value;
 		return value;
 	}
-	SEK_API_EXPORT std::shared_mutex &asset_repository::global_mtx() noexcept
+	std::shared_mutex &asset_repository::global_mtx() noexcept
 	{
 		static std::shared_mutex value;
 		return value;
 	}
 
-	SEK_API_EXPORT asset asset_repository::find(std::string_view id) const noexcept
+	asset asset_repository::find(std::string_view id) const noexcept
 	{
 		auto asset_iter = assets.find(id);
 		if (asset_iter == assets.end()) [[unlikely]]
@@ -40,7 +40,7 @@ namespace sek
 		return asset{asset_iter->second};
 	}
 
-	SEK_API_EXPORT asset_repository &asset_repository::merge(asset_repository &&other)
+	asset_repository &asset_repository::merge(asset_repository &&other)
 	{
 		/* Transfer & clear other's assets. */
 		assets.reserve(assets.size() + other.assets.size());

@@ -708,10 +708,10 @@ namespace sek
 		return a == b.sv();
 	}
 
-	extern template class SEK_API_IMPORT basic_intern_pool<char>;
-	extern template class SEK_API_IMPORT basic_intern_pool<wchar_t>;
-	extern template class SEK_API_IMPORT basic_interned_string<char>;
-	extern template class SEK_API_IMPORT basic_interned_string<wchar_t>;
+	extern template class  basic_intern_pool<char>;
+	extern template class  basic_intern_pool<wchar_t>;
+	extern template class  basic_interned_string<char>;
+	extern template class  basic_interned_string<wchar_t>;
 
 	using intern_pool = basic_intern_pool<char>;
 	using intern_wpool = basic_intern_pool<wchar_t>;

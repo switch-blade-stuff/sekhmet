@@ -35,7 +35,7 @@ namespace sek
 	public:
 		typedef K key_type;
 		typedef M mapped_type;
-		typedef std::pair<const key_type, mapped_type> value_type;
+		typedef std::pair<const K, M> value_type;
 
 	private:
 		using table_type = detail::sparse_hash_table<K, value_type, KeyHash, KeyComp, pair_first, Alloc>;

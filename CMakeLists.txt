@@ -1,17 +1,65 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.20)
 project(sekhmet)
 
-include(${CMAKE_CURRENT_LIST_DIR}/CMakeLists.macros.txt)
-include(${CMAKE_CURRENT_LIST_DIR}/CMakeLists.options.txt)
+if (NOT ${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
+    set(SEK_TOP_LEVEL OFF)
+else ()
+    set(SEK_TOP_LEVEL ON)
+endif ()
 
-sek_set_cxx_version_20()
+macro(sek_set_maybe_parent)
+    if (SEK_TOP_LEVEL)
+        set(${ARGV0} ${ARGV1})
+    else ()
+        set(${ARGV0} ${ARGV1} PARENT_SCOPE)
+    endif ()
+endmacro()
+
+macro(sek_init_target_options)
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+        if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+            target_compile_options(${ARGV0} PRIVATE /W4)
+        else()
+            target_compile_options(${ARGV0} PRIVATE /W3)
+        endif()
+    endif ()
+
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+        target_compile_options(${ARGV0} PRIVATE "-Wall" "-Wextra" "-Wno-unknown-pragmas" "-Wconversion" "-Werror")
+        target_compile_options(${ARGV0} PRIVATE "-march=native")
+
+        if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+            # target_compile_options(${ARGV0} PRIVATE "-fconcepts-diagnostics-depth=32")
+            target_compile_options(${ARGV0} PRIVATE "-fconcepts-diagnostics-depth=32")
+        else ()
+            target_compile_options(${ARGV0} PRIVATE "-ffile-prefix-map=\"${CMAKE_CURRENT_LIST_DIR}/\"=\"\"")
+        endif ()
+    endif ()
+endmacro()
+
+macro(sek_init_tool_subproject)
+    sek_init_target_options(${ARGV0})
+    set_target_properties(${ARGV0} PROPERTIES
+            ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/tools"
+            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/tools"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/tools")
+endmacro()
+
+# Handle pre C++20 ABI-freeze MSVC versions
+if (MSVC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS_EQUAL 19.30)
+    set(CMAKE_CXX_STANDARD 23) # /std:c++latest required for MSVC pre abi-freeze
+else ()
+    set(CMAKE_CXX_STANDARD 20)
+endif ()
+
+include(${CMAKE_CURRENT_LIST_DIR}/CMakeLists.options.txt)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_SYSTEM_PROCESSOR}/lib CACHE STRING "")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_SYSTEM_PROCESSOR}/bin CACHE STRING "")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_SYSTEM_PROCESSOR}/bin CACHE STRING "")
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 
-if (PROJECT_IS_TOP_LEVEL OR SEK_EXPORT_BUILD)
+if (SEK_TOP_LEVEL OR SEK_EXPORT_BUILD)
     add_library(${PROJECT_NAME} SHARED)
     sek_init_target_options(${PROJECT_NAME})
 

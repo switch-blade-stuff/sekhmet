@@ -69,7 +69,7 @@ namespace sek
 		temp ^= temp >> 4;
 		temp = (temp + (temp << 3)) + (temp << 11);
 		temp = temp ^ (temp >> 16);
-		return temp;
+		return static_cast<hash_t>(temp);
 	}
 	template<std::integral I>
 	[[nodiscard]] constexpr hash_t int64_hash(I value) noexcept

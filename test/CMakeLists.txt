@@ -1,5 +1,4 @@
 project(${PROJECT_NAME}.test)
-#sek_set_cxx_version_20()
 
 if (CMAKE_HOST_WIN32)
     # Windows does not have OS-level library lookup, thus need to use a local dependency

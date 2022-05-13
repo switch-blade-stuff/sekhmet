@@ -97,13 +97,13 @@ namespace sek::math
 			if constexpr (sizeof(I) <= sizeof(unsigned long))
 			{
 				unsigned long index = 0;
-				_BitScanReverse(&index, static_cast<unsigned long>(i)));
+				_BitScanReverse(&index, static_cast<unsigned long>(i));
 				return index;
 			}
 			else if constexpr (sizeof(I) <= sizeof(__int64))
 			{
 				unsigned long index = 0;
-				_BitScanReverse(&index, static_cast<__int64>(i)));
+				_BitScanReverse(&index, static_cast<__int64>(i));
 				return index;
 			}
 #else
@@ -131,13 +131,13 @@ namespace sek::math
 			if constexpr (sizeof(I) <= sizeof(unsigned long))
 			{
 				unsigned long index = 0;
-				_BitScanForward(&index, static_cast<unsigned long>(i)));
+				_BitScanForward(&index, static_cast<unsigned long>(i));
 				return index;
 			}
 			else if constexpr (sizeof(I) <= sizeof(__int64))
 			{
 				unsigned long index = 0;
-				_BitScanForward64(&index, static_cast<__int64>(i)));
+				_BitScanForward64(&index, static_cast<__int64>(i));
 				return index;
 			}
 #else

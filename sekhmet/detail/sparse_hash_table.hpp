@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <bit>
 #include <algorithm>
 
 #include "alloc_util.hpp"
@@ -64,10 +65,10 @@ namespace sek::detail
 	template<typename KeyType, typename ValueType, typename KeyExtract>
 	struct sparse_table_bucket
 	{
-		[[nodiscard]] constexpr static auto tombstone_ptr() noexcept { return std::bit_cast<ValueType *>(1UL); }
+		[[nodiscard]] constexpr static auto tombstone_ptr() noexcept { return std::bit_cast<ValueType *>(std::numeric_limits<std::intptr_t>::max()); }
 
 		constexpr sparse_table_bucket() noexcept = default;
-		constexpr explicit sparse_table_bucket(ValueType *ptr, auto hash) noexcept : hash(hash), data(ptr) {}
+		constexpr explicit sparse_table_bucket(ValueType *ptr, hash_t hash) noexcept : hash(hash), data(ptr) {}
 
 		[[nodiscard]] constexpr bool is_empty() const noexcept { return data == nullptr; }
 		[[nodiscard]] constexpr bool is_tombstone() const noexcept { return data == tombstone_ptr(); }
@@ -780,7 +781,7 @@ namespace sek::detail
 			auto *value = std::construct_at(get_value_allocator().allocate(1), std::forward<Args>(args)...);
 			auto hash = get_hash()(key_extract(*value));
 
-			return bucket_type(value, hash);
+			return bucket_type{value, hash};
 		}
 		constexpr void reset_bucket(bucket_type *bucket)
 		{

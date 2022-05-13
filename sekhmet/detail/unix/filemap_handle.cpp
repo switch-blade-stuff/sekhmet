@@ -18,7 +18,7 @@ namespace sek::detail
 		return !fstat(fd, &st) ? static_cast<std::size_t>(st.st_size) : 0;
 	}
 
-	SEK_API_EXPORT void filemap_handle::init(int fd, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *)
+	void filemap_handle::init(int fd, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *)
 	{
 		page_size = sysconf(_SC_PAGE_SIZE);
 
@@ -48,7 +48,7 @@ namespace sek::detail
 		view_ptr = std::bit_cast<void *>(std::bit_cast<std::intptr_t>(view_ptr) + offset_diff);
 		map_size = size;
 	}
-	SEK_API_EXPORT filemap_handle::filemap_handle(const char *path, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *name)
+	filemap_handle::filemap_handle(const char *path, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *name)
 	{
 		struct raii_fd
 		{
@@ -69,7 +69,7 @@ namespace sek::detail
 
 		init(file.fd, offset, size, mode, name);
 	}
-	SEK_API_EXPORT bool filemap_handle::reset() noexcept
+	bool filemap_handle::reset() noexcept
 	{
 		if (view_ptr) [[likely]]
 		{
@@ -79,7 +79,7 @@ namespace sek::detail
 		}
 		return false;
 	}
-	SEK_API_EXPORT void filemap_handle::flush(std::ptrdiff_t off, std::ptrdiff_t n) const
+	void filemap_handle::flush(std::ptrdiff_t off, std::ptrdiff_t n) const
 	{
 		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr) + off;
 		auto diff = int_ptr % page_size;
@@ -96,7 +96,7 @@ namespace sek::detail
 		}
 	}
 
-	SEK_API_EXPORT filemap_handle::native_handle_type filemap_handle::native_handle() const noexcept
+	filemap_handle::native_handle_type filemap_handle::native_handle() const noexcept
 	{
 		auto int_ptr = std::bit_cast<std::intptr_t>(view_ptr);
 		return std::bit_cast<void *>(int_ptr - (int_ptr % page_size));

@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <numbers>
 
 #include "sekhmet/serialization/archive.hpp"

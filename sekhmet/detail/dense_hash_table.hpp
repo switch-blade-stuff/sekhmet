@@ -102,33 +102,32 @@ namespace sek::detail
 		using dense_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<entry_type>;
 		using dense_data_t = std::vector<entry_type, dense_alloc>;
 
-		template<typename Iter>
+		template<bool IsConst>
 		class dense_table_iterator
 		{
-			template<typename>
+			template<bool>
 			friend class dense_table_iterator;
 
 			friend class dense_hash_table;
 
-			constexpr static auto is_const =
-				std::is_const_v<std::remove_pointer_t<typename std::iterator_traits<Iter>::pointer>>;
+			using iter_t = std::conditional_t<IsConst, typename dense_data_t::const_iterator, typename dense_data_t::iterator>;
 
 		public:
-			typedef iterator_value<is_const> value_type;
-			typedef iterator_pointer<is_const> pointer;
-			typedef iterator_reference<is_const> reference;
+			typedef iterator_value<IsConst> value_type;
+			typedef iterator_pointer<IsConst> pointer;
+			typedef iterator_reference<IsConst> reference;
 			typedef std::size_t size_type;
-			typedef typename std::iterator_traits<Iter>::difference_type difference_type;
+			typedef std::ptrdiff_t difference_type;
 			typedef std::random_access_iterator_tag iterator_category;
 
 		private:
-			constexpr explicit dense_table_iterator(Iter i) noexcept : i(i) {}
+			constexpr explicit dense_table_iterator(iter_t iter) noexcept : iter(iter) {}
 
 		public:
 			constexpr dense_table_iterator() noexcept = default;
-			template<typename OtherIter, typename = std::enable_if_t<is_const && !dense_table_iterator<OtherIter>::is_const>>
-			constexpr dense_table_iterator(const dense_table_iterator<OtherIter> &other) noexcept
-				: dense_table_iterator(other.i)
+			template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
+			constexpr dense_table_iterator(const dense_table_iterator<OtherConst> &other) noexcept
+				: dense_table_iterator(other.iter)
 			{
 			}
 
@@ -140,12 +139,12 @@ namespace sek::detail
 			}
 			constexpr dense_table_iterator &operator++() noexcept
 			{
-				++i;
+				++iter;
 				return *this;
 			}
 			constexpr dense_table_iterator &operator+=(difference_type n) noexcept
 			{
-				i += n;
+				iter += n;
 				return *this;
 			}
 			constexpr dense_table_iterator operator--(int) noexcept
@@ -156,78 +155,75 @@ namespace sek::detail
 			}
 			constexpr dense_table_iterator &operator--() noexcept
 			{
-				--i;
+				--iter;
 				return *this;
 			}
 			constexpr dense_table_iterator &operator-=(difference_type n) noexcept
 			{
-				i -= n;
+				iter -= n;
 				return *this;
 			}
 
 			constexpr dense_table_iterator operator+(difference_type n) const noexcept
 			{
-				return dense_table_iterator{i + n};
+				return dense_table_iterator{iter + n};
 			}
 			constexpr dense_table_iterator operator-(difference_type n) const noexcept
 			{
-				return dense_table_iterator{i - n};
+				return dense_table_iterator{iter - n};
 			}
 			constexpr difference_type operator-(const dense_table_iterator &other) const noexcept
 			{
-				return i - other.i;
+				return iter - other.iter;
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{&i->value()}; }
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{&iter->value()}; }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 
 			/** Returns reference to the element at an offset. */
-			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return i[n].value(); }
+			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return iter[n].value(); }
 			/** Returns reference to the target element. */
 			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
 
 			[[nodiscard]] constexpr auto operator<=>(const dense_table_iterator &) const noexcept = default;
 			[[nodiscard]] constexpr bool operator==(const dense_table_iterator &) const noexcept = default;
 
-			friend constexpr void swap(dense_table_iterator &a, dense_table_iterator &b) noexcept
-			{
-				using std::swap;
-				swap(a.i, b.i);
-			}
+			constexpr void swap(dense_table_iterator &other) noexcept { std::swap(iter, other.iter); }
+			friend constexpr void swap(dense_table_iterator &a, dense_table_iterator &b) noexcept { a.swap(b); }
 
 		private:
-			Iter i;
+			iter_t iter;
 		};
 
-		template<typename Iter>
+		template<bool IsConst>
 		class dense_table_bucket_iterator
 		{
-			template<typename>
+			template<bool>
 			friend class dense_table_bucket_iterator;
 
 			friend class dense_hash_table;
 
-			constexpr static auto is_const =
-				std::is_const_v<std::remove_pointer_t<typename std::iterator_traits<Iter>::pointer>>;
+			using iter_t = std::conditional_t<IsConst, typename dense_data_t::const_iterator, typename dense_data_t::iterator>;
 
 		public:
-			typedef iterator_value<is_const> value_type;
-			typedef iterator_pointer<is_const> pointer;
-			typedef iterator_reference<is_const> reference;
+			typedef iterator_value<IsConst> value_type;
+			typedef iterator_pointer<IsConst> pointer;
+			typedef iterator_reference<IsConst> reference;
 			typedef std::size_t size_type;
-			typedef typename std::iterator_traits<Iter>::difference_type difference_type;
+			typedef std::ptrdiff_t difference_type;
 			typedef std::forward_iterator_tag iterator_category;
 
 		private:
-			constexpr explicit dense_table_bucket_iterator(Iter i, size_type off) noexcept : i(i), off(off) {}
+			constexpr explicit dense_table_bucket_iterator(iter_t iter) noexcept : iter(iter) {}
+			constexpr explicit dense_table_bucket_iterator(iter_t iter, size_type off) noexcept : iter(iter), off(off) {}
 
 		public:
 			constexpr dense_table_bucket_iterator() noexcept = default;
-			template<typename OtherIter, typename = std::enable_if_t<is_const && !dense_table_bucket_iterator<OtherIter>::is_const>>
-			constexpr dense_table_bucket_iterator(const dense_table_bucket_iterator<OtherIter> &other) noexcept
-				: dense_table_bucket_iterator(other.i, other.off)
+			template<bool OtherConst, typename = std::enable_if_t<IsConst && OtherConst>>
+			constexpr dense_table_bucket_iterator(const dense_table_bucket_iterator<OtherConst> &other) noexcept
+				: dense_table_bucket_iterator(other.iter, other.off)
 			{
 			}
 
@@ -239,12 +235,12 @@ namespace sek::detail
 			}
 			constexpr dense_table_bucket_iterator &operator++() noexcept
 			{
-				off = i[static_cast<difference_type>(off)].next;
+				off = iter[static_cast<difference_type>(off)].next;
 				return *this;
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{&i->value()}; }
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{&iter->value()}; }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 			/** Returns reference to the target element. */
@@ -255,7 +251,7 @@ namespace sek::detail
 			constexpr void swap(dense_table_bucket_iterator &other) noexcept
 			{
 				using std::swap;
-				swap(i, other.i);
+				swap(iter, other.iter);
 				swap(off, other.off);
 			}
 			friend constexpr void swap(dense_table_bucket_iterator &a, dense_table_bucket_iterator &b) noexcept
@@ -264,27 +260,20 @@ namespace sek::detail
 			}
 
 		private:
-			Iter i;
+			iter_t iter;
 			size_type off = 0;
 		};
 
 	public:
-		typedef dense_table_iterator<typename dense_data_t::iterator> iterator;
-		typedef dense_table_iterator<typename dense_data_t::const_iterator> const_iterator;
+		typedef dense_table_iterator<false> iterator;
+		typedef dense_table_iterator<true> const_iterator;
 		typedef std::reverse_iterator<iterator> reverse_iterator;
 		typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
-		typedef dense_table_bucket_iterator<typename dense_data_t::iterator> local_iterator;
-		typedef dense_table_bucket_iterator<typename dense_data_t::const_iterator> const_local_iterator;
+		typedef dense_table_bucket_iterator<false> local_iterator;
+		typedef dense_table_bucket_iterator<true> const_local_iterator;
 
 		typedef dense_alloc value_allocator_type;
 		typedef sparse_alloc bucket_allocator_type;
-
-	private:
-		[[nodiscard]] constexpr static entry_type &to_entry(iterator it) noexcept { return *std::to_address(it.i); }
-		[[nodiscard]] constexpr static const entry_type &to_entry(const_iterator it) noexcept
-		{
-			return *std::to_address(it.i);
-		}
 
 	public:
 		constexpr dense_hash_table() = default;
@@ -359,14 +348,14 @@ namespace sek::detail
 		}
 
 		[[nodiscard]] constexpr iterator begin() noexcept { return iterator{value_vector().begin()}; }
-		[[nodiscard]] constexpr const_iterator cbegin() const noexcept
-		{
-			return const_iterator{value_vector().cbegin()};
-		}
+		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return const_iterator{value_vector().begin()}; }
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return cbegin(); }
 
 		[[nodiscard]] constexpr iterator end() noexcept { return iterator{value_vector().end()}; }
-		[[nodiscard]] constexpr const_iterator cend() const noexcept { return const_iterator{value_vector().cend()}; }
+		[[nodiscard]] constexpr const_iterator cend() const noexcept
+		{
+			return const_iterator{value_vector().end()};
+		}
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
 
 		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return reverse_iterator{end()}; }
@@ -408,7 +397,7 @@ namespace sek::detail
 		}
 		[[nodiscard]] constexpr const_local_iterator cbegin(size_type bucket) const noexcept
 		{
-			return const_local_iterator{value_vector().cbegin(), bucket};
+			return const_local_iterator{value_vector().begin(), bucket};
 		}
 		[[nodiscard]] constexpr const_local_iterator begin(size_type bucket) const noexcept { return cbegin(bucket); }
 
@@ -418,7 +407,7 @@ namespace sek::detail
 		}
 		[[nodiscard]] constexpr const_local_iterator cend(size_type) const noexcept
 		{
-			return const_local_iterator{value_vector().cbegin(), npos};
+			return const_local_iterator{value_vector().begin(), npos};
 		}
 		[[nodiscard]] constexpr const_local_iterator end(size_type bucket) const noexcept { return cend(bucket); }
 
@@ -432,7 +421,7 @@ namespace sek::detail
 		}
 		[[nodiscard]] constexpr size_type bucket(const_iterator iter) const noexcept
 		{
-			return *get_chain(iter.i->hash);
+			return *get_chain(iter.iter->hash);
 		}
 
 		[[nodiscard]] constexpr iterator find(const key_type &key) noexcept
@@ -554,10 +543,7 @@ namespace sek::detail
 			while (first < last) result = erase(--last);
 			return result;
 		}
-		constexpr iterator erase(const_iterator where)
-		{
-			return erase_impl(to_entry(where).hash, get_key(*where.get()));
-		}
+		constexpr iterator erase(const_iterator where) { return erase_impl(where.iter->hash, get_key(*where.get())); }
 		constexpr iterator erase(const key_type &key) { return erase_impl(key_hash(key), key); }
 
 		[[nodiscard]] constexpr auto value_allocator() const noexcept { return value_vector().get_allocator(); }
@@ -688,20 +674,24 @@ namespace sek::detail
 				if (entry_iter->hash == h && key_comp(key, entry_iter->key()))
 				{
 					*chain_idx = entry_iter->next;
-					if constexpr (std::is_move_assignable_v<entry_type>)
-						*entry_iter = std::move(value_vector().back());
-					else
-						entry_iter->swap(value_vector().back());
+					if (const auto end_pos = size() - 1; pos != end_pos)
+					{
+						if constexpr (std::is_move_assignable_v<entry_type>)
+							*entry_iter = std::move(value_vector().back());
+						else
+							entry_iter->swap(value_vector().back());
 
-					/* Find the chain offset pointing to the old position & replace it with the new position. */
+						/* Find the chain offset pointing to the old position & replace it with the new position. */
+						for (chain_idx = get_chain(entry_iter->hash); *chain_idx != npos;
+							 chain_idx = &value_vector()[*chain_idx].next)
+							if (*chain_idx == end_pos)
+							{
+								*chain_idx = pos;
+								break;
+							}
+					}
+
 					value_vector().pop_back();
-					for (chain_idx = get_chain(entry_iter->hash); *chain_idx != npos;
-						 chain_idx = &value_vector()[*chain_idx].next)
-						if (*chain_idx == size()) /* Since we popped the back entry, size will be the index of the old back. */
-						{
-							*chain_idx = pos;
-							break;
-						}
 					return iterator{entry_iter};
 				}
 				chain_idx = &entry_iter->next;

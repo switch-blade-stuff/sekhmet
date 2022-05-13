@@ -413,28 +413,21 @@ namespace sek
 		[[nodiscard]] constexpr size_type max_bucket_count() const noexcept { return data_table.max_bucket_count(); }
 
 		/** Returns local iterator to the start of a bucket. */
-		[[nodiscard]] constexpr local_iterator begin(size_type bucket) noexcept { return data_table.begin(bucket); }
+		[[nodiscard]] constexpr local_iterator begin(size_type bucket) const noexcept
+		{
+			return data_table.begin(bucket);
+		}
 		/** Returns const local iterator to the start of a bucket. */
 		[[nodiscard]] constexpr const_local_iterator cbegin(size_type bucket) const noexcept
 		{
 			return data_table.cbegin(bucket);
 		}
-		/** @copydoc cbegin */
-		[[nodiscard]] constexpr const_local_iterator begin(size_type bucket) const noexcept
-		{
-			return data_table.begin(bucket);
-		}
 		/** Returns local iterator to the end of a bucket. */
-		[[nodiscard]] constexpr local_iterator end(size_type bucket) noexcept { return data_table.end(bucket); }
+		[[nodiscard]] constexpr local_iterator end(size_type bucket) const noexcept { return data_table.end(bucket); }
 		/** Returns const local iterator to the end of a bucket. */
 		[[nodiscard]] constexpr const_local_iterator cend(size_type bucket) const noexcept
 		{
 			return data_table.cend(bucket);
-		}
-		/** @copydoc cbegin */
-		[[nodiscard]] constexpr const_local_iterator end(size_type bucket) const noexcept
-		{
-			return data_table.end(bucket);
 		}
 
 		/** Returns the amount of elements stored within the bucket. */

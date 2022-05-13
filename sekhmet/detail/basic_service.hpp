@@ -32,7 +32,7 @@ namespace sek
 			return result;
 		}
 
-		static SEK_API_IMPORT std::atomic<Child *> &global_ptr() noexcept;
+		static SEK_API std::atomic<Child *> &global_ptr() noexcept;
 
 	private:
 		static Child *local()

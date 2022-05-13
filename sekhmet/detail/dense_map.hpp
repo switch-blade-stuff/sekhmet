@@ -52,10 +52,10 @@ namespace sek
 			value_reference() = delete;
 
 			/* Conversions from relevant references. */
-			constexpr value_reference(value_type &ref) noexcept requires(!Const) : first{ref.first}, second{ref.second} {}
-			constexpr value_reference(std::pair<key_type, mapped_type> &ref) noexcept requires(!Const) : first{ref.first}, second{ref.second} {}
-			constexpr value_reference(const value_type &ref) noexcept : first{ref.first}, second{ref.second} {}
-			constexpr value_reference(const std::pair<key_type, mapped_type> &ref) noexcept : first{ref.first}, second{ref.second} {}
+			constexpr value_reference(value_type &ref) noexcept : first{ref.first}, second{ref.second} {}
+			constexpr value_reference(std::pair<key_type, mapped_type> &ref) noexcept : first{ref.first}, second{ref.second} {}
+			constexpr value_reference(const value_type &ref) noexcept requires(Const) : first{ref.first}, second{ref.second} {}
+			constexpr value_reference(const std::pair<key_type, mapped_type> &ref) noexcept requires(Const) : first{ref.first}, second{ref.second} {}
 
 			/* Here overloading operator& is fine, since we want to use value_pointer for pointers. */
 			[[nodiscard]] constexpr value_pointer<Const> operator&() const noexcept { return value_pointer<Const>{this}; }
@@ -106,10 +106,10 @@ namespace sek
 			constexpr value_pointer &operator=(value_pointer &&) noexcept = default;
 
 			/* Conversions from relevant pointers. */
-			constexpr value_pointer(value_type *ptr) noexcept requires(!Const) : ref{*ptr} {}
-			constexpr value_pointer(std::pair<key_type, mapped_type> *ptr) noexcept requires(!Const) : ref{*ptr} {}
-			constexpr value_pointer(const value_type *ptr) noexcept : ref{*ptr} {}
-			constexpr value_pointer(const std::pair<key_type, mapped_type> *ptr) noexcept : ref{*ptr} {}
+			constexpr value_pointer(value_type *ptr) noexcept : ref{*ptr} {}
+			constexpr value_pointer(std::pair<key_type, mapped_type> *ptr) noexcept : ref{*ptr} {}
+			constexpr value_pointer(const value_type *ptr) noexcept requires(Const) : ref{*ptr} {}
+			constexpr value_pointer(const std::pair<key_type, mapped_type> *ptr) noexcept requires(Const) : ref{*ptr} {}
 
 			/* Conversion from value reference. */
 			constexpr value_pointer(value_reference<Const> &&ref) noexcept : ref{ref} {}
@@ -122,11 +122,11 @@ namespace sek
 			/* Since value_reference stores reference to adjacent pair members, comparing the first element is enough. */
 			[[nodiscard]] constexpr auto operator<=>(const value_pointer &other) const noexcept
 			{
-				return std::to_address(ref.first) <=> std::to_address(other.ref.first);
+				return std::addressof(ref.first) <=> std::addressof(other.ref.first);
 			}
 			[[nodiscard]] constexpr bool operator==(const value_pointer &other) const noexcept
 			{
-				return std::to_address(ref.first) == std::to_address(other.ref.first);
+				return std::addressof(ref.first) == std::addressof(other.ref.first);
 			}
 
 		private:

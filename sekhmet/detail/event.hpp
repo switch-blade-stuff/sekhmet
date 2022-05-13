@@ -56,14 +56,14 @@ namespace sek
 
 			using iter_t = typename sub_data_t::const_iterator;
 
-			constexpr explicit event_iterator(iter_t iter) noexcept : iter(iter) {}
+			constexpr explicit event_iterator(iter_t ptr) noexcept : iter(ptr) {}
 
 		public:
 			typedef delegate_t value_type;
 			typedef const value_type *pointer;
 			typedef const value_type &reference;
 			typedef std::size_t size_type;
-			typedef typename iter_t::difference_type difference_type;
+			typedef std::ptrdiff_t difference_type;
 			typedef std::random_access_iterator_tag iterator_category;
 
 		public:
@@ -122,11 +122,8 @@ namespace sek
 			[[nodiscard]] constexpr auto operator<=>(const event_iterator &) const noexcept = default;
 			[[nodiscard]] constexpr bool operator==(const event_iterator &) const noexcept = default;
 
-			friend constexpr void swap(event_iterator &a, event_iterator &b) noexcept
-			{
-				using std::swap;
-				swap(a.iter, b.iter);
-			}
+			constexpr void swap(event_iterator &other) noexcept { std::swap(iter, other.iter); }
+			friend constexpr void swap(event_iterator &a, event_iterator &b) noexcept { a.swap(b); }
 
 		private:
 			iter_t iter;
@@ -173,11 +170,11 @@ namespace sek
 		[[nodiscard]] constexpr size_type size() const noexcept { return sub_data.size(); }
 
 		/** Returns iterator to the fist subscriber of the event. */
-		[[nodiscard]] constexpr const_iterator begin() const noexcept { return const_iterator{sub_data.cbegin()}; }
+		[[nodiscard]] constexpr const_iterator begin() const noexcept { return const_iterator{sub_data.begin()}; }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
 		/** Returns iterator one past the last subscriber of the event. */
-		[[nodiscard]] constexpr const_iterator end() const noexcept { return const_iterator{sub_data.cend()}; }
+		[[nodiscard]] constexpr const_iterator end() const noexcept { return const_iterator{sub_data.end()}; }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
 		/** Returns reverse iterator one past the last subscriber of the event. */
@@ -200,7 +197,7 @@ namespace sek
 			if (where < end()) ++(id_data.begin()[sub_data.begin()[pos].id]);
 
 			/* Insert the subscriber & resize the id list if needed. */
-			sub_data.emplace(where.iter, subscriber);
+			sub_data.emplace(sub_data.begin() + pos, subscriber);
 			if (sub_data.size() > id_data.size()) [[unlikely]]
 				id_data.resize(sub_data.size() * 2, placeholder);
 
@@ -317,7 +314,8 @@ namespace sek
 		/** Returns iterator to the subscriber delegate using it's subscription id or if such subscriber is not found. */
 		[[nodiscard]] constexpr iterator find(event_id sub_id) const noexcept
 		{
-			return iterator{std::find_if(sub_data.begin(), sub_data.end(), [sub_id](auto &s) { return s.id == sub_id; })};
+			auto iter = std::find_if(sub_data.begin(), sub_data.end(), [sub_id](auto &s) { return s.id == sub_id; });
+			return begin() + (iter - sub_data.begin());
 		}
 		/** Returns iterator to the subscriber delegate that compares equal to the provided delegate or the end
 		 * iterator if such subscriber is not found. */

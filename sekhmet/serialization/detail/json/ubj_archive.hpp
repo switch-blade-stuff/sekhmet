@@ -228,8 +228,9 @@ namespace sek::serialization::ubj
 					return std::bit_cast<T>(bswap_32(std::bit_cast<std::uint32_t>(value)));
 				else if constexpr (sizeof(T) == sizeof(std::uint64_t))
 					return std::bit_cast<T>(bswap_64(std::bit_cast<std::uint64_t>(value)));
+				else
 #endif
-				return value;
+					return value;
 			}
 			[[nodiscard]] std::int64_t parse_length()
 			{

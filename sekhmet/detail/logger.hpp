@@ -42,7 +42,7 @@ namespace sek
 	 * 3. Error logger - Used to log non-critical error messages (ex. from recoverable exceptions).
 	 * 4. Critical logger - Used to log critical (potentially fatal) messages (ex. graphics initialization failure). */
 	template<typename C, typename T = std::char_traits<C>>
-	class basic_logger
+	class SEK_API basic_logger
 	{
 	public:
 		typedef C value_type;
@@ -57,10 +57,30 @@ namespace sek
 		constexpr static const value_type *error_cat = "Error";
 		constexpr static const value_type *crit_cat = "Critical";
 
-		static std::atomic<basic_logger *> &msg_ptr();
-		static std::atomic<basic_logger *> &warn_ptr();
-		static std::atomic<basic_logger *> &error_ptr();
-		static std::atomic<basic_logger *> &crit_ptr();
+		static std::atomic<basic_logger *> &msg_ptr()
+		{
+			static basic_logger instance{msg_cat};
+			static std::atomic<basic_logger *> ptr = &instance;
+			return ptr;
+		}
+		static std::atomic<basic_logger *> &warn_ptr()
+		{
+			static basic_logger instance{warn_cat};
+			static std::atomic<basic_logger *> ptr = &instance;
+			return ptr;
+		}
+		static std::atomic<basic_logger *> &error_ptr()
+		{
+			static basic_logger instance{error_cat};
+			static std::atomic<basic_logger *> ptr = &instance;
+			return ptr;
+		}
+		static std::atomic<basic_logger *> &crit_ptr()
+		{
+			static basic_logger instance{crit_cat};
+			static std::atomic<basic_logger *> ptr = &instance;
+			return ptr;
+		}
 
 	public:
 		/** Returns the global message logger. */
@@ -254,43 +274,14 @@ namespace sek
 
 	typedef basic_logger<char> logger;
 
-	template<typename C, typename T>
-	std::atomic<basic_logger<C, T> *> &basic_logger<C, T>::msg_ptr()
-	{
-		static basic_logger instance{msg_cat};
-		static std::atomic<basic_logger *> ptr = &instance;
-		return ptr;
-	}
-	template<typename C, typename T>
-	std::atomic<basic_logger<C, T> *> &basic_logger<C, T>::warn_ptr()
-	{
-		static basic_logger instance{warn_cat};
-		static std::atomic<basic_logger *> ptr = &instance;
-		return ptr;
-	}
-	template<typename C, typename T>
-	std::atomic<basic_logger<C, T> *> &basic_logger<C, T>::error_ptr()
-	{
-		static basic_logger instance{error_cat};
-		static std::atomic<basic_logger *> ptr = &instance;
-		return ptr;
-	}
-	template<typename C, typename T>
-	std::atomic<basic_logger<C, T> *> &basic_logger<C, T>::crit_ptr()
-	{
-		static basic_logger instance{crit_cat};
-		static std::atomic<basic_logger *> ptr = &instance;
-		return ptr;
-	}
+	template<>
+	std::atomic<logger *> &logger::msg_ptr();
+	template<>
+	std::atomic<logger *> &logger::warn_ptr();
+	template<>
+	std::atomic<logger *> &logger::error_ptr();
+	template<>
+	std::atomic<logger *> &logger::crit_ptr();
 
-	template<>
-	SEK_API_IMPORT std::atomic<logger *> &logger::msg_ptr();
-	template<>
-	SEK_API_IMPORT std::atomic<logger *> &logger::warn_ptr();
-	template<>
-	SEK_API_IMPORT std::atomic<logger *> &logger::error_ptr();
-	template<>
-	SEK_API_IMPORT std::atomic<logger *> &logger::crit_ptr();
-
-	extern template class SEK_API_IMPORT basic_logger<char>;
+	extern template class SEK_API basic_logger<char>;
 }	 // namespace sek

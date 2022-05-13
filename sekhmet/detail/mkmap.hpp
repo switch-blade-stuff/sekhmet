@@ -338,32 +338,32 @@ namespace sek
 			using dense_alloc = typename std::allocator_traits<Alloc>::template rebind_alloc<entry_type>;
 			using dense_data_t = std::vector<entry_type, dense_alloc>;
 
-			template<typename Iter>
+			template<bool IsConst>
 			class mkmap_iterator
 			{
-				template<typename>
+				template<bool>
 				friend class mkmap_iterator;
 
 				friend class mkmap_impl;
 
-				constexpr static auto is_const =
-					std::is_const_v<std::remove_pointer_t<typename std::iterator_traits<Iter>::pointer>>;
+				using iter_t =
+					std::conditional_t<IsConst, typename dense_data_t::const_iterator, typename dense_data_t::iterator>;
 
 			public:
 				typedef mkmap_value_t<multikey<Ks...>, M> value_type;
-				typedef std::conditional_t<is_const, const value_type, value_type> *pointer;
-				typedef std::conditional_t<is_const, const value_type, value_type> &reference;
+				typedef std::conditional_t<IsConst, const value_type, value_type> *pointer;
+				typedef std::conditional_t<IsConst, const value_type, value_type> &reference;
 				typedef std::size_t size_type;
-				typedef typename std::iterator_traits<Iter>::difference_type difference_type;
+				typedef std::ptrdiff_t difference_type;
 				typedef std::random_access_iterator_tag iterator_category;
 
 			private:
-				constexpr explicit mkmap_iterator(Iter i) noexcept : i(i) {}
+				constexpr explicit mkmap_iterator(iter_t iter) noexcept : iter(iter) {}
 
 			public:
 				constexpr mkmap_iterator() noexcept = default;
-				template<typename OtherIter, typename = std::enable_if_t<is_const && !mkmap_iterator<OtherIter>::is_const>>
-				constexpr mkmap_iterator(const mkmap_iterator<OtherIter> &other) noexcept : mkmap_iterator(other.i)
+				template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
+				constexpr mkmap_iterator(const mkmap_iterator<OtherConst> &other) noexcept : mkmap_iterator(other.iter)
 				{
 				}
 
@@ -375,12 +375,12 @@ namespace sek
 				}
 				constexpr mkmap_iterator &operator++() noexcept
 				{
-					++i;
+					++iter;
 					return *this;
 				}
 				constexpr mkmap_iterator &operator+=(difference_type n) noexcept
 				{
-					i += n;
+					iter += n;
 					return *this;
 				}
 				constexpr mkmap_iterator operator--(int) noexcept
@@ -391,42 +391,48 @@ namespace sek
 				}
 				constexpr mkmap_iterator &operator--() noexcept
 				{
-					--i;
+					--iter;
 					return *this;
 				}
 				constexpr mkmap_iterator &operator-=(difference_type n) noexcept
 				{
-					i -= n;
+					iter -= n;
 					return *this;
 				}
 
-				constexpr mkmap_iterator operator+(difference_type n) const noexcept { return mkmap_iterator{i + n}; }
-				constexpr mkmap_iterator operator-(difference_type n) const noexcept { return mkmap_iterator{i - n}; }
-				constexpr difference_type operator-(const mkmap_iterator &other) const noexcept { return i - other.i; }
+				constexpr mkmap_iterator operator+(difference_type n) const noexcept
+				{
+					return mkmap_iterator{iter + n};
+				}
+				constexpr mkmap_iterator operator-(difference_type n) const noexcept
+				{
+					return mkmap_iterator{iter - n};
+				}
+				constexpr difference_type operator-(const mkmap_iterator &other) const noexcept
+				{
+					return iter - other.iter;
+				}
 
 				/** Returns pointer to the target element. */
-				[[nodiscard]] constexpr pointer get() const noexcept { return &i->value; }
+				[[nodiscard]] constexpr pointer get() const noexcept { return &iter->value; }
 				/** @copydoc value */
 				[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 
 				/** Returns reference to the element at an offset. */
-				[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return i[n].value(); }
+				[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return iter[n].value; }
 				/** Returns reference to the target element. */
 				[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
 
 				[[nodiscard]] constexpr auto operator<=>(const mkmap_iterator &) const noexcept = default;
 				[[nodiscard]] constexpr bool operator==(const mkmap_iterator &) const noexcept = default;
 
-				friend constexpr void swap(mkmap_iterator &a, mkmap_iterator &b) noexcept
-				{
-					using std::swap;
-					swap(a.i, b.i);
-				}
+				constexpr void swap(mkmap_iterator &other) noexcept { std::swap(iter, other.iter); }
+				friend constexpr void swap(mkmap_iterator &a, mkmap_iterator &b) noexcept { a.swap(b); }
 
 			private:
-				[[nodiscard]] constexpr auto &entry() const noexcept { return *i; }
+				[[nodiscard]] constexpr auto &entry() const noexcept { return *iter; }
 
-				Iter i;
+				iter_t iter;
 			};
 
 		public:
@@ -435,8 +441,8 @@ namespace sek
 			typedef value_type &reference;
 			typedef const value_type &const_reference;
 
-			typedef mkmap_iterator<typename dense_data_t::iterator> iterator;
-			typedef mkmap_iterator<typename dense_data_t::const_iterator> const_iterator;
+			typedef mkmap_iterator<false> iterator;
+			typedef mkmap_iterator<true> const_iterator;
 			typedef std::reverse_iterator<iterator> reverse_iterator;
 			typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
 
@@ -444,10 +450,6 @@ namespace sek
 			typedef std::ptrdiff_t difference_type;
 			typedef dense_alloc allocator_type;
 			typedef sparse_alloc bucket_allocator_type;
-
-		private:
-			[[nodiscard]] constexpr static entry_type &to_entry(iterator it) noexcept { return *it.i; }
-			[[nodiscard]] constexpr static const entry_type &to_entry(const_iterator it) noexcept { return *it.i; }
 
 		public:
 			// clang-format off
@@ -612,13 +614,13 @@ namespace sek
 			/** Returns iterator to the start of the map. */
 			[[nodiscard]] constexpr iterator begin() noexcept { return iterator{entries.begin()}; }
 			/** Returns const iterator to the start of the map. */
-			[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return const_iterator{entries.cbegin()}; }
+			[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return const_iterator{entries.begin()}; }
 			/** @copydoc cbegin */
 			[[nodiscard]] constexpr const_iterator begin() const noexcept { return cbegin(); }
 			/** Returns iterator to the end of the map. */
 			[[nodiscard]] constexpr iterator end() noexcept { return iterator{entries.end()}; }
 			/** Returns const iterator to the end of the map. */
-			[[nodiscard]] constexpr const_iterator cend() const noexcept { return const_iterator{entries.cend()}; }
+			[[nodiscard]] constexpr const_iterator cend() const noexcept { return const_iterator{entries.end()}; }
 			/** @copydoc cend */
 			[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
 			/** Returns reverse iterator to the end of the map. */
@@ -957,7 +959,7 @@ namespace sek
 			/** Removes the specified element from the map.
 			 * @param where Iterator to the target element.
 			 * @return Iterator to the element after the erased one. */
-			constexpr iterator erase(const_iterator where) { return erase_impl(entries.begin() + (where - cbegin())); }
+			constexpr iterator erase(const_iterator where) { return erase_impl(where.iter); }
 			/** Removes all elements in the [first, last) range.
 			 * @param first Iterator to the first element of the target range.
 			 * @param last Iterator to the last element of the target range.
@@ -1099,7 +1101,7 @@ namespace sek
 							}
 					});
 			}
-			constexpr void remove_entry(entry_type &entry, size_type pos)
+			constexpr void remove_entry(const entry_type &entry, size_type pos)
 			{
 				foreach_key(
 					[&]<size_type I>(index_selector_t<I>)
@@ -1114,7 +1116,7 @@ namespace sek
 							}
 					});
 			}
-			constexpr void move_entry(entry_type &entry, size_type old_pos, size_type new_pos)
+			constexpr void move_entry(const entry_type &entry, size_type old_pos, size_type new_pos)
 			{
 				foreach_key(
 					[&]<size_type I>(index_selector_t<I>)
@@ -1270,22 +1272,24 @@ namespace sek
 				}
 			}
 
-			constexpr iterator erase_impl(typename dense_data_t::iterator where)
+			constexpr iterator erase_impl(typename dense_data_t::const_iterator where)
 			{
 				/* Un-link the entry from the chain & swap with the last entry. */
 				const auto pos = static_cast<size_type>(where - entries.begin());
 				remove_entry(*where, pos);
-				if (pos != size() - 1) /* Make sure we are not erasing the last item. */
+
+				const auto old_pos = size() - 1;
+				if (pos != old_pos) /* Make sure we are not erasing the last item. */
 				{
 					if constexpr (std::is_move_assignable_v<entry_type>)
-						*where = std::move(entries.back());
+						entries[pos] = std::move(entries.back());
 					else
-						where->swap(entries.back());
-					move_entry(*where, size() - 1, pos);
+						entries[pos].swap(entries.back());
+					move_entry(*where, old_pos, pos);
 				}
 
 				entries.pop_back();
-				return iterator{where};
+				return begin() + pos;
 			}
 
 			dense_data_t entries;

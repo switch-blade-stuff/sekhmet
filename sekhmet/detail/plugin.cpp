@@ -75,13 +75,13 @@ namespace sek
 		sparse_map<std::string_view, plugin_entry> plugins;
 	};
 
-	SEK_API_EXPORT plugin::plugin_db &plugin::database()
+	plugin::plugin_db &plugin::database()
 	{
 		static plugin_db instance;
 		return instance;
 	}
 
-	SEK_API_EXPORT void plugin::load_plugin(const plugin_info *info, void *data) noexcept
+	void plugin::load_plugin(const plugin_info *info, void *data) noexcept
 	{
 		const auto id = info->id(data);
 		auto &db = database();
@@ -92,7 +92,7 @@ namespace sek
 		else
 			logger::warn() << fmt::format("Attempted to load duplicate plugin \"{}\"", id);
 	}
-	SEK_API_EXPORT void plugin::unload_plugin(const plugin_info *info, void *data) noexcept
+	void plugin::unload_plugin(const plugin_info *info, void *data) noexcept
 	{
 		const auto id = info->id(data);
 		auto &db = database();
@@ -112,7 +112,7 @@ namespace sek
 		}
 	}
 
-	SEK_API_EXPORT std::vector<plugin> plugin::get_loaded()
+	std::vector<plugin> plugin::get_loaded()
 	{
 		auto &db = database();
 		std::lock_guard<std::mutex> l(db.mtx);
@@ -123,7 +123,7 @@ namespace sek
 
 		return result;
 	}
-	SEK_API_EXPORT std::vector<plugin> plugin::get_enabled()
+	std::vector<plugin> plugin::get_enabled()
 	{
 		auto &db = database();
 		std::lock_guard<std::mutex> l(db.mtx);
@@ -135,7 +135,7 @@ namespace sek
 
 		return result;
 	}
-	SEK_API_EXPORT plugin plugin::get(std::string_view id)
+	plugin plugin::get(std::string_view id)
 	{
 		auto &db = database();
 		std::lock_guard<std::mutex> l(db.mtx);
@@ -149,11 +149,11 @@ namespace sek
 			return plugin{&iter->second};
 	}
 
-	SEK_API_EXPORT std::string_view plugin::id() const noexcept { return entry->id(); }
-	SEK_API_EXPORT bool plugin::enabled() const noexcept { return entry->status == plugin_entry::ENABLED; }
-	SEK_API_EXPORT void *plugin::data() const noexcept { return entry->data; }
+	std::string_view plugin::id() const noexcept { return entry->id(); }
+	bool plugin::enabled() const noexcept { return entry->status == plugin_entry::ENABLED; }
+	void *plugin::data() const noexcept { return entry->data; }
 
-	SEK_API_EXPORT bool plugin::enable() const noexcept
+	bool plugin::enable() const noexcept
 	{
 		const auto entry_id = id();
 		auto expected = plugin_entry::DISABLED;
@@ -169,7 +169,7 @@ namespace sek
 			return false;
 		}
 	}
-	SEK_API_EXPORT bool plugin::disable() const noexcept
+	bool plugin::disable() const noexcept
 	{
 		const auto entry_id = id();
 		auto expected = plugin_entry::ENABLED;

@@ -9,7 +9,7 @@
 namespace sek
 {
 	template<>
-	SEK_API_EXPORT std::atomic<logger *> &logger::msg_ptr()
+	std::atomic<logger *> &logger::msg_ptr()
 	{
 		static auto instance = []()
 		{
@@ -21,7 +21,7 @@ namespace sek
 		return ptr;
 	}
 	template<>
-	SEK_API_EXPORT std::atomic<logger *> &logger::warn_ptr()
+	std::atomic<logger *> &logger::warn_ptr()
 	{
 		static auto instance = []()
 		{
@@ -33,7 +33,7 @@ namespace sek
 		return ptr;
 	}
 	template<>
-	SEK_API_EXPORT std::atomic<logger *> &logger::error_ptr()
+	std::atomic<logger *> &logger::error_ptr()
 	{
 		static auto instance = []()
 		{
@@ -45,7 +45,7 @@ namespace sek
 		return ptr;
 	}
 	template<>
-	SEK_API_EXPORT std::atomic<logger *> &logger::crit_ptr()
+	std::atomic<logger *> &logger::crit_ptr()
 	{
 		static auto instance = []()
 		{

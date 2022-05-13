@@ -13,7 +13,7 @@
 namespace sek
 {
 	/** @brief Handle used to reference and manage plugins. */
-	class plugin
+	class SEK_API plugin
 	{
 		struct plugin_info
 		{
@@ -26,9 +26,9 @@ namespace sek
 		struct plugin_entry;
 		struct plugin_db;
 
-		static SEK_API_IMPORT plugin_db &database();
-		static SEK_API_IMPORT void load_plugin(const plugin_info *, void *) noexcept;
-		static SEK_API_IMPORT void unload_plugin(const plugin_info *, void *) noexcept;
+		static plugin_db &database();
+		static void load_plugin(const plugin_info *, void *) noexcept;
+		static void unload_plugin(const plugin_info *, void *) noexcept;
 
 		template<typename T>
 		class registrar : ebo_base_helper<T>
@@ -43,9 +43,11 @@ namespace sek
 						  "Plugin must implement `std::string_view id() const` member function");
 			// clang-format on
 
+		public:
 			constexpr registrar() noexcept(noexcept(ebo_base{})) { load_plugin(&info, ebo_base::get()); }
 			constexpr ~registrar() { unload_plugin(&info, ebo_base::get()); }
 
+		private:
 			const plugin_info info = {
 				+[](const void *p)
 				{
@@ -83,14 +85,17 @@ namespace sek
 			};
 		};
 
+		template<typename>
+		friend class registrar;
+
 	public:
 		/** Returns a vector of all currently loaded plugins. */
-		static SEK_API_IMPORT std::vector<plugin> get_loaded();
+		static std::vector<plugin> get_loaded();
 		/** Returns a vector of all currently enabled plugins. */
-		static SEK_API_IMPORT std::vector<plugin> get_enabled();
+		static std::vector<plugin> get_enabled();
 
 		/** Returns a plugin using it's id. If such plugin does not exist, returns an empty handle. */
-		static SEK_API_IMPORT plugin get(std::string_view id);
+		static plugin get(std::string_view id);
 
 	private:
 		constexpr explicit plugin(plugin_entry *entry) noexcept : entry(entry) {}
@@ -105,20 +110,20 @@ namespace sek
 		[[nodiscard]] constexpr operator bool() const noexcept { return !empty(); }
 
 		/** Checks if the plugin is enabled. */
-		SEK_API_IMPORT [[nodiscard]] bool enabled() const noexcept;
+		[[nodiscard]] bool enabled() const noexcept;
 		/** Returns id of the plugin. */
-		SEK_API_IMPORT [[nodiscard]] std::string_view id() const noexcept;
+		[[nodiscard]] std::string_view id() const noexcept;
 		/** Returns pointer to the instance of the plugin. */
-		SEK_API_IMPORT [[nodiscard]] void *data() const noexcept;
+		[[nodiscard]] void *data() const noexcept;
 
 		/** Enables the plugin and invokes it's `on_enable` member function.
 		 * @returns true on success, false otherwise.
 		 * @note Plugin will fail to enable if it is already enabled or if `on_enable` returned false or threw an exception. */
-		SEK_API_IMPORT [[nodiscard]] bool enable() const noexcept;
+		[[nodiscard]] bool enable() const noexcept;
 		/** Disables the plugin and invokes it's `on_disable` member function.
 		 * @returns true on success, false otherwise.
 		 * @note Plugin will fail to disable if it is not enabled. */
-		SEK_API_IMPORT [[nodiscard]] bool disable() const noexcept;
+		[[nodiscard]] bool disable() const noexcept;
 
 		[[nodiscard]] constexpr auto operator<=>(const plugin &) const noexcept = default;
 		[[nodiscard]] constexpr bool operator==(const plugin &) const noexcept = default;
