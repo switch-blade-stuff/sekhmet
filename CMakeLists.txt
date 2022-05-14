@@ -37,14 +37,6 @@ macro(sek_init_target_options)
     endif ()
 endmacro()
 
-macro(sek_init_tool_subproject)
-    sek_init_target_options(${ARGV0})
-    set_target_properties(${ARGV0} PROPERTIES
-            ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/tools"
-            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/tools"
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/tools")
-endmacro()
-
 # Handle pre C++20 ABI-freeze MSVC versions
 if (MSVC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS_EQUAL 19.30)
     set(CMAKE_CXX_STANDARD 23) # /std:c++latest required for MSVC pre abi-freeze
