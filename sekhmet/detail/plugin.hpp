@@ -27,8 +27,8 @@ namespace sek
 		struct plugin_db;
 
 		SEK_API static plugin_db &database();
-		SEK_API static void load_plugin(const plugin_info *, void *) noexcept;
-		SEK_API static void unload_plugin(const plugin_info *, void *) noexcept;
+		SEK_API static void load(const plugin_info *, void *) noexcept;
+		SEK_API static void unload(const plugin_info *, void *) noexcept;
 
 		template<typename T>
 		class registrar : ebo_base_helper<T>
@@ -44,8 +44,8 @@ namespace sek
 			// clang-format on
 
 		public:
-			constexpr registrar() noexcept(noexcept(ebo_base{})) { load_plugin(&info, ebo_base::get()); }
-			constexpr ~registrar() { unload_plugin(&info, ebo_base::get()); }
+			constexpr registrar() noexcept(noexcept(ebo_base{})) { load(&info, ebo_base::get()); }
+			constexpr ~registrar() { unload(&info, ebo_base::get()); }
 
 		private:
 			const plugin_info info = {

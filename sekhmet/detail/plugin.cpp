@@ -81,7 +81,7 @@ namespace sek
 		return instance;
 	}
 
-	void plugin::load_plugin(const plugin_info *info, void *data) noexcept
+	void plugin::load(const plugin_info *info, void *data) noexcept
 	{
 		const auto id = info->id(data);
 		auto &db = database();
@@ -92,7 +92,7 @@ namespace sek
 		else
 			logger::warn() << fmt::format("Attempted to load duplicate plugin \"{}\"", id);
 	}
-	void plugin::unload_plugin(const plugin_info *info, void *data) noexcept
+	void plugin::unload(const plugin_info *info, void *data) noexcept
 	{
 		const auto id = info->id(data);
 		auto &db = database();
