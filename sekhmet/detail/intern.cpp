@@ -6,8 +6,16 @@
 
 namespace sek
 {
-	template class SEK_API_EXPORT basic_intern_pool<char>;
-	template class SEK_API_EXPORT basic_intern_pool<wchar_t>;
-	template class SEK_API_EXPORT basic_interned_string<char>;
-	template class SEK_API_EXPORT basic_interned_string<wchar_t>;
+	template<>
+	basic_intern_pool<char> &basic_intern_pool<char>::global()
+	{
+		static basic_intern_pool instance;
+		return instance;
+	}
+	template<>
+	basic_intern_pool<wchar_t> &basic_intern_pool<wchar_t>::global()
+	{
+		static basic_intern_pool instance;
+		return instance;
+	}
 }	 // namespace sek

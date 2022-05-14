@@ -73,7 +73,7 @@ namespace sek
 #ifdef SEK_OS_WIN
 				return _aligned_realloc(ptr, sizeof(T) * n, alignof(T));
 #else
-				return realloc(iter, sizeof(T) * n + alignof(T) - 1), static_cast<ssize_t>(alignof(T));
+				return realloc(ptr, sizeof(T) * n + alignof(T) - 1), static_cast<ssize_t>(alignof(T));
 #endif
 			}
 		}

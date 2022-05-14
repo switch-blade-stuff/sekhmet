@@ -42,7 +42,7 @@ namespace sek
 	 * 3. Error logger - Used to log non-critical error messages (ex. from recoverable exceptions).
 	 * 4. Critical logger - Used to log critical (potentially fatal) messages (ex. graphics initialization failure). */
 	template<typename C, typename T = std::char_traits<C>>
-	class SEK_API basic_logger
+	class basic_logger
 	{
 	public:
 		typedef C value_type;
@@ -275,13 +275,11 @@ namespace sek
 	typedef basic_logger<char> logger;
 
 	template<>
-	std::atomic<logger *> &logger::msg_ptr();
+	SEK_API std::atomic<logger *> &logger::msg_ptr();
 	template<>
-	std::atomic<logger *> &logger::warn_ptr();
+	SEK_API std::atomic<logger *> &logger::warn_ptr();
 	template<>
-	std::atomic<logger *> &logger::error_ptr();
+	SEK_API std::atomic<logger *> &logger::error_ptr();
 	template<>
-	std::atomic<logger *> &logger::crit_ptr();
-
-	extern template class SEK_API basic_logger<char>;
+	SEK_API std::atomic<logger *> &logger::crit_ptr();
 }	 // namespace sek

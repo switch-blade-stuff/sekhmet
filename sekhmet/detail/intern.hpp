@@ -100,6 +100,12 @@ namespace sek
 		using data_alloc_t = std::pmr::polymorphic_allocator<string_type>;
 		using data_t = detail::dense_hash_table<sv_t, value_type, v_traits, fnv_hash, std::equal_to<>, to_sv, data_alloc_t>;
 
+		static basic_intern_pool &global()
+		{
+			static basic_intern_pool instance;
+			return instance;
+		}
+
 	public:
 		typedef const value_type &pointer;
 		typedef const value_type &const_pointer;
@@ -142,11 +148,11 @@ namespace sek
 		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return rend(); }
 
 		/** Interns the passed string view. */
-		[[nodiscard]] constexpr string_type intern(sv_t str);
+		[[nodiscard]] constexpr string_type intern(sv_t str) { return string_type{*this, str}; }
 		/** Interns the passed string. */
-		[[nodiscard]] constexpr string_type intern(const C *str);
+		[[nodiscard]] constexpr string_type intern(const C *str) { return string_type{*this, str}; }
 		/** @copydoc intern */
-		[[nodiscard]] constexpr string_type intern(const C *str, size_type n);
+		[[nodiscard]] constexpr string_type intern(const C *str, size_type n) { return string_type{*this, str, n}; }
 
 	private:
 		[[nodiscard]] constexpr auto resource() const { return data.value_allocator().resource(); }
@@ -204,12 +210,6 @@ namespace sek
 
 		using header_t = detail::intern_str_header<C, Traits>;
 
-		static pool_type &global_pool()
-		{
-			static pool_type instance;
-			return instance;
-		}
-
 		constexpr basic_interned_string(std::in_place_t, header_t *h) : header(h) {}
 		constexpr explicit basic_interned_string(header_t *h) : header(h) { acquire(); }
 
@@ -265,7 +265,8 @@ namespace sek
 		// clang-format on
 
 		/** Interns the passed string using the global pool. */
-		constexpr basic_interned_string(std::basic_string_view<C, Traits> sv) : basic_interned_string(global_pool(), sv)
+		constexpr basic_interned_string(std::basic_string_view<C, Traits> sv)
+			: basic_interned_string(pool_type::global(), sv)
 		{
 		}
 		/** @copydoc basic_interned_string */
@@ -646,22 +647,6 @@ namespace sek
 	};
 
 	template<typename C, typename T>
-	constexpr typename basic_intern_pool<C, T>::string_type basic_intern_pool<C, T>::intern(sv_t str)
-	{
-		return string_type{*this, str};
-	}
-	template<typename C, typename T>
-	constexpr typename basic_intern_pool<C, T>::string_type basic_intern_pool<C, T>::intern(const C *str)
-	{
-		return string_type{*this, str};
-	}
-	template<typename C, typename T>
-	constexpr typename basic_intern_pool<C, T>::string_type basic_intern_pool<C, T>::intern(const C *str, size_type n)
-	{
-		return string_type{*this, str, n};
-	}
-
-	template<typename C, typename T>
 	[[nodiscard]] constexpr hash_t hash(const basic_interned_string<C, T> &s) noexcept
 	{
 		return fnv1a(s.data(), s.size());
@@ -708,10 +693,10 @@ namespace sek
 		return a == b.sv();
 	}
 
-	extern template class  basic_intern_pool<char>;
-	extern template class  basic_intern_pool<wchar_t>;
-	extern template class  basic_interned_string<char>;
-	extern template class  basic_interned_string<wchar_t>;
+	template<>
+	SEK_API basic_intern_pool<char> &basic_intern_pool<char>::global();
+	template<>
+	SEK_API basic_intern_pool<wchar_t> &basic_intern_pool<wchar_t>::global();
 
 	using intern_pool = basic_intern_pool<char>;
 	using intern_wpool = basic_intern_pool<wchar_t>;

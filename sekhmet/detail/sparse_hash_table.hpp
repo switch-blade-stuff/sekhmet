@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include <bit>
 #include <algorithm>
+#include <bit>
 
 #include "alloc_util.hpp"
 #include "assert.hpp"
@@ -65,7 +65,10 @@ namespace sek::detail
 	template<typename KeyType, typename ValueType, typename KeyExtract>
 	struct sparse_table_bucket
 	{
-		[[nodiscard]] constexpr static auto tombstone_ptr() noexcept { return std::bit_cast<ValueType *>(std::numeric_limits<std::intptr_t>::max()); }
+		[[nodiscard]] constexpr static auto tombstone_ptr() noexcept
+		{
+			return std::bit_cast<ValueType *>(std::numeric_limits<std::intptr_t>::max());
+		}
 
 		constexpr sparse_table_bucket() noexcept = default;
 		constexpr explicit sparse_table_bucket(ValueType *ptr, hash_t hash) noexcept : hash(hash), data(ptr) {}
@@ -802,8 +805,8 @@ namespace sek::detail
 		{
 			SEK_ASSERT(dest_bucket >= buckets_start() && dest_bucket < buckets_end());
 
-			bool inserted_new;
-			if ((inserted_new = !dest_bucket->is_occupied()))
+			bool inserted_new = !dest_bucket->is_occupied();
+			if (inserted_new)
 				insert_aux(dest_bucket);
 			else
 				reset_bucket(dest_bucket);

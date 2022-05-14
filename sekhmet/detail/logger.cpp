@@ -56,6 +56,4 @@ namespace sek
 		static std::atomic<logger *> ptr = &instance;
 		return ptr;
 	}
-
-	template class SEK_API_EXPORT basic_logger<char>;
 }	 // namespace sek

@@ -8,8 +8,6 @@ FetchContent_Declare(fmt
 FetchContent_MakeAvailable(fmt)
 include_directories(${fmt_SOURCE_DIR}/include)
 
-#target_compile_definitions(${PROJECT_NAME} PRIVATE SEK_EXPORT_LIBRARY)
-
 target_sources(${PROJECT_NAME} PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/uuid.cpp
         ${CMAKE_CURRENT_LIST_DIR}/filemap.cpp

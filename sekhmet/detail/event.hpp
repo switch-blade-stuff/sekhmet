@@ -55,8 +55,10 @@ namespace sek
 			friend class basic_event;
 
 			using iter_t = typename sub_data_t::const_iterator;
+			using ptr_t = typename sub_data_t::const_pointer;
 
-			constexpr explicit event_iterator(iter_t ptr) noexcept : iter(ptr) {}
+			constexpr explicit event_iterator(ptr_t ptr) noexcept : ptr(ptr) {}
+			constexpr explicit event_iterator(iter_t iter) noexcept : ptr(std::to_address(iter)) {}
 
 		public:
 			typedef delegate_t value_type;
@@ -77,12 +79,12 @@ namespace sek
 			}
 			constexpr event_iterator &operator++() noexcept
 			{
-				++iter;
+				++ptr;
 				return *this;
 			}
 			constexpr event_iterator &operator+=(difference_type n) noexcept
 			{
-				iter += n;
+				ptr += n;
 				return *this;
 			}
 			constexpr event_iterator operator--(int) noexcept
@@ -93,40 +95,40 @@ namespace sek
 			}
 			constexpr event_iterator &operator--() noexcept
 			{
-				--iter;
+				--ptr;
 				return *this;
 			}
 			constexpr event_iterator &operator-=(difference_type n) noexcept
 			{
-				iter -= n;
+				ptr -= n;
 				return *this;
 			}
 
-			constexpr event_iterator operator+(difference_type n) const noexcept { return event_iterator{iter + n}; }
-			constexpr event_iterator operator-(difference_type n) const noexcept { return event_iterator{iter - n}; }
+			constexpr event_iterator operator+(difference_type n) const noexcept { return event_iterator{ptr + n}; }
+			constexpr event_iterator operator-(difference_type n) const noexcept { return event_iterator{ptr - n}; }
 			constexpr difference_type operator-(const event_iterator &other) const noexcept
 			{
-				return iter - other.iter;
+				return ptr - other.ptr;
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return &iter->callback; }
+			[[nodiscard]] constexpr pointer get() const noexcept { return &ptr->callback; }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 
 			/** Returns reference to the element at an offset. */
-			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return iter[n].callback; }
+			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return ptr[n].callback; }
 			/** Returns reference to the target element. */
 			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
 
 			[[nodiscard]] constexpr auto operator<=>(const event_iterator &) const noexcept = default;
 			[[nodiscard]] constexpr bool operator==(const event_iterator &) const noexcept = default;
 
-			constexpr void swap(event_iterator &other) noexcept { std::swap(iter, other.iter); }
+			constexpr void swap(event_iterator &other) noexcept { std::swap(ptr, other.ptr); }
 			friend constexpr void swap(event_iterator &a, event_iterator &b) noexcept { a.swap(b); }
 
 		private:
-			iter_t iter;
+			ptr_t ptr;
 		};
 
 	public:

@@ -348,6 +348,7 @@ namespace sek
 
 				using iter_t =
 					std::conditional_t<IsConst, typename dense_data_t::const_iterator, typename dense_data_t::iterator>;
+				using ptr_t = typename std::iterator_traits<iter_t>::pointer;
 
 			public:
 				typedef mkmap_value_t<multikey<Ks...>, M> value_type;
@@ -358,12 +359,13 @@ namespace sek
 				typedef std::random_access_iterator_tag iterator_category;
 
 			private:
-				constexpr explicit mkmap_iterator(iter_t iter) noexcept : iter(iter) {}
+				constexpr explicit mkmap_iterator(ptr_t ptr) noexcept : ptr(ptr) {}
+				constexpr explicit mkmap_iterator(iter_t iter) noexcept : ptr(std::to_address(iter)) {}
 
 			public:
 				constexpr mkmap_iterator() noexcept = default;
 				template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
-				constexpr mkmap_iterator(const mkmap_iterator<OtherConst> &other) noexcept : mkmap_iterator(other.iter)
+				constexpr mkmap_iterator(const mkmap_iterator<OtherConst> &other) noexcept : mkmap_iterator(other.ptr)
 				{
 				}
 
@@ -375,12 +377,12 @@ namespace sek
 				}
 				constexpr mkmap_iterator &operator++() noexcept
 				{
-					++iter;
+					++ptr;
 					return *this;
 				}
 				constexpr mkmap_iterator &operator+=(difference_type n) noexcept
 				{
-					iter += n;
+					ptr += n;
 					return *this;
 				}
 				constexpr mkmap_iterator operator--(int) noexcept
@@ -391,48 +393,42 @@ namespace sek
 				}
 				constexpr mkmap_iterator &operator--() noexcept
 				{
-					--iter;
+					--ptr;
 					return *this;
 				}
 				constexpr mkmap_iterator &operator-=(difference_type n) noexcept
 				{
-					iter -= n;
+					ptr -= n;
 					return *this;
 				}
 
-				constexpr mkmap_iterator operator+(difference_type n) const noexcept
-				{
-					return mkmap_iterator{iter + n};
-				}
-				constexpr mkmap_iterator operator-(difference_type n) const noexcept
-				{
-					return mkmap_iterator{iter - n};
-				}
+				constexpr mkmap_iterator operator+(difference_type n) const noexcept { return mkmap_iterator{ptr + n}; }
+				constexpr mkmap_iterator operator-(difference_type n) const noexcept { return mkmap_iterator{ptr - n}; }
 				constexpr difference_type operator-(const mkmap_iterator &other) const noexcept
 				{
-					return iter - other.iter;
+					return ptr - other.ptr;
 				}
 
 				/** Returns pointer to the target element. */
-				[[nodiscard]] constexpr pointer get() const noexcept { return &iter->value; }
+				[[nodiscard]] constexpr pointer get() const noexcept { return &ptr->value; }
 				/** @copydoc value */
 				[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 
 				/** Returns reference to the element at an offset. */
-				[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return iter[n].value; }
+				[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return ptr[n].value; }
 				/** Returns reference to the target element. */
 				[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
 
 				[[nodiscard]] constexpr auto operator<=>(const mkmap_iterator &) const noexcept = default;
 				[[nodiscard]] constexpr bool operator==(const mkmap_iterator &) const noexcept = default;
 
-				constexpr void swap(mkmap_iterator &other) noexcept { std::swap(iter, other.iter); }
+				constexpr void swap(mkmap_iterator &other) noexcept { std::swap(ptr, other.ptr); }
 				friend constexpr void swap(mkmap_iterator &a, mkmap_iterator &b) noexcept { a.swap(b); }
 
 			private:
-				[[nodiscard]] constexpr auto &entry() const noexcept { return *iter; }
+				[[nodiscard]] constexpr auto &entry() const noexcept { return *ptr; }
 
-				iter_t iter;
+				ptr_t ptr;
 			};
 
 		public:
@@ -959,7 +955,7 @@ namespace sek
 			/** Removes the specified element from the map.
 			 * @param where Iterator to the target element.
 			 * @return Iterator to the element after the erased one. */
-			constexpr iterator erase(const_iterator where) { return erase_impl(where.iter); }
+			constexpr iterator erase(const_iterator where) { return erase_impl(where.ptr); }
 			/** Removes all elements in the [first, last) range.
 			 * @param first Iterator to the first element of the target range.
 			 * @param last Iterator to the last element of the target range.
@@ -1101,36 +1097,6 @@ namespace sek
 							}
 					});
 			}
-			constexpr void remove_entry(const entry_type &entry, size_type pos)
-			{
-				foreach_key(
-					[&]<size_type I>(index_selector_t<I>)
-					{
-						/* Find the chain offset pointing to the entry position & replace it with the next position. */
-						for (auto chain_idx = get_chain<I>(entry.template hash<I>()); *chain_idx != npos;
-							 chain_idx = &entries[*chain_idx].template next<I>())
-							if (*chain_idx == pos)
-							{
-								*chain_idx = entry.template next<I>();
-								break;
-							}
-					});
-			}
-			constexpr void move_entry(const entry_type &entry, size_type old_pos, size_type new_pos)
-			{
-				foreach_key(
-					[&]<size_type I>(index_selector_t<I>)
-					{
-						/* Find the chain offset pointing to the old position & replace it with the new position. */
-						for (auto chain_idx = get_chain<I>(entry.template hash<I>()); *chain_idx != npos;
-							 chain_idx = &entries[*chain_idx].template next<I>())
-							if (*chain_idx == old_pos)
-							{
-								*chain_idx = new_pos;
-								break;
-							}
-					});
-			}
 			constexpr void rehash_entry(entry_type &entry)
 			{
 				/* Re-calculate hashes for every key. */
@@ -1174,15 +1140,15 @@ namespace sek
 						const auto h = key_hash<I>(key);
 						auto *chain_idx = get_chain<I>(h);
 						while (*chain_idx != npos)
-							if (auto existing_iter = entries.begin() + *chain_idx;
-								existing_iter->template hash<I>() == h && key_comp<I>(key, existing_iter->template key<I>()))
+							if (auto existing = entries.data() + *chain_idx;
+								existing->template hash<I>() == h && key_comp<I>(key, existing->template key<I>()))
 							{
-								erase_impl(existing_iter);
+								erase_impl(existing);
 								++erase_count;
 								break;
 							}
 							else
-								chain_idx = &existing_iter->template next<I>();
+								chain_idx = &existing->template next<I>();
 					});
 
 				return {insert_new(std::forward<T>(value)), erase_count};
@@ -1272,11 +1238,22 @@ namespace sek
 				}
 			}
 
-			constexpr iterator erase_impl(typename dense_data_t::const_iterator where)
+			constexpr iterator erase_impl(typename dense_data_t::const_pointer where)
 			{
 				/* Un-link the entry from the chain & swap with the last entry. */
-				const auto pos = static_cast<size_type>(where - entries.begin());
-				remove_entry(*where, pos);
+				const auto pos = static_cast<size_type>(where - entries.data());
+				foreach_key(
+					[&]<size_type I>(index_selector_t<I>)
+					{
+						/* Find the chain offset pointing to the entry position & replace it with the next position. */
+						for (auto chain_idx = get_chain<I>(where->template hash<I>()); *chain_idx != npos;
+							 chain_idx = &entries[*chain_idx].template next<I>())
+							if (*chain_idx == pos)
+							{
+								*chain_idx = where->template next<I>();
+								break;
+							}
+					});
 
 				const auto old_pos = size() - 1;
 				if (pos != old_pos) /* Make sure we are not erasing the last item. */
@@ -1285,7 +1262,19 @@ namespace sek
 						entries[pos] = std::move(entries.back());
 					else
 						entries[pos].swap(entries.back());
-					move_entry(*where, old_pos, pos);
+
+					/* Find the chain offsets pointing to the old position & replace them with the new position. */
+					foreach_key(
+						[&]<size_type I>(index_selector_t<I>)
+						{
+							for (auto chain_idx = get_chain<I>(where->template hash<I>()); *chain_idx != npos;
+								 chain_idx = &entries[*chain_idx].template next<I>())
+								if (*chain_idx == old_pos)
+								{
+									*chain_idx = pos;
+									break;
+								}
+						});
 				}
 
 				entries.pop_back();
