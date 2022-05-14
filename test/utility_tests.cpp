@@ -6,7 +6,6 @@
 
 #include <string>
 
-#include "sekhmet/hash.hpp"
 #include "sekhmet/utility.hpp"
 
 struct empty_t
@@ -230,4 +229,35 @@ TEST(utility_tests, event_test)
 	i = 0;
 	event(i);
 	EXPECT_EQ(i, 2);
+}
+
+#include "sekhmet/plugin.hpp"
+
+struct test_plugin
+{
+	static bool enabled;
+
+	[[nodiscard]] constexpr static std::string_view id() noexcept { return "test_plugin"; }
+
+	static void on_enable() { enabled = true; }
+	static void on_disable() { enabled = false; }
+};
+
+SEK_PLUGIN_INSTANCE(test_plugin)
+bool test_plugin::enabled = false;
+
+TEST(utility_tests, plugin_test)
+{
+	auto p = sek::plugin::get(test_plugin::id());
+	EXPECT_FALSE(p.enabled());
+	EXPECT_FALSE(test_plugin::enabled);
+
+	EXPECT_TRUE(p.enable());
+	EXPECT_TRUE(p.enabled());
+	EXPECT_TRUE(test_plugin::enabled);
+
+	EXPECT_FALSE(p.enable());
+	EXPECT_TRUE(p.disable());
+	EXPECT_FALSE(p.enabled());
+	EXPECT_FALSE(test_plugin::enabled);
 }
