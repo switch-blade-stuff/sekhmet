@@ -106,10 +106,7 @@ namespace sek
 
 			constexpr event_iterator operator+(difference_type n) const noexcept { return event_iterator{ptr + n}; }
 			constexpr event_iterator operator-(difference_type n) const noexcept { return event_iterator{ptr - n}; }
-			constexpr difference_type operator-(const event_iterator &other) const noexcept
-			{
-				return ptr - other.ptr;
-			}
+			constexpr difference_type operator-(const event_iterator &other) const noexcept { return ptr - other.ptr; }
 
 			/** Returns pointer to the target element. */
 			[[nodiscard]] constexpr pointer get() const noexcept { return &ptr->callback; }
@@ -142,7 +139,7 @@ namespace sek
 		typedef typename id_data_t::allocator_type id_allocator_type;
 
 	private:
-		constexpr static auto placeholder = std::numeric_limits<event_id>::max();
+		constexpr static auto placeholder = static_cast<event_id>(-1);
 
 	public:
 		/** Initializes an empty event. */

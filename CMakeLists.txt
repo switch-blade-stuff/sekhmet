@@ -63,6 +63,7 @@ if (SEK_TOP_LEVEL OR SEK_EXPORT_BUILD)
     set_target_properties(${PROJECT_NAME} PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
 
     # Set compilation variables & definitions
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(${PROJECT_NAME} PRIVATE SEK_EXPORT_LIBRARY)
     add_compile_definitions(SEK_ENGINE_VERSION="${SEK_ENGINE_VERSION}")
 

@@ -52,14 +52,14 @@ namespace sek
 		using sv_t = std::basic_string_view<value_type, traits_type>;
 		using str_t = std::basic_string<value_type, traits_type>;
 
-		constexpr static const value_type *msg_cat = "Message";
-		constexpr static const value_type *warn_cat = "Warning";
+		constexpr static const value_type *info_cat = "Info";
+		constexpr static const value_type *warn_cat = "Warn";
 		constexpr static const value_type *error_cat = "Error";
-		constexpr static const value_type *crit_cat = "Critical";
+		constexpr static const value_type *fatal_cat = "Fatal";
 
-		static std::atomic<basic_logger *> &msg_ptr()
+		static std::atomic<basic_logger *> &info_ptr()
 		{
-			static basic_logger instance{msg_cat};
+			static basic_logger instance{info_cat};
 			static std::atomic<basic_logger *> ptr = &instance;
 			return ptr;
 		}
@@ -75,18 +75,18 @@ namespace sek
 			static std::atomic<basic_logger *> ptr = &instance;
 			return ptr;
 		}
-		static std::atomic<basic_logger *> &crit_ptr()
+		static std::atomic<basic_logger *> &fatal_ptr()
 		{
-			static basic_logger instance{crit_cat};
+			static basic_logger instance{fatal_cat};
 			static std::atomic<basic_logger *> ptr = &instance;
 			return ptr;
 		}
 
 	public:
-		/** Returns the global message logger. */
-		[[nodiscard]] static basic_logger &msg() { return *msg_ptr(); }
-		/** Sets the global message logger and returns reference to the old logger. */
-		static basic_logger &msg(basic_logger &l) { return *msg_ptr().exchange(&l); }
+		/** Returns the global info logger. */
+		[[nodiscard]] static basic_logger &info() { return *info_ptr(); }
+		/** Sets the global info logger and returns reference to the old logger. */
+		static basic_logger &info(basic_logger &l) { return *info_ptr().exchange(&l); }
 
 		/** Returns the global warning logger. */
 		[[nodiscard]] static basic_logger &warn() { return *warn_ptr(); }
@@ -98,10 +98,10 @@ namespace sek
 		/** Sets the global error logger and returns reference to the old logger. */
 		static basic_logger &error(basic_logger &l) { return *error_ptr().exchange(&l); }
 
-		/** Returns the global critical logger. */
-		[[nodiscard]] static basic_logger &fatal() { return *crit_ptr(); }
-		/** Sets the global critical logger and returns reference to the old logger. */
-		static basic_logger &fatal(basic_logger &l) { return *crit_ptr().exchange(&l); }
+		/** Returns the global fatal error logger. */
+		[[nodiscard]] static basic_logger &fatal() { return *fatal_ptr(); }
+		/** Sets the global fatal error logger and returns reference to the old logger. */
+		static basic_logger &fatal(basic_logger &l) { return *fatal_ptr().exchange(&l); }
 
 	private:
 		template<typename U>
@@ -268,18 +268,18 @@ namespace sek
 
 		delegate<str_t(sv_t, sv_t)> format_func = default_format;
 		event<void(sv_t)> log_event;
-		str_t category_str = msg_cat;
+		str_t category_str = info_cat;
 		std::atomic_flag busy;
 	};
 
 	typedef basic_logger<char> logger;
 
 	template<>
-	SEK_API std::atomic<logger *> &logger::msg_ptr();
+	SEK_API std::atomic<logger *> &logger::info_ptr();
 	template<>
 	SEK_API std::atomic<logger *> &logger::warn_ptr();
 	template<>
 	SEK_API std::atomic<logger *> &logger::error_ptr();
 	template<>
-	SEK_API std::atomic<logger *> &logger::crit_ptr();
+	SEK_API std::atomic<logger *> &logger::fatal_ptr();
 }	 // namespace sek

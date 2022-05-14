@@ -157,15 +157,15 @@ TEST(utility_tests, logger_test)
 	std::stringstream ss;
 
 	{
-		constexpr auto log_msg = "Test log message";
-		sek::logger::msg() += ss;
-		sek::logger::msg() << log_msg;
+		constexpr auto log_msg = "Test log info";
+		sek::logger::info() += ss;
+		sek::logger::info() << log_msg;
 
 		auto output = ss.str();
 		EXPECT_NE(output.find(log_msg), std::string::npos);
-		EXPECT_NE(output.find("Message"), std::string::npos);
+		EXPECT_NE(output.find("Info"), std::string::npos);
 
-		EXPECT_TRUE(sek::logger::msg() -= ss);
+		EXPECT_TRUE(sek::logger::info() -= ss);
 	}
 	{
 		constexpr auto log_msg = "Test log warning";
@@ -174,7 +174,7 @@ TEST(utility_tests, logger_test)
 
 		auto output = ss.str();
 		EXPECT_NE(output.find(log_msg), std::string::npos);
-		EXPECT_NE(output.find("Warning"), std::string::npos);
+		EXPECT_NE(output.find("Warn"), std::string::npos);
 
 		EXPECT_TRUE(sek::logger::warn() -= ss);
 	}
@@ -233,31 +233,32 @@ TEST(utility_tests, event_test)
 
 #include "sekhmet/plugin.hpp"
 
-struct test_plugin
+static bool plugin_enabled = false;
+
+SEK_PLUGIN(test_plugin)
 {
-	static bool enabled;
+	sek::logger::info() << fmt::format("Initializing plugin \"{}\"", id);
 
-	[[nodiscard]] constexpr static std::string_view id() noexcept { return "test_plugin"; }
-
-	static void on_enable() { enabled = true; }
-	static void on_disable() { enabled = false; }
-};
-
-SEK_PLUGIN_INSTANCE(test_plugin)
-bool test_plugin::enabled = false;
+	on_enable += +[]()
+	{
+		plugin_enabled = true;
+		return true;
+	};
+	on_disable += +[]() { plugin_enabled = false; };
+}
 
 TEST(utility_tests, plugin_test)
 {
-	auto p = sek::plugin::get(test_plugin::id());
+	auto p = sek::plugin::get("test_plugin");
 	EXPECT_FALSE(p.enabled());
-	EXPECT_FALSE(test_plugin::enabled);
+	EXPECT_FALSE(plugin_enabled);
 
 	EXPECT_TRUE(p.enable());
 	EXPECT_TRUE(p.enabled());
-	EXPECT_TRUE(test_plugin::enabled);
+	EXPECT_TRUE(plugin_enabled);
 
 	EXPECT_FALSE(p.enable());
 	EXPECT_TRUE(p.disable());
 	EXPECT_FALSE(p.enabled());
-	EXPECT_FALSE(test_plugin::enabled);
+	EXPECT_FALSE(plugin_enabled);
 }

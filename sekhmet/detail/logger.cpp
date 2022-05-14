@@ -9,11 +9,11 @@
 namespace sek
 {
 	template<>
-	std::atomic<logger *> &logger::msg_ptr()
+	std::atomic<logger *> &logger::info_ptr()
 	{
 		static auto instance = []()
 		{
-			logger result{msg_cat};
+			logger result{info_cat};
 			result += delegate{+[](std::string_view msg) { fputs(msg.data(), stdout); }};
 			return result;
 		}();
@@ -45,11 +45,11 @@ namespace sek
 		return ptr;
 	}
 	template<>
-	std::atomic<logger *> &logger::crit_ptr()
+	std::atomic<logger *> &logger::fatal_ptr()
 	{
 		static auto instance = []()
 		{
-			logger result{crit_cat};
+			logger result{fatal_cat};
 			result += delegate{+[](std::string_view msg) { fputs(msg.data(), stderr); }};
 			return result;
 		}();

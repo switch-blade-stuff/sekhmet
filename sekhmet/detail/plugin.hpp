@@ -7,86 +7,52 @@
 #include <vector>
 
 #include "define.h"
-#include "ebo_base_helper.hpp"
+#include "event.hpp"
 #include <string_view>
 
 namespace sek
 {
+	namespace detail
+	{
+		struct basic_plugin
+		{
+			explicit basic_plugin(std::string_view id) noexcept : id(id) {}
+
+			/** Id of the plugin. */
+			const std::string_view id;
+
+			/** Event dispatched when a plugin is enabled by the engine. */
+			event<bool(void)> on_enable;
+			/** Event dispatched when a plugin is disabled by the engine. */
+			event<void(void)> on_disable;
+		};
+	}	 // namespace detail
+
 	/** @brief Handle used to reference and manage plugins. */
 	class plugin
 	{
-		struct plugin_info
-		{
-			std::string_view (*id)(const void *);
-			bool (*enable)(void *);
-			void (*disable)(void *);
-		};
-
 		/* Implemented in plugin.cpp */
 		struct plugin_entry;
 		struct plugin_db;
 
 		SEK_API static plugin_db &database();
-		SEK_API static void load(const plugin_info *, void *) noexcept;
-		SEK_API static void unload(const plugin_info *, void *) noexcept;
+		SEK_API static void load(std::string_view, const detail::basic_plugin *) noexcept;
+		SEK_API static void unload(std::string_view) noexcept;
 
 		template<typename T>
-		class registrar : ebo_base_helper<T>
+		struct registrar
 		{
 			static registrar instance;
 
-			using ebo_base = ebo_base_helper<T>;
-
-			// clang-format off
-			static_assert(requires(T *p) { { p->id() } -> std::convertible_to<std::string_view>; } ||
-						  requires { { T::id() } -> std::convertible_to<std::string_view>; },
-						  "Plugin must implement `std::string_view id() const` member function");
-			// clang-format on
-
-		public:
-			constexpr registrar() noexcept(noexcept(ebo_base{})) { load(&info, ebo_base::get()); }
-			constexpr ~registrar() { unload(&info, ebo_base::get()); }
+			constexpr registrar() noexcept { load(data.id, &data); }
+			constexpr ~registrar() { unload(data.id); }
 
 		private:
-			const plugin_info info = {
-				+[](const void *p)
-				{
-					// clang-format off
-					if constexpr (requires { static_cast<T *>(p)->id(); })
-						return static_cast<T *>(p)->id();
-					else
-						return T::id();
-					// clang-format on
-				},
-				+[](void *p)
-				{
-					// clang-format off
-					if constexpr (requires { { static_cast<T *>(p)->on_enable() } -> std::same_as<bool>; })
-						return static_cast<T *>(p)->on_enable();
-					else if constexpr (requires { { T::on_enable() } -> std::same_as<bool>; })
-						return T::on_enable();
-					else
-					{
-						if constexpr (requires { static_cast<T *>(p)->on_enable(); })
-							static_cast<T *>(p)->on_enable();
-						else if constexpr (requires { T::on_enable(); })
-							T::on_enable();
-						return true;
-					}
-					// clang-format on
-				},
-				+[](void *p)
-				{
-					if constexpr (requires { static_cast<T *>(p)->on_disable(); })
-						static_cast<T *>(p)->on_disable();
-					else if constexpr (requires { T::on_disable(); })
-						T::on_disable();
-				},
-			};
+			const T data{};
 		};
 
 		template<typename>
-		friend class registrar;
+		friend struct registrar;
 
 	public:
 		/** Returns a vector of all currently loaded plugins. */
@@ -113,8 +79,6 @@ namespace sek
 		[[nodiscard]] SEK_API bool enabled() const noexcept;
 		/** Returns id of the plugin. */
 		[[nodiscard]] SEK_API std::string_view id() const noexcept;
-		/** Returns pointer to the instance of the plugin. */
-		[[nodiscard]] SEK_API void *data() const noexcept;
 
 		/** Enables the plugin and invokes it's `on_enable` member function.
 		 * @returns true on success, false otherwise.
@@ -133,7 +97,20 @@ namespace sek
 	};
 }	 // namespace sek
 
-/** @brief Macro used to define and auto-load an instance of a plugin. */
-#define SEK_PLUGIN_INSTANCE(plugin_type)                                                                               \
+#define SEK_PLUGIN_TYPE(id) sekhmet_plugins_##id
+
+/** @brief Macro used to define a plugin.
+ * @param type_name Unique id for the plugin used to reference the plugin at runtime.
+ * @note Id must be a valid type name. */
+#define SEK_PLUGIN(id)                                                                                                 \
+	namespace                                                                                                          \
+	{                                                                                                                  \
+		static_assert(SEK_ARRAY_SIZE(#id), "Plugin id must not be empty");                                             \
+		struct SEK_PLUGIN_TYPE(id) : sek::detail::basic_plugin                                                         \
+		{                                                                                                              \
+			SEK_PLUGIN_TYPE(id)();                                                                                     \
+		};                                                                                                             \
+	}                                                                                                                  \
 	template<>                                                                                                         \
-	sek::plugin::registrar<plugin_type> sek::plugin::registrar<plugin_type>::instance = {};
+	sek::plugin::registrar<SEK_PLUGIN_TYPE(id)> sek::plugin::registrar<SEK_PLUGIN_TYPE(id)>::instance = {};            \
+	SEK_PLUGIN_TYPE(id)::SEK_PLUGIN_TYPE(id)() : sek::detail::basic_plugin(#id)

@@ -5,6 +5,7 @@
 #pragma once
 
 #include <bit>
+#include <stdexcept>
 #include <utility>
 
 #include "define.h"
@@ -26,7 +27,7 @@ namespace sek
 		concept delegate_free_func = std::is_function_v<F> && std::is_invocable_r_v<R, F, Args...>;
 		template<typename R, typename F, typename I, typename... Args>
 		concept delegate_mem_func = std::is_member_function_pointer_v<F> &&
-									requires(F f, I *i, Args &&...args) {
+									requires(F f, I *i, Args...args) {
 										{ (i->*f)(std::forward<Args>(args)...) } -> std::same_as<R>;
 									};
 		// clang-format on
@@ -64,13 +65,12 @@ namespace sek
 	private:
 		template<auto F, typename... Inject>
 		constexpr static bool free_func = detail::delegate_free_func<R, decltype(F), Inject..., Args...>;
-		template<typename F>
-		constexpr static bool free_func_ptr = detail::delegate_free_func<R, F, Args...>;
 		template<auto F, typename I>
 		constexpr static bool mem_func = detail::delegate_mem_func<R, decltype(F), I, Args...>;
+		template<typename F>
+		constexpr static bool func_obj = std::is_invocable_r_v<R, F, Args...> &&std::is_object_v<F>;
 
-		constexpr delegate(R (*proxy)(const void *, Args &&...), const void *data) noexcept
-			: proxy(proxy), data_ptr(data)
+		constexpr delegate(R (*proxy)(const void *, Args...), const void *data) noexcept : proxy(proxy), data_ptr(data)
 		{
 		}
 
@@ -156,7 +156,7 @@ namespace sek
 		template<auto F>
 		constexpr delegate &assign() noexcept requires free_func<F>
 		{
-			proxy = +[](const void *, Args &&...args) { return F(std::forward<Args>(args)...); };
+			proxy = +[](const void *, Args...args) { return F(std::forward<Args>(args)...); };
 			data_ptr = nullptr;
 			return *this;
 		}
@@ -177,7 +177,7 @@ namespace sek
 		template<auto F, typename Arg>
 		constexpr delegate &assign(Arg *arg) noexcept requires free_func<F, Arg *>
 		{
-			proxy = +[](const void *p, Args &&...args)
+			proxy = +[](const void *p, Args...args)
 			{
 				using U = std::add_const_t<Arg>;
 				return F(const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
@@ -189,7 +189,7 @@ namespace sek
 		template<auto F, typename Arg>
 		constexpr delegate &assign(Arg &arg) noexcept requires free_func<F, Arg *>
 		{
-			proxy = +[](const void *p, Args &&...args)
+			proxy = +[](const void *p, Args...args)
 			{
 				using U = std::add_const_t<Arg>;
 				return F(const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
@@ -201,7 +201,7 @@ namespace sek
 		template<auto F, typename Arg>
 		constexpr delegate &assign(Arg &arg) noexcept requires free_func<F, Arg &>
 		{
-			proxy = +[](const void *p, Args &&...args)
+			proxy = +[](const void *p, Args...args)
 			{
 				using U = std::add_const_t<Arg>;
 				return F(*const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
@@ -232,7 +232,7 @@ namespace sek
 		template<auto F, typename I>
 		constexpr delegate &assign(I *instance) noexcept requires mem_func<F, I>
 		{
-			proxy = +[](const void *p, Args &&...args)
+			proxy = +[](const void *p, Args...args)
 			{
 				using U = std::add_const_t<I>;
 				return (const_cast<I *>(static_cast<U *>(p))->*F)(std::forward<Args>(args)...);
@@ -250,7 +250,7 @@ namespace sek
 		template<auto F, typename I>
 		constexpr delegate &assign(I &instance) noexcept requires mem_func<F, I>
 		{
-			proxy = +[](const void *p, Args &&...args)
+			proxy = +[](const void *p, Args...args)
 			{
 				using U = std::add_const_t<I>;
 				return (const_cast<I *>(static_cast<U *>(p))->*F)(std::forward<Args>(args)...);
