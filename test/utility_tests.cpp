@@ -155,39 +155,40 @@ TEST(utility_tests, thread_pool_test)
 TEST(utility_tests, logger_test)
 {
 	std::stringstream ss;
+	const auto listener = sek::delegate{+[](std::stringstream *ss, std::string_view msg) { *ss << msg; }, &ss};
 
 	{
 		constexpr auto log_msg = "Test log info";
-		sek::logger::info() += ss;
+		sek::logger::info().log_event += listener;
 		sek::logger::info() << log_msg;
 
 		auto output = ss.str();
 		EXPECT_NE(output.find(log_msg), std::string::npos);
 		EXPECT_NE(output.find("Info"), std::string::npos);
 
-		EXPECT_TRUE(sek::logger::info() -= ss);
+		EXPECT_TRUE(sek::logger::info().log_event -= listener);
 	}
 	{
 		constexpr auto log_msg = "Test log warning";
-		sek::logger::warn() += ss;
+		sek::logger::warn().log_event += listener;
 		sek::logger::warn() << log_msg;
 
 		auto output = ss.str();
 		EXPECT_NE(output.find(log_msg), std::string::npos);
 		EXPECT_NE(output.find("Warn"), std::string::npos);
 
-		EXPECT_TRUE(sek::logger::warn() -= ss);
+		EXPECT_TRUE(sek::logger::warn().log_event -= listener);
 	}
 	{
 		constexpr auto log_msg = "Test log error";
-		sek::logger::error() += ss;
+		sek::logger::error().log_event += listener;
 		sek::logger::error() << log_msg;
 
 		auto output = ss.str();
 		EXPECT_NE(output.find(log_msg), std::string::npos);
 		EXPECT_NE(output.find("Error"), std::string::npos);
 
-		EXPECT_TRUE(sek::logger::error() -= ss);
+		EXPECT_TRUE(sek::logger::error().log_event -= listener);
 	}
 }
 
