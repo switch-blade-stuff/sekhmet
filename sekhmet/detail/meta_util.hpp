@@ -206,6 +206,34 @@ namespace sek
 
 	namespace detail
 	{
+		template<typename, typename...>
+		struct unique_type_seq_impl;
+		template<typename... Us>
+		struct unique_type_seq_impl<type_seq_t<Us...>>
+		{
+			using type = type_seq_t<Us...>;
+		};
+		template<typename... Us, typename T, typename... Ts>
+		struct unique_type_seq_impl<type_seq_t<Us...>, T, Ts...>
+		{
+			using type = std::conditional_t<!is_in_v<T, Us...>,
+											typename unique_type_seq_impl<type_seq_t<Us..., T>, Ts...>::type,
+											typename unique_type_seq_impl<type_seq_t<Us...>, Ts...>::type>;
+		};
+	}	 // namespace detail
+
+	template<typename...>
+	struct unique_type_seq;
+	template<typename... Ts>
+	struct unique_type_seq<type_seq_t<Ts...>>
+	{
+		using type = typename detail::unique_type_seq_impl<type_seq_t<>, Ts...>::type;
+	};
+	template<typename Seq>
+	using unique_type_seq_t = typename unique_type_seq<Seq>::type;
+
+	namespace detail
+	{
 		template<typename, std::size_t, std::size_t, typename...>
 		struct get_type_seq_impl;
 		template<std::size_t I, typename T0, typename... Ts>
@@ -349,18 +377,19 @@ namespace sek
 
 	/** Concept used to check if a range is a forward range with a specific value type. */
 	template<typename R, typename T>
-	concept forward_range_for = std::ranges::forward_range<R> && std::same_as<std::ranges::range_value_t<R>, T>;
+	concept forward_range_for = std::ranges::forward_range<R> && std::same_as < std::ranges::range_value_t<R>,
+	T > ;
 	/** Concept used to check if an iterator is a forward iterator with a specific value type. */
 	template<typename R, typename T>
-	concept forward_iterator_for = std::forward_iterator<R> && std::same_as<std::iter_value_t<R>, T>;
+	concept forward_iterator_for = std::forward_iterator<R> && std::same_as < std::iter_value_t<R>,
+	T > ;
 
 	template<typename T>
-	concept pointer_like = requires(T t)
-	{
-		std::is_object_v<T>;
-		*t;
-		t.operator->();
-	};
+	concept pointer_like = requires(T t) {
+							   std::is_object_v<T>;
+							   *t;
+							   t.operator->();
+						   };
 
 	template<typename T>
 	constexpr bool is_pointer_like_v = false;
@@ -414,4 +443,42 @@ namespace sek
 	/** @brief Checks if a cast from `From` to `To` will not cast away qualifiers. */
 	template<typename From, typename To>
 	constexpr auto is_preserving_cv_cast_v = is_preserving_cv_cast<From, To>::value;
+
+	template<auto>
+	struct func_traits;
+
+	template<typename R, typename... Args, R (*F)(Args...)>
+	struct func_traits<F>
+	{
+		using return_type = R;
+		using arg_types = type_seq_t<Args...>;
+	};
+	template<typename R, typename I, typename... Args, R (I::*F)(Args...)>
+	struct func_traits<F>
+	{
+		using return_type = R;
+		using instance_type = I;
+		using arg_types = type_seq_t<Args...>;
+	};
+	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const>
+	struct func_traits<F>
+	{
+		using return_type = R;
+		using instance_type = const I;
+		using arg_types = type_seq_t<Args...>;
+	};
+	template<typename R, typename I, typename... Args, R (I::*F)(Args...) volatile>
+	struct func_traits<F>
+	{
+		using return_type = R;
+		using instance_type = volatile I;
+		using arg_types = type_seq_t<Args...>;
+	};
+	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const volatile>
+	struct func_traits<F>
+	{
+		using return_type = R;
+		using instance_type = const volatile I;
+		using arg_types = type_seq_t<Args...>;
+	};
 }	 // namespace sek

@@ -17,7 +17,7 @@ target_sources(${PROJECT_NAME} INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/intern.hpp
         ${CMAKE_CURRENT_LIST_DIR}/logger.hpp
         ${CMAKE_CURRENT_LIST_DIR}/thread_pool.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/type_id.hpp
+        ${CMAKE_CURRENT_LIST_DIR}/type_info.hpp
         ${CMAKE_CURRENT_LIST_DIR}/filemap.hpp
         ${CMAKE_CURRENT_LIST_DIR}/plugin.hpp
         ${CMAKE_CURRENT_LIST_DIR}/math.hpp

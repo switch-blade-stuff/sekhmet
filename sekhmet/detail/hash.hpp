@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <bit>
 
 #include "meta_util.hpp"
 #include "sekhmet/math/detail/util.hpp"
@@ -59,57 +60,27 @@ namespace sek
 	}
 
 	template<std::integral I>
-	[[nodiscard]] constexpr hash_t int32_hash(I value) noexcept
-	{
-		auto temp = static_cast<std::uint64_t>(value);
-
-		temp = (~temp) + (temp << 15);	  // key = (key << 15) - key - 1;
-		temp ^= temp >> 12;
-		temp += temp << 2;
-		temp ^= temp >> 4;
-		temp = (temp + (temp << 3)) + (temp << 11);
-		temp = temp ^ (temp >> 16);
-		return static_cast<hash_t>(temp);
-	}
-	template<std::integral I>
-	[[nodiscard]] constexpr hash_t int64_hash(I value) noexcept
-	{
-		auto temp = static_cast<std::uint64_t>(value);
-
-		temp = (~temp) + (temp << 21);
-		temp ^= temp >> 24;
-		temp = (temp + (temp << 3)) + (temp << 8);
-		temp ^= temp >> 14;
-		temp = (temp + (temp << 2)) + (temp << 4);
-		temp ^= temp >> 28;
-		temp += temp << 31;
-		return static_cast<hash_t>(temp);
-	}
-
-	template<std::integral I>
 	[[nodiscard]] constexpr hash_t hash(I value) noexcept
-		requires(sizeof(I) <= sizeof(std::int32_t))
 	{
-		return int32_hash(value);
+		return static_cast<hash_t>(value);
 	}
-	template<std::integral I>
-	[[nodiscard]] constexpr hash_t hash(I value) noexcept
-		requires(sizeof(I) > sizeof(std::int32_t))
+	template<typename E>
+	[[nodiscard]] constexpr hash_t hash(E value) noexcept
+		requires std::is_enum_v<E>
 	{
-		return int64_hash(value);
+		return hash(static_cast<std::underlying_type_t<E>>(value));
 	}
-
 	template<typename T>
 	[[nodiscard]] constexpr hash_t hash(T *value) noexcept
 	{
-		return byte_hash(&value, sizeof(value));
+		return std::bit_cast<hash_t>(value);
 	}
 	template<pointer_like T>
 	[[nodiscard]] constexpr hash_t hash(T value) noexcept
 	{
 		return hash(std::to_address(value));
 	}
-	[[nodiscard]] constexpr hash_t hash(std::nullptr_t) noexcept { return hash(0); }
+	[[nodiscard]] constexpr hash_t hash(std::nullptr_t) noexcept { return 0; }
 
 	template<typename T>
 	concept has_hash = requires(T t) { hash(t); };
@@ -136,23 +107,42 @@ namespace sek
 
 	namespace detail
 	{
-		template<std::size_t I, has_hash... Ts>
-		constexpr void tuple_hash_unwrap(hash_t &result, const std::tuple<Ts...> &t) noexcept
+		template<typename T, std::size_t... Is>
+		constexpr bool hashable_tuple_element(std::index_sequence<Is...>)
 		{
-			hash_combine(result, std::get<I>(t));
-			if constexpr (I + 1 < sizeof...(Ts)) tuple_hash_unwrap<I + 1>(result, t);
+			return std::conjunction_v<std::bool_constant<has_hash<std::tuple_element_t<Is, T>>>...>;
 		}
+		template<typename T>
+		concept tuple_like_hash = requires(const T &t) {
+									  typename std::tuple_size<T>::type;
+									  std::tuple_size_v<T> != 0;
+									  hashable_tuple_element<T>(std::make_index_sequence<std::tuple_size_v<T>>());
+								  };
+		template<typename P>
+		concept pair_like_hash = requires(const P &p) {
+									 p.first;
+									 has_hash<std::decay_t<decltype(p.first)>>;
+									 p.second;
+									 has_hash<std::decay_t<decltype(p.second)>>;
+								 };
 	}	 // namespace detail
 
-	template<has_hash... Ts>
-	[[nodiscard]] constexpr hash_t hash(const std::tuple<Ts...> &t) noexcept
+	template<detail::tuple_like_hash T>
+	[[nodiscard]] constexpr hash_t hash(const T &value) noexcept
 	{
-		hash_t result = 0;
-		detail::tuple_hash_unwrap<0>(result, type_seq<Ts...>, t);
+		hash_t result = hash(std::get<0>(value));
+		if constexpr (std::tuple_size_v<T> != 1)
+		{
+			constexpr auto unwrap = []<std::size_t... Is>(hash_t & seed, const T &t, std::index_sequence<Is...>)
+			{
+				(hash_combine(seed, hash(std::get<Is + 1>(t))), ...);
+			};
+			unwrap(result, value, std::make_index_sequence<std::tuple_size_v<T> - 1>());
+		}
 		return result;
 	}
-	template<has_hash T1, has_hash T2>
-	[[nodiscard]] constexpr hash_t hash(const std::pair<T1, T2> &p) noexcept
+	template<detail::pair_like_hash P>
+	[[nodiscard]] constexpr hash_t hash(const P &p) noexcept
 	{
 		auto result = hash(p.first);
 		return hash_combine(result, hash(p.second));

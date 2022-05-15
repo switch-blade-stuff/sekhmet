@@ -262,3 +262,33 @@ TEST(utility_tests, plugin_test)
 	EXPECT_FALSE(p.enabled());
 	EXPECT_FALSE(plugin_enabled);
 }
+
+#include "sekhmet/type_info.hpp"
+
+namespace
+{
+	struct test_parent_top
+	{
+	};
+	struct test_parent_middle : test_parent_top
+	{
+	};
+	struct test_child : test_parent_middle
+	{
+	};
+}	 // namespace
+
+SEK_REFLECT_TYPE(test_parent_top, "top_parent") {}
+SEK_REFLECT_TYPE(test_parent_middle) { parents<test_parent_top>(); }
+SEK_REFLECT_TYPE(test_child, "test_child") { parents<test_parent_middle>(); }
+
+TEST(utility_tests, type_info_test)
+{
+	auto info = sek::type_info::get<test_child>();
+
+	EXPECT_EQ(info.name(), "test_child");
+	EXPECT_EQ(info.name(), sek::type_name<test_child>());
+	EXPECT_TRUE(info.has_parent<test_parent_middle>());
+	EXPECT_TRUE(info.has_parent<test_parent_top>());
+	EXPECT_TRUE(info.has_parent("top_parent"));
+}
