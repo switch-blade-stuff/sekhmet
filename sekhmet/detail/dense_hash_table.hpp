@@ -699,7 +699,7 @@ namespace sek::detail
 					}
 
 					value_vector().pop_back();
-					return begin() + pos;
+					return begin() + static_cast<difference_type>(pos);
 				}
 				chain_idx = &entry_iter->next;
 			}

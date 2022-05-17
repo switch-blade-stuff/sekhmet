@@ -35,7 +35,6 @@ namespace sek
 		struct plugin_entry;
 		struct plugin_db;
 
-		SEK_API static plugin_db &database();
 		SEK_API static void load(std::string_view, const detail::basic_plugin *) noexcept;
 		SEK_API static void unload(std::string_view) noexcept;
 

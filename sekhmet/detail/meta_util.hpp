@@ -374,21 +374,24 @@ namespace sek
 	template<auto V, auto... Values>
 	constexpr bool contains_value_v = contains_value<V, Values...>();
 
+	// clang-format off
 	/** Concept used to check if a range is a forward range with a specific value type. */
 	template<typename R, typename T>
-	concept forward_range_for = std::ranges::forward_range<R> && std::same_as < std::ranges::range_value_t<R>,
-	T > ;
+	concept forward_range_for = std::ranges::forward_range<R> && std::same_as<std::ranges::range_value_t<R>, T>;
 	/** Concept used to check if an iterator is a forward iterator with a specific value type. */
 	template<typename R, typename T>
-	concept forward_iterator_for = std::forward_iterator<R> && std::same_as < std::iter_value_t<R>,
-	T > ;
-
+	concept forward_iterator_for = std::forward_iterator<R> && std::same_as<std::iter_value_t<R>, T>;
 	template<typename T>
 	concept pointer_like = requires(T t) {
+							   typename T::value_type;
+							   typename T::pointer;
+							   typename T::reference;
+
 							   std::is_object_v<T>;
-							   *t;
-							   t.operator->();
+							   { t.operator->() } -> std::same_as<typename T::pointer>;
+							   { *t } -> std::same_as<typename T::reference>;
 						   };
+	// clang-format on
 
 	template<typename T>
 	constexpr bool is_pointer_like_v = false;

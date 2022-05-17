@@ -300,17 +300,43 @@ TEST(utility_tests, type_info_test)
 
 	// clang-format off
 	sek::type_info::reflect<test_child>()
+		.attrib<int>(0xff).attrib<int>(0xfc)
 		.parent<test_parent_middle>();
 	// clang-format on
 
 	auto info = sek::type_info::get<test_child>();
 
-	EXPECT_EQ(info.size(), sizeof(test_child));
-	EXPECT_EQ(info.align(), alignof(test_child));
+	EXPECT_EQ(info, sek::type_info::get("test_child"));
+	EXPECT_TRUE(info.valid());
 	EXPECT_EQ(info.name(), "test_child");
 	EXPECT_EQ(info.name(), sek::type_name<test_child>());
+	EXPECT_EQ(info.size(), sizeof(test_child));
+	EXPECT_EQ(info.align(), alignof(test_child));
+	EXPECT_EQ(info.extent(), 0);
+	EXPECT_EQ(info.remove_cv(), info);
+	EXPECT_TRUE(info.is_empty());
+	EXPECT_FALSE(info.is_qualified());
+	EXPECT_FALSE(info.is_array());
+	EXPECT_FALSE(info.is_range());
+	EXPECT_FALSE(info.is_pointer());
+	EXPECT_FALSE(info.value_type().valid());
+	EXPECT_FALSE(info.remove_pointer().valid());
 
 	EXPECT_TRUE(info.inherits<test_parent_middle>());
 	EXPECT_TRUE(info.inherits<test_parent_top>());
 	EXPECT_TRUE(info.inherits("top_parent"));
+
+	EXPECT_TRUE(sek::type_info::get<const test_child>().is_qualified());
+	EXPECT_TRUE(sek::type_info::get<const test_child>().is_const());
+	EXPECT_FALSE(sek::type_info::get<const test_child>().is_volatile());
+	EXPECT_EQ(sek::type_info::get<const test_child>().remove_cv(), info);
+
+	EXPECT_TRUE(sek::type_info::get<test_child[2]>().is_array());
+	EXPECT_TRUE(sek::type_info::get<test_child[2]>().is_range());
+	EXPECT_EQ(sek::type_info::get<test_child[2]>().extent(), 2);
+	EXPECT_EQ(sek::type_info::get<test_child[2]>().value_type(), info);
+
+	EXPECT_TRUE(sek::type_info::get<test_child *>().is_pointer());
+	EXPECT_EQ(sek::type_info::get<test_child *>().remove_pointer(), info);
+	EXPECT_EQ(sek::type_info::get<const test_child *>().remove_pointer(), sek::type_info::get<const test_child>());
 }
