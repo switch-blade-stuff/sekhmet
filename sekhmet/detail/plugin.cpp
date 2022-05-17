@@ -76,17 +76,19 @@ namespace sek
 	};
 	struct plugin::plugin_db
 	{
-		static plugin_db instance;
+		static plugin_db &instance()
+		{
+			static plugin_db value;
+			return value;
+		}
 
 		std::mutex mtx;
 		sparse_map<std::string_view, plugin_entry> plugins;
 	};
 
-	plugin::plugin_db plugin::plugin_db::instance;
-
 	void plugin::load(std::string_view id, const detail::basic_plugin *data) noexcept
 	{
-		auto &db = plugin_db::instance;
+		auto &db = plugin_db::instance();
 		std::lock_guard<std::mutex> l(db.mtx);
 
 		if (db.plugins.try_emplace(id, data).second) [[likely]]
@@ -96,7 +98,7 @@ namespace sek
 	}
 	void plugin::unload(std::string_view id) noexcept
 	{
-		auto &db = plugin_db::instance;
+		auto &db = plugin_db::instance();
 		std::lock_guard<std::mutex> l(db.mtx);
 
 		if (auto iter = db.plugins.find(id); iter == db.plugins.end()) [[unlikely]]
@@ -115,7 +117,7 @@ namespace sek
 
 	std::vector<plugin> plugin::get_loaded()
 	{
-		auto &db = plugin_db::instance;
+		auto &db = plugin_db::instance();
 		std::lock_guard<std::mutex> l(db.mtx);
 
 		std::vector<plugin> result;
@@ -126,7 +128,7 @@ namespace sek
 	}
 	std::vector<plugin> plugin::get_enabled()
 	{
-		auto &db = plugin_db::instance;
+		auto &db = plugin_db::instance();
 		std::lock_guard<std::mutex> l(db.mtx);
 
 		std::vector<plugin> result;
@@ -138,7 +140,7 @@ namespace sek
 	}
 	plugin plugin::get(std::string_view id)
 	{
-		auto &db = plugin_db::instance;
+		auto &db = plugin_db::instance();
 		std::lock_guard<std::mutex> l(db.mtx);
 
 		if (auto iter = db.plugins.find(id); iter == db.plugins.end()) [[unlikely]]

@@ -86,8 +86,6 @@ namespace sek
 			[[nodiscard]] constexpr type_data *operator->() const noexcept { return instance(); }
 			[[nodiscard]] constexpr type_data &operator*() const noexcept { return *instance(); }
 
-			[[nodiscard]] constexpr bool operator==(const type_handle &) const noexcept;
-
 			type_data *(*instance)() noexcept = nullptr;
 		};
 		struct type_data
@@ -205,7 +203,6 @@ namespace sek
 				NO_FLAGS = 0,
 				EMPTY_TYPE = 1,
 				ARRAY_TYPE = 2,
-				RANGE_TYPE = 4,
 				POINTER_TYPE = 8,
 
 				QUALIFIED_TYPE = 16,
@@ -225,10 +222,7 @@ namespace sek
 
 				if constexpr (std::is_empty_v<T>) result = static_cast<flags_t>(result | EMPTY_TYPE);
 				if constexpr (std::is_array_v<T>) result = static_cast<flags_t>(result | ARRAY_TYPE);
-				if constexpr (std::ranges::range<T>) result = static_cast<flags_t>(result | RANGE_TYPE);
-				if constexpr (std::is_pointer_v<T> || pointer_like<T>)
-					result = static_cast<flags_t>(result | POINTER_TYPE);
-
+				if constexpr (std::is_pointer_v<T>) result = static_cast<flags_t>(result | POINTER_TYPE);
 				if constexpr (std::is_const_v<T>) result = static_cast<flags_t>(result | CONST_TYPE);
 				if constexpr (std::is_volatile_v<T>) result = static_cast<flags_t>(result | VOLATILE_TYPE);
 
@@ -252,12 +246,10 @@ namespace sek
 				  unqualified(type_selector<std::remove_cv_t<T>>),
 				  flags(make_flags<T>())
 			{
-				if constexpr (std::ranges::range<T>)
-					std::construct_at(&value_type, type_selector<std::ranges::range_value_t<T>>);
+				if constexpr (std::is_array_v<T>)
+					std::construct_at(&remove_extent, type_selector<std::remove_extent_t<T>>);
 				else if constexpr (std::is_pointer_v<T>)
 					std::construct_at(&remove_pointer, type_selector<std::remove_pointer_t<T>>);
-				else if constexpr (pointer_like<T>)
-					std::construct_at(&remove_pointer, type_selector<typename T::value_type>);
 			}
 
 			[[nodiscard]] constexpr const parent_node *get_parent(std::string_view n) const noexcept
@@ -278,7 +270,7 @@ namespace sek
 			/* Conditionally initialized. */
 			union
 			{
-				type_handle value_type = {};
+				type_handle remove_extent = {};
 				type_handle remove_pointer;
 			};
 
@@ -398,8 +390,8 @@ namespace sek
 		[[nodiscard]] constexpr std::size_t align() const noexcept { return data->align; }
 		/** Returns extent of the underlying fixed-size array type. */
 		[[nodiscard]] constexpr std::size_t extent() const noexcept { return data->extent; }
-		/** Returns value type of the underlying range type. */
-		[[nodiscard]] constexpr type_info value_type() const noexcept { return type_info{data->value_type}; }
+		/** Returns value type of the underlying array type. */
+		[[nodiscard]] constexpr type_info remove_extent() const noexcept { return type_info{data->remove_extent}; }
 		/** Returns value type of the underlying pointer type. */
 		[[nodiscard]] constexpr type_info remove_pointer() const noexcept { return type_info{data->remove_pointer}; }
 		/** Returns unqualified version of the underlying type.
@@ -410,9 +402,7 @@ namespace sek
 		[[nodiscard]] constexpr bool is_empty() const noexcept { return data->flags & type_data::EMPTY_TYPE; }
 		/** Checks if the underlying type is an array. */
 		[[nodiscard]] constexpr bool is_array() const noexcept { return data->flags & type_data::ARRAY_TYPE; }
-		/** Checks if the underlying type is a range. */
-		[[nodiscard]] constexpr bool is_range() const noexcept { return data->flags & type_data::RANGE_TYPE; }
-		/** Checks if the underlying type is a pointer or pointer-like type. */
+		/** Checks if the underlying type is a pointer type. */
 		[[nodiscard]] constexpr bool is_pointer() const noexcept { return data->flags & type_data::POINTER_TYPE; }
 		/** Checks if the underlying type is qualified with either const or volatile. */
 		[[nodiscard]] constexpr bool is_qualified() const noexcept { return data->flags & type_data::QUALIFIED_TYPE; }
@@ -453,7 +443,10 @@ namespace sek
 			return inherits(type_name<T>());
 		}
 
-		[[nodiscard]] constexpr bool operator==(const type_info &) const noexcept = default;
+		[[nodiscard]] constexpr bool operator==(const type_info &other) const noexcept
+		{
+			return data == other.data || name() == other.name();
+		}
 
 	private:
 		const type_data *data = nullptr;
@@ -466,10 +459,6 @@ namespace sek
 		return &value;
 	}
 
-	constexpr bool sek::type_info::type_handle::operator==(const type_handle &other) const noexcept
-	{
-		return instance()->name == other.instance()->name;
-	}
 }	 // namespace sek
 
 /** Macro used to declare an instance of type info for type `T` as extern.

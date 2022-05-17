@@ -317,9 +317,8 @@ TEST(utility_tests, type_info_test)
 	EXPECT_TRUE(info.is_empty());
 	EXPECT_FALSE(info.is_qualified());
 	EXPECT_FALSE(info.is_array());
-	EXPECT_FALSE(info.is_range());
 	EXPECT_FALSE(info.is_pointer());
-	EXPECT_FALSE(info.value_type().valid());
+	EXPECT_FALSE(info.remove_extent().valid());
 	EXPECT_FALSE(info.remove_pointer().valid());
 
 	EXPECT_TRUE(info.inherits<test_parent_middle>());
@@ -332,9 +331,8 @@ TEST(utility_tests, type_info_test)
 	EXPECT_EQ(sek::type_info::get<const test_child>().remove_cv(), info);
 
 	EXPECT_TRUE(sek::type_info::get<test_child[2]>().is_array());
-	EXPECT_TRUE(sek::type_info::get<test_child[2]>().is_range());
 	EXPECT_EQ(sek::type_info::get<test_child[2]>().extent(), 2);
-	EXPECT_EQ(sek::type_info::get<test_child[2]>().value_type(), info);
+	EXPECT_EQ(sek::type_info::get<test_child[2]>().remove_extent(), info);
 
 	EXPECT_TRUE(sek::type_info::get<test_child *>().is_pointer());
 	EXPECT_EQ(sek::type_info::get<test_child *>().remove_pointer(), info);
