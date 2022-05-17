@@ -278,6 +278,9 @@ namespace
 	struct test_child : test_parent_middle
 	{
 	};
+	struct test_attribute
+	{
+	};
 }	 // namespace
 
 template<>
@@ -300,7 +303,7 @@ TEST(utility_tests, type_info_test)
 
 	// clang-format off
 	sek::type_info::reflect<test_child>()
-		.attrib<int>(0xff).attrib<int>(0xfc)
+		.attrib<int>(0xff).attrib<int>(0xfc).attrib<test_attribute>()
 		.parent<test_parent_middle>();
 	// clang-format on
 
