@@ -264,6 +264,7 @@ TEST(utility_tests, plugin_test)
 	EXPECT_FALSE(plugin_enabled);
 }
 
+#include "sekhmet/detail/type_info.hpp"
 #include "sekhmet/type_info.hpp"
 
 namespace
@@ -279,17 +280,37 @@ namespace
 	};
 }	 // namespace
 
-SEK_REFLECT_TYPE(test_parent_top, "top_parent") {}
-SEK_REFLECT_TYPE(test_parent_middle) { parents<test_parent_top>(); }
-SEK_REFLECT_TYPE(test_child, "test_child") { parents<test_parent_middle>(); }
+template<>
+constexpr std::string_view sek::type_name<test_parent_top>() noexcept
+{
+	return "top_parent";
+}
+template<>
+constexpr std::string_view sek::type_name<test_child>() noexcept
+{
+	return "test_child";
+}
+
+SEK_EXTERN_TYPE(test_child)
+SEK_EXPORT_TYPE(test_child)
 
 TEST(utility_tests, type_info_test)
 {
+	sek::type_info::reflect<test_parent_middle>().parent<test_parent_top>();
+
+	// clang-format off
+	sek::type_info::reflect<test_child>()
+		.parent<test_parent_middle>();
+	// clang-format on
+
 	auto info = sek::type_info::get<test_child>();
 
+	EXPECT_EQ(info.size(), sizeof(test_child));
+	EXPECT_EQ(info.align(), alignof(test_child));
 	EXPECT_EQ(info.name(), "test_child");
 	EXPECT_EQ(info.name(), sek::type_name<test_child>());
-	EXPECT_TRUE(info.has_parent<test_parent_middle>());
-	EXPECT_TRUE(info.has_parent<test_parent_top>());
-	EXPECT_TRUE(info.has_parent("top_parent"));
+
+	EXPECT_TRUE(info.inherits<test_parent_middle>());
+	EXPECT_TRUE(info.inherits<test_parent_top>());
+	EXPECT_TRUE(info.inherits("top_parent"));
 }

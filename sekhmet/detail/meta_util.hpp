@@ -338,15 +338,14 @@ namespace sek
 	};
 
 	/** @brief Structure used to define a compile-time non-constant global instance of a type.
-	 * @tparam T Type of the global value.
 	 * @tparam Value NTTP value used to initialize the type instance. */
-	template<typename T, auto Value>
+	template<auto Value>
 	struct mutable_global
 	{
-		constinit static T value;
+		static std::remove_const_t<decltype(Value)> value;
 	};
-	template<typename T, auto V>
-	constinit T mutable_global<T, V>::value = V;
+	template<auto V>
+	std::remove_const_t<decltype(V)> mutable_global<V>::value = V;
 
 	template<typename T, auto... Values>
 	struct is_in_values : is_in<T, std::remove_const_t<decltype(Values)>...>

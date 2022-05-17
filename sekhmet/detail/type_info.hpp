@@ -8,12 +8,6 @@
 #include "meta_containers.hpp"
 #include "static_string.hpp"
 
-namespace instantiation
-{
-	template<typename>
-	struct type_factory;
-}	 // namespace instantiation
-
 namespace sek
 {
 	class type_info;
@@ -66,7 +60,7 @@ namespace sek
 
 	/** Returns name of the specified type.
 	 * @warning Consistency of generated type names across different compilers is not guaranteed.
-	 * To generate consistent type names, overload this function for the desired type or use `SEK_REFLECT_TYPE`. */
+	 * To generate consistent type names, overload this function for the desired type. */
 	template<typename T>
 	[[nodiscard]] constexpr std::string_view type_name() noexcept
 	{
@@ -76,116 +70,264 @@ namespace sek
 	/** @brief Structure used to reference reflected information of a type. */
 	class type_info
 	{
-		template<typename>
-		friend struct instantiation::type_factory;
+		struct type_data;
+		struct type_handle
+		{
+			constexpr type_handle() noexcept = default;
 
-		using name_t = std::string_view;
+			template<typename T>
+			constexpr explicit type_handle(type_selector_t<T>) noexcept : instance(type_data::instance<T>)
+			{
+			}
 
-		struct data_t
+			[[nodiscard]] constexpr bool empty() const noexcept { return instance == nullptr; }
+			[[nodiscard]] constexpr type_data *operator->() const noexcept { return instance(); }
+			[[nodiscard]] constexpr type_data &operator*() const noexcept { return *instance(); }
+
+			[[nodiscard]] constexpr bool operator==(const type_handle &) const noexcept;
+
+			type_data *(*instance)() noexcept = nullptr;
+		};
+		struct type_data
 		{
 			template<typename>
-			struct instance
+			static type_data *instance() noexcept;
+
+			struct metadata_node
 			{
-				static const data_t value;
+				const metadata_node *next = nullptr;
+			};
+
+			struct parent_node : metadata_node, type_handle
+			{
+				template<typename T>
+				constexpr explicit parent_node(type_selector_t<T>) noexcept : type_handle(type_selector<T>)
+				{
+				}
+			};
+			struct attrib_node : metadata_node
+			{
+				constexpr attrib_node() noexcept = default;
+				constexpr ~attrib_node()
+				{
+					if (destroy) destroy(this);
+				}
+
+				type_handle type;
+				std::string_view key;
+				void (*destroy)(attrib_node *) = nullptr;
+				const void *data;
+			};
+
+			template<std::derived_from<metadata_node> T>
+			struct metadata_list
+			{
+				struct iterator
+				{
+					typedef T value_type;
+					typedef const T *pointer;
+					typedef const T &reference;
+					typedef std::ptrdiff_t difference_type;
+					typedef std::size_t size_type;
+					typedef std::forward_iterator_tag iterator_category;
+
+					constexpr iterator() noexcept = default;
+					constexpr explicit iterator(const T *node) noexcept : node(node) {}
+
+					constexpr iterator &operator++() noexcept
+					{
+						node = static_cast<const T *>(node->next);
+						return *this;
+					}
+					constexpr iterator operator++(int) noexcept
+					{
+						auto temp = *this;
+						++(*this);
+						return temp;
+					}
+
+					constexpr pointer operator->() const noexcept { return node; }
+					constexpr reference operator*() const noexcept { return *node; }
+
+					constexpr bool operator==(const iterator &) const noexcept = default;
+
+					const T *node = nullptr;
+				};
+
+				constexpr void insert(T &node) noexcept
+				{
+					node.next = first;
+					first = std::addressof(node);
+				}
+
+				constexpr iterator begin() const noexcept { return iterator{first}; }
+				constexpr iterator end() const noexcept { return iterator{}; }
+
+				const T *first = nullptr;
 			};
 
 			template<typename T>
-			constexpr explicit data_t(type_selector_t<T>) noexcept : name(type_name<T>())
+			constexpr explicit type_data(type_selector_t<T>) noexcept
+				: name(type_name<T>()), size(sizeof(T)), align(alignof(T))
 			{
 			}
 
-			const name_t name;
-			meta_view<const data_t *> parents;
+			[[nodiscard]] constexpr const parent_node *get_parent(std::string_view n) const noexcept
+			{
+				for (auto &node : parent_list)
+					if (auto *result = &node; node->name == n || (result = node->get_parent(n)) != nullptr)
+						return result;
+				return nullptr;
+			}
+			[[nodiscard]] constexpr const attrib_node *get_attribute(std::string_view key) const noexcept
+			{
+				for (auto &node : attrib_list)
+					if (node.key == key) return &node;
+				return nullptr;
+			}
+
+			const std::string_view name;
+			const std::size_t size;
+			const std::size_t align;
+
+			metadata_list<parent_node> parent_list;
+			metadata_list<attrib_node> attrib_list;
 		};
 
 		template<typename T>
-		class factory_base
+		class type_factory
 		{
-			template<typename>
-			friend struct data_t::instance;
+			friend class type_info;
 
-			template<typename... Ts>
-			constexpr static bool parent_list = std::conjunction_v<std::is_base_of<Ts, T>...>;
+			constexpr explicit type_factory(type_data *data) noexcept : data(data) {}
 
-		protected:
-			/** Specifies list of parents of the type. */
-			template<typename... Ts>
-			constexpr void parents() noexcept
-				requires parent_list<Ts...>
+		public:
+			type_factory() = delete;
+
+			constexpr type_factory(const type_factory &) noexcept = default;
+			constexpr type_factory &operator=(const type_factory &) noexcept = default;
+			constexpr type_factory(type_factory &&) noexcept = default;
+			constexpr type_factory &operator=(type_factory &&) noexcept = default;
+
+			// clang-format off
+			/** Adds `U` to the list of type's parents. */
+			template<typename U>
+			type_factory parent() noexcept requires std::derived_from<T, U>
 			{
-				if constexpr (sizeof...(Ts) != 0) parents_impl(unique_type_seq_t<type_seq_t<Ts...>>{});
+				constinit static auto node = type_data::parent_node{type_selector<U>};
+				if (!node.next) [[likely]]
+					data->parent_list.insert(node);
+				return *this;
 			}
+			// clang-format on
 
 		private:
-			template<typename... Ts>
-			constexpr void parents_impl(type_seq_t<Ts...>) noexcept
-			{
-				data.parents = {array_constant<const data_t *, &data_t::instance<Ts>::value...>::value};
-			}
-
-			data_t data = data_t{type_selector<T>};
+			type_data *data;
 		};
+
+		SEK_API static type_data *reflect_impl(type_handle);
 
 	public:
 		/** Returns type info of `T`. */
 		template<typename T>
 		constexpr static type_info get() noexcept
 		{
-			return type_info{&data_t::instance<T>::value};
+			return type_info{type_selector<T>};
+		}
+
+		/** Reflects type `T` and returns type factory for it.
+		 * A reflected type is accessible through the type database using it's name. */
+		template<typename T>
+		static type_factory<T> reflect()
+		{
+			return type_factory<T>{reflect_impl(type_handle{type_selector<T>})};
+		}
+		/** Returns type info of a reflected type.
+		 * @return Type info of the reflected type. If such type was not reflected via `reflect`, returns an empty type info. */
+		SEK_API static type_info get(std::string_view name) noexcept;
+		/** Resets a reflected type.
+		 * @note Once a type is reset, it is no longer accessible via the non-template overload of `get`. */
+		SEK_API static void reset(std::string_view name) noexcept;
+		/** @copydoc reset */
+		template<typename T>
+		static void reset() noexcept
+		{
+			reset(type_name<T>());
 		}
 
 	private:
-		constexpr explicit type_info(const data_t *data) noexcept : data(data) {}
+		template<typename T>
+		constexpr explicit type_info(type_selector_t<T>) noexcept : handle(type_selector<T>)
+		{
+		}
+		constexpr explicit type_info(type_handle handle) noexcept : handle(handle) {}
 
 	public:
 		/** Returns name of the underlying type. */
-		[[nodiscard]] constexpr std::string_view name() const noexcept { return data->name; }
+		[[nodiscard]] constexpr std::string_view name() const noexcept { return handle->name; }
+		/** Returns size of the underlying type. */
+		[[nodiscard]] constexpr std::size_t size() const noexcept { return handle->size; }
+		/** Returns alignment of the underlying type. */
+		[[nodiscard]] constexpr std::size_t align() const noexcept { return handle->align; }
 
-		/** Checks if the underlying type has the specified parent. */
-		[[nodiscard]] constexpr bool has_parent(std::string_view name) const noexcept
+		/** Checks if the underlying type inherits from the specified parent type. */
+		[[nodiscard]] constexpr bool inherits(std::string_view name) const noexcept
 		{
-			auto pred = [name](auto p) { return p->name == name || type_info{p}.has_parent(name); };
-			return std::ranges::any_of(data->parents, pred);
+			return handle->get_parent(name) != nullptr;
 		}
 		/** Checks if `T` is a parent of the underlying type. */
 		template<typename T>
-		[[nodiscard]] constexpr bool has_parent() const noexcept
+		[[nodiscard]] constexpr bool inherits() const noexcept
 		{
-			return has_parent(type_name<T>());
+			return inherits(type_name<T>());
 		}
 
+		[[nodiscard]] constexpr bool operator==(const type_info &) const noexcept = default;
+
 	private:
-		const data_t *data = nullptr;
+		type_handle handle;
 	};
 
 	template<typename T>
-	const type_info::data_t type_info::data_t::instance<T>::value = data_t{type_selector<T>};
+	type_info::type_data *type_info::type_data::instance() noexcept
+	{
+		constinit static auto value = type_data{type_selector<T>};
+		return &value;
+	}
+
+	constexpr bool sek::type_info::type_handle::operator==(const type_handle &other) const noexcept
+	{
+		return instance()->name == other.instance()->name;
+	}
 }	 // namespace sek
 
-#define SEK_REFLECT_TYPE_1(T)                                                                                          \
-	template<>                                                                                                         \
-	struct instantiation::type_factory<T> : sek::type_info::factory_base<T>                                            \
-	{                                                                                                                  \
-		constexpr type_factory() noexcept;                                                                             \
-	};                                                                                                                 \
-	template<>                                                                                                         \
-	const sek::type_info::data_t sek::type_info::data_t::instance<T>::value = instantiation::type_factory<T>{}.data;   \
-                                                                                                                       \
-	constexpr instantiation::type_factory<T>::type_factory() noexcept : factory_base()
-#define SEK_REFLECT_TYPE_2(T, name)                                                                                    \
-	static_assert(SEK_ARRAY_SIZE(name), "Type name can not be empty");                                                 \
-	template<>                                                                                                         \
-	[[nodiscard]] constexpr std::string_view sek::type_name<T>() noexcept                                              \
-	{                                                                                                                  \
-		return {name};                                                                                                 \
-	}                                                                                                                  \
-                                                                                                                       \
-	SEK_REFLECT_TYPE_1(T)
-
-/** @brief Macro used to reflect information about a type.
- * @param T Type currently being reflected.
- * @param name Optional name for the type.
+/** Macro used to declare an instance of type info for type `T` as extern.
  *
- * @note Specifying an explicit name will create an overload for `sek::type_name`.
- * It is recommended to do so if the type name would be used at runtime (ex. as a resource or prefab component). */
-#define SEK_REFLECT_TYPE(...) SEK_GET_MACRO_2(__VA_ARGS__, SEK_REFLECT_TYPE_2, SEK_REFLECT_TYPE_1)(__VA_ARGS__)
+ * @note Type must be exported via `SEK_EXPORT_TYPE`.
+ *
+ * @example
+ * @code{.cpp}
+ * // my_type.hpp
+ * struct my_type {};
+ * SEK_EXTERN_TYPE(my_type)
+ *
+ * // my_type.cpp
+ * SEK_EXPORT_TYPE(my_type)
+ * @endcode*/
+#define SEK_EXTERN_TYPE(T)                                                                                             \
+	extern template SEK_API_IMPORT sek::type_info::type_data *sek::type_info::type_data::instance<T>();
+
+/** Macro used to export instance of type info for type `T`.
+ *
+ * @note Type must be declared as `extern` via `SEK_EXTERN_TYPE`.
+ *
+ * @example
+ * @code{.cpp}
+ * // my_type.hpp
+ * struct my_type {};
+ * SEK_EXTERN_TYPE(my_type)
+ *
+ * // my_type.cpp
+ * SEK_EXPORT_TYPE(my_type)
+ * @endcode */
+#define SEK_EXPORT_TYPE(T) template SEK_API_EXPORT sek::type_info::type_data *sek::type_info::type_data::instance<T>();
