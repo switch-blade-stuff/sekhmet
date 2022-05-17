@@ -31,7 +31,7 @@ namespace sek
 	{
 		virtual ~object() = default;
 
-		virtual type_info type() const noexcept = 0;
+		[[nodiscard]] virtual type_info type_of() const noexcept = 0;
 	};
 
 	/** Casts between object types. */
@@ -53,7 +53,7 @@ namespace sek
 
 			/* Check that the actual type of `from` is the same as or a child of `To`. */
 			const auto to_type = type_info::get<To>();
-			const auto from_type = obj->type();
+			const auto from_type = obj->type_of();
 			if (from_type == to_type || from_type.inherits(to_type.name())) [[likely]]
 				return static_cast<ToCV *>(obj);
 		}
@@ -74,7 +74,7 @@ namespace sek
 
 /** Helper macro used to initialize body of an object type `T`. */
 #define SEK_OBJECT_BODY(T)                                                                                             \
-	virtual sek::type_info type() const noexcept override                                                              \
+	virtual sek::type_info type_of() const noexcept override                                                           \
 	{                                                                                                                  \
 		static_assert(std::is_base_of_v<sek::object, T>);                                                              \
 		return sek::type_info::get<T>();                                                                               \
