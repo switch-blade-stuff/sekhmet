@@ -340,13 +340,6 @@ namespace sek
 		template<typename T>
 		static type_factory<T, type_seq_t<>> reflect()
 		{
-			/* Need to reset the reflected type on static destruction to guarantee that plugins are
-			 * not leaving behind dangling type handles. */
-			static struct raii_reset
-			{
-				~raii_reset() { reset<T>(); }
-			} static_reset = {};
-
 			return type_factory<T, type_seq_t<>>{reflect(type_handle{type_selector<T>})};
 		}
 		/** Returns type info of a reflected type.

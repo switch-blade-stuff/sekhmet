@@ -340,4 +340,7 @@ TEST(utility_tests, type_info_test)
 	EXPECT_TRUE(sek::type_info::get<test_child *>().is_pointer());
 	EXPECT_EQ(sek::type_info::get<test_child *>().remove_pointer(), info);
 	EXPECT_EQ(sek::type_info::get<const test_child *>().remove_pointer(), sek::type_info::get<const test_child>());
+
+	sek::type_info::reset<test_child>();
+	EXPECT_FALSE(sek::type_info::get("test_child"));
 }
