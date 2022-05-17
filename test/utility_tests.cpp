@@ -344,3 +344,69 @@ TEST(utility_tests, type_info_test)
 	sek::type_info::reset<test_child>();
 	EXPECT_FALSE(sek::type_info::get("test_child"));
 }
+
+#include "sekhmet/object.hpp"
+
+namespace
+{
+	struct test_parent_object : sek::object
+	{
+		SEK_OBJECT_BODY(test_parent_object)
+
+		constexpr bool operator==(const test_parent_object &other) const noexcept { return c == other.c; }
+
+		int c = 0x4343'4343;
+	};
+	struct test_child_object_a : test_parent_object
+	{
+		SEK_OBJECT_BODY(test_child_object_a)
+
+		constexpr bool operator==(const test_child_object_a &) const noexcept = default;
+
+		int a = 0x4141'4141;
+	};
+	struct test_child_object_b : test_parent_object
+	{
+		SEK_OBJECT_BODY(test_child_object_b)
+
+		constexpr bool operator==(const test_child_object_b &) const noexcept = default;
+
+		int b = 0x4242'4242;
+	};
+}	 // namespace
+
+template<>
+constexpr std::string_view sek::type_name<test_parent_object>() noexcept
+{
+	return "test_parent_object";
+}
+template<>
+constexpr std::string_view sek::type_name<test_child_object_a>() noexcept
+{
+	return "test_child_object_a";
+}
+template<>
+constexpr std::string_view sek::type_name<test_child_object_b>() noexcept
+{
+	return "test_child_object_b";
+}
+
+TEST(utility_tests, object_test)
+{
+	test_child_object_a child_a{};
+	test_child_object_b child_b{};
+
+	const auto *parent_a = static_cast<const test_parent_object *>(&child_a);
+	const auto *parent_b = static_cast<const test_parent_object *>(&child_b);
+
+	auto *child_a_ptr = sek::object_cast<test_child_object_a>(parent_a);
+	EXPECT_NE(child_a_ptr, nullptr);
+	EXPECT_EQ(*child_a_ptr, child_a);
+
+	child_a_ptr = sek::object_cast<test_child_object_a>(parent_b);
+	EXPECT_EQ(child_a_ptr, nullptr);
+
+	auto child_b_ptr = sek::object_cast<test_child_object_b>(parent_b);
+	EXPECT_NE(child_b_ptr, nullptr);
+	EXPECT_EQ(*child_b_ptr, child_b);
+}

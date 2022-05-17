@@ -449,7 +449,6 @@ namespace sek
 		constinit static auto value = type_data{type_selector<T>};
 		return &value;
 	}
-
 }	 // namespace sek
 
 /** Macro used to declare an instance of type info for type `T` as extern.
