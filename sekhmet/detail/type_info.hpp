@@ -243,8 +243,8 @@ namespace sek
 				  size(sizeof(T)),
 				  align(alignof(T)),
 				  extent(std::extent_v<T>),
-				  unqualified(type_selector<std::remove_cv_t<T>>),
-				  flags(make_flags<T>())
+				  flags(make_flags<T>()),
+				  unqualified(type_selector<std::remove_cv_t<T>>)
 			{
 				if constexpr (std::is_array_v<T>)
 					std::construct_at(&remove_extent, type_selector<std::remove_extent_t<T>>);
@@ -260,23 +260,19 @@ namespace sek
 				return nullptr;
 			}
 
-			/* Default-initialized type data. */
 			const std::string_view name;
 			const std::size_t size;
 			const std::size_t align;
 			const std::size_t extent;
+			const flags_t flags;
 			const type_handle unqualified;
 
-			/* Conditionally initialized. */
 			union
 			{
 				type_handle remove_extent = {};
 				type_handle remove_pointer;
 			};
 
-			const flags_t flags;
-
-			/* Factory-initialized type data. */
 			metadata_list<parent_node> parent_list;
 			metadata_list<attrib_node_base> attrib_list;
 		};
@@ -329,7 +325,7 @@ namespace sek
 			type_data *data;
 		};
 
-		SEK_API static type_data *reflect_impl(type_handle);
+		SEK_API static type_data *reflect(type_handle);
 
 	public:
 		/** Returns type info of `T`. */
@@ -344,12 +340,14 @@ namespace sek
 		template<typename T>
 		static type_factory<T, type_seq_t<>> reflect()
 		{
-			struct raii_reset
+			/* Need to reset the reflected type on static destruction to guarantee that plugins are
+			 * not leaving behind dangling type handles. */
+			static struct raii_reset
 			{
 				~raii_reset() { reset<T>(); }
-			};
-			static raii_reset reset_on_static_destruction = {};
-			return type_factory<T, type_seq_t<>>{reflect_impl(type_handle{type_selector<T>})};
+			} static_reset = {};
+
+			return type_factory<T, type_seq_t<>>{reflect(type_handle{type_selector<T>})};
 		}
 		/** Returns type info of a reflected type.
 		 * @return Type info of the reflected type. If such type was not reflected via `reflect`, returns an invalid type info. */

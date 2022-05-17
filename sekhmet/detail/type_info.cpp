@@ -28,11 +28,11 @@ namespace sek
 	};
 	std::atomic_flag type_info::type_db::initialized;
 
-	type_info::type_data *type_info::reflect_impl(type_handle handle)
+	type_info::type_data *type_info::reflect(type_handle handle)
 	{
 		/* Type data should always be initialized here. */
 		auto &db = type_db::instance();
-		SEK_ASSERT(type_db::initialized.test(), "Invalid call to `reflect_impl` after static destruction of type database");
+		SEK_ASSERT(type_db::initialized.test(), "Invalid call to `reflect` after static destruction of type database");
 
 		std::lock_guard<std::shared_mutex> l(db.mtx);
 		return db.types.try_emplace(handle->name, handle).first->second.instance();
