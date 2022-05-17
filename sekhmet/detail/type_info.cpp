@@ -32,7 +32,7 @@ namespace sek
 	{
 		/* Type data should always be initialized here. */
 		auto &db = type_db::instance();
-		SEK_ASSERT(type_db::initialized);
+		SEK_ASSERT(type_db::initialized.test(), "Invalid call to `reflect_impl` after static destruction of type database");
 
 		std::lock_guard<std::shared_mutex> l(db.mtx);
 		return db.types.try_emplace(handle->name, handle).first->second.instance();
