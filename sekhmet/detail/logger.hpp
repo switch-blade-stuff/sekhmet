@@ -17,6 +17,15 @@
 
 namespace sek
 {
+	/** @vrief Log levels of `basic_logger`. */
+	enum class log_level : int
+	{
+		info = 0,
+		warn = 1,
+		error = 2,
+		fatal = 3
+	};
+
 	/** @brief Stream adapter used to preform logging.
 	 *
 	 * Internally, logger is a wrapper around a log event and additional formatting metadata.
@@ -31,14 +40,6 @@ namespace sek
 	public:
 		typedef C value_type;
 		typedef T traits_type;
-
-		enum class log_level : int
-		{
-			info = 0,
-			warn = 1,
-			error = 2,
-			fatal = 3
-		};
 
 	private:
 		using sv_t = std::basic_string_view<value_type, traits_type>;
@@ -153,14 +154,14 @@ namespace sek
 
 	template<>
 	template<>
-	SEK_API std::atomic<logger *> &logger::global_ptr<logger::log_level::info>();
+	SEK_API std::atomic<logger *> &logger::global_ptr<log_level::info>();
 	template<>
 	template<>
-	SEK_API std::atomic<logger *> &logger::global_ptr<logger::log_level::warn>();
+	SEK_API std::atomic<logger *> &logger::global_ptr<log_level::warn>();
 	template<>
 	template<>
-	SEK_API std::atomic<logger *> &logger::global_ptr<logger::log_level::error>();
+	SEK_API std::atomic<logger *> &logger::global_ptr<log_level::error>();
 	template<>
 	template<>
-	SEK_API std::atomic<logger *> &logger::global_ptr<logger::log_level::fatal>();
+	SEK_API std::atomic<logger *> &logger::global_ptr<log_level::fatal>();
 }	 // namespace sek
