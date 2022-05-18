@@ -49,9 +49,12 @@ namespace sek
 		{
 			using std::swap;
 			base_t::swap(other);
+			swap(fmap, other.fmap);
+			swap(read_pos, other.read_pos);
+			swap(read_pos, other.read_pos);
+			swap(conv_buf, other.conv_buf);
 			swap(conv_state, other.conv_state);
 			swap(conv, other.conv);
-			swap(fmap, other.fmap);
 		}
 
 		friend constexpr void swap(basic_packbuf &a, basic_packbuf &b) noexcept { a.swap(b); }
@@ -88,7 +91,8 @@ namespace sek
 						}
 						case std::codecvt_base::partial:
 						{
-							/* If no characters were converted, file contains incomplete character. */
+							/* If no characters were converted, file contains incomplete character.
+							 * Otherwise, it is mixed-encoding as in `codecvt_base::error`. */
 							if (conv_last == conv_buf) [[unlikely]]
 								throw std::runtime_error("Mapped file contains incomplete multi-byte character");
 							break;
@@ -226,7 +230,8 @@ namespace sek
 		codecvt_t *conv;
 	};	  // namespace sek
 
-	/** @brief IO stream used for asset IO (either via a file buffer or a file mapping). */
+	/** @brief IO stream used for asset IO (either via a file buffer or a file mapping).
+	 * @note Asset streams initialized from memory-mapped files (as in the case of archived packages) are read-only. */
 	template<typename C, typename T>
 	class basic_asset_stream : public std::basic_iostream<C, T>
 	{
@@ -261,20 +266,20 @@ namespace sek
 		~basic_asset_stream() { destroy(); }
 
 		/** Initializes asset stream from a file buffer. */
-		basic_asset_stream(filebuf_t &&fb) : base_t(&placeholder), fb(std::forward<filebuf_t>(fb)), mode(FILE) {}
+		basic_asset_stream(filebuf_t &&fb) : base_t(&virt), fb(std::forward<filebuf_t>(fb)), mode(FILE) {}
 		/** Initializes asset stream from an asset package buffer.
 		 * @note Asset streams initialized from package buffers are read-only. */
-		basic_asset_stream(packbuf_t &&pb) : base_t(&placeholder), pb(std::forward<packbuf_t>(pb)), mode(PACK) {}
+		basic_asset_stream(packbuf_t &&pb) : base_t(&virt), pb(std::forward<packbuf_t>(pb)), mode(PACK) {}
 		/** Initializes asset stream from an asset filemap.
 		 * @note Asset streams initialized from filemaps are read-only. */
-		basic_asset_stream(filemap &&fm) : base_t(&placeholder), pb(std::forward<filemap>(fm)), mode(PACK) {}
+		basic_asset_stream(filemap &&fm) : base_t(&virt), pb(std::forward<filemap>(fm)), mode(PACK) {}
 
-		auto *rdbuf() const { return const_cast<std::basic_streambuf<C, T> *>(&placeholder); }
+		auto *rdbuf() const { return const_cast<std::basic_streambuf<C, T> *>(&virt); }
 
 		void swap(basic_asset_stream &other) noexcept
 		{
 			using std::swap;
-			if (mode != other.mode) /* Do complex swap. */
+			if (mode != other.mode) /* Do complex swap since buffers are not swappable directly. */
 				swap_with_temp(other);
 			else if (other.mode == PACK)
 				swap(pb, other.pb);
@@ -283,7 +288,7 @@ namespace sek
 		}
 
 	private:
-		void destroy() { std::destroy_at(&placeholder); }
+		void destroy() { std::destroy_at(&virt); }
 		void move_from(basic_asset_stream &&other)
 		{
 			if (other.mode == PACK)
@@ -303,7 +308,7 @@ namespace sek
 
 		union
 		{
-			std::basic_streambuf<C, T> placeholder; /* Placeholder used for virtual access. */
+			std::basic_streambuf<C, T> virt; /* Placeholder used for virtual access. */
 			filebuf_t fb;
 			packbuf_t pb;
 		};
