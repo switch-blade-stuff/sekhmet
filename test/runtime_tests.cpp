@@ -37,7 +37,6 @@ TEST(utility_tests, plugin_test)
 	EXPECT_FALSE(plugin_enabled);
 }
 
-#include "sekhmet/detail/type_info.hpp"
 #include "sekhmet/type_info.hpp"
 
 namespace
@@ -172,21 +171,22 @@ TEST(utility_tests, object_test)
 	EXPECT_EQ(parent_b->type_of(), sek::type_info::get<test_child_object_b>());
 	EXPECT_EQ(parent_c->type_of(), sek::type_info::get<test_child_object_c>());
 
-	auto *child_a_ptr = sek::object_cast<test_child_object_a>(parent_a);
+	auto *child_a_ptr = sek::object_cast<const test_child_object_a *>(parent_a);
 	EXPECT_NE(child_a_ptr, nullptr);
 	EXPECT_EQ(*child_a_ptr, child_a);
 
-	child_a_ptr = sek::object_cast<test_child_object_a>(parent_b);
+	child_a_ptr = sek::object_cast<const test_child_object_a *>(parent_b);
 	EXPECT_EQ(child_a_ptr, nullptr);
+	EXPECT_THROW([[maybe_unused]] auto r = sek::object_cast<const test_child_object_a &>(*parent_b), sek::bad_object_cast);
 
-	auto *child_b_ptr = sek::object_cast<test_child_object_b>(parent_b);
+	auto *child_b_ptr = sek::object_cast<const test_child_object_b *>(parent_b);
 	EXPECT_NE(child_b_ptr, nullptr);
 	EXPECT_EQ(*child_b_ptr, child_b);
 
-	child_b_ptr = sek::object_cast<test_child_object_b>(parent_c);
+	child_b_ptr = sek::object_cast<const test_child_object_b *>(parent_c);
 	EXPECT_NE(child_b_ptr, nullptr);
 
-	auto *child_c_ptr = sek::object_cast<test_child_object_c>(child_b_ptr);
+	auto *child_c_ptr = sek::object_cast<const test_child_object_c *>(child_b_ptr);
 	EXPECT_NE(child_c_ptr, nullptr);
 	EXPECT_EQ(*child_c_ptr, child_c);
 }

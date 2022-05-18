@@ -35,9 +35,9 @@ namespace sek
 	};
 
 	/** Casts between object types. */
-	template<typename To, typename From, typename ToCV = transfer_cv_t<From, To>>
-	constexpr ToCV *object_cast(From *from) noexcept
-		requires valid_object_cast<To, From>
+	template<typename ToPtr, typename From, typename To = std::remove_cv_t<std::remove_pointer_t<ToPtr>>>
+	constexpr ToPtr object_cast(From *from) noexcept
+		requires std::is_pointer_v<ToPtr> && valid_object_cast<To, From>
 	{
 		using Obj = transfer_cv_t<From, object>;
 
@@ -46,7 +46,7 @@ namespace sek
 		 * 2. `From` is base of `To` -> Check that an upcast is possible, then cast through `basic_object`.
 		 * Otherwise, return nullptr, since types do not have anything in common. */
 		if constexpr (std::is_base_of_v<To, From>)
-			return static_cast<ToCV *>(from);
+			return static_cast<ToPtr>(from);
 		else if constexpr (std::is_base_of_v<From, To>)
 		{
 			auto *obj = static_cast<Obj *>(from);
@@ -55,17 +55,17 @@ namespace sek
 			const auto to_type = type_info::get<To>();
 			const auto from_type = obj->type_of();
 			if (from_type == to_type || from_type.inherits(to_type.name())) [[likely]]
-				return static_cast<ToCV *>(obj);
+				return static_cast<ToPtr>(obj);
 		}
 		return nullptr;
 	}
 	/** @copydoc object_cast
 	 * @throw bad_object_cast If a cast is not possible. */
-	template<typename To, typename From, typename ToCV = transfer_cv_t<From, To>>
-	constexpr ToCV &object_cast(From &from) noexcept
-		requires valid_object_cast<To, From>
+	template<typename ToRef, typename From, typename To = std::remove_cv_t<std::remove_reference_t<ToRef>>>
+	constexpr ToRef &object_cast(From &from)
+		requires std::is_reference_v<ToRef> && valid_object_cast<To, From>
 	{
-		auto *result = object_cast<To>(std::addressof(from));
+		auto *result = object_cast<std::remove_reference_t<ToRef> *>(std::addressof(from));
 		if (!result) [[unlikely]]
 			throw bad_object_cast();
 		return *result;
