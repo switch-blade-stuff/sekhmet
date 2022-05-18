@@ -693,10 +693,8 @@ namespace sek
 		return a == b.sv();
 	}
 
-	template<>
-	SEK_API basic_intern_pool<char> &basic_intern_pool<char>::global();
-	template<>
-	SEK_API basic_intern_pool<wchar_t> &basic_intern_pool<wchar_t>::global();
+	extern template SEK_API_IMPORT basic_intern_pool<char> &basic_intern_pool<char>::global();
+	extern template SEK_API_IMPORT basic_intern_pool<wchar_t> &basic_intern_pool<wchar_t>::global();
 
 	using intern_pool = basic_intern_pool<char>;
 	using intern_wpool = basic_intern_pool<wchar_t>;
