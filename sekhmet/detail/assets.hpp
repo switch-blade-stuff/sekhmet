@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <filesystem>
+#include <new>
 
 #include "assert.hpp"
 #include "asset_stream.hpp"
@@ -72,9 +73,79 @@ namespace sek
 			return static_cast<archive_asset_info *>(this);
 		}
 
+		struct asset_info_pool
+		{
+			struct empty_node
+			{
+				empty_node *next;
+			};
+			struct node_page
+			{
+				node_page *next;
+				std::size_t capacity;
+				/* Nodes follow the page. */
+			};
+
+			constexpr static std::size_t initial_capacity = 128;
+			template<typename T>
+			constexpr static auto node_size = sizeof(T) > sizeof(empty_node) ? sizeof(T) : sizeof(empty_node);
+
+			~asset_info_pool()
+			{
+				// clang-format off
+				for (auto page = last_page; page != nullptr; page = page->next)
+					::operator delete(static_cast<void *>(page));
+				// clang-format on
+			}
+
+			template<typename T>
+			T *allocate()
+			{
+				if (!next_node) [[unlikely]]
+					make_page<T>(last_page ? last_page->capacity * 2 : initial_capacity);
+				return std::bit_cast<T *>(std::exchange(next_node, next_node->next));
+			}
+			void deallocate(void *ptr)
+			{
+				auto node = static_cast<empty_node *>(ptr);
+				node->next = next_node;
+				next_node = node;
+			}
+
+			template<typename T>
+			void make_page(std::size_t cap)
+			{
+				auto *ptr = ::operator new(cap *node_size<T> + sizeof(node_page));
+				auto *nodes = std::bit_cast<empty_node *>(static_cast<std::byte *>(ptr) + sizeof(node_page));
+				for (std::size_t i = 0; i < cap;)
+					if (auto node = nodes + i; ++i != cap) [[likely]]
+						node->next = std::bit_cast<empty_node *>(std::bit_cast<std::byte *>(node) + node_size<T>);
+					else
+					{
+						node->next = nullptr;
+						break;
+					}
+				next_node = nodes;
+
+				auto *page = static_cast<node_page *>(ptr);
+				page->capacity = cap;
+				page->next = last_page;
+				last_page = page;
+			}
+
+			node_page *last_page = nullptr;
+			empty_node *next_node = nullptr;
+		};
+
 		struct asset_database
 		{
 			SEK_API void merge(const asset_database &other);
+
+			void clear()
+			{
+				assets.clear();
+				name_table.clear();
+			}
 
 			/* Asset infos are stored by-reference to allow for pool allocation & keep pointers stable.
 			 * Multi-key maps are not used since asset names are optional, UUIDs are used as primary keys
@@ -116,18 +187,13 @@ namespace sek
 		};
 		struct master_package : package_base
 		{
-			template<std::derived_from<asset_info_base> T>
-			T *alloc_asset_info()
-			{
-				return static_cast<T *>(info_pool.allocate(sizeof(T), alignof(T)));
-			}
-
 			SEK_API void acquire_impl();
 			SEK_API void release_impl();
 
 			std::atomic<std::size_t> ref_count;
 			std::vector<fragment_package> fragments;
-			std::pmr::unsynchronized_pool_resource info_pool = {};
+
+			asset_info_pool info_pool;
 			asset_database database;
 		};
 
