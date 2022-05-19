@@ -112,13 +112,13 @@ namespace sek
 				const auto id = entry.first;
 				const auto ptr = entry.second;
 
-				assets.emplace(id, ptr);
+				assets.insert({id, ptr});
 				if (auto &name = ptr->name; !name.empty()) [[likely]]
-					name_table.emplace(name.sv(), id);
+					name_table.insert({name.sv(), id});
 			}
 		}
 	}	 // namespace detail
 
-	asset asset::load(uuid id) { return asset(); }
-	asset asset::load(std::string_view name) { return asset(); }
+//	asset asset::load(uuid id) { return asset(); }
+//	asset asset::load(std::string_view name) { return asset(); }
 }	 // namespace sek

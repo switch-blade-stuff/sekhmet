@@ -72,97 +72,30 @@ namespace sek::serialization::json
 	private:
 		using rj_parser = rapidjson::GenericReader<detail::rj_encoding, detail::rj_encoding, detail::rj_allocator>;
 
-		struct rj_buffer_reader
+		struct rj_reader : archive_reader<char_type>
 		{
 			using Ch = char_type;
+			using base_t = archive_reader<char_type>;
 
-			constexpr rj_buffer_reader(const char_type *buff, size_type n) noexcept
-				: begin(buff), curr(begin), end(begin + n)
+			constexpr explicit rj_reader(base_t &&reader) : base_t(std::move(reader)) {}
+
+			constexpr char_type Peek()
 			{
+				const auto result = base_t::peek();
+				return base_t::traits_type::not_eof(result) ? base_t::traits_type::to_char_type(result) : '\0';
 			}
-
-			constexpr char_type Peek() const { return curr == end ? '\0' : *curr; }
-			constexpr char_type Take() { return curr == end ? '\0' : *curr++; }
-			constexpr size_type Tell() const { return static_cast<size_type>(curr - begin); }
+			constexpr char_type Take()
+			{
+				const auto result = base_t::take();
+				return base_t::traits_type::not_eof(result) ? base_t::traits_type::to_char_type(result) : '\0';
+			}
+			constexpr size_type Tell() { return base_t::tell(); }
 
 			[[noreturn]] void Put(char_type) { SEK_NEVER_REACHED; }
 			[[noreturn]] void Flush() { SEK_NEVER_REACHED; }
 			[[noreturn]] char_type *PutBegin() { SEK_NEVER_REACHED; }
 			[[noreturn]] size_type PutEnd(char_type *) { SEK_NEVER_REACHED; }
-
-			const char_type *begin;
-			const char_type *curr;
-			const char_type *end;
 		};
-		struct rj_file_reader
-		{
-			using Ch = char_type;
-
-			constexpr explicit rj_file_reader(FILE *file) noexcept : file(file) {}
-
-			char_type Peek() const
-			{
-				auto c = ungetc(getc(file), file);
-				return c == EOF ? '\0' : static_cast<char_type>(c);
-			}
-			char_type Take()
-			{
-				auto c = getc(file);
-				return c == EOF ? '\0' : static_cast<char_type>(c);
-			}
-			size_type Tell() const
-			{
-#if defined(_POSIX_C_SOURCE)
-#if _FILE_OFFSET_BITS < 64
-				auto pos = ftello64(file);
-#else
-				auto pos = ftello(file);
-#endif
-#elif defined(SEK_OS_WIN)
-				auto pos = _ftelli64(file);
-#else
-				auto pos = ftell(file);
-#endif
-
-				if (pos >= 0) [[likely]]
-					return static_cast<size_type>(pos);
-				else
-					return static_cast<size_type>(-1LL);
-			}
-
-			[[noreturn]] void Put(char_type) { SEK_NEVER_REACHED; }
-			[[noreturn]] void Flush() { SEK_NEVER_REACHED; }
-			[[noreturn]] char_type *PutBegin() { SEK_NEVER_REACHED; }
-			[[noreturn]] size_type PutEnd(char_type *) { SEK_NEVER_REACHED; }
-
-			FILE *file;
-		};
-		struct rj_streambuf_reader
-		{
-			using Ch = char_type;
-
-			constexpr explicit rj_streambuf_reader(std::streambuf *buff) noexcept : buff(buff) {}
-
-			char_type Peek() const
-			{
-				auto c = buff->sgetc();
-				return c == std::streambuf::traits_type::eof() ? '\0' : static_cast<char_type>(c);
-			}
-			char_type Take()
-			{
-				auto c = buff->sbumpc();
-				return c == std::streambuf::traits_type::eof() ? '\0' : static_cast<char_type>(c);
-			}
-			size_type Tell() const { return static_cast<size_type>(buff->pubseekoff(0, std::ios::cur, std::ios::in)); }
-
-			[[noreturn]] void Put(char_type) { SEK_NEVER_REACHED; }
-			[[noreturn]] void Flush() { SEK_NEVER_REACHED; }
-			[[noreturn]] char_type *PutBegin() { SEK_NEVER_REACHED; }
-			[[noreturn]] size_type PutEnd(char_type *) { SEK_NEVER_REACHED; }
-
-			std::streambuf *buff;
-		};
-
 		struct rj_event_handler : base_t::parser_base
 		{
 			constexpr explicit rj_event_handler(json_archive_base &parent) noexcept : parser_base(parent) {}
@@ -206,6 +139,18 @@ namespace sek::serialization::json
 			return *this;
 		}
 
+		/** Reads Json using the provided archive reader.
+		 * @param reader Reader used to read Json data. */
+		explicit basic_input_archive(archive_reader<char_type> reader)
+			: basic_input_archive(reader, std::pmr::get_default_resource())
+		{
+		}
+		/** @copydoc basic_input_archive
+		 * @param res Memory resource used for internal allocation. */
+		basic_input_archive(archive_reader<char_type> reader, std::pmr::memory_resource *res) : base_t(res)
+		{
+			parse(rj_reader{std::move(reader)});
+		}
 		/** Reads Json from a character buffer.
 		 * @param buff Pointer to the character buffer containing Json data.
 		 * @param len Size of the character buffer. */
@@ -215,16 +160,19 @@ namespace sek::serialization::json
 		}
 		/** @copydoc basic_input_archive
 		 * @param res PMR memory resource used for internal allocation. */
-		basic_input_archive(const char_type *buff, std::size_t len, std::pmr::memory_resource *res) : base_t(res)
+		basic_input_archive(const char_type *buff, std::size_t len, std::pmr::memory_resource *res)
+			: basic_input_archive(archive_reader<char_type>{buff, len}, res)
 		{
-			parse(buff, len);
 		}
 		/** Reads Json from a file.
 		 * @param file Pointer to the Json file. */
 		explicit basic_input_archive(FILE *file) : basic_input_archive(file, std::pmr::get_default_resource()) {}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(FILE *file, std::pmr::memory_resource *res) : base_t(res) { parse(file); }
+		basic_input_archive(FILE *file, std::pmr::memory_resource *res)
+			: basic_input_archive(archive_reader<char_type>{file}, res)
+		{
+		}
 		/** Reads Json from a stream buffer.
 		 * @param buff Pointer to the stream buffer. */
 		explicit basic_input_archive(std::streambuf *buff) : basic_input_archive(buff, std::pmr::get_default_resource())
@@ -232,7 +180,10 @@ namespace sek::serialization::json
 		}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(std::streambuf *buff, std::pmr::memory_resource *res) : base_t(res) { parse(buff); }
+		basic_input_archive(std::streambuf *buff, std::pmr::memory_resource *res)
+			: basic_input_archive(archive_reader<char_type>{buff}, res)
+		{
+		}
 		/** Reads Json from an input stream.
 		 * @param is Reference to the input stream. */
 		explicit basic_input_archive(std::istream &is) : basic_input_archive(is.rdbuf()) {}
@@ -279,7 +230,7 @@ namespace sek::serialization::json
 		friend constexpr void swap(basic_input_archive &a, basic_input_archive &b) noexcept { a.swap(b); }
 
 	private:
-		void parse(auto &reader)
+		void parse(rj_reader reader)
 		{
 			rj_event_handler handler{*this};
 			detail::rj_allocator allocator{base_t::upstream};
@@ -295,21 +246,6 @@ namespace sek::serialization::json
 				error_msg.append(std::to_string(parser.GetErrorOffset()));
 				throw archive_error(error_msg);
 			}
-		}
-		void parse(const char_type *data, std::size_t n)
-		{
-			rj_buffer_reader reader{data, n};
-			parse(reader);
-		}
-		void parse(FILE *file)
-		{
-			rj_file_reader reader{file};
-			parse(reader);
-		}
-		void parse(std::streambuf *buff)
-		{
-			rj_streambuf_reader reader{buff};
-			parse(reader);
 		}
 	};
 

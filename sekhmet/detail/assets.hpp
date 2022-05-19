@@ -314,12 +314,10 @@ namespace sek
 		};
 	}	 // namespace detail
 
-	class asset_repository : detail::service<asset_repository>
+	class asset_repository
 	{
-	protected:
-		using service<asset_repository>::instance;
-
 	public:
+
 	protected:
 		std::vector<detail::package_handle> packages;
 		detail::asset_database database;

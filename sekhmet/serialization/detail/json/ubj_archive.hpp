@@ -6,8 +6,6 @@
 
 #include <iostream>
 
-#include "../archive_traits.hpp"
-#include "../manipulators.hpp"
 #include "common.hpp"
 #include "sekhmet/detail/bswap.hpp"
 
@@ -91,16 +89,23 @@ namespace sek::serialization::ubj
 		constexpr static auto bad_length_msg = "UBJson: Invalid input, expected integer type";
 		constexpr static auto bad_size_msg = "UBJson: Invalid input, expected container size";
 
-		struct reader_base
+		class ubj_reader : archive_reader<char_type>
 		{
+			using base_t = archive_reader<char_type>;
+
+		public:
+			constexpr explicit ubj_reader(base_t &&reader) : base_t(std::move(reader)) {}
+
 			void guarded_read(void *dest, std::size_t n)
 			{
-				if (read(dest, n) != n) [[unlikely]]
+				const auto chars = n / sizeof(char_type);
+				if (base_t::getn(static_cast<char_type *>(dest), chars) != chars) [[unlikely]]
 					throw archive_error(eof_msg);
 			}
 			void guarded_bump(std::size_t n)
 			{
-				if (bump(n) != n) [[unlikely]]
+				const auto chars = n / sizeof(char_type);
+				if (base_t::bump(chars) != chars) [[unlikely]]
 					throw archive_error(eof_msg);
 			}
 			detail::token_t read_token()
@@ -111,106 +116,20 @@ namespace sek::serialization::ubj
 			}
 			detail::token_t peek_token()
 			{
-				if (auto c = peek(); c == EOF) [[unlikely]]
-					throw archive_error(eof_msg);
+				if (auto c = base_t::peek(); c == traits_type::not_eof(c)) [[likely]]
+					return static_cast<detail::token_t>(traits_type::to_char_type(c));
 				else
-					return static_cast<detail::token_t>(c);
+					throw archive_error(eof_msg);
 			}
 			void bump_token() { guarded_bump(sizeof(detail::token_t)); }
-
-			virtual std::size_t read(void *, std::size_t) = 0;
-			virtual std::size_t bump(std::size_t) = 0;
-			virtual int peek() = 0;
-		};
-
-		struct buffer_reader final : reader_base
-		{
-			constexpr buffer_reader(const void *buff, std::size_t n) noexcept
-				: curr(static_cast<const std::byte *>(buff)), end(curr + n)
-			{
-			}
-
-			std::size_t read(void *dest, std::size_t n) noexcept final
-			{
-				auto new_curr = curr + n;
-				if (new_curr >= end) [[unlikely]]
-					new_curr = end;
-				std::copy(curr, new_curr, static_cast<std::byte *>(dest));
-				return static_cast<std::size_t>(new_curr - std::exchange(curr, new_curr));
-			}
-			std::size_t bump(std::size_t n) noexcept final
-			{
-				auto new_curr = curr + n;
-				if (new_curr >= end) [[unlikely]]
-					new_curr = end;
-				return static_cast<std::size_t>(new_curr - std::exchange(curr, new_curr));
-			}
-			int peek() noexcept final
-			{
-				if (curr == end) [[unlikely]]
-					return EOF;
-				else
-					return static_cast<int>(*curr);
-			}
-
-			const std::byte *curr;
-			const std::byte *end;
-		};
-		struct file_reader final : reader_base
-		{
-			constexpr explicit file_reader(FILE *file) noexcept : file(file) {}
-
-			std::size_t read(void *dest, std::size_t n) noexcept final { return fread(dest, 1, n, file); }
-			std::size_t bump(std::size_t n) noexcept final
-			{
-#if defined(_POSIX_C_SOURCE)
-#if _FILE_OFFSET_BITS < 64
-				auto err = fseeko64(file, static_cast<off64_t>(n), SEEK_CUR);
-#else
-				auto err = fseeko(file, static_cast<off_t>(n), SEEK_CUR);
-#endif
-#elif defined(SEK_OS_WIN)
-				auto err = _fseeki64(file, static_cast<__int64>(n), SEEK_CUR);
-#else
-				auto err = fseek(file, static_cast<long>(n), SEEK_CUR);
-#endif
-
-				if (!err) [[likely]]
-					return n;
-				else
-					return 0;
-			}
-			int peek() noexcept final { return ungetc(getc(file), file); }
-
-			FILE *file;
-		};
-		struct streambuf_reader final : reader_base
-		{
-			constexpr explicit streambuf_reader(std::streambuf *buff) noexcept : buff(buff) {}
-
-			std::size_t read(void *dest, std::size_t n) noexcept final
-			{
-				return static_cast<std::size_t>(buff->sgetn(static_cast<char *>(dest), static_cast<std::streamsize>(n)));
-			}
-			std::size_t bump(std::size_t n) noexcept final
-			{
-				auto off = static_cast<std::streamoff>(n);
-				if (buff->pubseekoff(off, std::ios::cur, std::ios::in) == std::streambuf::pos_type{off}) [[likely]]
-					return n;
-				else
-					return 0;
-			}
-			int peek() noexcept final { return static_cast<int>(buff->sgetc()); }
-
-			std::streambuf *buff;
 		};
 
 		struct parser_spec12 : base_t::parser_base
 		{
 			using base_handler = typename base_t::parser_base;
 
-			constexpr parser_spec12(basic_input_archive &archive, reader_base *reader) noexcept
-				: base_handler(archive), reader(reader)
+			constexpr parser_spec12(basic_input_archive &archive, ubj_reader &&reader) noexcept
+				: base_handler(archive), reader(std::move(reader))
 			{
 			}
 
@@ -218,7 +137,7 @@ namespace sek::serialization::ubj
 			[[nodiscard]] T parse_literal()
 			{
 				T value;
-				reader->guarded_read(&value, sizeof(value));
+				reader.guarded_read(&value, sizeof(value));
 
 				/* Fix endianness from big endian to machine endianness. */
 #ifndef SEK_ARCH_BIG_ENDIAN
@@ -234,7 +153,7 @@ namespace sek::serialization::ubj
 			}
 			[[nodiscard]] std::int64_t parse_length()
 			{
-				auto token = reader->read_token();
+				auto token = reader.read_token();
 				switch (token)
 				{
 					case detail::token_t::UINT8: return static_cast<std::int64_t>(parse_literal<std::uint8_t>());
@@ -249,7 +168,7 @@ namespace sek::serialization::ubj
 			{
 				auto len = static_cast<std::size_t>(parse_length());
 				auto *str = base_handler::on_string_alloc(len);
-				reader->guarded_read(str, len * sizeof(char));
+				reader.guarded_read(str, len * sizeof(char));
 				str[len] = '\0';
 				return {str, len};
 			}
@@ -257,22 +176,22 @@ namespace sek::serialization::ubj
 			{
 				std::pair<detail::token_t, std::int64_t> result = {detail::token_t::INVALID, -1};
 
-				switch (auto token = reader->peek_token(); token)
+				switch (auto token = reader.peek_token(); token)
 				{
 					case detail::token_t::CONTAINER_TYPE:
 					{
 						/* Consume the token & read type. */
-						reader->bump_token();
-						result.first = reader->read_token();
+						reader.bump_token();
+						result.first = reader.read_token();
 
 						/* Container size always follows the type. */
-						if ((token = reader->peek_token()) != detail::token_t::CONTAINER_SIZE) [[unlikely]]
+						if ((token = reader.peek_token()) != detail::token_t::CONTAINER_SIZE) [[unlikely]]
 							throw archive_error(bad_size_msg);
 						[[fallthrough]];
 					}
 					case detail::token_t::CONTAINER_SIZE:
 					{
-						reader->bump_token();
+						reader.bump_token();
 						result.second = parse_length();
 						[[fallthrough]];
 					}
@@ -290,7 +209,7 @@ namespace sek::serialization::ubj
 					base_handler::on_array_start();
 					for (size = 0;; ++size)
 					{
-						auto token = reader->read_token();
+						auto token = reader.read_token();
 						if (token == detail::token_t::ARRAY_END) [[unlikely]]
 							break;
 						parse_entry(token);
@@ -321,10 +240,10 @@ namespace sek::serialization::ubj
 					base_handler::on_object_start();
 					for (size = 0;; ++size)
 					{
-						auto token = reader->peek_token();
+						auto token = reader.peek_token();
 						if (token == detail::token_t::OBJECT_END) [[unlikely]]
 						{
-							reader->bump_token();
+							reader.bump_token();
 							break;
 						}
 
@@ -385,9 +304,9 @@ namespace sek::serialization::ubj
 					default: [[unlikely]] throw archive_error(data_msg);
 				}
 			}
-			void parse_entry() { parse_entry(reader->read_token()); }
+			void parse_entry() { parse_entry(reader.read_token()); }
 
-			reader_base *reader;
+			ubj_reader reader;
 		};
 
 	public:
@@ -402,6 +321,18 @@ namespace sek::serialization::ubj
 			return *this;
 		}
 
+		/** Reads UBJson using the provided archive reader.
+		 * @param reader Reader used to read UBJson data. */
+		explicit basic_input_archive(archive_reader<char_type> reader)
+			: basic_input_archive(reader, std::pmr::get_default_resource())
+		{
+		}
+		/** @copydoc basic_input_archive
+		 * @param res Memory resource used for internal allocation. */
+		basic_input_archive(archive_reader<char_type> reader, std::pmr::memory_resource *res) : base_t(res)
+		{
+			parse(ubj_reader{std::move(reader)});
+		}
 		/** Reads UBJson from a memory buffer.
 		 * @param buff Pointer to the memory buffer containing UBJson data.
 		 * @param len Size of the memory buffer. */
@@ -411,9 +342,9 @@ namespace sek::serialization::ubj
 		}
 		/** @copydoc basic_input_archive
 		 * @param res PMR memory resource used for internal allocation. */
-		basic_input_archive(const void *buff, std::size_t len, std::pmr::memory_resource *res) : base_t(res)
+		basic_input_archive(const void *buff, std::size_t len, std::pmr::memory_resource *res)
+			: basic_input_archive(archive_reader<char_type>{static_cast<const char_type *>(buff), len / sizeof(char_type)}, res)
 		{
-			parse(buff, len);
 		}
 		/** Reads UBJson from a file.
 		 * @param file Pointer to the UBJson file.
@@ -421,7 +352,10 @@ namespace sek::serialization::ubj
 		explicit basic_input_archive(FILE *file) : basic_input_archive(file, std::pmr::get_default_resource()) {}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(FILE *file, std::pmr::memory_resource *res) : base_t(res) { parse(file); }
+		basic_input_archive(FILE *file, std::pmr::memory_resource *res)
+			: basic_input_archive(archive_reader<char_type>{file}, res)
+		{
+		}
 		/** Reads UBJson from a stream buffer.
 		 * @param buff Pointer to the stream buffer.
 		 * @note Stream buffer must be a binary stream buffer. */
@@ -430,7 +364,10 @@ namespace sek::serialization::ubj
 		}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(std::streambuf *buff, std::pmr::memory_resource *res) : base_t(res) { parse(buff); }
+		basic_input_archive(std::streambuf *buff, std::pmr::memory_resource *res)
+			: basic_input_archive(archive_reader<char_type>{buff}, res)
+		{
+		}
 		/** Reads UBJson from an input stream.
 		 * @param is Reference to the input stream.
 		 * @note Stream must be a binary stream. */
@@ -478,25 +415,10 @@ namespace sek::serialization::ubj
 		friend constexpr void swap(basic_input_archive &a, basic_input_archive &b) noexcept { a.swap(b); }
 
 	private:
-		void parse(auto *reader)
+		void parse(ubj_reader reader)
 		{
-			parser_spec12 parser{*this, reader};
+			parser_spec12 parser{*this, std::move(reader)};
 			parser.parse_entry();
-		}
-		void parse(const void *buff, std::size_t len)
-		{
-			buffer_reader reader{buff, len};
-			parse(&reader);
-		}
-		void parse(FILE *file)
-		{
-			file_reader reader{*this, file};
-			parse(&reader);
-		}
-		void parse(std::streambuf *buff)
-		{
-			streambuf_reader reader{*this, buff};
-			parse(&reader);
 		}
 	};
 

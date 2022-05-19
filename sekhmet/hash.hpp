@@ -5,3 +5,4 @@
 #pragma once
 
 #include "detail/hash.hpp"
+#include "detail/hashed_value.hpp"
