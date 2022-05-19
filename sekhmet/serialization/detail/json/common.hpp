@@ -982,7 +982,7 @@ namespace sek::serialization::detail
 			bool try_read(T &&value)
 			{
 				entry_iterator current{frame_view.current_ptr, type};
-				if (current->try_read(std::forward<T>(value))) [[likely]]
+				if (current < end() && current->try_read(std::forward<T>(value))) [[likely]]
 				{
 					frame_view.current_ptr = (current + 1).data_ptr;
 					return true;

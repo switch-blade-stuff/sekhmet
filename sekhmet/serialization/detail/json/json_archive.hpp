@@ -7,13 +7,9 @@
 #include <iostream>
 
 #include "common.hpp"
-
-namespace external
-{
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/reader.h>
 #include <rapidjson/writer.h>
-}	 // namespace external
 
 namespace sek::serialization::json
 {
@@ -24,7 +20,7 @@ namespace sek::serialization::json
 		constexpr static std::size_t rj_allocator_page_size = 512;
 
 		using base_archive = json_archive_base<char>;
-		using rj_encoding = external::rapidjson::UTF8<>;
+		using rj_encoding = rapidjson::UTF8<>;
 
 		struct rj_allocator : detail::basic_pool_resource<rj_allocator_page_size>
 		{
@@ -74,7 +70,7 @@ namespace sek::serialization::json
 		typedef typename archive_frame::size_type size_type;
 
 	private:
-		using rj_parser = external::rapidjson::GenericReader<detail::rj_encoding, detail::rj_encoding, detail::rj_allocator>;
+		using rj_parser = rapidjson::GenericReader<detail::rj_encoding, detail::rj_encoding, detail::rj_allocator>;
 
 		struct rj_buffer_reader
 		{
@@ -290,9 +286,9 @@ namespace sek::serialization::json
 			rj_parser parser{&allocator};
 
 			constexpr unsigned parse_flags =
-				((Config & allow_comments) == allow_comments ? external::rapidjson::kParseCommentsFlag : 0) |
-				((Config & trailing_commas) == trailing_commas ? external::rapidjson::kParseTrailingCommasFlag : 0) |
-				((Config & extended_fp) == extended_fp ? external::rapidjson::kParseNanAndInfFlag : 0);
+				((Config & allow_comments) == allow_comments ? rapidjson::kParseCommentsFlag : 0) |
+				((Config & trailing_commas) == trailing_commas ? rapidjson::kParseTrailingCommasFlag : 0) |
+				((Config & extended_fp) == extended_fp ? rapidjson::kParseNanAndInfFlag : 0);
 			if (!parser.Parse<parse_flags>(reader, handler)) [[unlikely]]
 			{
 				std::string error_msg = "Json parser error at ";
@@ -453,12 +449,11 @@ namespace sek::serialization::json
 		};
 
 		constexpr static auto rj_emitter_flags =
-			external::rapidjson::kWriteDefaultFlags |
-			((Config & extended_fp) == extended_fp ? external::rapidjson::kWriteNanAndInfFlag : 0);
-		using rj_emitter_base = std::conditional_t<
-			(Config & pretty_print) == pretty_print,
-			external::rapidjson::PrettyWriter<rj_writer, detail::rj_encoding, detail::rj_encoding, detail::rj_allocator, rj_emitter_flags>,
-			external::rapidjson::Writer<rj_writer, detail::rj_encoding, detail::rj_encoding, detail::rj_allocator, rj_emitter_flags>>;
+			rapidjson::kWriteDefaultFlags | ((Config & extended_fp) == extended_fp ? rapidjson::kWriteNanAndInfFlag : 0);
+		using rj_emitter_base =
+			std::conditional_t<(Config & pretty_print) == pretty_print,
+							   rapidjson::PrettyWriter<rj_writer, detail::rj_encoding, detail::rj_encoding, detail::rj_allocator, rj_emitter_flags>,
+							   rapidjson::Writer<rj_writer, detail::rj_encoding, detail::rj_encoding, detail::rj_allocator, rj_emitter_flags>>;
 
 		struct rj_emitter : rj_emitter_base
 		{
@@ -473,7 +468,7 @@ namespace sek::serialization::json
 				{
 					rj_emitter_base::SetIndent(IndentC, static_cast<unsigned>(IndentN));
 					if constexpr ((Config & inline_arrays) == inline_arrays)
-						rj_emitter_base::SetFormatOptions(external::rapidjson::PrettyFormatOptions::kFormatSingleLineArray);
+						rj_emitter_base::SetFormatOptions(rapidjson::PrettyFormatOptions::kFormatSingleLineArray);
 				}
 			}
 

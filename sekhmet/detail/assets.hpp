@@ -6,265 +6,106 @@
 
 #include <atomic>
 #include <filesystem>
-#include <vector>
 
-#include "basic_service.hpp"
+#include "assert.hpp"
+#include "dense_map.hpp"
 #include "filemap.hpp"
-#include "sparse_map.hpp"
-#include "sparse_set.hpp"
-#include <shared_mutex>
-
-#define SEK_PACKAGE_SIGNATURE "\3SEKPAK"
+#include "intern.hpp"
+#include "uuid.hpp"
+#include <memory_resource>
 
 namespace sek
 {
-	class asset_stream;
-
-	class asset_repository;
-	class asset_package;
-	class asset;
-
 	namespace detail
 	{
-		struct package_fragment;
+		struct package_base;
+
+		struct asset_info_base
+		{
+			asset_info_base() noexcept = default;
+			asset_info_base(const asset_info_base &) noexcept = default;
+			asset_info_base(asset_info_base &&) noexcept = default;
+
+			/* Parent fragment of the asset. */
+			package_base *parent = nullptr;
+			/* Optional name of the asset. */
+			interned_string name;
+		};
+		struct loose_asset_info final : asset_info_base
+		{
+			loose_asset_info() noexcept = default;
+			loose_asset_info(const loose_asset_info &) = default;
+			loose_asset_info(loose_asset_info &&) noexcept = default;
+
+			/* Path of the asset file within a loose package. */
+			std::filesystem::path file;
+		};
+		struct archive_asset_info final : asset_info_base
+		{
+			archive_asset_info() noexcept = default;
+			archive_asset_info(const archive_asset_info &) = default;
+			archive_asset_info(archive_asset_info &&) noexcept = default;
+
+			/* Position & size of the asset within an archive. */
+			std::pair<std::ptrdiff_t, std::size_t> slice = {};
+		};
+
 		struct master_package;
-
-		struct asset_record_base
-		{
-			explicit asset_record_base(package_fragment *parent) noexcept : parent(parent) {}
-			virtual ~asset_record_base() = default;
-			[[nodiscard]] virtual filemap map_file(filemap::openmode mode) const = 0;
-
-			package_fragment *parent = nullptr;
-
-			std::string id;
-			sparse_set<std::string> tags;
-		};
-		struct loose_asset_record final : asset_record_base
-		{
-			explicit loose_asset_record(package_fragment *parent) noexcept : asset_record_base(parent) {}
-			~loose_asset_record() final = default;
-			[[nodiscard]] filemap map_file(filemap::openmode mode) const final;
-
-			std::filesystem::path file_path;
-			std::filesystem::path metadata_path;
-		};
-		struct archive_asset_record final : asset_record_base
-		{
-			explicit archive_asset_record(package_fragment *parent) noexcept : asset_record_base(parent) {}
-			~archive_asset_record() final = default;
-			[[nodiscard]] filemap map_file(filemap::openmode mode) const final;
-
-			std::ptrdiff_t file_offset = 0;
-			std::size_t file_size = 0;
-			std::ptrdiff_t metadata_offset = 0;
-			std::size_t metadata_size = 0;
-		};
-
+		struct fragment_package;
 		struct package_base
 		{
 			enum flags_t : int
 			{
-				LOOSE_PACKAGE = 1,
+				NO_FLAGS = 0,
+				IS_MASTER = 1,
+				IS_ARCHIVE = 2,
 			};
 
-			struct record_handle
-			{
-				explicit record_handle(package_fragment *parent);
+			[[nodiscard]] constexpr auto *as_master() noexcept;
+			[[nodiscard]] constexpr auto *as_fragment() noexcept;
 
-				constexpr record_handle(record_handle &&other) noexcept : ptr(std::exchange(other.ptr, nullptr)) {}
-				constexpr record_handle &operator=(record_handle &&other) noexcept
-				{
-					ptr = std::exchange(other.ptr, nullptr);
-					return *this;
-				}
-				constexpr explicit record_handle(asset_record_base *ptr) noexcept : ptr(ptr) {}
-				~record_handle() { delete ptr; }
+			[[nodiscard]] constexpr bool is_master() const noexcept { return flags & IS_MASTER; }
+			[[nodiscard]] constexpr master_package *master() noexcept;
 
-				asset_record_base *ptr = nullptr;
-			};
-
-			package_base() = delete;
-			package_base(const package_base &) = delete;
-
-			package_base(package_base &&) noexcept = default;
-			package_base(std::filesystem::path &&path, flags_t flags) : path(std::move(path)), flags(flags) {}
+			SEK_API void acquire();
+			SEK_API void release();
 
 			std::filesystem::path path;
 			flags_t flags;
-
-			std::vector<record_handle> assets;
 		};
-		struct package_fragment : package_base
+		struct fragment_package : package_base
 		{
-			package_fragment(package_fragment &&other) noexcept : package_base(std::move(other)), padding(other.padding)
-			{
-			}
-			package_fragment(std::filesystem::path &&path, flags_t flags) : package_base(std::move(path), flags) {}
-			package_fragment(master_package *master, std::filesystem::path &&path, flags_t flags)
-				: package_base(std::move(path), flags), master(master)
-			{
-			}
-			virtual ~package_fragment() = default;
+			fragment_package() = delete;
+			explicit fragment_package(master_package *master) : master_ptr(master) {}
 
-			virtual void acquire();
-			virtual void release();
-			virtual master_package *get_master() { return master; }
-
-			union
-			{
-				std::intptr_t padding = 0;
-
-				std::atomic<std::size_t> ref_count;
-				master_package *master;
-			};
+			master_package *master_ptr;
 		};
-
-		package_base::record_handle::record_handle(package_fragment *parent)
+		struct master_package : package_base
 		{
-			if (parent->flags & LOOSE_PACKAGE)
-				ptr = new loose_asset_record{parent};
-			else
-				ptr = new archive_asset_record{parent};
-		}
-
-		filemap loose_asset_record::map_file(filemap::openmode mode) const
-		{
-			return filemap{parent->path / file_path, 0, 0, mode};
-		}
-		filemap archive_asset_record::map_file(filemap::openmode mode) const
-		{
-			/* For archives `filemap::out` is not allowed. */
-			mode |= mode & filemap::out ? filemap::copy : 0;
-			return filemap{parent->path, file_offset, file_size, mode};
-		}
-
-		struct master_package final : package_fragment
-		{
-			master_package(std::filesystem::path &&path, flags_t flags) : package_fragment(std::move(path), flags) {}
-			~master_package() final = default;
-
-			void acquire() final { ref_count += 1; }
-			void release() final
+			template<std::derived_from<asset_info_base> T>
+			T *alloc_asset_info()
 			{
-				if (ref_count.fetch_sub(1) == 1) [[unlikely]]
-					delete this;
-			}
-			master_package *get_master() final { return this; }
-
-			package_fragment &add_fragment(std::filesystem::path &&path, flags_t flags)
-			{
-				return fragments.emplace_back(this, std::move(path), flags);
+				return static_cast<T *>(info_pool.allocate(sizeof(T), alignof(T)));
 			}
 
-			std::vector<package_fragment> fragments;
+			std::pmr::unsynchronized_pool_resource info_pool = {};
+
+			/* Asset infos are stored by-reference to allow for pool allocation & keep pointers stable.
+			 * Multi-key maps are not used since asset names are optional, UUIDs are used as primary keys
+			 * and should be preferred instead. */
+			dense_map<uuid, asset_info_base *> assets;
+			dense_map<std::string_view, uuid> name_table;
+
+			std::vector<fragment_package> fragments;
+			std::atomic<std::size_t> ref_count;
 		};
 
-		void package_fragment::acquire() { master->acquire(); }
-		void package_fragment::release() { master->release(); }
+		constexpr auto *package_base::as_master() noexcept { return static_cast<master_package *>(this); }
+		constexpr auto *package_base::as_fragment() noexcept { return static_cast<fragment_package *>(this); }
 
-		SEK_API master_package *load_package(std::filesystem::path &&);
+		constexpr master_package *package_base::master() noexcept
+		{
+			return is_master() ? as_master() : as_fragment()->master_ptr;
+		}
 	}	 // namespace detail
-
-	/** @brief Structure used to reference an asset. */
-	class asset
-	{
-		friend class asset_repository;
-
-		constexpr explicit asset(detail::asset_record_base *record) noexcept : record(record) {}
-
-	public:
-		/** Initializes an empty asset. */
-		constexpr asset() noexcept = default;
-		~asset() { release(); }
-
-		/** Checks if the asset is empty. */
-		[[nodiscard]] constexpr bool empty() const noexcept { return record == nullptr; }
-		/** Returns the id of the asset. */
-		[[nodiscard]] constexpr const std::string &id() const noexcept { return record->id; }
-
-		/** Creates an `asset_stream` from this asset.
-		 * @param mode Mode to use while creating the stream. */
-		 template<typename C, typename T = std::char_traits<C>>
-		[[nodiscard]] asset_stream get_stream(std::ios::openmode mode = std::ios::in) const;
-		/** Creates a `filemap` from this asset.
-		 * @param mode Mode to use while creating the `filemap`. */
-		[[nodiscard]] filemap get_filemap(filemap::openmode mode = filemap::in) const { return record->map_file(mode); }
-
-	private:
-		void acquire()
-		{
-			if (record) [[likely]]
-				record->parent->acquire();
-		}
-		void release()
-		{
-			if (record) [[likely]]
-				record->parent->release();
-		}
-
-		detail::asset_record_base *record = nullptr;
-	};
-
-	/** @brief Structure used to manage assets & asset packages. */
-	class asset_repository
-	{
-	public:
-		/** Returns pointer to the global asset repository.
-		 * @note Global asset repository operations must be synchronized using the `global_mtx` shared mutex. */
-		[[nodiscard]] static asset_repository *global() noexcept { return basic_service<asset_repository>::instance(); }
-		/** Sets the global asset repository.
-		 * @param ptr Pointer to the new global repository.
-		 * @return Value of the global repository pointer before the operation. */
-		static asset_repository *global(asset_repository *ptr)
-		{
-			return basic_service<asset_repository>::instance(ptr);
-		}
-
-		/** Returns reference to the global repository mutex.
-		 * This mutex should be used to synchronize global repository operations. */
-		[[nodiscard]] static SEK_API std::shared_mutex &global_mtx() noexcept;
-
-	protected:
-		using path_string_view = std::basic_string_view<typename std::filesystem::path::value_type>;
-		using packages_map_t = sparse_map<path_string_view, detail::master_package *>;
-		using assets_map_t = sparse_map<std::string_view, detail::asset_record_base *>;
-
-	public:
-		/** Searches an asset using it's id within this repository.
-		 * @param id Id of the asset to look for.
-		 * @return The requested asset or an empty asset if it was not found. */
-		[[nodiscard]] SEK_API asset find(std::string_view id) const noexcept;
-
-		/** Merges other asset repository with this one.
-		 * @param other Repository to merge with this.
-		 * @return Reference to this repository. */
-		SEK_API asset_repository &merge(asset_repository &&other);
-
-	protected:
-		constexpr void add_asset_impl(detail::asset_record_base *record) { assets.emplace(record->id, record); }
-		void add_fragment_assets(detail::package_fragment *pkg)
-		{
-			for (auto &handle : pkg->assets) add_asset_impl(handle.ptr);
-		}
-		void remove_fragment_assets(detail::package_fragment *pkg)
-		{
-			for (auto &handle : pkg->assets) assets.erase(handle.ptr->id);
-		}
-		void add_package_impl(detail::master_package *pkg)
-		{
-			pkg->acquire();
-			packages.emplace(pkg->path.native(), pkg);
-		}
-		void remove_package_impl(typename packages_map_t::const_iterator where)
-		{
-			auto pkg = where->second;
-			packages.erase(where);
-			pkg->release();
-		}
-
-		packages_map_t packages;
-		assets_map_t assets;
-	};
-
 }	 // namespace sek
