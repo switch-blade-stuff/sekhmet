@@ -72,6 +72,17 @@ namespace sek
 			return static_cast<archive_asset_info *>(this);
 		}
 
+		struct asset_database
+		{
+			SEK_API void merge(const asset_database &other);
+
+			/* Asset infos are stored by-reference to allow for pool allocation & keep pointers stable.
+			 * Multi-key maps are not used since asset names are optional, UUIDs are used as primary keys
+			 * and should be preferred instead. */
+			dense_map<uuid, asset_info_base *> assets;
+			dense_map<std::string_view, uuid> name_table;
+		};
+
 		struct master_package;
 		struct fragment_package;
 		struct package_base
@@ -111,16 +122,13 @@ namespace sek
 				return static_cast<T *>(info_pool.allocate(sizeof(T), alignof(T)));
 			}
 
-			std::pmr::unsynchronized_pool_resource info_pool = {};
+			SEK_API void acquire_impl();
+			SEK_API void release_impl();
 
-			/* Asset infos are stored by-reference to allow for pool allocation & keep pointers stable.
-			 * Multi-key maps are not used since asset names are optional, UUIDs are used as primary keys
-			 * and should be preferred instead. */
-			dense_map<uuid, asset_info_base *> assets;
-			dense_map<std::string_view, uuid> name_table;
-
-			std::vector<fragment_package> fragments;
 			std::atomic<std::size_t> ref_count;
+			std::vector<fragment_package> fragments;
+			std::pmr::unsynchronized_pool_resource info_pool = {};
+			asset_database database;
 		};
 
 		constexpr master_package *package_base::as_master() noexcept { return static_cast<master_package *>(this); }
@@ -198,6 +206,46 @@ namespace sek
 			asset_info_base *info = nullptr;
 			uuid id;
 		};
+		struct package_handle
+		{
+			constexpr package_handle() noexcept = default;
+
+			explicit package_handle(master_package *pkg) noexcept : pkg(pkg) { acquire(); }
+			~package_handle() { release(); }
+
+			package_handle(const package_handle &other) noexcept { copy_from(other); }
+			package_handle &operator=(const package_handle &other) noexcept
+			{
+				if (this != &other) [[likely]]
+					copy_from(other);
+				return *this;
+			}
+
+			[[nodiscard]] constexpr bool empty() const noexcept { return pkg == nullptr; }
+
+			[[nodiscard]] constexpr bool operator==(const package_handle &) const noexcept = default;
+
+			constexpr void swap(package_handle &other) noexcept { std::swap(pkg, other.pkg); }
+
+			void copy_from(const package_handle &other) noexcept
+			{
+				if ((pkg = other.pkg) != nullptr) [[likely]]
+					acquire();
+			}
+			void acquire() const noexcept { pkg->acquire_impl(); }
+			void release() const
+			{
+				if (!empty()) [[likely]]
+					pkg->release_impl();
+			}
+			void reset()
+			{
+				release();
+				pkg = nullptr;
+			}
+
+			master_package *pkg = nullptr;
+		};
 	}	 // namespace detail
 
 	class asset_repository : detail::service<asset_repository>
@@ -206,11 +254,15 @@ namespace sek
 		using service<asset_repository>::instance;
 
 	public:
+	protected:
+		std::vector<detail::package_handle> packages;
+		detail::asset_database database;
 	};
 
 	class asset_package
 	{
 		friend class asset_repository;
+		friend class asset;
 	};
 
 	class asset
@@ -223,7 +275,7 @@ namespace sek
 	public:
 		/** @brief Loads an asset from the global repository.
 		 * @param id UUID of the asset. */
-		static SEK_API asset load(uuid);
+		static SEK_API asset load(uuid id);
 		/** @copybrief load
 		 * @param name Name of the asset. */
 		static SEK_API asset load(std::string_view name);
@@ -245,6 +297,9 @@ namespace sek
 		}
 		~asset() = default;
 
+		/** Resets the asset, making it empty. */
+		void reset() { handle.reset(); }
+
 		/** Checks if the asset is empty. */
 		[[nodiscard]] constexpr bool empty() const noexcept { return handle.empty(); }
 		/** Returns the UUID of the asset. */
@@ -252,9 +307,6 @@ namespace sek
 		/** Returns the name of the asset.
 		 * @note If an asset does not have a name, it will be empty. */
 		[[nodiscard]] constexpr const interned_string &name() const noexcept { return handle.info->name; }
-
-		/** Resets the asset, making it empty. */
-		void reset() { handle.reset(); }
 
 		/** Opens an asset stream for this asset.
 		 * @param mode Mode in which to open the asset stream.

@@ -82,13 +82,14 @@ namespace sek
 				archive << serialization::keyed_entry("name", info.name);
 		}
 
-		void package_base::acquire() { master()->ref_count++; }
-		void package_base::release()
+		void master_package::acquire_impl() { ref_count++; }
+		void master_package::release_impl()
 		{
-			auto m = master();
-			if (m->ref_count.fetch_sub(1) == 1) [[unlikely]]
-				delete m;
+			if (ref_count.fetch_sub(1) == 1) [[unlikely]]
+				delete this;
 		}
+		void package_base::acquire() { master()->acquire_impl(); }
+		void package_base::release() { master()->release_impl(); }
 
 		std::filesystem::path loose_asset_info::full_path() const { return parent->path / file; }
 		filemap asset_handle::to_filemap(filemap::openmode mode) const
@@ -103,6 +104,21 @@ namespace sek
 				throw std::runtime_error("Invalid asset package archive path");
 			return filemap{parent()->path, slice.first, slice.second, mode};
 		}
+
+		void asset_database::merge(const asset_database &other)
+		{
+			for (auto entry : other.assets)
+			{
+				const auto id = entry.first;
+				const auto ptr = entry.second;
+
+				assets.emplace(id, ptr);
+				if (auto &name = ptr->name; !name.empty()) [[likely]]
+					name_table.emplace(name.sv(), id);
+			}
+		}
 	}	 // namespace detail
 
+	asset asset::load(uuid id) { return asset(); }
+	asset asset::load(std::string_view name) { return asset(); }
 }	 // namespace sek
