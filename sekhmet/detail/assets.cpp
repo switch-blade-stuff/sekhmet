@@ -21,6 +21,8 @@ namespace sek
 {
 	namespace detail
 	{
+		template class SEK_API_EXPORT service<asset_repository>;
+
 		namespace json = serialization::json;
 		namespace ubj = serialization::ubj;
 
@@ -87,5 +89,20 @@ namespace sek
 			if (m->ref_count.fetch_sub(1) == 1) [[unlikely]]
 				delete m;
 		}
+
+		std::filesystem::path loose_asset_info::full_path() const { return parent->path / file; }
+		filemap asset_handle::to_filemap(filemap::openmode mode) const
+		{
+			/* Reset "out" mode if the parent is an archive. */
+			if (parent()->is_archive() && (mode & filemap::out)) [[unlikely]]
+				mode ^= filemap::out;
+
+			const auto slice = info->as_archive()->slice;
+			const auto &path = parent()->path;
+			if (!std::filesystem::exists(path)) [[unlikely]]
+				throw std::runtime_error("Invalid asset package archive path");
+			return filemap{parent()->path, slice.first, slice.second, mode};
+		}
 	}	 // namespace detail
+
 }	 // namespace sek

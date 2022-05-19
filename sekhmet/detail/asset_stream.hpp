@@ -72,7 +72,7 @@ namespace sek
 		}
 		int_type underflow() override
 		{
-			if (fmap.mode() & filemap::in) [[likely]]
+			if ((fmap.mode() & filemap::in) && read_pos < data_end()) [[likely]]
 			{
 				if (!conv->always_noconv())
 				{
@@ -266,13 +266,13 @@ namespace sek
 		~basic_asset_stream() { destroy(); }
 
 		/** Initializes asset stream from a file buffer. */
-		basic_asset_stream(filebuf_t &&fb) : base_t(&virt), fb(std::forward<filebuf_t>(fb)), mode(FILE) {}
+		explicit basic_asset_stream(filebuf_t &&fb) : base_t(&virt), fb(std::forward<filebuf_t>(fb)), mode(FILE) {}
 		/** Initializes asset stream from an asset package buffer.
 		 * @note Asset streams initialized from package buffers are read-only. */
-		basic_asset_stream(packbuf_t &&pb) : base_t(&virt), pb(std::forward<packbuf_t>(pb)), mode(PACK) {}
+		explicit basic_asset_stream(packbuf_t &&pb) : base_t(&virt), pb(std::forward<packbuf_t>(pb)), mode(PACK) {}
 		/** Initializes asset stream from an asset filemap.
 		 * @note Asset streams initialized from filemaps are read-only. */
-		basic_asset_stream(filemap &&fm) : base_t(&virt), pb(std::forward<filemap>(fm)), mode(PACK) {}
+		explicit basic_asset_stream(filemap &&fm) : base_t(&virt), pb(std::forward<filemap>(fm)), mode(PACK) {}
 
 		auto *rdbuf() const { return const_cast<std::basic_streambuf<C, T> *>(&virt); }
 
