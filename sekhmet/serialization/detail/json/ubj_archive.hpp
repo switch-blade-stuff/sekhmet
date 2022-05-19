@@ -456,73 +456,31 @@ namespace sek::serialization::ubj
 		typedef typename archive_frame::size_type size_type;
 
 	private:
-		struct writer_base
+		class ubj_writer : archive_writer<char_type>
 		{
+			using base_t = archive_writer<char_type>;
+
+		public:
+			constexpr explicit ubj_writer(base_t &&writer) : base_t(std::move(writer)) {}
+
 			void write_guarded(const void *src, std::size_t n)
 			{
-				if (write(this, src, n) != n) [[unlikely]]
+				const auto chars = n / sizeof(char_type);
+				if (base_t::putn(static_cast<const char_type *>(src), chars) != chars) [[unlikely]]
 					throw archive_error("UBJson: Emitter write failure");
 			}
 			void write_token(detail::token_t token) { write_guarded(&token, sizeof(token)); }
-
-			std::size_t (*write)(void *, const void *, std::size_t);
 		};
-		struct file_writer_t final : writer_base
-		{
-			constexpr explicit file_writer_t(FILE *file) noexcept : file(file)
-			{
-				writer_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
-				{
-					auto writer = static_cast<file_writer_t *>(ptr);
-					return fwrite(src, 1, n, writer->file);
-				};
-			}
-
-			FILE *file = nullptr;
-		};
-		struct buffer_writer_t final : writer_base
-		{
-			constexpr buffer_writer_t(void *buff, std::size_t n) noexcept
-				: curr(static_cast<std::byte *>(buff)), end(curr + n)
-			{
-				writer_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
-				{
-					auto writer = static_cast<buffer_writer_t *>(ptr);
-					if (writer->curr + n > writer->end) [[unlikely]]
-						n = writer->end - writer->curr;
-					writer->curr = std::copy_n(static_cast<const std::byte *>(src), n, writer->curr);
-					return n;
-				};
-			}
-
-			std::byte *curr = nullptr;
-			std::byte *end = nullptr;
-		};
-		struct streambuf_writer_t final : writer_base
-		{
-			constexpr explicit streambuf_writer_t(std::streambuf *buff) noexcept : buff(buff)
-			{
-				writer_base::write = +[](void *ptr, const void *src, std::size_t n) -> std::size_t
-				{
-					auto writer = static_cast<streambuf_writer_t *>(ptr);
-					auto data = static_cast<const std::streambuf::char_type *>(src);
-					return static_cast<std::size_t>(writer->buff->sputn(data, static_cast<std::streamsize>(n)));
-				};
-			}
-
-			std::streambuf *buff = nullptr;
-		};
-
 		struct emitter_spec12
 		{
 			struct frame_t
 			{
-				void (*emit_type_token)(writer_base *, detail::token_t);
+				void (*emit_type_token)(ubj_writer *, detail::token_t);
 				entry_type value_type = entry_type::NO_TYPE;
 			};
 
-			static void emit_fixed_type(writer_base *, detail::token_t) {}
-			static void emit_dynamic_type(writer_base *writer, detail::token_t token) { writer->write_token(token); }
+			static void emit_fixed_type(ubj_writer *, detail::token_t) {}
+			static void emit_dynamic_type(ubj_writer *writer, detail::token_t token) { writer->write_token(token); }
 
 			constexpr static detail::token_t get_type_token(entry_type type) noexcept
 			{
@@ -552,7 +510,7 @@ namespace sek::serialization::ubj
 				}
 			}
 
-			constexpr explicit emitter_spec12(writer_base *writer) noexcept : writer(writer) {}
+			constexpr explicit emitter_spec12(ubj_writer *writer) noexcept : writer(writer) {}
 
 			template<typename T>
 			void emit_literal(T value)
@@ -720,7 +678,7 @@ namespace sek::serialization::ubj
 			constexpr void exit_frame(frame_t old) { frame = old; }
 
 			frame_t frame = {emit_dynamic_type};
-			writer_base *writer;
+			ubj_writer *writer;
 		};
 
 	public:
@@ -731,15 +689,27 @@ namespace sek::serialization::ubj
 		constexpr basic_output_archive(basic_output_archive &&other) noexcept
 			: base_t(std::forward<basic_input_archive>(other))
 		{
-			writer_padding = other.writer_padding;
+			writer = other.writer;
 		}
 		constexpr basic_output_archive &operator=(basic_output_archive &&other) noexcept
 		{
 			base_t::operator=(std::forward<basic_input_archive>(other));
-			std::swap(writer_padding, other.writer_padding);
+			std::swap(writer, other.writer);
 			return *this;
 		}
 
+		/** Initializes output archive for writing using the provided writer.
+		 * @param writer Writer used to write UBJson data. */
+		explicit basic_output_archive(archive_writer<char_type> writer)
+			: basic_output_archive(writer, std::pmr::get_default_resource())
+		{
+		}
+		/** @copydoc basic_input_archive
+		 * @param res Memory resource used for internal allocation. */
+		basic_output_archive(archive_writer<char_type> writer, std::pmr::memory_resource *res)
+			: base_t(res), writer(std::move(writer))
+		{
+		}
 		/** Initialized output archive for buffer writing.
 		 * @param buff Memory buffer to write UBJson data to.
 		 * @param size Size of the memory buffer. */
@@ -750,7 +720,7 @@ namespace sek::serialization::ubj
 		/** @copydoc basic_output_archive
 		 * @param res PMR memory resource used for internal state allocation. */
 		basic_output_archive(void *buff, std::size_t size, std::pmr::memory_resource *res)
-			: base_t(res), buffer_writer(buff, size)
+			: basic_output_archive(archive_writer<char_type>{static_cast<char_type *>(buff), size / sizeof(char_type)}, res)
 		{
 		}
 		/** Initialized output archive for file writing.
@@ -759,7 +729,10 @@ namespace sek::serialization::ubj
 		explicit basic_output_archive(FILE *file) : basic_output_archive(file, std::pmr::get_default_resource()) {}
 		/** @copydoc basic_output_archive
 		 * @param res PMR memory resource used for internal state allocation. */
-		basic_output_archive(FILE *file, std::pmr::memory_resource *res) : base_t(res), file_writer(file) {}
+		basic_output_archive(FILE *file, std::pmr::memory_resource *res)
+			: basic_output_archive(archive_writer<char_type>{file}, res)
+		{
+		}
 		/** Initialized output archive for stream buffer writing.
 		 * @param buff Stream buffer to write UBJson data to.
 		 * @note Stream buffer must be a binary stream buffer. */
@@ -769,7 +742,8 @@ namespace sek::serialization::ubj
 		}
 		/** @copydoc basic_output_archive
 		 * @param res PMR memory resource used for internal state allocation. */
-		basic_output_archive(std::streambuf *buff, std::pmr::memory_resource *res) : base_t(res), streambuf_writer(buff)
+		basic_output_archive(std::streambuf *buff, std::pmr::memory_resource *res)
+			: basic_output_archive(archive_writer<char_type>{buff}, res)
 		{
 		}
 		/** Initialized output archive for stream writing.
@@ -814,7 +788,7 @@ namespace sek::serialization::ubj
 		constexpr void swap(basic_output_archive &other) noexcept
 		{
 			base_t::swap(other);
-			std::swap(writer_padding, other.writer_padding);
+			std::swap(writer, other.writer);
 		}
 		friend constexpr void swap(basic_output_archive &a, basic_output_archive &b) noexcept { a.swap(b); }
 
@@ -825,15 +799,7 @@ namespace sek::serialization::ubj
 			base_t::do_flush(emitter);
 		}
 
-		union
-		{
-			std::byte writer_padding[sizeof(buffer_writer_t)] = {};
-
-			writer_base writer;
-			file_writer_t file_writer;
-			buffer_writer_t buffer_writer;
-			streambuf_writer_t streambuf_writer;
-		};
+		ubj_writer writer;
 	};
 
 	typedef basic_output_archive<fixed_type> output_archive;

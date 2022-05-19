@@ -5,6 +5,7 @@
 #pragma once
 
 #include "../archive_reader.hpp"
+#include "../archive_writer.hpp"
 #include "../manipulators.hpp"
 #include "../util.hpp"
 #include "sekhmet/detail/assert.hpp"

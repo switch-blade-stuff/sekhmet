@@ -289,99 +289,21 @@ namespace sek::serialization::json
 		typedef typename archive_frame::size_type size_type;
 
 	private:
-		struct rj_writer
+		struct rj_writer : archive_writer<char_type>
 		{
 			using Ch = char_type;
+			using base_t = archive_writer<char_type>;
 
-			void Put(char_type c) { put_func(this, c); }
-			void Flush() { flush_func(this); }
-			size_type Tell() const { return tell_func(this); }
+			constexpr explicit rj_writer(base_t &&writer) : base_t(std::move(writer)) {}
+
+			void Put(char_type c) { base_t::put(c); }
+			void Flush() { base_t::flush(); }
+			size_type Tell() { return base_t::tell(); }
 
 			[[noreturn]] char_type Peek() const { SEK_NEVER_REACHED; }
 			[[noreturn]] char_type Take() { SEK_NEVER_REACHED; }
 			[[noreturn]] char_type *PutBegin() { SEK_NEVER_REACHED; }
 			[[noreturn]] size_type PutEnd(char_type *) { SEK_NEVER_REACHED; }
-
-			void (*put_func)(void *, char_type);
-			void (*flush_func)(void *);
-			size_type (*tell_func)(const void *);
-		};
-		struct rj_buffer_writer final : rj_writer
-		{
-			constexpr rj_buffer_writer(char_type *buff, size_type n) noexcept : begin(buff), curr(begin), end(begin + n)
-			{
-				rj_writer::put_func = +[](void *p, char_type c)
-				{
-					auto writer = static_cast<rj_buffer_writer *>(p);
-					if (writer->curr < writer->end) [[likely]]
-						*writer->curr++ = c;
-				};
-				rj_writer::flush_func = +[](void *) {};
-				rj_writer::tell_func = +[](const void *p)
-				{
-					auto writer = static_cast<const rj_buffer_writer *>(p);
-					return static_cast<size_type>(writer->curr - writer->begin);
-				};
-			}
-
-			char_type *begin;
-			char_type *curr;
-			char_type *end;
-		};
-		struct rj_file_writer final : rj_writer
-		{
-			constexpr explicit rj_file_writer(FILE *file) noexcept : file(file)
-			{
-				rj_writer::put_func = +[](void *p, char_type c)
-				{
-					auto writer = static_cast<rj_file_writer *>(p);
-					fputc(static_cast<int>(c), writer->file);
-				};
-				rj_writer::flush_func = +[](void *p)
-				{
-					auto writer = static_cast<rj_file_writer *>(p);
-					fflush(writer->file);
-				};
-				rj_writer::tell_func = +[](const void *p)
-				{
-					auto writer = static_cast<const rj_file_writer *>(p);
-#if defined(_POSIX_C_SOURCE)
-#if _FILE_OFFSET_BITS < 64
-					auto pos = ftello64(writer->file);
-#else
-					auto pos = ftello(writer->file);
-#endif
-#elif defined(SEK_OS_WIN)
-					auto pos = _ftelli64(writer->file);
-#else
-					auto pos = ftell(writer->file);
-#endif
-
-					if (pos >= 0) [[likely]]
-						return static_cast<size_type>(pos);
-					else
-						return static_cast<size_type>(-1LL);
-				};
-			}
-
-			FILE *file;
-		};
-		struct rj_streambuf_writer final : rj_writer
-		{
-			constexpr explicit rj_streambuf_writer(std::streambuf *buff) noexcept : buff(buff)
-			{
-
-				rj_writer::put_func = +[](void *p, char_type c)
-				{ static_cast<rj_streambuf_writer *>(p)->buff->sputc(c); };
-				rj_writer::flush_func = +[](void *p) { static_cast<rj_streambuf_writer *>(p)->buff->pubsync(); };
-				rj_writer::tell_func = +[](const void *p)
-				{
-					auto writer = static_cast<const rj_streambuf_writer *>(p);
-					return static_cast<size_type>(writer->buff->pubseekoff(0, std::ios::cur, std::ios::in));
-				};
-			}
-
-			std::streambuf *buff;
 		};
 
 		constexpr static auto rj_emitter_flags =
@@ -469,14 +391,28 @@ namespace sek::serialization::json
 		constexpr basic_output_archive(basic_output_archive &&other) noexcept
 			: base_t(std::forward<basic_output_archive>(other))
 		{
+			writer = other.writer;
 		}
 		constexpr basic_output_archive &operator=(basic_output_archive &&other) noexcept
 		{
 			base_t::operator=(std::forward<basic_output_archive>(other));
+			std::swap(writer, other.writer);
 			return *this;
 		}
 
-		/** Initialized output archive for buffer writing.
+		/** Initializes output archive for writing using the provided writer.
+		 * @param writer Writer used to write Json data. */
+		explicit basic_output_archive(archive_writer<char_type> writer)
+			: basic_output_archive(writer, std::pmr::get_default_resource())
+		{
+		}
+		/** @copydoc basic_input_archive
+		 * @param res Memory resource used for internal allocation. */
+		basic_output_archive(archive_writer<char_type> writer, std::pmr::memory_resource *res)
+			: base_t(res), writer(std::move(writer))
+		{
+		}
+		/** Initializes output archive for buffer writing.
 		 * @param buff Memory buffer to write Json data to.
 		 * @param size Size of the character buffer. */
 		basic_output_archive(char_type *buff, size_type size)
@@ -486,16 +422,19 @@ namespace sek::serialization::json
 		/** @copydoc output_archive
 		 * @param res PMR memory resource used for internal state allocation. */
 		basic_output_archive(char_type *buff, size_type size, std::pmr::memory_resource *res)
-			: base_t(res), buffer_writer(buff, size)
+			: basic_output_archive(archive_writer<char_type>{buff, size}, res)
 		{
 		}
-		/** Initialized output archive for file writing.
+		/** Initializes output archive for file writing.
 		 * @param file File to write Json data to. */
 		explicit basic_output_archive(FILE *file) : basic_output_archive(file, std::pmr::get_default_resource()) {}
 		/** @copydoc output_archive
 		 * @param res PMR memory resource used for internal state allocation. */
-		basic_output_archive(FILE *file, std::pmr::memory_resource *res) : base_t(res), file_writer(file) {}
-		/** Initialized output archive for stream buffer writing.
+		basic_output_archive(FILE *file, std::pmr::memory_resource *res)
+			: basic_output_archive(archive_writer<char_type>{file}, res)
+		{
+		}
+		/** Initializes output archive for stream buffer writing.
 		 * @param buff Stream buffer to write Json data to. */
 		explicit basic_output_archive(std::streambuf *buff)
 			: basic_output_archive(buff, std::pmr::get_default_resource())
@@ -503,10 +442,11 @@ namespace sek::serialization::json
 		}
 		/** @copydoc output_archive
 		 * @param res PMR memory resource used for internal state allocation. */
-		basic_output_archive(std::streambuf *buff, std::pmr::memory_resource *res) : base_t(res), streambuf_writer(buff)
+		basic_output_archive(std::streambuf *buff, std::pmr::memory_resource *res)
+			: basic_output_archive(archive_writer<char_type>{buff}, res)
 		{
 		}
-		/** Initialized output archive for stream writing.
+		/** Initializes output archive for stream writing.
 		 * @param os Output stream to write Json data to. */
 		explicit basic_output_archive(std::ostream &os) : basic_output_archive(os.rdbuf()) {}
 		/** @copydoc output_archive
@@ -547,7 +487,7 @@ namespace sek::serialization::json
 		constexpr void swap(basic_output_archive &other) noexcept
 		{
 			base_t::swap(other);
-			std::swap(writer_padding, other.writer_padding);
+			std::swap(writer, other.writer);
 		}
 		friend constexpr void swap(basic_output_archive &a, basic_output_archive &b) noexcept { a.swap(b); }
 
@@ -559,15 +499,7 @@ namespace sek::serialization::json
 			base_t::do_flush(emitter);
 		}
 
-		union
-		{
-			std::byte writer_padding[sizeof(rj_buffer_writer)] = {};
-
-			rj_writer writer;
-			rj_file_writer file_writer;
-			rj_buffer_writer buffer_writer;
-			rj_streambuf_writer streambuf_writer;
-		};
+		rj_writer writer;
 	};
 
 	typedef basic_output_archive<pretty_print | inline_arrays> output_archive;

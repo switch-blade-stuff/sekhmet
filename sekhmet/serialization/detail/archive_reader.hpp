@@ -22,11 +22,11 @@ namespace sek::serialization
 
 		struct callback_info
 		{
-			typedef std::size_t (*getn)(void *, char_type *, std::size_t);
-			typedef std::size_t (*bump)(void *, std::size_t);
-			typedef std::size_t (*tell)(void *);
-			typedef int_type (*peek)(void *);
-			typedef int_type (*take)(void *);
+			std::size_t (*getn)(void *, char_type *, std::size_t);
+			std::size_t (*bump)(void *, std::size_t);
+			std::size_t (*tell)(void *);
+			int_type (*peek)(void *);
+			int_type (*take)(void *);
 		};
 
 	private:
@@ -135,7 +135,7 @@ namespace sek::serialization
 			.getn = +[](data_t *data, char_type *dst, std::size_t n) -> std::size_t
 			{
 				const auto sbuf = data->sbuf;
-				return static_cast<std::size_t>(sbuf->sgetn(dst, n));
+				return static_cast<std::size_t>(sbuf->sgetn(dst, static_cast<std::streamsize>(n)));
 			},
 			.bump = +[](data_t *data, std::size_t n) -> std::size_t
 			{
