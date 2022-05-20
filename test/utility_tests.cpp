@@ -200,35 +200,36 @@ template class sek::basic_event<void(int &), std::allocator<sek::delegate<void(i
 TEST(utility_tests, event_test)
 {
 	sek::event<void(int &)> event;
+	sek::event_proxy proxy = {event};
 
 	auto i = 0;
-	auto sub1 = event += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 0); }};
-	auto sub2 = event += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 1); }};
+	auto sub1 = proxy += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 0); }};
+	auto sub2 = proxy += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 1); }};
 
 	event(i);
 	EXPECT_EQ(i, 2);
 
-	event -= sub1;
-	event -= sub2;
-	EXPECT_TRUE(event.empty());
-	EXPECT_EQ(event.size(), 0);
+	proxy -= sub1;
+	proxy -= sub2;
+	EXPECT_TRUE(proxy.empty());
+	EXPECT_EQ(proxy.size(), 0);
 
-	sub1 = event += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 0); }};
-	sub2 = event += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 1); }};
-	EXPECT_EQ(event.size(), 2);
+	proxy += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 0); }};
+	sub2 = proxy += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 1); }};
+	EXPECT_EQ(proxy.size(), 2);
 
 	i = 0;
 	event(i);
 	EXPECT_EQ(i, 2);
 
-	auto sub2_pos = event.find(sub2);
-	EXPECT_NE(sub2_pos, event.end());
+	auto sub2_pos = proxy.find(sub2);
+	EXPECT_NE(sub2_pos, proxy.end());
 
 	// clang-format off
-	sub2 = event.subscribe_before(sub2, +[](int &i) { EXPECT_EQ(i++, 1); });
-	event.subscribe_before(sub2, +[](int i) { EXPECT_EQ(i, 1); });
-	event.subscribe_after(sub2, +[](int &i) { EXPECT_EQ(i--, 2); });
-	EXPECT_EQ(event.size(), 5);
+	sub2 = proxy.subscribe_before(sub2, +[](int &i) { EXPECT_EQ(i++, 1); });
+	proxy.subscribe_before(sub2, +[](int i) { EXPECT_EQ(i, 1); });
+	proxy.subscribe_after(sub2, +[](int &i) { EXPECT_EQ(i--, 2); });
+	EXPECT_EQ(proxy.size(), 5);
 	// clang-format on
 
 	i = 0;

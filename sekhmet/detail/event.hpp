@@ -14,6 +14,8 @@ namespace sek
 {
 	template<typename, typename>
 	class basic_event;
+	template<typename>
+	class event_proxy;
 
 	/** @brief Id used to uniquely reference event subscribers. */
 	using event_id = std::ptrdiff_t;
@@ -367,42 +369,6 @@ namespace sek
 		/** @copydoc unsubscribe */
 		constexpr bool operator-=(event_id sub_id) { return unsubscribe(sub_id); }
 
-		/** Invokes subscribers of the event with the passed arguments.
-		 * @param args Arguments passed to the subscriber delegates.
-		 * @return Reference to this event. */
-		constexpr const basic_event &dispatch(Args... args) const
-		{
-			for (auto &subscriber : sub_data) subscriber(std::forward<Args>(args)...);
-			return *this;
-		}
-		/** @copydoc dispatch */
-		constexpr const basic_event &operator()(Args... args) const { return dispatch(std::forward<Args>(args)...); }
-		/** Invokes subscribers of the event with the passed arguments and collects the results using a callback.
-		 *
-		 * @param col Collector callback receiving results of subscriber calls.
-		 * @param args Arguments passed to the subscriber delegates.
-		 * @return Reference to this event.
-		 *
-		 * @note Collector may return a boolean indicating whether to continue execution of delegates. */
-		template<typename F>
-		constexpr const basic_event &dispatch(F &&col, Args... args) const
-			requires valid_collector<F>
-		{
-			for (auto &subscriber : sub_data)
-			{
-				// clang-format off
-				if constexpr (requires { { col(subscriber(std::forward<Args>(args)...)) } -> std::same_as<bool>; })
-				{
-					if (!col(subscriber(std::forward<Args>(args)...)))
-						break;
-				}
-				else
-					col(subscriber(std::forward<Args>(args)...));
-				// clang-format on
-			}
-			return *this;
-		}
-
 		/** Returns iterator to the subscriber delegate using it's subscription id or if such subscriber is not found. */
 		[[nodiscard]] constexpr iterator find(event_id sub_id) const noexcept
 		{
@@ -477,6 +443,42 @@ namespace sek
 		}
 		// clang-format on
 
+		/** Invokes subscribers of the event with the passed arguments.
+		 * @param args Arguments passed to the subscriber delegates.
+		 * @return Reference to this event. */
+		constexpr const basic_event &dispatch(Args... args) const
+		{
+			for (auto &subscriber : sub_data) subscriber(std::forward<Args>(args)...);
+			return *this;
+		}
+		/** @copydoc dispatch */
+		constexpr const basic_event &operator()(Args... args) const { return dispatch(std::forward<Args>(args)...); }
+		/** Invokes subscribers of the event with the passed arguments and collects the results using a callback.
+		 *
+		 * @param col Collector callback receiving results of subscriber calls.
+		 * @param args Arguments passed to the subscriber delegates.
+		 * @return Reference to this event.
+		 *
+		 * @note Collector may return a boolean indicating whether to continue execution of delegates. */
+		template<typename F>
+		constexpr const basic_event &dispatch(F &&col, Args... args) const
+			requires valid_collector<F>
+		{
+			for (auto &subscriber : sub_data)
+			{
+				// clang-format off
+				if constexpr (requires { { col(subscriber(std::forward<Args>(args)...)) } -> std::same_as<bool>; })
+				{
+					if (!col(subscriber(std::forward<Args>(args)...)))
+						break;
+				}
+				else
+					col(subscriber(std::forward<Args>(args)...));
+				// clang-format on
+			}
+			return *this;
+		}
+
 		constexpr void swap(basic_event &other) noexcept
 		{
 			using std::swap;
@@ -507,4 +509,236 @@ namespace sek
 	 * @tparam Sign Signature of the event in the form of `R(Args...)`. */
 	template<typename Sign>
 	using event = basic_event<Sign, typename detail::event_alloc<Sign>::type>;
+
+	/** @brief Proxy wrapper around `basic_event`, that exposes subscriber-related functionality without
+	 * allowing any other modification of the underlying event. */
+	template<typename Alloc, typename R, typename... Args>
+	class event_proxy<basic_event<R(Args...), Alloc>>
+	{
+	public:
+		typedef basic_event<R(Args...), Alloc> event_type;
+		typedef typename event_type::iterator iterator;
+		typedef typename event_type::const_iterator const_iterator;
+		typedef typename event_type::reverse_iterator reverse_iterator;
+		typedef typename event_type::const_reverse_iterator const_reverse_iterator;
+		typedef typename event_type::size_type size_type;
+		typedef typename event_type::difference_type difference_type;
+
+	public:
+		event_proxy() = delete;
+
+		constexpr event_proxy(const event_proxy &) noexcept = default;
+		constexpr event_proxy &operator=(const event_proxy &) noexcept = default;
+		constexpr event_proxy(event_proxy &&) noexcept = default;
+		constexpr event_proxy &operator=(event_proxy &&) noexcept = default;
+
+		/** Initializes event proxy from an event. */
+		constexpr event_proxy(event_type &event) noexcept : event(event) {}
+
+		/** Checks if the underlying event is empty (has no subscribers). */
+		[[nodiscard]] constexpr bool empty() const noexcept { return event.empty(); }
+		/** Returns amount of subscribers bound to the underlying event. */
+		[[nodiscard]] constexpr size_type size() const noexcept { return event.size(); }
+
+		/** Returns iterator to the fist subscriber of the underlying event. */
+		[[nodiscard]] constexpr const_iterator begin() const noexcept { return event.begin(); }
+		/** @copydoc begin */
+		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return event.cbegin(); }
+		/** Returns iterator one past the last subscriber of the underlying event. */
+		[[nodiscard]] constexpr const_iterator end() const noexcept { return event.end(); }
+		/** @copydoc end */
+		[[nodiscard]] constexpr const_iterator cend() const noexcept { return event.cend(); }
+		/** Returns reverse iterator one past the last subscriber of the underlying event. */
+		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return event.rbegin(); }
+		/** @copydoc rbegin */
+		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return event.crbegin(); }
+		/** Returns reverse iterator to the first subscriber of the underlying event. */
+		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return event.rend(); }
+		/** @copydoc rend */
+		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return event.crend(); }
+
+		/** Adds a subscriber delegate to the underlying event at the specified position and returns it's subscription id.
+		 * @param where Position within the underlying event's set of subscribers at which to add the new subscriber.
+		 * @param subscriber Subscriber delegate.
+		 * @return Id of the subscription. */
+		constexpr event_id subscribe(const_iterator where, delegate<R(Args...)> subscriber) const
+		{
+			return event.subscribe(where, std::move(subscriber));
+		}
+		/** Adds a subscriber delegate to the underlying event and returns it's subscription id.
+		 * @param subscriber Subscriber delegate.
+		 * @return Id of the subscription. */
+		constexpr event_id subscribe(delegate<R(Args...)> subscriber) const
+		{
+			return event.subscribe(std::move(subscriber));
+		}
+		/** @copydoc subscribe */
+		constexpr event_id operator+=(delegate<R(Args...)> subscriber) const { return event += std::move(subscriber); }
+
+		/** @brief Adds a subscriber delegate to the underlying event after the specified subscriber.
+		 * @param id Id of the subscription after which to subscribe.
+		 * @param subscriber Subscriber delegate.
+		 * @return Id of the subscription.
+		 * @note If an existing subscriber does not exist, subscribes at the end. */
+		constexpr event_id subscribe_after(event_id id, delegate<R(Args...)> subscriber) const
+		{
+			return event.subscribe_after(id, std::move(subscriber));
+		}
+		/** @copybrief subscribe_after
+		 * @param existing Delegate comparing equal to an existing subscriber after which to subscribe.
+		 * @param subscriber Subscriber delegate.
+		 * @return Id of the subscription.
+		 * @note If an existing subscriber does not exist, subscribes at the end. */
+		constexpr event_id subscribe_after(delegate<R(Args...)> existing, delegate<R(Args...)> subscriber) const
+		{
+			return event.subscribe_after(std::move(existing), std::move(subscriber));
+		}
+		/** @copybrief subscribe_after
+		 * @param value Data (instance or bound argument) of an existing subscriber after which to subscribe.
+		 * @param subscriber Subscriber delegate.
+		 * @return Id of the subscription.
+		 * @note If an existing subscriber does not exist, subscribes at the end. */
+		template<typename T>
+		constexpr event_id subscribe_after(T *value, delegate<R(Args...)> subscriber) const
+		{
+			return event.template subscribe_after<T>(value, std::move(subscriber));
+		}
+		/** @copydoc subscribe_after */
+		template<typename T>
+		constexpr event_id subscribe_after(T &value, delegate<R(Args...)> subscriber) const
+		{
+			return event.template subscribe_after<T>(value, std::move(subscriber));
+		}
+
+		/** @brief Adds a subscriber delegate to the underlying event before the specified subscriber.
+		 * @param id Id of the subscription before which to subscribe.
+		 * @param subscriber Subscriber delegate.
+		 * @return Id of the subscription.
+		 * @note If an existing subscriber does not exist, subscribes at the start. */
+		constexpr event_id subscribe_before(event_id id, delegate<R(Args...)> subscriber) const
+		{
+			return event.subscribe_before(id, std::move(subscriber));
+		}
+		/** @copybrief subscribe_before
+		 * @param existing Delegate comparing equal to an existing subscriber before which to subscribe.
+		 * @param subscriber Subscriber delegate.
+		 * @return Id of the subscription.
+		 * @note If an existing subscriber does not exist, subscribes at the start. */
+		constexpr event_id subscribe_before(delegate<R(Args...)> existing, delegate<R(Args...)> subscriber) const
+		{
+			return event.subscribe_before(std::move(existing), std::move(subscriber));
+		}
+		/** @copybrief subscribe_before
+		 * @param value Data (instance or bound argument) of an existing subscriber before which to subscribe.
+		 * @param subscriber Subscriber delegate.
+		 * @return Id of the subscription.
+		 * @note If an existing subscriber does not exist, subscribes at the start. */
+		template<typename T>
+		constexpr event_id subscribe_before(T *value, delegate<R(Args...)> subscriber) const
+		{
+			return event.template subscribe_before<T>(value, std::move(subscriber));
+		}
+		/** @copydoc subscribe_before */
+		template<typename T>
+		constexpr event_id subscribe_before(T &value, delegate<R(Args...)> subscriber) const
+		{
+			return event.template subscribe_before<T>(value, std::move(subscriber));
+		}
+
+		/** Removes a subscriber delegate pointed to by the specified iterator from the underlying event.
+		 * @param where Iterator pointing to the subscriber to be removed from the underlying event.
+		 * @return true if the subscriber was unsubscribed, false otherwise. */
+		constexpr bool unsubscribe(const_iterator where) const { return event.unsubscribe(where); }
+		/** Removes a subscriber delegate from the underlying event.
+		 * @param subscriber Delegate to remove from the underlying event.
+		 * @return true if the subscriber was unsubscribed, false otherwise. */
+		constexpr bool unsubscribe(delegate<R(Args...)> subscriber) const
+		{
+			return event.unsubscribe(std::move(subscriber));
+		}
+		/** @copydoc unsubscribe */
+		constexpr bool operator-=(delegate<R(Args...)> subscriber) const { return event -= std::move(subscriber); }
+		/** Removes a subscriber delegate from the underlying event.
+		 * @param sub_id Id of the underlying event's subscription.
+		 * @return true if the subscriber was unsubscribed, false otherwise. */
+		constexpr bool unsubscribe(event_id sub_id) const { return event.unsubscribe(sub_id); }
+		/** @copydoc unsubscribe */
+		constexpr bool operator-=(event_id sub_id) const { return event -= sub_id; }
+
+		/** Returns iterator to the subscriber delegate using it's subscription id or if such subscriber is not found. */
+		[[nodiscard]] constexpr iterator find(event_id sub_id) const noexcept { return event.find(sub_id); }
+		/** Returns iterator to the subscriber delegate that compares equal to the provided delegate or the end
+		 * iterator if such subscriber is not found. */
+		[[nodiscard]] constexpr iterator find(delegate<R(Args...)> subscriber) const noexcept
+		{
+			return event.find(std::move(subscriber));
+		}
+
+		/** Returns iterator to the subscriber delegate bound to the specified data instance, or an end iterator
+		 * if such subscriber is not found. */
+		template<typename T>
+		[[nodiscard]] constexpr iterator find(T *value) const noexcept
+		{
+			return event.template find<T>(value);
+		}
+		/** @copydoc find */
+		template<typename T>
+		[[nodiscard]] constexpr iterator find(T &value) const noexcept
+		{
+			return event.template find<T>(value);
+		}
+
+		// clang-format off
+		/** Returns iterator to the subscriber delegate bound to the specified member or free function or an end iterator
+		 * if such subscriber is not found. */
+		template<auto F>
+		[[nodiscard]] constexpr iterator find() const noexcept
+			requires(requires{ delegate{func_t<F>{}}; })
+		{
+			return event.template find<F>();
+		}
+		/** @copydoc find */
+		template<auto F>
+		[[nodiscard]] constexpr iterator find(func_t<F>) const noexcept
+			requires(requires{ find<F>(); })
+		{
+			return event.find(func_t<F>{});
+		}
+		/** Returns iterator to the subscriber delegate bound to the specified member or free function and the specified
+		 * data instance, or an end iterator if such subscriber is not found. */
+		template<auto F, typename T>
+		[[nodiscard]] constexpr iterator find(T *value) const noexcept
+			requires(requires{ delegate{func_t<F>{}, value}; })
+		{
+			return event.template find<F, T>(value);
+		}
+		/** @copydoc find */
+		template<auto F, typename T>
+		[[nodiscard]] constexpr iterator find(T &value) const noexcept
+			requires(requires{ delegate{func_t<F>{}, value}; })
+		{
+			return event.template find<F, T>(value);
+		}
+		/** @copydoc find */
+		template<auto F, typename T>
+		[[nodiscard]] constexpr iterator find(func_t<F>, T *value) const noexcept
+			requires(requires{ find<F>(value); })
+		{
+			return event.find(func_t<F>{}, value);
+		}
+		/** @copydoc find */
+		template<auto F, typename T>
+		[[nodiscard]] constexpr iterator find(func_t<F>, T &value) const noexcept
+			requires(requires{ find<F>(value); })
+		{
+			return event.find(func_t<F>{}, value);
+		}
+		// clang-format on
+
+	private:
+		event_type &event;
+	};
+
+	template<typename Alloc, typename R, typename... Args>
+	event_proxy(basic_event<R(Args...), Alloc> &) -> event_proxy<basic_event<R(Args...), Alloc>>;
 }	 // namespace sek
