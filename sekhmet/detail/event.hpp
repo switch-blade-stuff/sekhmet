@@ -231,7 +231,7 @@ namespace sek
 		constexpr event_id operator+=(delegate<R(Args...)> subscriber) { return subscribe(subscriber); }
 
 		/** @brief Adds a subscriber delegate to the event after the specified subscriber.
-		 * @param id Which subscription to subscribe after.
+		 * @param id Id of the subscription after which to subscribe.
 		 * @param subscriber Subscriber delegate.
 		 * @return Id of the subscription.
 		 * @note If an existing subscriber does not exist, subscribes at the end. */
@@ -278,7 +278,7 @@ namespace sek
 		}
 
 		/** @brief Adds a subscriber delegate to the event before the specified subscriber.
-		 * @param id Which subscription to subscribe before.
+		 * @param id Id of the subscription before which to subscribe.
 		 * @param subscriber Subscriber delegate.
 		 * @return Id of the subscription.
 		 * @note If an existing subscriber does not exist, subscribes at the start. */
