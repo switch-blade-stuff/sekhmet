@@ -225,9 +225,10 @@ TEST(utility_tests, event_test)
 	EXPECT_NE(sub2_pos, event.end());
 
 	// clang-format off
-	sub2 = event.subscribe(sub2_pos, +[](int i) { EXPECT_EQ(i, 1); });
-	event.subscribe_after(sub2, +[](int &i) { EXPECT_EQ(i, 1); });
-	EXPECT_EQ(event.size(), 4);
+	sub2 = event.subscribe_before(sub2, +[](int &i) { EXPECT_EQ(i++, 1); });
+	event.subscribe_before(sub2, +[](int i) { EXPECT_EQ(i, 1); });
+	event.subscribe_after(sub2, +[](int &i) { EXPECT_EQ(i--, 2); });
+	EXPECT_EQ(event.size(), 5);
 	// clang-format on
 
 	i = 0;
