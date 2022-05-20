@@ -31,7 +31,7 @@ namespace sek
 	{
 		virtual ~object() = default;
 
-		[[nodiscard]] virtual type_info type_of() const noexcept = 0;
+		[[nodiscard]] virtual type_info object_type() const noexcept = 0;
 	};
 
 	/** Casts the `from` pointer to `ToPtr`. Supports up-casts and cross-casts.
@@ -51,7 +51,7 @@ namespace sek
 
 			/* Check that the actual type of `from` is the same as or a child of `To`. */
 			const auto to_type = type_info::get<To>();
-			const auto from_type = obj->type_of();
+			const auto from_type = obj->object_type();
 			if (from_type == to_type || from_type.inherits(to_type.name())) [[likely]]
 				return static_cast<ToPtr>(obj);
 		}
@@ -76,7 +76,7 @@ namespace sek
 
 /** Helper macro used to initialize body of an object type `T`. */
 #define SEK_OBJECT_BODY(T)                                                                                             \
-	virtual sek::type_info type_of() const noexcept override                                                           \
+	virtual sek::type_info object_type() const noexcept override                                                       \
 	{                                                                                                                  \
 		static_assert(std::is_base_of_v<sek::object, T>);                                                              \
 		return sek::type_info::get<T>();                                                                               \

@@ -23,13 +23,31 @@ namespace sek
 	namespace detail
 	{
 		// clang-format off
-		template<typename R, typename F, typename... Args>
-		concept delegate_free_func = std::is_function_v<F> && std::is_invocable_r_v<R, F, Args...>;
-		template<typename R, typename F, typename I, typename... Args>
-		concept delegate_mem_func = std::is_member_function_pointer_v<F> &&
-									requires(F f, I *i, Args...args) {
-										{ (i->*f)(std::forward<Args>(args)...) } -> std::same_as<R>;
-									};
+		template<typename...>
+		struct is_delegate_compatible : std::false_type {};
+		template<typename RDel, typename... ArgsDel, typename RFunc, typename... ArgsFunc>
+		requires (sizeof...(ArgsDel) == sizeof...(ArgsFunc))
+		struct is_delegate_compatible<RDel(ArgsDel...), RFunc(ArgsFunc...)>
+			: std::conjunction<std::is_convertible<RFunc, RDel>, std::is_convertible<ArgsDel, ArgsFunc>...>
+		{
+		};
+		template<typename SignD, typename SignF>
+		constexpr auto is_delegate_compatible_v = is_delegate_compatible<SignD, SignF>::value;
+
+		template<auto, typename>
+		struct is_delegate_func : std::false_type {};
+		template<typename RF, typename... ArgsF, RF (*F)(ArgsF...), typename RD, typename... ArgsD>
+		struct is_delegate_func<F, RD(ArgsD...)> : is_delegate_compatible<RD(ArgsD...), RF(ArgsF...)> {};
+		template<typename RF, typename I, typename... ArgsF, RF (I::*F)(ArgsF...), typename RD, typename... ArgsD>
+		struct is_delegate_func<F, RD(ArgsD...)> : is_delegate_compatible<RD(ArgsD...), RF(ArgsF...)> {};
+		template<typename RF, typename I, typename... ArgsF, RF (I::*F)(ArgsF...) const, typename RD, typename... ArgsD>
+		struct is_delegate_func<F, RD(ArgsD...)> : is_delegate_compatible<RD(ArgsD...), RF(ArgsF...)> {};
+		template<typename RF, typename I, typename... ArgsF, RF (I::*F)(ArgsF...) volatile, typename RD, typename... ArgsD>
+		struct is_delegate_func<F, RD(ArgsD...)> : is_delegate_compatible<RD(ArgsD...), RF(ArgsF...)> {};
+		template<typename RF, typename I, typename... ArgsF, RF (I::*F)(ArgsF...) const volatile, typename RD, typename... ArgsD>
+		struct is_delegate_func<F, RD(ArgsD...)> : is_delegate_compatible<RD(ArgsD...), RF(ArgsF...)> {};
+		template<auto F, typename Sign>
+		constexpr auto is_delegate_func_v = is_delegate_func<F, Sign>::value;
 		// clang-format on
 	}	 // namespace detail
 
@@ -63,12 +81,16 @@ namespace sek
 	class delegate<R(Args...)>
 	{
 	private:
+		// clang-format off
+		template<typename RF, typename... ArgsF>
+		constexpr static bool compatible_sign = detail::is_delegate_compatible_v<R(Args...), RF(ArgsF...)>;
 		template<auto F, typename... Inject>
-		constexpr static bool free_func = detail::delegate_free_func<R, decltype(F), Inject..., Args...>;
-		template<auto F, typename I>
-		constexpr static bool mem_func = detail::delegate_mem_func<R, decltype(F), I, Args...>;
-		template<typename F>
-		constexpr static bool func_obj = std::is_invocable_r_v<R, F, Args...> &&std::is_object_v<F>;
+		constexpr static bool compatible_func = detail::is_delegate_func_v<F, R(Inject..., Args...)>;
+		template<auto F, typename... Inject>
+		constexpr static bool free_func = std::is_function_v<decltype(F)> && compatible_func<F, Inject...>;
+		template<auto F>
+		constexpr static bool mem_func = std::is_member_function_pointer_v<decltype(F)> && compatible_func<F>;
+		// clang-format on
 
 		constexpr delegate(R (*proxy)(const void *, Args...), const void *data) noexcept : proxy(proxy), data_ptr(data)
 		{
@@ -80,7 +102,8 @@ namespace sek
 
 		// clang-format off
 		/** Initializes a delegate from a free function pointer. */
-		constexpr delegate(R (*f)(Args...)) noexcept
+		template<typename RF, typename... ArgsF>
+		constexpr delegate(RF (*f)(ArgsF...)) noexcept requires compatible_sign<RF, ArgsF...>
 		{
 			assign(f);
 		}
@@ -120,26 +143,28 @@ namespace sek
 		}
 		/** Initializes a delegate from a member function and an instance pointer. */
 		template<auto F, typename I>
-		constexpr delegate(func_t<F>, I *instance) noexcept requires mem_func<F, I>
+		constexpr delegate(func_t<F>, I *instance) noexcept requires mem_func<F>
 		{
 			assign<F>(instance);
 		}
 		/** Initializes a delegate from a member function and an instance reference. */
 		template<auto F, typename I>
-		constexpr delegate(func_t<F>, I &instance) noexcept requires mem_func<F, I>
+		constexpr delegate(func_t<F>, I &instance) noexcept requires mem_func<F>
 		{
 			assign<F>(instance);
 		}
 
 		/** Binds a free function pointer to the delegate. */
-		constexpr delegate &assign(R (*f)(Args...))  noexcept
+		template<typename RF, typename... ArgsF>
+		constexpr delegate &assign(RF (*f)(ArgsF...)) noexcept requires compatible_sign<RF, ArgsF...>
 		{
-			proxy = +[](const void *p, Args ...args) { return std::bit_cast<R (*)(Args...)>(p)(std::forward<Args>(args)...); };
+			proxy = +[](const void *p, Args ...args) -> R { return std::bit_cast<RF (*)(ArgsF...)>(p)(std::forward<Args>(args)...); };
 			data_ptr = std::bit_cast<const void *>(f);
 			return *this;
 		}
 		/** @copydoc assign */
-		constexpr delegate &operator=(R (*f)(Args...)) noexcept
+		template<typename RF, typename... ArgsF>
+		constexpr delegate &operator=(RF (*f)(ArgsF...)) noexcept requires compatible_sign<RF, ArgsF...>
 		{
 			return assign(f);
 		}
@@ -156,7 +181,7 @@ namespace sek
 		template<auto F>
 		constexpr delegate &assign() noexcept requires free_func<F>
 		{
-			proxy = +[](const void *, Args...args) { return F(std::forward<Args>(args)...); };
+			proxy = +[](const void *, Args...args) -> R { return F(std::forward<Args>(args)...); };
 			data_ptr = nullptr;
 			return *this;
 		}
@@ -177,7 +202,7 @@ namespace sek
 		template<auto F, typename Arg>
 		constexpr delegate &assign(Arg *arg) noexcept requires free_func<F, Arg *>
 		{
-			proxy = +[](const void *p, Args...args)
+			proxy = +[](const void *p, Args...args) -> R
 			{
 				using U = std::add_const_t<Arg>;
 				return F(const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
@@ -189,7 +214,7 @@ namespace sek
 		template<auto F, typename Arg>
 		constexpr delegate &assign(Arg &arg) noexcept requires free_func<F, Arg *>
 		{
-			proxy = +[](const void *p, Args...args)
+			proxy = +[](const void *p, Args...args) -> R
 			{
 				using U = std::add_const_t<Arg>;
 				return F(const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
@@ -201,7 +226,7 @@ namespace sek
 		template<auto F, typename Arg>
 		constexpr delegate &assign(Arg &arg) noexcept requires free_func<F, Arg &>
 		{
-			proxy = +[](const void *p, Args...args)
+			proxy = +[](const void *p, Args...args) -> R
 			{
 				using U = std::add_const_t<Arg>;
 				return F(*const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
@@ -230,9 +255,9 @@ namespace sek
 
 		/** Binds a member function to the delegate. */
 		template<auto F, typename I>
-		constexpr delegate &assign(I *instance) noexcept requires mem_func<F, I>
+		constexpr delegate &assign(I *instance) noexcept requires mem_func<F>
 		{
-			proxy = +[](const void *p, Args...args)
+			proxy = +[](const void *p, Args...args) -> R
 			{
 				using U = std::add_const_t<I>;
 				return (const_cast<I *>(static_cast<U *>(p))->*F)(std::forward<Args>(args)...);
@@ -242,15 +267,15 @@ namespace sek
 		}
 		/** @copydoc assign */
 		template<auto F, typename I>
-		constexpr delegate &assign(func_t<F>, I *instance) noexcept requires mem_func<F, I>
+		constexpr delegate &assign(func_t<F>, I *instance) noexcept requires mem_func<F>
 		{
 			return assign<F>(instance);
 		}
 		/** Binds a member function to the delegate. */
 		template<auto F, typename I>
-		constexpr delegate &assign(I &instance) noexcept requires mem_func<F, I>
+		constexpr delegate &assign(I &instance) noexcept requires mem_func<F>
 		{
-			proxy = +[](const void *p, Args...args)
+			proxy = +[](const void *p, Args...args) -> R
 			{
 				using U = std::add_const_t<I>;
 				return (const_cast<I *>(static_cast<U *>(p))->*F)(std::forward<Args>(args)...);
@@ -260,7 +285,7 @@ namespace sek
 		}
 		/** @copydoc assign */
 		template<auto F, typename I>
-		constexpr delegate &assign(func_t<F>, I &instance) noexcept requires mem_func<F, I>
+		constexpr delegate &assign(func_t<F>, I &instance) noexcept requires mem_func<F>
 		{
 			return assign<F>(instance);
 		}

@@ -187,7 +187,7 @@ namespace sek
 
 		/** Adds a subscriber delegate to the event at the specified position and returns it's subscription id.
 		 * @param where Position within the event's set of subscribers at which to add the new subscriber.
-		 * @param subscriber Delegate used to subscribe on the event.
+		 * @param subscriber Subscriber delegate.
 		 * @return Id of the subscription. */
 		constexpr event_id subscribe(const_iterator where, delegate<R(Args...)> subscriber)
 		{
@@ -224,12 +224,105 @@ namespace sek
 			}
 		}
 		/** Adds a subscriber delegate to the event and returns it's subscription id.
-		 * @param subscriber Delegate used to subscribe on the event.
-		 * @return Subscription handle of the subscriber.
+		 * @param subscriber Subscriber delegate.
 		 * @return Id of the subscription. */
 		constexpr event_id subscribe(delegate<R(Args...)> subscriber) { return subscribe(end(), subscriber); }
 		/** @copydoc subscribe */
 		constexpr event_id operator+=(delegate<R(Args...)> subscriber) { return subscribe(subscriber); }
+
+		/** @brief Adds a subscriber delegate to the event after the specified subscriber.
+		 * @param id Which subscription to subscribe after.
+		 * @param subscriber Subscriber delegate.
+		 * @return Id of the subscription.
+		 * @note If an existing subscriber does not exist, subscribes at the end. */
+		constexpr event_id subscribe_after(event_id id, delegate<R(Args...)> subscriber)
+		{
+			if (const auto where = find(id); where != end()) [[likely]]
+				return subscribe(std::next(where), std::move(subscriber));
+			else
+				return subscribe(end(), std::move(subscriber));
+		}
+		/** @copybrief subscribe_after
+		 * @param existing Delegate comparing equal to an existing subscriber after which to subscribe.
+		 * @param subscriber Subscriber delegate.
+		 * @return Id of the subscription.
+		 * @note If an existing subscriber does not exist, subscribes at the end. */
+		constexpr event_id subscribe_after(delegate<R(Args...)> existing, delegate<R(Args...)> subscriber)
+		{
+			if (const auto where = find(existing); where != end()) [[likely]]
+				return subscribe(std::next(where), std::move(subscriber));
+			else
+				return subscribe(end(), std::move(subscriber));
+		}
+		/** @copybrief subscribe_after
+		 * @param value Data (instance or bound argument) of an existing subscriber after which to subscribe.
+		 * @param subscriber Subscriber delegate.
+		 * @return Id of the subscription.
+		 * @note If an existing subscriber does not exist, subscribes at the end. */
+		template<typename T>
+		constexpr event_id subscribe_after(T *value, delegate<R(Args...)> subscriber)
+		{
+			if (const auto where = find<T>(value); where != end()) [[likely]]
+				return subscribe(std::next(where), std::move(subscriber));
+			else
+				return subscribe(end(), std::move(subscriber));
+		}
+		/** @copydoc subscribe_after */
+		template<typename T>
+		constexpr event_id subscribe_after(T &value, delegate<R(Args...)> subscriber)
+		{
+			if (const auto where = find<T>(value); where != end()) [[likely]]
+				return subscribe(std::next(where), std::move(subscriber));
+			else
+				return subscribe(end(), std::move(subscriber));
+		}
+
+		/** @brief Adds a subscriber delegate to the event before the specified subscriber.
+		 * @param id Which subscription to subscribe before.
+		 * @param subscriber Subscriber delegate.
+		 * @return Id of the subscription.
+		 * @note If an existing subscriber does not exist, subscribes at the start. */
+		constexpr event_id subscribe_before(event_id id, delegate<R(Args...)> subscriber)
+		{
+			if (const auto where = find(id); where != end()) [[likely]]
+				return subscribe(where, std::move(subscriber));
+			else
+				return subscribe(begin(), std::move(subscriber));
+		}
+		/** @copybrief subscribe_before
+		 * @param existing Delegate comparing equal to an existing subscriber before which to subscribe.
+		 * @param subscriber Subscriber delegate.
+		 * @return Id of the subscription.
+		 * @note If an existing subscriber does not exist, subscribes at the start. */
+		constexpr event_id subscribe_before(delegate<R(Args...)> existing, delegate<R(Args...)> subscriber)
+		{
+			if (const auto where = find(existing); where != end()) [[likely]]
+				return subscribe(where, std::move(subscriber));
+			else
+				return subscribe(begin(), std::move(subscriber));
+		}
+		/** @copybrief subscribe_before
+		 * @param value Data (instance or bound argument) of an existing subscriber before which to subscribe.
+		 * @param subscriber Subscriber delegate.
+		 * @return Id of the subscription.
+		 * @note If an existing subscriber does not exist, subscribes at the start. */
+		template<typename T>
+		constexpr event_id subscribe_before(T *value, delegate<R(Args...)> subscriber)
+		{
+			if (const auto where = find<T>(value); where != end()) [[likely]]
+				return subscribe(where, std::move(subscriber));
+			else
+				return subscribe(begin(), std::move(subscriber));
+		}
+		/** @copydoc subscribe_before */
+		template<typename T>
+		constexpr event_id subscribe_before(T &value, delegate<R(Args...)> subscriber)
+		{
+			if (const auto where = find<T>(value); where != end()) [[likely]]
+				return subscribe(where, std::move(subscriber));
+			else
+				return subscribe(begin(), std::move(subscriber));
+		}
 
 		/** Removes a subscriber delegate pointed to by the specified iterator from the event.
 		 * @param where Iterator pointing to the subscriber to be removed from the event.

@@ -90,6 +90,8 @@ namespace sek
 			template<typename T>
 			constexpr static auto node_size = sizeof(T) > sizeof(empty_node) ? sizeof(T) : sizeof(empty_node);
 
+			constexpr static std::size_t next_capacity(std::size_t cap) noexcept { return cap * 2 - cap / 2; }
+
 			~asset_info_pool()
 			{
 				// clang-format off
@@ -102,7 +104,7 @@ namespace sek
 			T *allocate()
 			{
 				if (!next_node) [[unlikely]]
-					make_page<T>(last_page ? last_page->capacity * 2 : initial_capacity);
+					make_page<T>(last_page ? next_capacity(last_page->capacity) : initial_capacity);
 				return std::bit_cast<T *>(std::exchange(next_node, next_node->next));
 			}
 			void deallocate(void *ptr)
@@ -317,7 +319,6 @@ namespace sek
 	class asset_repository
 	{
 	public:
-
 	protected:
 		std::vector<detail::package_handle> packages;
 		detail::asset_database database;

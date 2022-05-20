@@ -224,8 +224,11 @@ TEST(utility_tests, event_test)
 	auto sub2_pos = event.find(sub2);
 	EXPECT_NE(sub2_pos, event.end());
 
-	event.subscribe(sub2_pos, sek::delegate{+[](int &i) { EXPECT_EQ(i, 1); }});
-	EXPECT_EQ(event.size(), 3);
+	// clang-format off
+	sub2 = event.subscribe(sub2_pos, +[](int i) { EXPECT_EQ(i, 1); });
+	event.subscribe_after(sub2, +[](int &i) { EXPECT_EQ(i, 1); });
+	EXPECT_EQ(event.size(), 4);
+	// clang-format on
 
 	i = 0;
 	event(i);

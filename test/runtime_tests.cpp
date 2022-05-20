@@ -167,9 +167,9 @@ TEST(utility_tests, object_test)
 	const auto *parent_b = static_cast<const test_parent_object *>(&child_b);
 	const auto *parent_c = static_cast<const test_parent_object *>(&child_c);
 
-	EXPECT_EQ(parent_a->type_of(), sek::type_info::get<test_child_object_a>());
-	EXPECT_EQ(parent_b->type_of(), sek::type_info::get<test_child_object_b>());
-	EXPECT_EQ(parent_c->type_of(), sek::type_info::get<test_child_object_c>());
+	EXPECT_EQ(parent_a->object_type(), sek::type_info::get<test_child_object_a>());
+	EXPECT_EQ(parent_b->object_type(), sek::type_info::get<test_child_object_b>());
+	EXPECT_EQ(parent_c->object_type(), sek::type_info::get<test_child_object_c>());
 
 	auto *child_a_ptr = sek::object_cast<const test_child_object_a *>(parent_a);
 	EXPECT_NE(child_a_ptr, nullptr);
