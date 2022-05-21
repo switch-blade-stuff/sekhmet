@@ -6,6 +6,7 @@
 
 #include "archive_traits.hpp"
 #include "base64.hpp"
+#include "types/traits.hpp"
 
 namespace sek::serialization::detail
 {
@@ -73,32 +74,45 @@ namespace sek::serialization::detail
 
 	template<typename T, typename A, typename... Args>
 	constexpr void do_serialize(T &&value, A &archive, Args &&...args)
-		requires serializable<T, A, Args...>
+		requires serializable<T, A, Args...> || serializable<T, A>
 	{
 		using sek::serialization::serialize;
 		if constexpr (member_serializable<T, A, Args...>)
 			value.serialize(archive, std::forward<Args>(args)...);
-		else
+		else if constexpr (adl_serializable<T, A, Args...>)
 			serialize(std::forward<T>(value), archive, std::forward<Args>(args)...);
+		else if constexpr (member_serializable<T, A>)
+			value.serialize(archive);
+		else
+			serialize(std::forward<T>(value), archive);
 	}
 	template<typename T, typename A, typename... Args>
 	constexpr void do_deserialize(T &&value, A &archive, Args &&...args)
-		requires deserializable<T, A, Args...>
+		requires deserializable<T, A, Args...> || deserializable<T, A>
 	{
 		using sek::serialization::deserialize;
 		if constexpr (member_deserializable<T, A, Args...>)
 			value.deserialize(archive, std::forward<Args>(args)...);
-		else
+		else if constexpr (adl_deserializable<T, A, Args...>)
 			deserialize(std::forward<T>(value), archive, std::forward<Args>(args)...);
+		else if constexpr (member_deserializable<T, A>)
+			value.deserialize(archive);
+		else
+			deserialize(std::forward<T>(value), archive);
 	}
 	template<typename T, typename A, typename... Args>
 	constexpr T do_deserialize(std::in_place_type_t<T>, A &archive, Args &&...args)
-		requires in_place_deserializable<T, A, Args...> || std::is_constructible_v<T, A &, Args...>
+		requires in_place_deserializable<T, A, Args...> || std::is_constructible_v<T, A &, Args...> ||
+				 in_place_deserializable<T, A> || std::is_constructible_v<T, A &>
 	{
 		using sek::serialization::deserialize;
 		if constexpr (in_place_deserializable<T, A, Args...>)
 			return deserialize(std::in_place_type<T>, archive, std::forward<Args>(args)...);
-		else
+		else if constexpr (std::is_constructible_v<T, A &, Args...>)
 			return T{archive, std::forward<Args>(args)...};
+		else if constexpr (in_place_deserializable<T, A>)
+			return deserialize(std::in_place_type<T>, archive);
+		else
+			return T{archive};
 	}
 }	 // namespace sek::serialization::detail

@@ -5,6 +5,7 @@
 #pragma once
 
 #include <compare>
+#include <string>
 
 #include "alloc_util.hpp"
 #include "define.h"
@@ -140,6 +141,16 @@ namespace sek
 			return compare_eq_impl<0>(other);
 		}
 
+		/** Converts the version to string.
+		 * @tparam C Character type of the output sequence.
+		 * @tparam Traits Character traits of `C`. */
+		template<typename C = char, typename Traits = std::char_traits<C>>
+		[[nodiscard]] constexpr std::basic_string<C, Traits> to_string() const
+		{
+			std::basic_string<C, Traits> result;
+			to_string<C>(std::back_inserter(result));
+			return result;
+		}
 		/** Writes the version as a string to the output iterator.
 		 * @tparam C Character type of the output sequence.
 		 * @param out Iterator to write the characters to.

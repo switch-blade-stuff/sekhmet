@@ -357,6 +357,6 @@ TEST(serialization_tests, uuid_test)
 	}
 	{
 		json::input_archive archive{json_string.data(), json_string.size()};
-		EXPECT_NO_THROW(EXPECT_EQ(archive.read(std::in_place_type<uuid_container>), id_data));
+		EXPECT_NO_THROW(EXPECT_EQ(archive.read(std::in_place_type<uuid_container>, 0), id_data));
 	}
 }

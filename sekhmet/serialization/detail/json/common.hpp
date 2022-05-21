@@ -1565,7 +1565,8 @@ namespace sek::serialization::detail
 		if (!(type & CONTAINER)) [[unlikely]]
 			throw archive_error("Invalid Json type, expected array or object");
 
-		if constexpr (in_place_deserializable<T, read_frame, Args...> || std::is_constructible_v<T, read_frame &, Args...>)
+		if constexpr (in_place_deserializable<T, read_frame, Args...> || std::is_constructible_v<T, read_frame &, Args...> ||
+					  in_place_deserializable<T, read_frame> || std::is_constructible_v<T, read_frame &>)
 		{
 			read_frame frame{*this};
 			return detail::do_deserialize(std::in_place_type<T>, frame, std::forward<Args>(args)...);

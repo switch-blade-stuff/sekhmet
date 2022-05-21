@@ -9,9 +9,9 @@
 
 static bool plugin_enabled = false;
 
-SEK_PLUGIN(test_plugin)
+SEK_PLUGIN("test_plugin")
 {
-	sek::logger::info() << fmt::format("Initializing plugin \"{}\"", id);
+	sek::logger::info() << fmt::format("Initializing plugin \"{}\"", info.id);
 
 	on_enable += +[]()
 	{
