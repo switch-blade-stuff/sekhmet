@@ -296,3 +296,67 @@ TEST(serialization_tests, dense_map_test)
 	}
 	EXPECT_EQ(m, deserialized);
 }
+
+#include "sekhmet/utility.hpp"
+
+TEST(serialization_tests, version_test)
+{
+	using namespace sek::literals;
+	namespace json = ser::json;
+
+	const auto ver_data = "0.1.2"_ver;
+	std::string json_string;
+	{
+		std::stringstream ss;
+		json::output_archive archive{ss};
+		EXPECT_NO_THROW(archive << ver_data);
+		EXPECT_NO_THROW(archive.flush());
+
+		json_string = ss.str();
+		EXPECT_FALSE(json_string.empty());
+	}
+	{
+		json::input_archive archive{json_string.data(), json_string.size()};
+
+		sek::version ver;
+		EXPECT_NO_THROW(archive >> ver);
+		EXPECT_EQ(ver, ver_data);
+	}
+}
+
+namespace
+{
+	struct uuid_container
+	{
+		constexpr uuid_container(sek::uuid id) noexcept : id(id) {}
+		constexpr uuid_container(auto &archive) { id = sek::uuid{archive.read(std::in_place_type<std::string_view>)}; }
+
+		void serialize(auto &archive) const { archive << id.to_string(); }
+
+		constexpr bool operator==(const uuid_container &) const noexcept = default;
+
+		sek::uuid id;
+	};
+}	 // namespace
+
+TEST(serialization_tests, uuid_test)
+{
+	using namespace sek::literals;
+	namespace json = ser::json;
+
+	const uuid_container id_data = "a7d71296-f456-4541-8b40-810678812d28"_uuid;
+	std::string json_string;
+	{
+		std::stringstream ss;
+		json::output_archive archive{ss};
+		EXPECT_NO_THROW(archive << id_data);
+		EXPECT_NO_THROW(archive.flush());
+
+		json_string = ss.str();
+		EXPECT_FALSE(json_string.empty());
+	}
+	{
+		json::input_archive archive{json_string.data(), json_string.size()};
+		EXPECT_NO_THROW(EXPECT_EQ(archive.read(std::in_place_type<uuid_container>), id_data));
+	}
+}

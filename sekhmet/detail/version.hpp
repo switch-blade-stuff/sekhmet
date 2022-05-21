@@ -66,32 +66,26 @@ namespace sek
 		}
 
 		template<typename U, typename C>
-		constexpr U parse_version_char(C c, U i = 0)
+		constexpr U parse_version_char(C c)
 		{
-			constexpr C alphabet[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
-			constexpr U max = SEK_ARRAY_SIZE(alphabet);
-			return i < max ? ((alphabet[i] == c) ? i : parse_version_char(c, ++i)) :
-							 throw std::runtime_error("Invalid version literal");
+			return c >= '0' && c <= '9' ? static_cast<U>(c - '0') : throw std::runtime_error("Invalid version string");
 		}
-		template<std::size_t I, typename C, typename T, typename U, typename... Us>
-		constexpr void parse_version(std::size_t i, std::basic_string_view<C, T> str, basic_version_base<I, U, Us...> &v) noexcept
+		template<std::size_t I, std::forward_iterator Iter, typename U, typename... Us>
+		constexpr void parse_version(Iter first, Iter second, basic_version_base<I, U, Us...> &v) noexcept
 		{
-			if (i != str.size())
-			{
-				if (str[i] != '.')
+			for (std::iter_value_t<Iter> c; first != second && (c = *first++) != '\0';)
+				if (c == '.') [[unlikely]]
 				{
-					/* Keep parsing this component until a separator. */
-					const U a = extract_component(v) * 10;
-					const U b = parse_version_char<U>(str[i]);
-					extract_component(v) = a + b;
-					parse_version<I>(i + 1, str, v);
+					if constexpr (sizeof...(Us) != 0) parse_version<I + 1>(first, second, v);
+					break;
 				}
 				else
 				{
-					/* Parse next component after a separator. */
-					if constexpr (sizeof...(Us) != 0) parse_version<I + 1>(i + 1, str, v);
+					/* Keep parsing this component until a separator. */
+					const U a = extract_component(v) * 10;
+					const U b = parse_version_char<U>(c);
+					extract_component(v) = a + b;
 				}
-			}
 		}
 	}	 // namespace detail
 
@@ -109,13 +103,18 @@ namespace sek
 										...> : detail::basic_version_base<0, Components...>(args...)
 		{
 		}
-		template<typename C, typename T>
-		constexpr basic_version(std::basic_string_view<C, T> str) noexcept
+
+		template<std::forward_iterator Iter>
+		constexpr explicit basic_version(Iter first, Iter last)
 		{
-			detail::parse_version(0, str, *this);
+			detail::parse_version(first, last, *this);
+		}
+		template<std::ranges::forward_range R>
+		constexpr explicit basic_version(const R &str) : basic_version(std::ranges::begin(str), std::ranges::end(str))
+		{
 		}
 		template<typename C, std::size_t N>
-		constexpr basic_version(const C (&str)[N]) noexcept : basic_version{std::basic_string_view<C>{str}}
+		constexpr explicit basic_version(const C (&str)[N]) noexcept : basic_version(std::begin(str), std::end(str))
 		{
 		}
 
@@ -248,6 +247,17 @@ namespace sek
 		a.swap(b);
 	}
 
+	template<std::size_t I, typename... Ts>
+	[[nodiscard]] constexpr auto &get(basic_version<Ts...> &v) noexcept
+	{
+		return v.template component<I>();
+	}
+	template<std::size_t I, typename... Ts>
+	[[nodiscard]] constexpr auto &get(const basic_version<Ts...> &v) noexcept
+	{
+		return v.template component<I>();
+	}
+
 	template<typename... Ts>
 	[[nodiscard]] constexpr hash_t hash(const basic_version<Ts...> &v) noexcept
 	{
@@ -262,6 +272,10 @@ struct std::hash<sek::basic_version<Ts...>>
 	{
 		return sek::hash(v);
 	}
+};
+template<typename... Ts>
+struct std::tuple_size<sek::basic_version<Ts...>> : std::integral_constant<std::size_t, sizeof...(Ts)>
+{
 };
 
 namespace sek
@@ -281,15 +295,20 @@ namespace sek
 		{
 		}
 
-		/** Initializes a version from a version string.
+		/** Initializes a version from a from a character range.
 		 * @note Version string must contain base-10 integers separated with dots ('.'). */
-		template<typename C, typename T>
-		constexpr version(std::basic_string_view<C, T> str) noexcept : basic_version(str)
+		template<std::forward_iterator Iter>
+		constexpr explicit version(Iter first, Iter last) : basic_version(first, last)
 		{
 		}
-		/** @copydoc version */
+		/** @copydoc uuid */
+		template<std::ranges::forward_range R>
+		constexpr explicit version(const R &str) : version(std::ranges::begin(str), std::ranges::end(str))
+		{
+		}
+		/**  Initializes a version from a from a character array. */
 		template<typename C, std::size_t N>
-		constexpr version(const C (&str)[N]) noexcept : basic_version(str)
+		constexpr explicit version(const C (&str)[N]) noexcept : version(std::begin(str), std::end(str))
 		{
 		}
 
@@ -316,6 +335,17 @@ namespace sek
 		}
 	};
 
+	template<std::size_t I>
+	[[nodiscard]] constexpr auto &get(version &v) noexcept
+	{
+		return v.template component<I>();
+	}
+	template<std::size_t I>
+	[[nodiscard]] constexpr auto &get(const version &v) noexcept
+	{
+		return v.template component<I>();
+	}
+
 	[[nodiscard]] constexpr hash_t hash(const version &v) noexcept
 	{
 		return hash(static_cast<const version_base_t &>(v));
@@ -325,23 +355,23 @@ namespace sek
 	{
 		[[nodiscard]] constexpr version operator""_ver(const char *str, std::size_t n) noexcept
 		{
-			return version{std::basic_string_view<char>{str, n}};
+			return version{str, str + n};
 		}
 		[[nodiscard]] constexpr version operator""_ver(const char8_t *str, std::size_t n) noexcept
 		{
-			return version{std::basic_string_view<char8_t>{str, n}};
+			return version{str, str + n};
 		}
 		[[nodiscard]] constexpr version operator""_ver(const char16_t *str, std::size_t n) noexcept
 		{
-			return version{std::basic_string_view<char16_t>{str, n}};
+			return version{str, str + n};
 		}
 		[[nodiscard]] constexpr version operator""_ver(const char32_t *str, std::size_t n) noexcept
 		{
-			return version{std::basic_string_view<char32_t>{str, n}};
+			return version{str, str + n};
 		}
 		[[nodiscard]] constexpr version operator""_ver(const wchar_t *str, std::size_t n) noexcept
 		{
-			return version{std::basic_string_view<wchar_t>{str, n}};
+			return version{str, str + n};
 		}
 	}	 // namespace literals
 }	 // namespace sek
@@ -350,6 +380,10 @@ template<>
 struct std::hash<sek::version>
 {
 	[[nodiscard]] constexpr sek::hash_t operator()(const sek::version &v) const noexcept { return sek::hash(v); }
+};
+template<>
+struct std::tuple_size<sek::version> : std::integral_constant<std::size_t, 3>
+{
 };
 
 #define SEK_VERSION(major, minor, patch) (::sek::version{(major), (minor), (patch)})

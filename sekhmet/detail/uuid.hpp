@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <string>
 
 #include "define.h"
 #include "hash.hpp"
@@ -16,7 +17,7 @@ namespace sek
 	/** @brief UUID Version 4 Variant 1. */
 	class uuid
 	{
-		friend constexpr hash_t hash(uuid) noexcept;
+		friend constexpr hash_t hash(const uuid &) noexcept;
 
 	public:
 		/** @brief Parent for UUID generators. */
@@ -41,6 +42,17 @@ namespace sek
 		};
 
 		constexpr static version4_t version4 = {};
+
+	private:
+		template<typename C>
+		constexpr static int parse_digit(C c)
+		{
+			// clang-format off
+			return (c >= '0' && c <= '9') ? static_cast<int>(c - '0') :
+				   (c >= 'A' && c <= 'F') ? static_cast<int>(c - 'A' + 10) :
+				   (c >= 'a' && c <= 'f') ? static_cast<int>(c - 'a' + 10) : throw std::runtime_error("Invalid UUID string");
+			// clang-format on
+		}
 
 	public:
 		/** Initializes a nil UUID. */
@@ -68,6 +80,17 @@ namespace sek
 		/** Initializes a UUID from a byte array. */
 		constexpr explicit uuid(const std::byte (&data)[16]) noexcept { std::copy_n(data, 16, bytes); }
 
+		/** Converts the UUID to string.
+		 * @tparam C Character type of the output sequence.
+		 * @tparam Traits Character traits of `C`.
+		 * @param upper If set to `true`, hex digits would be written using uppercase letters. */
+		template<typename C = char, typename Traits = std::char_traits<C>>
+		[[nodiscard]] constexpr std::basic_string<C, Traits> to_string(bool upper = false) const
+		{
+			std::basic_string<C, Traits> result(36, '\0');
+			to_string(result.begin(), upper);
+			return result;
+		}
 		/** Writes 36 characters of UUID string representation to the output iterator.
 		 * @tparam C Character type of the output sequence.
 		 * @param out Iterator to write the characters to.
@@ -95,20 +118,13 @@ namespace sek
 		template<typename Iter>
 		constexpr void parse_string(Iter first, Iter last) noexcept
 		{
-			for (std::size_t i = 0; first != last; ++first)
+			for (std::size_t i = 0; i < SEK_ARRAY_SIZE(bytes) * 2 && first != last; ++first)
 			{
-				auto digit = 0;
-				if (auto c = *first; c >= '0' && c <= '9')
-					digit = c - '0';
-				else if (c >= 'A' && c <= 'F')
-					digit = c - 'A' + 10;
-				else if (c >= 'a' && c <= 'f')
-					digit = c - 'a' + 10;
-				else
+				const auto c = *first;
+				if (c == '-') [[unlikely]]
 					continue;
-
 				auto idx = i++;
-				bytes[idx / 2] |= static_cast<std::byte>(digit << (idx % 2 ? 0 : 4));
+				bytes[idx / 2] |= static_cast<std::byte>(parse_digit(c) << (idx % 2 ? 0 : 4));
 			}
 		}
 		template<typename C, typename Iter>
@@ -133,7 +149,31 @@ namespace sek
 		alignas(std::uint64_t[2]) std::byte bytes[16] = {};
 	};
 
-	[[nodiscard]] constexpr hash_t hash(uuid id) noexcept { return fnv1a(id.bytes, SEK_ARRAY_SIZE(id.bytes)); }
+	[[nodiscard]] constexpr hash_t hash(const uuid &id) noexcept { return fnv1a(id.bytes, SEK_ARRAY_SIZE(id.bytes)); }
+
+	namespace literals
+	{
+		[[nodiscard]] constexpr uuid operator""_uuid(const char *str, std::size_t n) noexcept
+		{
+			return uuid{str, str + n};
+		}
+		[[nodiscard]] constexpr uuid operator""_uuid(const char8_t *str, std::size_t n) noexcept
+		{
+			return uuid{str, str + n};
+		}
+		[[nodiscard]] constexpr uuid operator""_uuid(const char16_t *str, std::size_t n) noexcept
+		{
+			return uuid{str, str + n};
+		}
+		[[nodiscard]] constexpr uuid operator""_uuid(const char32_t *str, std::size_t n) noexcept
+		{
+			return uuid{str, str + n};
+		}
+		[[nodiscard]] constexpr uuid operator""_uuid(const wchar_t *str, std::size_t n) noexcept
+		{
+			return uuid{str, str + n};
+		}
+	}	 // namespace literals
 }	 // namespace sek
 
 template<>

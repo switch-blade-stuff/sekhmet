@@ -20,7 +20,7 @@ TEST(utility_tests, version_test)
 
 	EXPECT_NE(sek::version{SEK_ENGINE_VERSION}, "0.0.0"_ver);
 
-	sek::version v1 = "0.0.1"_ver;
+	constexpr sek::version v1 = "0.0.1"_ver;
 	sek::version v2 = {0, 0, 2};
 	sek::version v3 = {0, 1, 2};
 
@@ -39,14 +39,14 @@ TEST(utility_tests, version_test)
 
 TEST(utility_tests, uuid_test)
 {
+	using namespace sek::literals;
 	using sek::hash;
 
-	constexpr char uuid_str[] = "e7d751b6-f2f8-4541-8b40-81063d82af28";
-	constexpr sek::uuid id = sek::uuid{uuid_str};
+	constexpr sek::uuid id = "e7d751b6-f2f8-4541-8b40-81063d82af28"_uuid;
 	constexpr sek::hash_t id_hash = hash(id);
 
 	EXPECT_NE(id, sek::uuid{});
-	EXPECT_EQ(sek::uuid{}, sek::uuid{"00000000-0000-0000-0000-000000000000"});
+	EXPECT_EQ(sek::uuid{}, "00000000-0000-0000-0000-000000000000"_uuid);
 	EXPECT_EQ(hash(id), id_hash);
 	EXPECT_NE(hash(id), hash(sek::uuid{sek::uuid::version4}));
 
