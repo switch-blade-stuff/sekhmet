@@ -346,10 +346,7 @@ namespace sek
 		return v.template component<I>();
 	}
 
-	[[nodiscard]] constexpr hash_t hash(const version &v) noexcept
-	{
-		return hash(static_cast<const version_base_t &>(v));
-	}
+	[[nodiscard]] constexpr hash_t hash(const version &v) noexcept { return hash(v.as_uint64()); }
 
 	namespace literals
 	{
