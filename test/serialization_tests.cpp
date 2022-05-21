@@ -141,6 +141,84 @@ TEST(serialization_tests, ubjson_test)
 	EXPECT_EQ(data, deserialized);
 }
 
+namespace
+{
+	struct serializable_a
+	{
+		constexpr serializable_a() noexcept = default;
+		constexpr serializable_a(int i) noexcept : i(i) {}
+
+		constexpr void serialize(auto &archive) const { archive << ser::keyed_entry("a", i); }
+		constexpr void deserialize(auto &archive) { archive >> ser::keyed_entry("a", i); }
+
+		constexpr bool operator==(const serializable_a &) const noexcept = default;
+
+		int i = 0;
+	};
+	struct serializable_b
+	{
+		constexpr serializable_b() noexcept = default;
+		constexpr serializable_b(float f) noexcept : f(f) {}
+
+		constexpr void serialize(auto &archive) const { archive << ser::keyed_entry("b", f); }
+		constexpr void deserialize(auto &archive) { archive >> ser::keyed_entry("b", f); }
+
+		constexpr bool operator==(const serializable_b &) const noexcept = default;
+
+		float f = 0;
+	};
+	struct serializable_ab : serializable_a, serializable_b
+	{
+		constexpr serializable_ab() noexcept = default;
+		constexpr serializable_ab(int i, float f) noexcept : serializable_a(i), serializable_b(f) {}
+
+		constexpr void serialize(auto &archive) const
+		{
+			serializable_a::serialize(archive);
+			serializable_b::serialize(archive);
+		}
+		constexpr void deserialize(auto &archive)
+		{
+			serializable_a::deserialize(archive);
+			serializable_b::deserialize(archive);
+		}
+
+		constexpr bool operator==(const serializable_ab &) const noexcept = default;
+	};
+}	 // namespace
+
+TEST(serialization_tests, reuse_test)
+{
+	namespace json = ser::json;
+
+	const auto ab_data = serializable_ab{1, std::numbers::pi_v<float>};
+	std::string json_string;
+	{
+		std::stringstream ss;
+		json::output_archive archive{ss};
+		EXPECT_NO_THROW(archive << ab_data);
+		EXPECT_NO_THROW(archive.flush());
+
+		json_string = ss.str();
+		EXPECT_FALSE(json_string.empty());
+	}
+	{
+		json::input_archive archive{json_string.data(), json_string.size()};
+
+		serializable_a a;
+		EXPECT_NO_THROW(archive >> a);
+		EXPECT_EQ(a, ab_data);
+
+		serializable_b b;
+		EXPECT_NO_THROW(archive >> b);
+		EXPECT_EQ(b, ab_data);
+
+		serializable_ab ab;
+		EXPECT_NO_THROW(archive >> ab);
+		EXPECT_EQ(ab, ab_data);
+	}
+}
+
 #include "sekhmet/math.hpp"
 
 TEST(serialization_tests, math_test)

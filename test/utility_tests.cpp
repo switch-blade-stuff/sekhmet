@@ -18,7 +18,9 @@ TEST(utility_tests, version_test)
 {
 	using namespace sek::literals;
 
-	constexpr sek::version v1 = "0.0.1"_ver;
+	EXPECT_NE(sek::version{SEK_ENGINE_VERSION}, "0.0.0"_ver);
+
+	sek::version v1 = "0.0.1"_ver;
 	sek::version v2 = {0, 0, 2};
 	sek::version v3 = {0, 1, 2};
 
