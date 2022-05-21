@@ -33,6 +33,11 @@ namespace sek
 			dense_map<std::string_view, plugin_data *> plugins;
 		};
 
+		static bool check_version(const version &ver) noexcept
+		{
+			const auto engine_ver = version{SEK_ENGINE_VERSION};
+			return ver.major() == engine_ver.major() && ver.minor() <= engine_ver.minor();
+		}
 		static bool enable_guarded(plugin_data *data) noexcept
 		{
 			try
@@ -72,7 +77,14 @@ namespace sek
 			auto &db = plugin_db::instance();
 			std::lock_guard<std::shared_mutex> l(db.mtx);
 
-			if (data->status != plugin_data::INITIAL) [[unlikely]]
+			if (!check_version(data->info.engine_ver)) [[unlikely]]
+				logger::error() << SEK_LOG_FORMAT_NS::format("Ignoring incompatible plugin \"{}\". "
+															 "Plugin engine version: \"{}\", "
+															 "actual engine version: \"{}\"",
+															 data->info.id,
+															 data->info.engine_ver.to_string(),
+															 SEK_ENGINE_VERSION);
+			else if (data->status != plugin_data::INITIAL) [[unlikely]]
 				logger::error() << SEK_LOG_FORMAT_NS::format("Ignoring duplicate plugin \"{}\"", data->info.id);
 			else if (auto res = db.plugins.try_emplace(data->info.id, data); res.second) [[likely]]
 			{
