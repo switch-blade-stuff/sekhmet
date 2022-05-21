@@ -64,6 +64,35 @@ namespace sek
 		{
 			return v.component;
 		}
+
+		template<typename U, typename C>
+		constexpr U parse_version_char(C c, U i = 0)
+		{
+			constexpr C alphabet[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
+			constexpr U max = SEK_ARRAY_SIZE(alphabet);
+			return i < max ? ((alphabet[i] == c) ? i : parse_version_char(c, ++i)) :
+							 throw std::runtime_error("Invalid version literal");
+		}
+		template<std::size_t I, typename C, typename T, typename U, typename... Us>
+		constexpr void parse_version(std::size_t i, std::basic_string_view<C, T> str, basic_version_base<I, U, Us...> &v) noexcept
+		{
+			if (i != str.size())
+			{
+				if (str[i] != '.')
+				{
+					/* Keep parsing this component until a separator. */
+					const U a = extract_component(v) * 10;
+					const U b = parse_version_char<U>(str[i]);
+					extract_component(v) = a + b;
+					parse_version<I>(i + 1, str, v);
+				}
+				else
+				{
+					/* Parse next component after a separator. */
+					if constexpr (sizeof...(Us) != 0) parse_version<I + 1>(i + 1, str, v);
+				}
+			}
+		}
 	}	 // namespace detail
 
 	template<std::integral... Components>
@@ -78,6 +107,15 @@ namespace sek
 		constexpr basic_version(Args... args) noexcept
 			requires std::conjunction_v<std::is_constructible<Components, Args>
 										...> : detail::basic_version_base<0, Components...>(args...)
+		{
+		}
+		template<typename C, typename T>
+		constexpr basic_version(std::basic_string_view<C, T> str) noexcept
+		{
+			detail::parse_version(0, str, *this);
+		}
+		template<typename C, std::size_t N>
+		constexpr basic_version(const C (&str)[N]) noexcept : basic_version{std::basic_string_view<C>{str}}
 		{
 		}
 
@@ -234,12 +272,24 @@ namespace sek
 	struct version : version_base_t
 	{
 		constexpr version() noexcept = default;
-		/** Constructs a version from the major, minor & patch components.
+		/** Initializes a version from the major, minor & patch components.
 		 * @param major Major component.
 		 * @param minor Minor component.
 		 * @param patch Patch component. */
 		constexpr version(std::uint16_t major, std::uint16_t minor, std::uint32_t patch) noexcept
 			: basic_version(major, minor, patch)
+		{
+		}
+
+		/** Initializes a version from a version string.
+		 * @note Version string must contain base-10 integers separated with dots ('.'). */
+		template<typename C, typename T>
+		constexpr version(std::basic_string_view<C, T> str) noexcept : basic_version(str)
+		{
+		}
+		/** @copydoc version */
+		template<typename C, std::size_t N>
+		constexpr version(const C (&str)[N]) noexcept : basic_version(str)
 		{
 		}
 
@@ -270,6 +320,30 @@ namespace sek
 	{
 		return hash(static_cast<const version_base_t &>(v));
 	}
+
+	namespace literals
+	{
+		[[nodiscard]] constexpr version operator""_ver(const char *str, std::size_t n) noexcept
+		{
+			return version{std::basic_string_view<char>{str, n}};
+		}
+		[[nodiscard]] constexpr version operator""_ver(const char8_t *str, std::size_t n) noexcept
+		{
+			return version{std::basic_string_view<char8_t>{str, n}};
+		}
+		[[nodiscard]] constexpr version operator""_ver(const char16_t *str, std::size_t n) noexcept
+		{
+			return version{std::basic_string_view<char16_t>{str, n}};
+		}
+		[[nodiscard]] constexpr version operator""_ver(const char32_t *str, std::size_t n) noexcept
+		{
+			return version{std::basic_string_view<char32_t>{str, n}};
+		}
+		[[nodiscard]] constexpr version operator""_ver(const wchar_t *str, std::size_t n) noexcept
+		{
+			return version{std::basic_string_view<wchar_t>{str, n}};
+		}
+	}	 // namespace literals
 }	 // namespace sek
 
 template<>

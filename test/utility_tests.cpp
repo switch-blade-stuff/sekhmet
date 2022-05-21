@@ -16,7 +16,9 @@ static_assert(sizeof(sek::packed_pair<int, int>) == sizeof(int) * 2);
 
 TEST(utility_tests, version_test)
 {
-	sek::version v1 = {0, 0, 1};
+	using namespace sek::literals;
+
+	constexpr sek::version v1 = "0.0.1"_ver;
 	sek::version v2 = {0, 0, 2};
 	sek::version v3 = {0, 1, 2};
 
