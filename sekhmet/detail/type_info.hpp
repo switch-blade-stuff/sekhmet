@@ -67,6 +67,11 @@ namespace sek
 		return detail::generate_type_name<T>();
 	}
 
+	namespace detail
+	{
+		
+	}
+
 	/** @brief Structure used to reference reflected information of a type. */
 	class type_info
 	{

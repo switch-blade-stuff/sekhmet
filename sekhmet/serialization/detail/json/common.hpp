@@ -137,6 +137,12 @@ namespace sek::serialization::detail
 					throw archive_error("Invalid Json type, expected null");
 				return *this;
 			}
+			/** @copydoc read */
+			constexpr std::nullptr_t read(std::in_place_type_t<std::nullptr_t>) const
+			{
+				read(std::nullptr_t{});
+				return std::nullptr_t{};
+			}
 
 			/** Reads a bool from the entry. Returns `true` if the entry contains a bool, `false` otherwise. */
 			constexpr bool try_read(bool &b) const noexcept
@@ -156,6 +162,13 @@ namespace sek::serialization::detail
 				if (!try_read(b)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected bool");
 				return *this;
+			}
+			/** @copydoc read */
+			constexpr bool read(std::in_place_type_t<bool>) const
+			{
+				bool result;
+				read(result);
+				return result;
 			}
 
 			/** Reads a character from the entry. Returns `true` if the entry contains a character, `false` otherwise. */
@@ -178,6 +191,14 @@ namespace sek::serialization::detail
 				if (!try_read(c)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected char");
 				return *this;
+			}
+			/** @copydoc read */
+			constexpr CharType read(std::in_place_type_t<CharType>) const
+				requires((Config & char_value) == char_value)
+			{
+				CharType result;
+				read(result);
+				return result;
 			}
 
 			/** Reads a number from the entry. Returns `true` if the entry contains a number, `false` otherwise. */
@@ -210,6 +231,15 @@ namespace sek::serialization::detail
 				if (!try_read(value)) [[unlikely]]
 					throw archive_error("Invalid Json type, expected number");
 				return *this;
+			}
+			/** @copydoc read */
+			template<typename I>
+			constexpr I read(std::in_place_type_t<I>) const
+				requires(std::integral<I> || std::floating_point<I>)
+			{
+				I result;
+				read(result);
+				return result;
 			}
 
 			/** Reads a string from the entry.
@@ -278,6 +308,13 @@ namespace sek::serialization::detail
 					throw_string_error();
 				return *this;
 			}
+			/** @copydoc read */
+			constexpr std::basic_string<CharType> read(std::in_place_type_t<std::basic_string<CharType>>) const
+			{
+				std::basic_string<CharType> result;
+				read(result);
+				return result;
+			}
 			/** Reads a string from the entry.
 			 * @param value STL string view to assign the string value to.
 			 * @return Reference to this entry.
@@ -287,6 +324,13 @@ namespace sek::serialization::detail
 				if (!try_read(value)) [[unlikely]]
 					throw_string_error();
 				return *this;
+			}
+			/** @copydoc read */
+			constexpr std::basic_string_view<CharType> read(std::in_place_type_t<std::basic_string_view<CharType>>) const
+			{
+				std::basic_string_view<CharType> result;
+				read(result);
+				return result;
 			}
 			/** Reads a string from the entry.
 			 * @param value Output iterator used to write the string value to.
@@ -317,37 +361,39 @@ namespace sek::serialization::detail
 			 * @return Reference to this entry.
 			 * @throw archive_error If the entry does not contain an object or array. */
 			template<typename T>
-			constexpr const entry_t &read(T &&value) const;
-			/** @copydoc read */
-			template<typename T>
 			constexpr const entry_t &operator>>(T &&value) const
 			{
 				return read(std::forward<T>(value));
 			}
+			/** @copydoc operator>>
+			 * @param args Arguments forwarded to the deserialization function. */
+			template<typename T, typename... Args>
+			constexpr const entry_t &read(T &&value, Args &&...args) const;
+			/** @brief Reads an object or array from the entry in-place.
+			 * Uses the in-place `deserialize` overload (taking `std::in_place_type_t<T>`)
+			 * or constructor accepting the archive frame as one of it's arguments if available.
+			 * Otherwise, default-constructs & deserializes using `read(T &&)`.
+			 * @param args Arguments forwarded to the deserialization function.
+			 * @return Deserialized instance of `T`.
+			 * @throw archive_error On deserialization errors. */
+			template<typename T, typename... Args>
+			constexpr T read(std::in_place_type_t<T>, Args &&...args) const;
 			/** Attempts to read an object or array from the entry.
 			 * @param value Forwarded value to be read from the entry.
+			 * @param args Arguments forwarded to the deserialization function.
 			 * @return `true` if read successfully, `false` otherwise. */
-			template<typename T>
-			constexpr bool try_read(T &&value) const
+			template<typename T, typename... Args>
+			constexpr bool try_read(T &&value, Args &&...args) const
 			{
 				try
 				{
-					read(std::forward<T>(value));
+					read(std::forward<T>(value), std::forward<Args>(args)...);
 					return true;
 				}
 				catch (archive_error &)
 				{
 					return false;
 				}
-			}
-
-			/** Reads a default-initialized instance of `T` from the entry. */
-			template<std::default_initializable T>
-			constexpr T read() const
-			{
-				T result;
-				read(result);
-				return result;
 			}
 
 		private:
@@ -979,12 +1025,13 @@ namespace sek::serialization::detail
 
 			/** Attempts to deserialize the next Json entry of the archive & advance the entry.
 			 * @param value Value to deserialize.
+			 * @param args Arguments forwarded to the deserialization function.
 			 * @return `true` if deserialization was successful, `false` otherwise. */
-			template<typename T>
-			bool try_read(T &&value)
+			template<typename T, typename... Args>
+			bool try_read(T &&value, Args &&...args)
 			{
 				entry_iterator current{frame_view.current_ptr, type};
-				if (current < end() && current->try_read(std::forward<T>(value))) [[likely]]
+				if (current < end() && current->try_read(std::forward<T>(value), std::forward<Args>(args)...)) [[likely]]
 				{
 					frame_view.current_ptr = (current + 1).data_ptr;
 					return true;
@@ -997,49 +1044,63 @@ namespace sek::serialization::detail
 			 * @return Reference to this frame.
 			 * @throw archive_exception On deserialization errors. */
 			template<typename T>
-			read_frame &read(T &&value)
-			{
-				entry_iterator current{frame_view.current_ptr, type};
-				current->read(std::forward<T>(value));
-				frame_view.current_ptr = (current + 1).data_ptr;
-				return *this;
-			}
-			/** @copydoc read */
-			template<typename T>
 			read_frame &operator>>(T &&value)
 			{
 				return read(std::forward<T>(value));
 			}
-			/** Deserializes an instance of `T` from the next Json entry of the archive.
+			/** @copydoc operator>>
+			 * @param args Arguments forwarded to the deserialization function. */
+			template<typename T, typename... Args>
+			read_frame &read(T &&value, Args &&...args)
+			{
+				entry_iterator current{frame_view.current_ptr, type};
+				frame_view.current_ptr = (current + 1).data_ptr;
+				current->read(std::forward<T>(value), std::forward<Args>(args)...);
+				return *this;
+			}
+			/** @brief Deserializes an instance of `T` from the next Json entry of the archive in-place.
+			 * Uses the in-place `deserialize` overload (taking `std::in_place_type_t<T>`)
+			 * or constructor accepting the archive frame as one of it's arguments if available.
+			 * Otherwise, default-constructs & deserializes using `read(T &&)`.
+			 * @param args Arguments forwarded to the deserialization function/constructor.
 			 * @return Deserialized instance of `T`.
 			 * @throw archive_error On deserialization errors. */
-			template<std::default_initializable T>
-			T read()
+			template<typename T, typename... Args>
+			T read(std::in_place_type_t<T>, Args &&...args)
 			{
-				T result;
-				read(result);
-				return result;
+				entry_iterator current{frame_view.current_ptr, type};
+				frame_view.current_ptr = (current + 1).data_ptr;
+				return current->read(std::in_place_type<T>, std::forward<Args>(args)...);
 			}
 
 			/** Deserializes the next Json entry using the keyed entry hint.
 			 * @param value Named entry containing the entry key hint & forwarded entry value.
+			 * @param args Arguments forwarded to the deserialization function.
 			 * @return `true` if deserialization was successful, `false` otherwise. */
-			template<typename T>
-			bool try_read(keyed_entry_t<CharType, T> value)
+			template<typename T, typename... Args>
+			bool try_read(keyed_entry_t<CharType, T> value, Args &&...args)
 			{
 				if (type == OBJECT) [[likely]]
 				{
 					if (seek_entry(value.key)) [[likely]]
-						return try_read(std::forward<T>(value.value));
+						return try_read(std::forward<T>(value.value), std::forward<Args>(args)...);
 				}
 				return false;
 			}
 			/** Deserializes the next Json entry using the keyed entry hint.
 			 * @param value Named entry containing the entry key hint & forwarded entry value.
+			 * @param args Arguments forwarded to the deserialization function.
 			 * @return Reference to this frame.
 			 * @throw archive_exception On deserialization errors. */
 			template<typename T>
-			read_frame &read(keyed_entry_t<CharType, T> value)
+			read_frame &operator>>(keyed_entry_t<CharType, T> value)
+			{
+				return read(value);
+			}
+			/** @copydoc operator>>
+			 * @param args Arguments forwarded to the deserialization function. */
+			template<typename T, typename... Args>
+			read_frame &read(keyed_entry_t<CharType, T> value, Args &&...args)
 			{
 				if (type == ARRAY) [[unlikely]]
 					throw archive_error("Named entry modifier cannot be applied to an array entry");
@@ -1052,14 +1113,8 @@ namespace sek::serialization::detail
 					throw std::out_of_range(err);
 				}
 				else
-					read(std::forward<T>(value.value));
+					read(std::forward<T>(value.value), std::forward<Args>(args)...);
 				return *this;
-			}
-			/** @copydoc read */
-			template<typename T>
-			read_frame &operator>>(keyed_entry_t<CharType, T> value)
-			{
-				return read(value);
 			}
 
 			/** Reads size of the frame's container (array or object) entry.
@@ -1131,20 +1186,21 @@ namespace sek::serialization::detail
 			write_frame(write_frame &&) = delete;
 			write_frame &operator=(write_frame &&) = delete;
 
-			/** Serialized the forwarded value to UBJson.
-			 * @param value Value to serialize as UBJson.
+			/** Serialized the forwarded value to Json.
+			 * @param value Value to serialize as Json.
 			 * @return Reference to this frame. */
-			template<typename T>
-			write_frame &write(T &&value)
-			{
-				write_impl(std::forward<T>(value));
-				return *this;
-			}
-			/** @copydoc write */
 			template<typename T>
 			write_frame &operator<<(T &&value)
 			{
 				return write(std::forward<T>(value));
+			}
+			/** @copydoc operator<<
+			 * @param args Arguments forwarded to the serialization function. */
+			template<typename T, typename... Args>
+			write_frame &write(T &&value, Args &&...args)
+			{
+				write_impl(std::forward<T>(value), std::forward<Args>(args)...);
+				return *this;
 			}
 
 		private:
@@ -1212,11 +1268,11 @@ namespace sek::serialization::detail
 				return entry;
 			}
 
-			template<typename T>
-			void write_value(entry_t &entry, T &&value) const
+			template<typename T, typename... Args>
+			void write_value(entry_t &entry, T &&value, Args &&...args) const
 			{
 				write_frame frame{parent, entry};
-				detail::invoke_serialize(std::forward<T>(value), frame);
+				detail::do_serialize(std::forward<T>(value), frame, std::forward<Args>(args)...);
 			}
 
 			void write_value(entry_t &entry, std::nullptr_t) const { entry.type = NULL_VALUE; }
@@ -1328,13 +1384,13 @@ namespace sek::serialization::detail
 				write_value(entry, static_cast<const CharType *>(str));
 			}
 
-			template<typename T>
-			void write_value(T &&value) const
+			template<typename T, typename... Args>
+			void write_value(T &&value, Args &&...args) const
 			{
 				auto entry = next_entry();
 				SEK_ASSERT(entry != nullptr);
 
-				write_value(*entry, std::forward<T>(value));
+				write_value(*entry, std::forward<T>(value), std::forward<Args>(args)...);
 
 				if constexpr ((Config & container_types) == container_types)
 				{
@@ -1361,19 +1417,19 @@ namespace sek::serialization::detail
 				}
 			}
 
-			template<typename T>
-			void write_impl(T &&value)
+			template<typename T, typename... Args>
+			void write_impl(T &&value, Args &&...args)
 			{
 				if (current.type != ARRAY) [[likely]]
 					next_key = generate_key<CharType>(parent.string_pool, current.container.size);
-				write_value(std::forward<T>(value));
+				write_value(std::forward<T>(value), std::forward<Args>(args)...);
 			}
-			template<typename T>
-			void write_impl(keyed_entry_t<CharType, T> value)
+			template<typename T, typename... Args>
+			void write_impl(keyed_entry_t<CharType, T> value, Args &&...args)
 			{
 				if (current.type != ARRAY) [[likely]]
 					next_key = generate_key<CharType>(parent.string_pool, value.key);
-				write_value(std::forward<T>(value.value));
+				write_value(std::forward<T>(value.value), std::forward<Args>(args)...);
 			}
 			template<typename T>
 			void write_impl(container_size_t<T> size)
@@ -1448,23 +1504,28 @@ namespace sek::serialization::detail
 			::new (&top_level) entry_t{};
 		}
 
-		template<typename T>
-		bool do_try_read(T &&value)
+		template<typename T, typename... Args>
+		bool do_try_read(T &&value, Args &&...args)
 		{
-			return top_level.try_read(std::forward<T>(value));
+			return top_level.try_read(std::forward<T>(value), std::forward<Args>(args)...);
 		}
-		template<typename T>
-		void do_read(T &&value)
+		template<typename T, typename... Args>
+		void do_read(T &&value, Args &&...args)
 		{
-			top_level.read(std::forward<T>(value));
+			top_level.read(std::forward<T>(value), std::forward<Args>(args)...);
 		}
-		template<typename T>
-		void do_write(T &&value)
+		template<typename T, typename... Args>
+		T do_read(std::in_place_type_t<T>, Args &&...args)
 		{
-			write_frame frame{*this, top_level};
-			detail::invoke_serialize(std::forward<T>(value), frame);
+			return top_level.read(std::in_place_type<T>, std::forward<Args>(args)...);
 		}
 
+		template<typename T, typename... Args>
+		void do_write(T &&value, Args &&...args)
+		{
+			write_frame frame{*this, top_level};
+			detail::do_serialize(std::forward<T>(value), frame, std::forward<Args>(args)...);
+		}
 		void do_flush(auto &emitter) const
 		{
 			if (top_level.type != NO_TYPE) [[likely]]
@@ -1487,14 +1548,33 @@ namespace sek::serialization::detail
 	};
 
 	template<typename C, json_archive_config Cfg>
-	template<typename T>
-	constexpr const typename json_archive_base<C, Cfg>::entry_t &json_archive_base<C, Cfg>::entry_t::read(T &&value) const
+	template<typename T, typename... Args>
+	constexpr const typename json_archive_base<C, Cfg>::entry_t &json_archive_base<C, Cfg>::entry_t::read(T &&v, Args &&...args) const
 	{
 		if (!(type & CONTAINER)) [[unlikely]]
 			throw archive_error("Invalid Json type, expected array or object");
 
 		read_frame frame{*this};
-		detail::invoke_deserialize(std::forward<T>(value), frame);
+		detail::do_deserialize(std::forward<T>(v), frame, std::forward<Args>(args)...);
 		return *this;
+	}
+	template<typename C, json_archive_config Cfg>
+	template<typename T, typename... Args>
+	constexpr T json_archive_base<C, Cfg>::entry_t::read(std::in_place_type_t<T>, Args &&...args) const
+	{
+		if (!(type & CONTAINER)) [[unlikely]]
+			throw archive_error("Invalid Json type, expected array or object");
+
+		if constexpr (in_place_deserializable<T, read_frame, Args...> || std::is_constructible_v<T, read_frame &, Args...>)
+		{
+			read_frame frame{*this};
+			return detail::do_deserialize(std::in_place_type<T>, frame, std::forward<Args>(args)...);
+		}
+		else
+		{
+			T result{};
+			read(result, std::forward<Args>(args)...);
+			return result;
+		}
 	}
 }	 // namespace sek::serialization::detail

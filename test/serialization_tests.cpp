@@ -65,6 +65,14 @@ namespace
 		std::array<std::uint8_t, SEK_KB(1)> a;
 	};
 
+	serializable_t deserialize(std::in_place_type_t<serializable_t>, auto &archive, bool value)
+	{
+		EXPECT_TRUE(value);
+		serializable_t result{};
+		result.deserialize(archive);
+		return result;
+	}
+
 	const serializable_t data = {
 		.s = "Hello, world!",
 		.i = 0x420,
@@ -98,6 +106,11 @@ TEST(serialization_tests, json_test)
 		EXPECT_TRUE(archive.try_read(deserialized));
 	}
 	EXPECT_EQ(data, deserialized);
+	{
+		json::input_archive archive{json_string.data(), json_string.size()};
+		EXPECT_NO_THROW(deserialized = archive.read(std::in_place_type<serializable_t>, true));
+	}
+	EXPECT_EQ(data, deserialized);
 }
 
 #include "sekhmet/serialization/ubjson.hpp"
@@ -119,6 +132,11 @@ TEST(serialization_tests, ubjson_test)
 	{
 		ubj::input_archive archive{ubj_string.data(), ubj_string.size()};
 		EXPECT_TRUE(archive.try_read(deserialized));
+	}
+	EXPECT_EQ(data, deserialized);
+	{
+		ubj::input_archive archive{ubj_string.data(), ubj_string.size()};
+		EXPECT_NO_THROW(deserialized = archive.read(std::in_place_type<serializable_t>, true));
 	}
 	EXPECT_EQ(data, deserialized);
 }

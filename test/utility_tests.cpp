@@ -203,8 +203,8 @@ TEST(utility_tests, event_test)
 	sek::event_proxy proxy = {event};
 
 	auto i = 0;
-	auto sub1 = proxy += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 0); }};
-	auto sub2 = proxy += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 1); }};
+	auto sub1 = proxy += +[](int &i) { EXPECT_EQ(i++, 0); };
+	auto sub2 = proxy += +[](int &i) { EXPECT_EQ(i++, 1); };
 
 	event(i);
 	EXPECT_EQ(i, 2);
@@ -214,8 +214,8 @@ TEST(utility_tests, event_test)
 	EXPECT_TRUE(proxy.empty());
 	EXPECT_EQ(proxy.size(), 0);
 
-	proxy += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 0); }};
-	sub2 = proxy += sek::delegate{+[](int &i) { EXPECT_EQ(i++, 1); }};
+	proxy += +[](int &i) { EXPECT_EQ(i++, 0); };
+	sub2 = proxy += +[](int &i) { EXPECT_EQ(i++, 1); };
 	EXPECT_EQ(proxy.size(), 2);
 
 	i = 0;

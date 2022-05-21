@@ -193,37 +193,41 @@ namespace sek::serialization::json
 
 		/** Attempts to deserialize the top-level Json entry of the archive.
 		 * @param value Value to deserialize from the Json entry.
+		 * @param args Arguments forwarded to the deserialization function.
 		 * @return true if deserialization was successful, false otherwise. */
-		template<typename T>
-		bool try_read(T &&value)
+		template<typename T, typename... Args>
+		bool try_read(T &&value, Args &&...args)
 		{
-			return base_t::do_try_read(std::forward<T>(value));
+			return base_t::do_try_read(std::forward<T>(value), std::forward<Args>(args)...);
 		}
 		/** Deserializes the top-level Json entry of the archive.
 		 * @param value Value to deserialize from the Json entry.
 		 * @return Reference to this archive.
 		 * @throw archive_error On deserialization errors. */
 		template<typename T>
-		basic_input_archive &read(T &&value)
-		{
-			base_t::do_read(std::forward<T>(value));
-			return *this;
-		}
-		/** @copydoc read */
-		template<typename T>
 		basic_input_archive &operator>>(T &&value)
 		{
 			return read(std::forward<T>(value));
 		}
-		/** Deserializes an instance of `T` from the top-level Json entry of the archive.
+		/** @copydoc operator>>
+		 * @param args Arguments forwarded to the deserialization function. */
+		template<typename T, typename... Args>
+		basic_input_archive &read(T &&value, Args &&...args)
+		{
+			base_t::do_read(std::forward<T>(value), std::forward<Args>(args)...);
+			return *this;
+		}
+		/** @brief Deserializes an instance of `T` from the top-level Json entry of the archive in-place.
+		 * Uses the in-place `deserialize` overload (taking `std::in_place_type_t<T>`)
+		 * or constructor accepting the archive frame as one of it's arguments if available.
+		 * Otherwise, default-constructs & deserializes using `read(T &&)`.
+		 * @param args Arguments forwarded to the deserialization function.
 		 * @return Deserialized instance of `T`.
 		 * @throw archive_error On deserialization errors. */
-		template<std::default_initializable T>
-		T read() const
+		template<typename T, typename... Args>
+		T read(std::in_place_type_t<T>, Args &&...args)
 		{
-			T result;
-			read(result);
-			return result;
+			return base_t::do_read(std::in_place_type<T>, std::forward<Args>(args)...);
 		}
 
 		constexpr void swap(basic_input_archive &other) noexcept { base_t::swap(other); }
@@ -261,7 +265,7 @@ namespace sek::serialization::json
 	static_assert(serialization::input_archive<input_archive::archive_frame, float>);
 	static_assert(serialization::input_archive<input_archive::archive_frame, double>);
 	static_assert(serialization::input_archive<input_archive::archive_frame, std::string>);
-	static_assert(serialization::container_like_archive<input_archive::archive_frame>);
+	static_assert(serialization::structured_data_archive<input_archive::archive_frame>);
 
 	/** Enables pretty-printing of Json output. Enabled by default. */
 	constexpr config_flags pretty_print = 4;
@@ -463,20 +467,20 @@ namespace sek::serialization::json
 		 * @note Serialized data is kept inside the archive's internal state and will be written to the output once the
 		 * archive is destroyed or `flush` is called. */
 		template<typename T>
-		basic_output_archive &write(T &&value)
-		{
-			/* Flush uncommitted changes before initializing a new emit tree. */
-			flush();
-			base_t::do_write(std::forward<T>(value));
-			return *this;
-		}
-		/** @copydoc write */
-		template<typename T>
 		basic_output_archive &operator<<(T &&value)
 		{
 			return write(std::forward<T>(value));
 		}
-
+		/** @copydoc operator<<
+		 * @param args Arguments forwarded to the serialization function. */
+		template<typename T, typename... Args>
+		basic_output_archive &write(T &&value, Args &&...args)
+		{
+			/* Flush uncommitted changes before initializing a new emit tree. */
+			flush();
+			base_t::do_write(std::forward<T>(value), std::forward<Args>(args)...);
+			return *this;
+		}
 		/** Flushes the internal state & writes Json to the output. */
 		void flush()
 		{

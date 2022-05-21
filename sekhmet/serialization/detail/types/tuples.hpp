@@ -29,47 +29,58 @@ namespace sek::serialization
 		};
 		// clang-format on
 
-		template<detail::tuple_like T, typename A, std::size_t I, std::size_t... Is>
-		void tuple_serialize_unwrap(const T &t, A &a, std::index_sequence<I, Is...>)
+		template<detail::tuple_like T, typename A, typename... Args, std::size_t I, std::size_t... Is>
+		void tuple_serialize_unwrap(std::index_sequence<I, Is...>, const T &t, A &a, Args &&...args)
 		{
 			using std::get;
-			a << get<I>(t);
-			if constexpr (sizeof...(Is) != 0) tuple_serialize_unwrap(t, a, std::index_sequence<Is...>{});
+			a.write(get<I>(t), std::forward<Args>(args)...);
+			if constexpr (sizeof...(Is) != 0)
+				tuple_serialize_unwrap(std::index_sequence<Is...>{}, t, a, std::forward<Args>(args)...);
 		}
-		template<detail::tuple_like T, typename A, std::size_t I, std::size_t... Is>
-		void tuple_deserialize_unwrap(T &t, A &a, std::index_sequence<I, Is...>)
+		template<detail::tuple_like T, typename A, typename... Args, std::size_t I, std::size_t... Is>
+		void tuple_deserialize_unwrap(std::index_sequence<I, Is...>, T &t, A &a, Args &&...args)
 		{
 			using std::get;
-			a >> get<I>(t);
-			if constexpr (sizeof...(Is) != 0) tuple_deserialize_unwrap(t, a, std::index_sequence<Is...>{});
+			a.read(get<I>(t), std::forward<Args>(args)...);
+			if constexpr (sizeof...(Is) != 0)
+				tuple_deserialize_unwrap(std::index_sequence<Is...>{}, t, a, std::forward<Args>(args)...);
 		}
 	}	 // namespace detail
 
-	template<typename T, typename A>
-	void serialize(const T &tuple, A &archive) requires(!std::ranges::forward_range<T> && detail::tuple_like<T>)
+	template<typename T, typename A, typename... Args>
+	void serialize(const T &tuple, A &archive, Args &&...args)
+		requires(!std::ranges::forward_range<T> && detail::tuple_like<T>)
 	{
 		if constexpr (std::tuple_size_v<T> != 0)
 		{
 			archive << array_mode() << container_size(std::tuple_size_v<T>);
-			detail::tuple_serialize_unwrap(tuple, archive, std::make_index_sequence<std::tuple_size_v<T>>{});
+			detail::tuple_serialize_unwrap(
+				std::make_index_sequence<std::tuple_size_v<T>>{}, tuple, archive, std::forward<Args>(args)...);
 		}
 	}
-	template<typename T, typename A>
-	void deserialize(T &tuple, A &archive) requires(!std::ranges::forward_range<T> && detail::tuple_like<T>)
+	template<typename T, typename A, typename... Args>
+	void deserialize(T &tuple, A &archive, Args &&...args)
+		requires(!std::ranges::forward_range<T> && detail::tuple_like<T>)
 	{
 		if constexpr (std::tuple_size_v<T> != 0)
-			detail::tuple_deserialize_unwrap(tuple, archive, std::make_index_sequence<std::tuple_size_v<T>>{});
+			detail::tuple_deserialize_unwrap(
+				std::make_index_sequence<std::tuple_size_v<T>>{}, tuple, archive, std::forward<Args>(args)...);
 	}
 
-	template<detail::pair_like T, typename A>
-	void serialize(const T &pair, A &archive) requires(!detail::tuple_like<T>)
+	template<detail::pair_like T, typename A, typename... Args>
+	void serialize(const T &pair, A &archive, Args &&...args)
+		requires(!detail::tuple_like<T>)
 	{
 		/* Treat pairs as dynamic-size arrays, since in most cases using a fixed size will have more overhead (need to store a size). */
-		archive << array_mode() << pair.first << pair.second;
+		archive << array_mode();
+		archive.write(pair.first, std::forward<Args>(args)...);
+		archive.write(pair.second, std::forward<Args>(args)...);
 	}
-	template<detail::pair_like T, typename A>
-	void deserialize(T &pair, A &archive) requires(!detail::tuple_like<T>)
+	template<detail::pair_like T, typename A, typename... Args>
+	void deserialize(T &pair, A &archive, Args &&...args)
+		requires(!detail::tuple_like<T>)
 	{
-		archive >> pair.first >> pair.second;
+		archive.read(pair.first, std::forward<Args>(args)...);
+		archive.read(pair.second, std::forward<Args>(args)...);
 	}
 }	 // namespace sek::serialization

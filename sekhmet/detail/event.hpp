@@ -511,7 +511,8 @@ namespace sek
 	using event = basic_event<Sign, typename detail::event_alloc<Sign>::type>;
 
 	/** @brief Proxy wrapper around `basic_event`, that exposes subscriber-related functionality without
-	 * allowing any other modification of the underlying event. */
+	 * allowing any other modification of the underlying event.
+	 * @note Event proxy should not outlive the event it was created from. */
 	template<typename Alloc, typename R, typename... Args>
 	class event_proxy<basic_event<R(Args...), Alloc>>
 	{

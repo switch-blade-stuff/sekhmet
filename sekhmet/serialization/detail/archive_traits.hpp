@@ -36,6 +36,7 @@ namespace sek::serialization
 	{
 	};
 
+	// clang-format off
 	/** @brief Concept satisfied only if archive `A` supports reading instances of `T`. */
 	template<typename A, typename T>
 	concept input_archive = requires(A &archive, T &value)
@@ -45,12 +46,10 @@ namespace sek::serialization
 		typename A::size_type;
 		std::is_base_of_v<input_archive_category, typename A::archive_category>;
 
-		// clang-format off
 		{ archive >> value } -> std::convertible_to<A &>;
 		{ archive.read(value) } -> std::convertible_to<A &>;
 		{ archive.try_read(value) } -> std::convertible_to<bool>;
-		{ archive.template read<T>() } -> std::convertible_to<T>;
-		// clang-format on
+		{ archive.read(std::in_place_type<T>) } -> std::convertible_to<T>;
 	};
 
 	/** @brief Concept satisfied only if archive `A` supports writing instances of `T`. */
@@ -62,16 +61,14 @@ namespace sek::serialization
 		typename A::size_type;
 		std::is_base_of_v<output_archive_category, typename A::archive_category>;
 
-		// clang-format off
 		{ archive << value } -> std::convertible_to<A &>;
 		{ archive.write(value) } -> std::convertible_to<A &>;
 		{ archive.flush() };
-		// clang-format on
 	};
 
-	/** @brief Concept satisfied only if `A` is a container-like archive. */
+	/** @brief Concept satisfied only if `A` is an archive of structured data format. */
 	template<typename A>
-	concept container_like_archive = requires(A &a, const A &ca)
+	concept structured_data_archive = requires(A &a, const A &ca)
 	{
 		typename A::iterator;
 		typename A::const_iterator;
@@ -85,7 +82,6 @@ namespace sek::serialization
 		std::same_as<typename A::difference_type, typename std::iterator_traits<typename A::iterator>::difference_type>;
 		std::same_as<typename A::difference_type, typename std::iterator_traits<typename A::const_iterator>::difference_type>;
 
-		// clang-format off
 		{ ca.size() } -> std::same_as<typename A::size_type>;
 		{ ca.max_size() } -> std::same_as<typename A::size_type>;
 		{ ca.empty() } -> std::same_as<bool>;
@@ -103,6 +99,30 @@ namespace sek::serialization
 		{ a.back() } -> std::same_as<typename A::reference>;
 		{ ca.front() } -> std::same_as<typename A::const_reference>;
 		{ ca.back() } -> std::same_as<typename A::const_reference>;
-		// clang-format on
 	};
+	// clang-format on
+}	 // namespace sek::serialization
+
+#include "types/ranges.hpp"
+#include "types/tuples.hpp"
+
+namespace sek::serialization
+{
+	// clang-format off
+	template<typename T, typename A, typename... Args>
+	concept adl_serializable = requires(T &&v, A &ar, Args &&...args) { serialize(v, ar, std::forward<Args>(args)...); };
+	template<typename T, typename A, typename... Args>
+	concept member_serializable = requires(T &&v, A &ar, Args &&...args) { v.serialize(ar, std::forward<Args>(args)...); };
+	template<typename T, typename A, typename... Args>
+	concept serializable = adl_serializable<T, A, Args...> || member_serializable<T, A, Args...>;
+
+	template<typename T, typename A, typename... Args>
+	concept adl_deserializable = requires(T &&v, A &ar, Args &&...args) { deserialize(v, ar, std::forward<Args>(args)...); };
+	template<typename T, typename A, typename... Args>
+	concept member_deserializable = requires(T &&v, A &ar, Args &&...args) { v.deserialize(ar, std::forward<Args>(args)...); };
+	template<typename T, typename A, typename... Args>
+	concept deserializable = adl_deserializable<T, A, Args...> || member_deserializable<T, A, Args...>;
+	template<typename T, typename A, typename... Args>
+	concept in_place_deserializable = requires(A &ar, Args &&...args) { deserialize(std::in_place_type<T>, ar, std::forward<Args>(args)...); };
+	// clang-format on
 }	 // namespace sek::serialization

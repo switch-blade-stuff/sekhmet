@@ -6,8 +6,6 @@
 
 #include "archive_traits.hpp"
 #include "base64.hpp"
-#include "types/ranges.hpp"
-#include "types/tuples.hpp"
 
 namespace sek::serialization::detail
 {
@@ -73,22 +71,34 @@ namespace sek::serialization::detail
 		return {key_str, key_size};
 	}
 
-	template<typename A, typename T>
-	constexpr void invoke_serialize(T &&value, A &archive)
+	template<typename T, typename A, typename... Args>
+	constexpr void do_serialize(T &&value, A &archive, Args &&...args)
+		requires serializable<T, A, Args...>
 	{
 		using sek::serialization::serialize;
-		if constexpr (requires { value.serialize(archive); })
-			value.serialize(archive);
+		if constexpr (member_serializable<T, A, Args...>)
+			value.serialize(archive, std::forward<Args>(args)...);
 		else
-			serialize(std::forward<T>(value), archive);
+			serialize(std::forward<T>(value), archive, std::forward<Args>(args)...);
 	}
-	template<typename A, typename T>
-	constexpr void invoke_deserialize(T &&value, A &archive)
+	template<typename T, typename A, typename... Args>
+	constexpr void do_deserialize(T &&value, A &archive, Args &&...args)
+		requires deserializable<T, A, Args...>
 	{
 		using sek::serialization::deserialize;
-		if constexpr (requires { value.deserialize(archive); })
-			value.deserialize(archive);
+		if constexpr (member_deserializable<T, A, Args...>)
+			value.deserialize(archive, std::forward<Args>(args)...);
 		else
-			deserialize(std::forward<T>(value), archive);
+			deserialize(std::forward<T>(value), archive, std::forward<Args>(args)...);
+	}
+	template<typename T, typename A, typename... Args>
+	constexpr T do_deserialize(std::in_place_type_t<T>, A &archive, Args &&...args)
+		requires in_place_deserializable<T, A, Args...> || std::is_constructible_v<T, A &, Args...>
+	{
+		using sek::serialization::deserialize;
+		if constexpr (in_place_deserializable<T, A, Args...>)
+			return deserialize(std::in_place_type<T>, archive, std::forward<Args>(args)...);
+		else
+			return T{archive, std::forward<Args>(args)...};
 	}
 }	 // namespace sek::serialization::detail
