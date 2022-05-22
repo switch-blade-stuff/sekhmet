@@ -4,14 +4,13 @@
 
 #pragma once
 
+#include "aligned_storage.hpp"
 #include "define.h"
 #include "meta_containers.hpp"
 #include "static_string.hpp"
 
 namespace sek
 {
-	class type_info;
-
 	namespace detail
 	{
 		template<basic_static_string Src, std::size_t J, std::size_t I, std::size_t Last, std::size_t N>
@@ -34,7 +33,7 @@ namespace sek
 			return format_type_name<Src, J, I, Last, N>({});
 		}
 		template<basic_static_string Name>
-		consteval auto generate_type_name_impl() noexcept
+		consteval auto format_type_name() noexcept
 		{
 #if defined(__clang__) || defined(__GNUC__)
 			constexpr auto offset_start = Name.find_first('=') + 2;
@@ -53,7 +52,7 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] constexpr std::basic_string_view<char> generate_type_name() noexcept
 		{
-			constexpr auto &value = auto_constant<generate_type_name_impl<SEK_PRETTY_FUNC>()>::value;
+			constexpr auto &value = auto_constant<format_type_name<SEK_PRETTY_FUNC>()>::value;
 			return std::basic_string_view<char>{value.begin(), value.end()};
 		}
 	}	 // namespace detail
@@ -67,392 +66,499 @@ namespace sek
 		return detail::generate_type_name<T>();
 	}
 
+	class any;
+	class type_info;
+
 	namespace detail
 	{
-		
-	}
-
-	/** @brief Structure used to reference reflected information of a type. */
-	class type_info
-	{
-		struct type_db; /* Implemented in `type_info.cpp`. */
-
 		struct type_data;
 		struct type_handle
 		{
-			constexpr type_handle() noexcept = default;
-
 			template<typename T>
-			constexpr explicit type_handle(type_selector_t<T>) noexcept : instance(type_data::instance<T>)
-			{
-			}
+			constexpr explicit type_handle(type_selector_t<T>) noexcept;
 
-			[[nodiscard]] constexpr bool valid() const noexcept { return instance == nullptr; }
-			[[nodiscard]] constexpr type_data *operator->() const noexcept { return instance(); }
-			[[nodiscard]] constexpr type_data &operator*() const noexcept { return *instance(); }
+			[[nodiscard]] constexpr type_data *operator->() const noexcept { return get(); }
+			[[nodiscard]] constexpr type_data &operator*() const noexcept { return *get(); }
 
-			type_data *(*instance)() noexcept = nullptr;
+			type_data *(*get)() noexcept;
 		};
+
 		struct type_data
 		{
-			template<typename>
-			static type_data *instance() noexcept;
-
-			struct metadata_node
-			{
-				const metadata_node *next = nullptr;
-			};
-
-			struct parent_node : metadata_node, type_handle
-			{
-				template<typename T>
-				constexpr explicit parent_node(type_selector_t<T>) noexcept : type_handle(type_selector<T>)
-				{
-				}
-			};
-			struct attrib_node_base : metadata_node
-			{
-				constexpr attrib_node_base(type_handle type, const void *data) noexcept : type(type), data(data) {}
-				constexpr ~attrib_node_base()
-				{
-					if (destroy) destroy(this);
-				}
-
-				/* Since attribute is type-agnostic, proxy destructor is needed. */
-				void (*destroy)(attrib_node_base *) = nullptr;
-				type_handle type;
-				const void *data;
-			};
-
-			template<typename T>
-			struct attrib_node : attrib_node_base
-			{
-				constexpr attrib_node() noexcept : attrib_node_base(type_handle{type_selector<T>}, &value), bytes{} {}
-
-				template<typename... Args>
-				constexpr void init(Args &&...args)
-				{
-					std::construct_at(&value, std::forward<Args>(args)...);
-					if constexpr (!std::is_trivially_destructible_v<T>)
-						destroy = +[](attrib_node_base *n) { std::destroy_at(&static_cast<attrib_node *>(n)->value); };
-				}
-
-				union
-				{
-					std::byte bytes[sizeof(T)];
-					T value;
-				};
-			};
-			// clang-format off
-			template<typename T> requires std::is_empty_v<T> && std::is_trivially_constructible_v<T>
-			struct attrib_node<T> : attrib_node_base
-			{
-				constexpr attrib_node() noexcept : attrib_node_base(type_handle{type_selector<T>}, nullptr) {}
-				template<typename... Args>
-				constexpr void init(Args &&...) {}
-			};
-			// clang-format on
-
-			template<std::derived_from<metadata_node> T>
-			struct metadata_list
-			{
-				struct iterator
-				{
-					typedef T value_type;
-					typedef const T *pointer;
-					typedef const T &reference;
-					typedef std::ptrdiff_t difference_type;
-					typedef std::size_t size_type;
-					typedef std::forward_iterator_tag iterator_category;
-
-					constexpr iterator() noexcept = default;
-					constexpr explicit iterator(const T *node) noexcept : node(node) {}
-
-					constexpr iterator &operator++() noexcept
-					{
-						node = static_cast<const T *>(node->next);
-						return *this;
-					}
-					constexpr iterator operator++(int) noexcept
-					{
-						auto temp = *this;
-						++(*this);
-						return temp;
-					}
-
-					constexpr pointer operator->() const noexcept { return node; }
-					constexpr reference operator*() const noexcept { return *node; }
-
-					constexpr bool operator==(const iterator &) const noexcept = default;
-
-					const T *node = nullptr;
-				};
-
-				constexpr void insert(T &node) noexcept
-				{
-					node.next = first;
-					first = std::addressof(node);
-				}
-
-				constexpr iterator begin() const noexcept { return iterator{first}; }
-				constexpr iterator end() const noexcept { return iterator{}; }
-
-				const T *first = nullptr;
-			};
-
-			template<typename T>
-			constexpr static bool is_qualified = !std::is_same_v<std::remove_cv_t<T>, T>;
-
-			enum flags_t : std::size_t
+			enum flags_t : std::int32_t
 			{
 				NO_FLAGS = 0,
-				EMPTY_TYPE = 1,
-				ARRAY_TYPE = 2,
-				POINTER_TYPE = 8,
-
-				QUALIFIED_TYPE = 16,
-				CONST_TYPE = QUALIFIED_TYPE | 32,
-				VOLATILE_TYPE = QUALIFIED_TYPE | 64,
-
-				SIGNED_TYPE = 128,
-				FUNDAMENTAL_TYPE = 256,
-				INTEGRAL_TYPE = FUNDAMENTAL_TYPE | 512,
-				FLOATING_TYPE = FUNDAMENTAL_TYPE | SIGNED_TYPE | 1024,
+				IS_EMPTY = 0x1,
+				HAS_EXTENT = 0x2,
+				IS_RANGE = 0x4,
+				IS_POINTER = 0x8,
 			};
 
 			template<typename T>
-			constexpr static flags_t make_flags() noexcept
+			struct basic_node
 			{
-				flags_t result = NO_FLAGS;
-
-				if constexpr (std::is_empty_v<T>) result = static_cast<flags_t>(result | EMPTY_TYPE);
-				if constexpr (std::is_array_v<T>) result = static_cast<flags_t>(result | ARRAY_TYPE);
-				if constexpr (std::is_pointer_v<T>) result = static_cast<flags_t>(result | POINTER_TYPE);
-				if constexpr (std::is_const_v<T>) result = static_cast<flags_t>(result | CONST_TYPE);
-				if constexpr (std::is_volatile_v<T>) result = static_cast<flags_t>(result | VOLATILE_TYPE);
-
-				if constexpr (std::is_signed_v<T>) result = static_cast<flags_t>(result | SIGNED_TYPE);
-				if constexpr (std::is_floating_point_v<T>)
-					result = static_cast<flags_t>(result | FLOATING_TYPE);
-				else if constexpr (std::is_integral_v<T>)
-					result = static_cast<flags_t>(result | INTEGRAL_TYPE);
-				else if constexpr (std::is_fundamental_v<T>)
-					result = static_cast<flags_t>(result | FUNDAMENTAL_TYPE);
-
-				return result;
-			}
-
-			template<typename T>
-			constexpr explicit type_data(type_selector_t<T>) noexcept
-				: name(type_name<T>()),
-				  size(sizeof(T)),
-				  align(alignof(T)),
-				  extent(std::extent_v<T>),
-				  flags(make_flags<T>()),
-				  unqualified(type_selector<std::remove_cv_t<T>>)
+				const T *next = nullptr;
+			};
+			struct parent_node : basic_node<parent_node>
 			{
-				if constexpr (std::is_array_v<T>)
-					std::construct_at(&remove_extent, type_selector<std::remove_extent_t<T>>);
-				else if constexpr (std::is_pointer_v<T>)
-					std::construct_at(&remove_pointer, type_selector<std::remove_pointer_t<T>>);
-			}
+				type_handle type;
+				any (*cast)(any);
+			};
 
-			[[nodiscard]] constexpr const parent_node *get_parent(std::string_view n) const noexcept
-			{
-				for (auto &node : parent_list)
-					if (auto *result = &node; node->name == n || (result = node->get_parent(n)) != nullptr)
-						return result;
-				return nullptr;
-			}
+			[[nodiscard]] constexpr bool is_empty() const noexcept { return flags & IS_EMPTY; }
+			[[nodiscard]] constexpr bool has_extent() const noexcept { return flags & HAS_EXTENT; }
+			[[nodiscard]] constexpr bool is_range() const noexcept { return flags & IS_RANGE; }
+			[[nodiscard]] constexpr bool is_pointer() const noexcept { return flags & IS_POINTER; }
 
 			const std::string_view name;
 			const std::size_t size;
 			const std::size_t align;
 			const std::size_t extent;
+
+			/* Underlying value type of either a pointer or a range. */
+			const type_handle value_type;
+
 			const flags_t flags;
-			const type_handle unqualified;
-
-			union
-			{
-				type_handle remove_extent = {};
-				type_handle remove_pointer;
-			};
-
-			metadata_list<parent_node> parent_list;
-			metadata_list<attrib_node_base> attrib_list;
 		};
 
-		template<typename, typename>
-		class type_factory;
+		template<typename T>
+		constexpr type_data::flags_t make_type_flags() noexcept
+		{
+			constexpr auto result = (std::is_empty_v<T> ? type_data::IS_EMPTY : type_data::NO_FLAGS) |
+									(std::is_bounded_array_v<T> ? type_data::HAS_EXTENT : type_data::NO_FLAGS) |
+									(std::ranges::range<T> ? type_data::IS_RANGE : type_data::NO_FLAGS) |
+									(pointer_or_pointer_like<T> ? type_data::IS_POINTER : type_data::NO_FLAGS);
+			return static_cast<type_data::flags_t>(result);
+		}
+		template<typename T>
+		constexpr auto select_value_type() noexcept
+		{
+			if constexpr (std::ranges::range<T>)
+				return type_selector<std::remove_cvref_t<std::ranges::range_value_t<T>>>;
+			else if constexpr (std::is_pointer_v<T>)
+				return type_selector<std::remove_cvref_t<std::remove_pointer_t<T>>>;
+			else if constexpr (pointer_like<T>)
+				return type_selector<std::remove_cvref_t<typename T::value_type>>;
+			else
+				return type_selector<std::remove_cvref_t<T>>;
+		}
+		template<typename T>
+		constexpr type_data make_type_data() noexcept
+		{
+			return type_data{
+				.name = type_name<T>(),
+				.size = sizeof(T),
+				.align = alignof(T),
+				.extent = std::is_bounded_array_v<T> ? std::extent_v<T> : 0,
+				.value_type = type_handle{select_value_type<T>()},
+				.flags = make_type_flags<T>(),
+			};
+		}
 
+		//		template<typename T, typename P>
+		//		constexpr type_data::parent_node make_type_parent() noexcept
+		//		{
+		//			static
+		//		}
+	}	 // namespace detail
+
+	/** @brief Structure used to reference reflected information about a type. */
+	class type_info
+	{
+		friend struct detail::type_handle;
+
+		using data_t = detail::type_data;
+		using handle_t = detail::type_handle;
+
+		template<typename T>
+		[[nodiscard]] static data_t *get_data() noexcept;
+		template<typename T>
+		[[nodiscard]] constexpr static handle_t get_handle() noexcept
+		{
+			return handle_t{type_selector<std::remove_cvref_t<T>>};
+		}
+
+		SEK_API static data_t &register_type(handle_t handle) noexcept;
+
+	public:
 		template<typename T, typename... Attr>
-		class type_factory<T, type_seq_t<Attr...>>
+		class type_factory
 		{
 			friend class type_info;
 
-			constexpr explicit type_factory(type_data *data) noexcept : data(data) {}
+			constexpr explicit type_factory(data_t &data) noexcept : data(data) {}
 
 		public:
-			type_factory() = delete;
-
-			constexpr type_factory(const type_factory &) noexcept = default;
-			constexpr type_factory &operator=(const type_factory &) noexcept = default;
-			constexpr type_factory(type_factory &&) noexcept = default;
-			constexpr type_factory &operator=(type_factory &&) noexcept = default;
-
-			// clang-format off
-			/** Adds `U` to the list of type's parents. */
-			template<typename U>
-			type_factory parent() noexcept requires std::derived_from<T, U>
-			{
-				constinit static auto node = type_data::parent_node{type_selector<U>};
-				if (!node.next) [[likely]]
-					data->parent_list.insert(node);
-				return *this;
-			}
-			// clang-format on
-
-			/** Adds attribute of type `U` to the list of type's attributes.
-			 * @param args Arguments used to construct the attribute. */
-			template<typename U, typename... Args>
-			type_factory<T, type_seq_t<Attr..., U>> attrib(Args &&...args) noexcept
-			{
-				constinit static type_data::attrib_node<U> node;
-				if (!node.next) [[likely]]
-				{
-					node.init(std::forward<Args>(args)...);
-					data->attrib_list.insert(node);
-				}
-				return type_factory<T, type_seq_t<Attr..., U>>{data};
-			}
-
 		private:
-			type_data *data;
+			data_t &data;
 		};
 
-		SEK_API static type_data *reflect(type_handle);
-
 	public:
-		/** Returns type info of `T`. */
+		/** Returns type info for type `T`.
+		 * @note Removes any const & volatile qualifiers and decays references. */
 		template<typename T>
-		constexpr static type_info get() noexcept
+		[[nodiscard]] constexpr static type_info get() noexcept
 		{
-			return type_info{type_selector<T>};
+			return type_info{get_handle<T>()};
 		}
 
-		/** Reflects type `T` and returns type factory for it.
-		 * A reflected type is accessible through the type database using it's name. */
+		/** Reflects type `T`, making it available for runtime lookup by-name.
+		 * @return Type factory for type `T`, which can be used to specify additional information about the type.
+		 * @note Removes any const & volatile qualifiers and decays references. */
 		template<typename T>
-		static type_factory<T, type_seq_t<>> reflect()
+		constexpr static type_factory<T> reflect() noexcept
 		{
-			return type_factory<T, type_seq_t<>>{reflect(type_handle{type_selector<T>})};
+			return type_factory<T>{register_type(get_handle<T>())};
 		}
-		/** Returns type info of a reflected type.
-		 * @return Type info of the reflected type. If such type was not reflected via `reflect`, returns an invalid type info. */
-		SEK_API static type_info get(std::string_view name);
-		/** Resets a reflected type.
-		 * @note Once a type is reset, it is no longer accessible via the non-template overload of `get`. */
-		SEK_API static void reset(std::string_view name);
-		/** @copydoc reset */
+		/** Searches for a reflected type in internal database.
+		 * @return Type info of the type, or an invalid type info if such type is not found. */
+		SEK_API static type_info get(std::string_view name) noexcept;
+		/** Resets a reflected type, removing it from internal database.
+		 * @note The type will no longer be available for runtime lookup. */
+		SEK_API static void reset(std::string_view name) noexcept;
+		/** @copydoc reset
+		 * @note Removes any const & volatile qualifiers and decays references. */
 		template<typename T>
-		static void reset()
+		static void reset() noexcept
 		{
-			reset(type_name<T>());
+			reset(type_name<std::remove_cvref_t<T>>());
 		}
 
 	private:
-		template<typename T>
-		constexpr explicit type_info(type_selector_t<T>) noexcept : type_info(type_handle{type_selector<T>})
-		{
-		}
-		constexpr explicit type_info(type_handle handle) noexcept : data(handle.instance ? handle.instance() : nullptr)
-		{
-		}
+		constexpr explicit type_info(const data_t *data) noexcept : data(data) {}
+		constexpr explicit type_info(handle_t handle) noexcept : data(handle.get()) {}
 
 	public:
-		/** Constructs an invalid type info (type info not representing any type). */
+		/** Initializes an invalid type info (type info with no underlying type). */
 		constexpr type_info() noexcept = default;
 
-		/** Checks if the type info is valid. */
+		/** Checks if the type info references a reflected type. */
 		[[nodiscard]] constexpr bool valid() const noexcept { return data != nullptr; }
 		/** @copydoc valid */
 		[[nodiscard]] constexpr operator bool() const noexcept { return valid(); }
 
-		/** Returns name of the underlying type. */
+		/** Returns the name of the underlying type. */
 		[[nodiscard]] constexpr std::string_view name() const noexcept { return data->name; }
-		/** Returns size of the underlying type. */
-		[[nodiscard]] constexpr std::size_t size() const noexcept { return data->size; }
-		/** Returns alignment of the underlying type. */
-		[[nodiscard]] constexpr std::size_t align() const noexcept { return data->align; }
-		/** Returns extent of the underlying fixed-size array type. */
-		[[nodiscard]] constexpr std::size_t extent() const noexcept { return data->extent; }
-		/** Returns value type of the underlying array type. */
-		[[nodiscard]] constexpr type_info remove_extent() const noexcept { return type_info{data->remove_extent}; }
-		/** Returns value type of the underlying pointer type. */
-		[[nodiscard]] constexpr type_info remove_pointer() const noexcept { return type_info{data->remove_pointer}; }
-		/** Returns unqualified version of the underlying type.
-		 * @note If the type is not qualified, returns itself. */
-		[[nodiscard]] constexpr type_info remove_cv() const noexcept { return type_info{data->unqualified}; }
 
 		/** Checks if the underlying type is empty. */
-		[[nodiscard]] constexpr bool is_empty() const noexcept { return data->flags & type_data::EMPTY_TYPE; }
-		/** Checks if the underlying type is an array. */
-		[[nodiscard]] constexpr bool is_array() const noexcept { return data->flags & type_data::ARRAY_TYPE; }
-		/** Checks if the underlying type is a pointer type. */
-		[[nodiscard]] constexpr bool is_pointer() const noexcept { return data->flags & type_data::POINTER_TYPE; }
-		/** Checks if the underlying type is qualified with either const or volatile. */
-		[[nodiscard]] constexpr bool is_qualified() const noexcept { return data->flags & type_data::QUALIFIED_TYPE; }
-		/** Checks if the underlying type is const-qualified. */
-		[[nodiscard]] constexpr bool is_const() const noexcept
-		{
-			return (data->flags & type_data::CONST_TYPE) == type_data::CONST_TYPE;
-		}
-		/** Checks if the underlying type is volatile-qualified. */
-		[[nodiscard]] constexpr bool is_volatile() const noexcept
-		{
-			return (data->flags & type_data::VOLATILE_TYPE) == type_data::VOLATILE_TYPE;
-		}
-		/** Checks if the underlying type is a signed type. */
-		[[nodiscard]] constexpr bool is_signed() const noexcept { return data->flags & type_data::SIGNED_TYPE; }
-		/** Checks if the underlying type is a fundamental type. */
-		[[nodiscard]] constexpr bool is_fundamental() const noexcept
-		{
-			return data->flags & type_data::FUNDAMENTAL_TYPE;
-		}
-		/** Checks if the underlying type is an integral type. */
-		[[nodiscard]] constexpr bool is_integral() const noexcept { return data->flags & type_data::INTEGRAL_TYPE; }
-		/** Checks if the underlying type is a floating-point type. */
-		[[nodiscard]] constexpr bool is_floating_point() const noexcept
-		{
-			return data->flags & type_data::FLOATING_TYPE;
-		}
+		[[nodiscard]] constexpr bool is_empty() const noexcept { return data->is_empty(); }
+		/** Checks if the underlying type has an extent (is a bounded array). */
+		[[nodiscard]] constexpr bool has_extent() const noexcept { return data->has_extent(); }
+		/** Checks if the underlying type is a range. */
+		[[nodiscard]] constexpr bool is_range() const noexcept { return data->is_range(); }
+		/** Checks if the underlying type is a pointer or pointer-like object. */
+		[[nodiscard]] constexpr bool is_pointer() const noexcept { return data->is_pointer(); }
 
-		/** Checks if the underlying type inherits from the specified parent type. */
-		[[nodiscard]] constexpr bool inherits(std::string_view name) const noexcept
-		{
-			return data->get_parent(name) != nullptr;
-		}
-		/** Checks if `T` is a parent of the underlying type. */
-		template<typename T>
-		[[nodiscard]] constexpr bool inherits() const noexcept
-		{
-			return inherits(type_name<T>());
-		}
+		/** Returns the size of the underlying type (as if via `sizeof(T)`). */
+		[[nodiscard]] constexpr std::size_t size() const noexcept { return data->size; }
+		/** Returns the alignment of the underlying type (as if via `alignof(T)`). */
+		[[nodiscard]] constexpr std::size_t align() const noexcept { return data->align; }
+		/** Returns the extent of the underlying type.
+		 * @note If the type is not a bounded array, extent is 0. */
+		[[nodiscard]] constexpr std::size_t extent() const noexcept { return data->extent; }
+
+		/** Returns value type oof the underlying range, pointer or pointer-like type.
+		 * @note If the type is not a range, pointer or pointer-like, returns identity. */
+		[[nodiscard]] constexpr type_info value_type() const noexcept { return type_info{data->value_type}; }
 
 		[[nodiscard]] constexpr bool operator==(const type_info &other) const noexcept
 		{
 			return data == other.data || name() == other.name();
 		}
 
+		constexpr void swap(type_info &other) noexcept { std::swap(data, other.data); }
+		friend constexpr void swap(type_info &a, type_info &b) noexcept { a.swap(b); }
+
 	private:
-		const type_data *data = nullptr;
+		const data_t *data = nullptr;
 	};
 
 	template<typename T>
-	type_info::type_data *type_info::type_data::instance() noexcept
+	type_info::data_t *type_info::get_data() noexcept
 	{
-		constinit static auto value = type_data{type_selector<T>};
-		return &value;
+		constinit static auto data = detail::make_type_data<T>();
+		return &data;
+	}
+	template<typename T>
+	constexpr detail::type_handle::type_handle(type_selector_t<T>) noexcept : get(type_info::get_data<T>)
+	{
+	}
+
+	/** @brief Type-erased container of objects. */
+	class any
+	{
+		struct vtable_t
+		{
+			void (*copy_construct)(any &, const any &);
+			void (*copy_assign)(any &, const any &);
+			void (*destroy)(any &);
+		};
+
+		template<typename T>
+		constexpr static bool local_candidate = sizeof(T) <= sizeof(std::intptr_t) && std::is_trivially_copyable_v<T>;
+
+		union storage_t
+		{
+			constexpr storage_t() noexcept = default;
+
+			template<typename T>
+			constexpr storage_t(T *ptr) noexcept : external(const_cast<std::remove_const_t<T> *>(ptr))
+			{
+			}
+
+			// clang-format off
+			template<typename T, typename... Args>
+			constexpr storage_t(std::in_place_type_t<T>, Args &&...args) noexcept
+				: storage_t(new T(std::forward<Args>(args)...))
+			{
+			}
+			template<typename T, typename... Args>
+			constexpr storage_t(std::in_place_type_t<T>, Args &&...args) noexcept requires local_candidate<T>
+			{
+				std::construct_at(local.template get<std::remove_cvref_t<T>>(), std::forward<Args>(args)...);
+			}
+			// clang-format on
+
+			constexpr void swap(storage_t &other) noexcept { std::swap(local, other.local); }
+
+			type_storage<std::intptr_t> local = {};
+			void *external;
+		};
+
+		enum flags_t
+		{
+			NO_FLAGS = 0,
+			IS_REF = 1,
+			IS_LOCAL = 2,
+			IS_CONST = 4,
+		};
+
+		template<typename T>
+		struct vtable_instance
+		{
+			constinit const static vtable_t value;
+		};
+
+		template<typename T>
+		[[nodiscard]] constexpr static flags_t make_flags() noexcept
+		{
+			const flags_t result = std::is_const_v<std::remove_reference_t<T>> ? IS_CONST : NO_FLAGS;
+			if constexpr (std::is_lvalue_reference_v<T>)
+				return static_cast<flags_t>(result | IS_REF);
+			else if constexpr (local_candidate<T>)
+				return static_cast<flags_t>(result | IS_LOCAL);
+			else
+				return result;
+		}
+
+		constexpr any(const vtable_t *vtable, type_info info, storage_t storage, flags_t flags) noexcept
+			: vtable(vtable), info(info), storage(storage), flags(flags)
+		{
+		}
+
+	public:
+		/** Initializes an empty instance of `any`. */
+		constexpr any() noexcept = default;
+		constexpr any(any &&other) noexcept { swap(other); }
+		constexpr any &operator=(any &&other) noexcept
+		{
+			swap(other);
+			return *this;
+		}
+
+		any(const any &other)
+		{
+			if (other.vtable) [[likely]]
+				other.vtable->copy_construct(*this, other);
+		}
+		any &operator=(const any &other)
+		{
+			if (this != &other && other.vtable) [[likely]]
+				other.vtable->copy_assign(*this, other);
+			return *this;
+		}
+		~any() { reset_impl(); }
+
+		/** Initializes `any` with the managed object direct-initialized from `value`. */
+		template<typename T>
+		any(T &&value) noexcept : any(std::in_place_type<T>, std::forward<T>(value))
+		{
+		}
+		/** Initializes `any` in-place using the passed arguments. */
+		template<typename T, typename... Args>
+		explicit any(std::in_place_type_t<T>, Args &&...args) noexcept
+			: any(&vtable_instance<std::remove_reference_t<T>>::value,
+				  type_info::get<T>(),
+				  storage_t(std::in_place_type<std::remove_reference_t<T>>, std::forward<Args>(args)...),
+				  make_flags<std::remove_reference_t<T>>())
+		{
+		}
+		/** @copydoc any */
+		template<typename T, typename U, typename... Args>
+		explicit any(std::in_place_type_t<T>, std::initializer_list<U> il, Args &&...args) noexcept
+			: any(std::in_place_type<T>, std::forward<std::initializer_list<U>>(il), std::forward<Args>(args)...)
+		{
+		}
+
+		/** Initializes `any` to reference an externally-stored object. */
+		template<typename T>
+		constexpr explicit any(std::in_place_type_t<T &>, T &ref) noexcept
+			: any(&vtable_instance<T>::value, type_info::get<T>(), std::addressof(ref), make_flags<T &>())
+		{
+		}
+
+		/** Returns type info of the stored object. */
+		[[nodiscard]] constexpr type_info type() const noexcept { return info; }
+
+		/** Checks if `any` manages an object or a reference. */
+		[[nodiscard]] constexpr bool empty() const noexcept { return vtable == nullptr; }
+		/** Checks if the managed object is stored externally and `any` contains a reference to it. */
+		[[nodiscard]] constexpr bool is_ref() const noexcept { return flags & IS_REF; }
+		/** Checks if the managed object is stored in-place. */
+		[[nodiscard]] constexpr bool is_local() const noexcept { return flags & IS_LOCAL; }
+		/** Checks if the managed object is const-qualified. */
+		[[nodiscard]] constexpr bool is_const() const noexcept { return flags & IS_CONST; }
+
+		/** Resets `any` by destroying and releasing the internal object. */
+		void reset()
+		{
+			reset_impl();
+			vtable = nullptr;
+			flags = {};
+		}
+
+		/** Returns raw pointer to the managed or referenced object's data.
+		 * @note If the managed or referenced object is const-qualified, returns nullptr. */
+		[[nodiscard]] constexpr void *data() noexcept
+		{
+			return is_const() ? nullptr : is_local() ? storage.local.data() : storage.external;
+		}
+		/** Returns raw const pointer to the managed or referenced object's data. */
+		[[nodiscard]] constexpr const void *cdata() const noexcept
+		{
+			return is_local() ? storage.local.data() : storage.external;
+		}
+		/** @copydoc cdata */
+		[[nodiscard]] constexpr const void *data() const noexcept { return cdata(); }
+
+		/** Returns an instance of `any` referencing the managed object. */
+		[[nodiscard]] any ref() const noexcept
+		{
+			return any{vtable, info, const_cast<void *>(data()), static_cast<flags_t>(IS_REF | (flags & IS_CONST))};
+		}
+
+		/** Returns pointer to the managed or referenced object as `T` pointer.
+		 * @note `T` must be the same as the underlying object.
+		 * @return Pointer to the underlying object or nullptr if the underlying object is const or of a different type. */
+		template<typename T>
+		[[nodiscard]] constexpr T *as_ptr() noexcept
+		{
+			if constexpr (std::is_const_v<T>)
+				return as_cptr<T>();
+			else
+			{
+				if (info == type_info::get<T>()) [[likely]]
+					return static_cast<T *>(data());
+				return nullptr;
+			}
+		}
+		/** Returns const pointer to the managed or referenced object as `T` pointer.
+		 * @note `T` must be the same as the underlying object.
+		 * @return Pointer to the underlying object or nullptr if the underlying object is of a different type. */
+		template<typename T>
+		[[nodiscard]] constexpr const std::remove_const_t<T> *as_cptr() const noexcept
+		{
+			using U = std::remove_const_t<T>;
+			if (info == type_info::get<U>()) [[likely]]
+				return static_cast<const U *>(data());
+			return nullptr;
+		}
+		/** @copydoc as_ptr */
+		template<typename T>
+		[[nodiscard]] constexpr const std::remove_const_t<T> *as_ptr() const noexcept
+		{
+			return as_cptr<T>();
+		}
+
+		constexpr void swap(any &other) noexcept
+		{
+			std::swap(vtable, other.vtable);
+			info.swap(other.info);
+			storage.swap(other.storage);
+			std::swap(flags, other.flags);
+		}
+		friend constexpr void swap(any &a, any &b) noexcept { a.swap(b); }
+
+	private:
+		void reset_impl()
+		{
+			if (vtable != nullptr) [[likely]]
+				vtable->destroy(*this);
+		}
+
+		const vtable_t *vtable = nullptr;
+		type_info info;
+		storage_t storage;
+		flags_t flags = {};
+	};
+
+	template<typename T>
+	constinit const any::vtable_t any::vtable_instance<T>::value = {
+		.copy_construct = +[](any &to, const any &from) -> void
+		{
+			to.vtable = from.vtable;
+			to.info = from.info;
+			to.storage = storage_t(std::in_place_type<T>, *static_cast<const T *>(from.data()));
+			to.flags = make_flags<T>();
+		},
+		.copy_assign = +[](any &to, const any &from) -> void
+		{
+			constexpr auto reset_copy = [](any &t, const any &f)
+			{
+				t.reset();
+				t.info = f.info;
+				t.storage = storage_t(std::in_place_type<T>, *static_cast<const T *>(f.data()));
+			};
+
+			if constexpr (std::is_const_v<T>)
+				reset_copy(to, from);
+			else if (to.info != from.info)
+				reset_copy(to, from);
+			else if constexpr (local_candidate<T>)
+				*to.storage.local.template get<T>() = *static_cast<const T *>(from.data());
+			else
+				*static_cast<T *>(to.storage.external) = *static_cast<const T *>(from.data());
+			to.vtable = from.vtable;
+			to.flags = make_flags<T>();
+		},
+		.destroy = +[](any &instance) -> void
+		{
+			if (!(instance.flags & (IS_LOCAL | IS_REF))) [[likely]]
+				delete static_cast<T *>(instance.storage.external);
+		},
+	};
+
+	/** Forwards the passed value by-reference if possible, otherwise constructs a new instance in-place. */
+	template<typename T>
+	[[nodiscard]] any forward_any(T &&value)
+	{
+		using U = std::conditional_t<std::is_lvalue_reference_v<T>, T, std::remove_reference_t<T>>;
+		return any{std::in_place_type<U>, value};
+	}
+
+	/** Returns `any`, containing an instance of `T` constructed in-place.
+	 * @param args Arguments used to construct the instance. */
+	template<typename T, typename... Args>
+	[[nodiscard]] any make_any(Args &&...args)
+	{
+		return any{std::in_place_type<T>, std::forward<Args>(args)...};
+	}
+	/** @copydoc make_any
+	 * @param il Initializer list passed to the constructor. */
+	template<typename T, typename U, typename... Args>
+	[[nodiscard]] any make_any(std::initializer_list<U> il, Args &&...args)
+	{
+		return any{std::in_place_type<T>, std::forward<std::initializer_list<U>>(il), std::forward<Args>(args)...};
 	}
 }	 // namespace sek
 
@@ -469,8 +575,7 @@ namespace sek
  * // my_type.cpp
  * SEK_EXPORT_TYPE(my_type)
  * @endcode*/
-#define SEK_EXTERN_TYPE(T)                                                                                             \
-	extern template SEK_API_IMPORT sek::type_info::type_data *sek::type_info::type_data::instance<T>();
+#define SEK_EXTERN_TYPE(T) extern template SEK_API_IMPORT sek::type_info::data_t *sek::type_info::get_data<T>();
 
 /** Macro used to export instance of type info for type `T`.
  *
@@ -485,4 +590,4 @@ namespace sek
  * // my_type.cpp
  * SEK_EXPORT_TYPE(my_type)
  * @endcode */
-#define SEK_EXPORT_TYPE(T) template SEK_API_EXPORT sek::type_info::type_data *sek::type_info::type_data::instance<T>();
+#define SEK_EXPORT_TYPE(T) template SEK_API_EXPORT sek::type_info::data_t *sek::type_info::get_data<T>();

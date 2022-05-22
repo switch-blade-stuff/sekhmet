@@ -267,14 +267,14 @@ namespace sek
 			push_back(first, last);
 		}
 		/** Constructs the list using specified allocators and an initializer list.
-		 * @param init_list List containing elements of the list.
+		 * @param il List containing elements of the list.
 		 * @param value_alloc Allocator used to allocate list's elements.
 		 * @param node_alloc Allocator used to allocate list's internal node array. */
 		template<typename U>
-		constexpr array_list(std::initializer_list<U> init_list,
+		constexpr array_list(std::initializer_list<U> il,
 							 const allocator_type &value_alloc = allocator_type{},
 							 const node_allocator_type &node_alloc = node_allocator_type{})
-			: array_list(init_list.begin(), init_list.end(), value_alloc, node_alloc)
+			: array_list(il.begin(), il.end(), value_alloc, node_alloc)
 		{
 		}
 
@@ -514,12 +514,12 @@ namespace sek
 		}
 		/** Inserts a sequence of elements at the specified position.
 		 * @param where Iterator to the target position.
-		 * @param init_list Initializer list containing elements to be inserted.
+		 * @param il Initializer list containing elements to be inserted.
 		 * @return Iterator to the first element of the inserted sequence. */
 		template<typename U>
-		constexpr iterator insert(const_iterator where, std::initializer_list<U> init_list)
+		constexpr iterator insert(const_iterator where, std::initializer_list<U> il)
 		{
-			return insert(where, init_list.begin(), init_list.end());
+			return insert(where, il.begin(), il.end());
 		}
 		/** Inserts a sequence of elements at the specified position.
 		 * @param where Iterator to the target position.
@@ -546,12 +546,12 @@ namespace sek
 		 * @return Iterator to the inserted element. */
 		constexpr iterator push_back(T &&value) { return insert(cend(), std::forward<T>(value)); }
 		/** Inserts a sequence of elements at the end of the list.
-		 * @param init_list Initializer list containing elements to be inserted.
+		 * @param il Initializer list containing elements to be inserted.
 		 * @return Iterator to the first element of the inserted sequence. */
 		template<typename U>
-		constexpr iterator push_back(std::initializer_list<U> init_list)
+		constexpr iterator push_back(std::initializer_list<U> il)
 		{
-			return push_back(init_list.begin(), init_list.end());
+			return push_back(il.begin(), il.end());
 		}
 		/** Inserts a sequence of elements at the end of the list.
 		 * @param first Start of the source sequence.
@@ -580,12 +580,12 @@ namespace sek
 		 * @return Iterator to the inserted element. */
 		constexpr iterator push_front(T &&value) { return insert(cbegin(), std::forward<T>(value)); }
 		/** Inserts a sequence of elements at the start of the list.
-		 * @param init_list Initializer list containing elements to be inserted.
+		 * @param il Initializer list containing elements to be inserted.
 		 * @return Iterator to the first element of the inserted sequence. */
 		template<typename U>
-		constexpr iterator push_front(std::initializer_list<U> init_list)
+		constexpr iterator push_front(std::initializer_list<U> il)
 		{
-			return insert(cbegin(), init_list.begin(), init_list.end());
+			return insert(cbegin(), il.begin(), il.end());
 		}
 		/** Inserts a sequence of elements at the start of the list.
 		 * @param first Start of the source sequence.

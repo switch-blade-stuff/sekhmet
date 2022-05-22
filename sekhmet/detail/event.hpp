@@ -154,15 +154,15 @@ namespace sek
 		{
 		}
 		/** Initializes event with a set of delegates.
-		 * @param init_list Initializer list containing delegates of the event.
+		 * @param il Initializer list containing delegates of the event.
 		 * @param sub_alloc Allocator used to initialize internal subscriber storage.
 		 * @param id_alloc Allocator used to initialize internal id storage. */
-		constexpr basic_event(std::initializer_list<delegate<R(Args...)>> init_list,
+		constexpr basic_event(std::initializer_list<delegate<R(Args...)>> il,
 							  const allocator_type &sub_alloc = allocator_type{},
 							  const id_allocator_type &id_alloc = id_allocator_type{})
 			: basic_event(id_alloc, sub_alloc)
 		{
-			for (auto &d : init_list) sub_data.emplace_back(d);
+			for (auto &d : il) sub_data.emplace_back(d);
 		}
 
 		/** Checks if the event is empty (has no subscribers). */

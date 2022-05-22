@@ -107,7 +107,7 @@ namespace sek
 		constexpr dynarray(const R &r) : dynarray(std::ranges::begin(r), std::ranges::end(r))
 		{
 		}
-		constexpr dynarray(std::initializer_list<value_type> init_list) : dynarray(init_list.begin(), init_list.end())
+		constexpr dynarray(std::initializer_list<value_type> il) : dynarray(il.begin(), il.end())
 		{
 		}
 

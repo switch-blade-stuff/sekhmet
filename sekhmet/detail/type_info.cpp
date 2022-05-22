@@ -5,11 +5,12 @@
 #include "type_info.hpp"
 
 #include "dense_map.hpp"
+#include "logger.hpp"
 #include <shared_mutex>
 
 namespace sek
 {
-	struct type_info::type_db
+	struct type_db
 	{
 		static type_db &instance()
 		{
@@ -17,18 +18,17 @@ namespace sek
 			return value;
 		}
 
-		std::shared_mutex mtx;
-		dense_map<std::string_view, type_handle> types;
+		mutable std::shared_mutex mtx;
+		dense_map<std::string_view, detail::type_handle> types;
 	};
 
-	type_info::type_data *type_info::reflect(type_handle handle)
+	type_info::data_t &type_info::register_type(handle_t handle) noexcept
 	{
-		/* Type data should always be initialized here. */
 		auto &db = type_db::instance();
 		std::lock_guard<std::shared_mutex> l(db.mtx);
-		return db.types.try_emplace(handle->name, handle).first->second.instance();
+		return *db.types.try_emplace(handle->name, handle).first->second;
 	}
-	type_info type_info::get(std::string_view name)
+	type_info type_info::get(std::string_view name) noexcept
 	{
 		auto &db = type_db::instance();
 		std::shared_lock<std::shared_mutex> l(db.mtx);
@@ -38,7 +38,7 @@ namespace sek
 		else
 			return type_info{};
 	}
-	void type_info::reset(std::string_view name)
+	void type_info::reset(std::string_view name) noexcept
 	{
 		auto &db = type_db::instance();
 		std::lock_guard<std::shared_mutex> l(db.mtx);

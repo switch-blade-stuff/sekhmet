@@ -509,13 +509,13 @@ namespace sek
 				insert(first, last);
 			}
 			/** Constructs a map from an initializer list.
-			 * @param init_list Initializer list containing values.
+			 * @param il Initializer list containing values.
 			 * @param value_alloc Allocator used to allocate map's value array.
 			 * @param bucket_alloc Allocator used to allocate map's bucket array. */
-			constexpr mkmap_impl(std::initializer_list<value_type> init_list,
+			constexpr mkmap_impl(std::initializer_list<value_type> il,
 								 const allocator_type &value_alloc = allocator_type{},
 								 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-				: mkmap_impl(init_list.begin(), init_list.end(), value_alloc, bucket_alloc)
+				: mkmap_impl(il.begin(), il.end(), value_alloc, bucket_alloc)
 			{
 			}
 
@@ -593,17 +593,17 @@ namespace sek
 				insert(first, last);
 			}
 			/** Constructs a map from an initializer list.
-			 * @param init_list Initializer list containing values.
+			 * @param il Initializer list containing values.
 			 * @param kc Compare functors for every key.
 			 * @param kh Hash functors for every key.
 			 * @param value_alloc Allocator used to allocate map's value array.
 			 * @param bucket_alloc Allocator used to allocate map's bucket array. */
-			constexpr mkmap_impl(std::initializer_list<value_type> init_list,
+			constexpr mkmap_impl(std::initializer_list<value_type> il,
 								 const typename Ks::key_equal &...kc,
 								 const typename Ks::hash_type &...kh,
 								 const allocator_type &value_alloc = allocator_type{},
 								 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-				: mkmap_impl(init_list.begin(), init_list.end(), kc..., kh..., value_alloc, bucket_alloc)
+				: mkmap_impl(il.begin(), il.end(), kc..., kh..., value_alloc, bucket_alloc)
 			{
 			}
 
@@ -899,11 +899,11 @@ namespace sek
 			}
 			/** Attempts to insert a sequence of values (of value_type) specified by the initializer list into the map.
 			 * Does not replace values with conflicting keys.
-			 * @param init_list Initializer list containing the values.
+			 * @param il Initializer list containing the values.
 			 * @return Amount of elements inserted. */
-			constexpr size_type try_insert(std::initializer_list<value_type> init_list)
+			constexpr size_type try_insert(std::initializer_list<value_type> il)
 			{
-				return try_insert(init_list.begin(), init_list.end());
+				return try_insert(il.begin(), il.end());
 			}
 
 			/** Inserts a value (of value_type) into the map.
@@ -945,11 +945,11 @@ namespace sek
 			}
 			/** Inserts a sequence of values (of value_type) specified by the initializer list into the map.
 			 * If a value for any of the the keys is already present within the map, replaces that value.
-			 * @param init_list Initializer list containing the values.
+			 * @param il Initializer list containing the values.
 			 * @return Amount of new elements inserted. */
-			constexpr size_type insert(std::initializer_list<value_type> init_list)
+			constexpr size_type insert(std::initializer_list<value_type> il)
 			{
-				return insert(init_list.begin(), init_list.end());
+				return insert(il.begin(), il.end());
 			}
 
 			/** Removes the specified element from the map.

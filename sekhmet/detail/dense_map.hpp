@@ -253,17 +253,17 @@ namespace sek
 			insert(first, last);
 		}
 		/** Constructs a map from an initializer list.
-		 * @param init_list Initializer list containing values.
+		 * @param il Initializer list containing values.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
 		 * @param value_alloc Allocator used to allocate map's value array.
 		 * @param bucket_alloc Allocator used to allocate map's bucket array. */
-		constexpr dense_map(std::initializer_list<value_type> init_list,
+		constexpr dense_map(std::initializer_list<value_type> il,
 							const key_equal &key_compare = {},
 							const hash_type &key_hash = {},
 							const allocator_type &value_alloc = allocator_type{},
 							const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: dense_map(init_list.begin(), init_list.end(), key_compare, key_hash, value_alloc, bucket_alloc)
+			: dense_map(il.begin(), il.end(), key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}
 
@@ -476,11 +476,11 @@ namespace sek
 		}
 		/** Attempts to insert a sequence of values (of value_type) specified by the initializer list into the map.
 		 * If values with the same key are already present within the map, does not replace them.
-		 * @param init_list Initializer list containing the values.
+		 * @param il Initializer list containing the values.
 		 * @return Amount of elements inserted. */
-		constexpr size_type try_insert(std::initializer_list<value_type> init_list)
+		constexpr size_type try_insert(std::initializer_list<value_type> il)
 		{
-			return try_insert(init_list.begin(), init_list.end());
+			return try_insert(il.begin(), il.end());
 		}
 
 		/** Inserts a value (of value_type) into the map.
@@ -520,11 +520,11 @@ namespace sek
 		}
 		/** Inserts a sequence of values (of value_type) specified by the initializer list into the map.
 		 * If values with the same key are already present within the map, replaces them.
-		 * @param init_list Initializer list containing the values.
+		 * @param il Initializer list containing the values.
 		 * @return Amount of new elements inserted. */
-		constexpr size_type insert(std::initializer_list<value_type> init_list)
+		constexpr size_type insert(std::initializer_list<value_type> il)
 		{
-			return insert(init_list.begin(), init_list.end());
+			return insert(il.begin(), il.end());
 		}
 
 		/** Removes the specified element from the map.

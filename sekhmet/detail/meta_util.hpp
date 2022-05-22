@@ -391,6 +391,8 @@ namespace sek
 							   { t.operator->() } -> std::same_as<typename T::pointer>;
 							   { *t } -> std::same_as<typename T::reference>;
 						   };
+	template<typename T>
+	concept pointer_or_pointer_like = std::is_pointer_v<T> || pointer_like<T>;
 	// clang-format on
 
 	template<typename T>
