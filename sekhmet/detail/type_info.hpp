@@ -68,6 +68,13 @@ namespace sek
 	class any;
 	class type_info;
 
+	template<typename T>
+	[[nodiscard]] any forward_any(T &&);
+	template<typename T, typename... Args>
+	[[nodiscard]] any make_any(Args &&...);
+	template<typename T, typename U, typename... Args>
+	[[nodiscard]] any make_any(std::initializer_list<U>, Args &&...);
+
 	namespace detail
 	{
 		struct type_data;
@@ -104,6 +111,12 @@ namespace sek
 
 				type_handle type;
 				any (*cast)(any);
+			};
+			struct attrib_node : basic_node<attrib_node>
+			{
+				constexpr explicit attrib_node(const any &data) noexcept : data(data) {}
+
+				const any &data;
 			};
 
 			template<typename T>
@@ -172,6 +185,8 @@ namespace sek
 
 			template<typename T, typename P>
 			void add_parent() noexcept;
+			template<typename T, typename A, typename... As>
+			void add_attrib(type_seq_t<A, As...>, auto &&);
 
 			const std::string_view name;
 			const std::size_t size;
@@ -181,6 +196,7 @@ namespace sek
 			const flags_t flags;
 
 			node_list<parent_node> parents = {};
+			node_list<attrib_node> attribs = {};
 		};
 
 		template<typename T>
@@ -339,6 +355,20 @@ namespace sek
 			{
 				data.template add_parent<T, P>();
 				return *this;
+			}
+			/** Adds an attribute to `T`'s list of attributes. */
+			template<typename A, typename... Args>
+			type_factory<T, A, Attr...> attrib(Args &&...args)
+			{
+				data.template add_attrib<T>(type_seq<A, Attr...>, [&](){ return make_any<A>(std::forward<Args>(args)...); });
+				return type_factory<T, A, Attr...>{data};
+			}
+			/** Adds an attribute to `T`'s list of attributes. */
+			template<auto Value, typename A = std::remove_cvref_t<decltype(Value)>>
+			type_factory<T, A, Attr...> attrib()
+			{
+				data.template add_attrib<T>(type_seq<A, Attr...>, [](){ return forward_any(auto_constant<Value>::value); });
+				return type_factory<T, A, Attr...>{data};
 			}
 			// clang-format on
 
@@ -788,6 +818,18 @@ namespace sek
 
 			if (!node.next) [[likely]]
 				parents.insert(node);
+		}
+		template<typename T, typename A, typename... As>
+		void type_data::add_attrib(type_seq_t<A, As...>, auto &&generator)
+		{
+			constinit static any value;
+			constinit static attrib_node node{value};
+			if (!node.next) [[likely]]
+			{
+				/* Need to post-initialize the `any` since arguments are passed at runtime. */
+				value = generator();
+				attribs.insert(node);
+			}
 		}
 	}	 // namespace detail
 

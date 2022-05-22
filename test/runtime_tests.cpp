@@ -4,39 +4,6 @@
 
 #include <gtest/gtest.h>
 
-#include "sekhmet/logger.hpp"
-#include "sekhmet/plugin.hpp"
-
-static bool plugin_enabled = false;
-
-SEK_PLUGIN("test_plugin")
-{
-	sek::logger::info() << fmt::format("Initializing plugin \"{}\"", info.id);
-
-	on_enable += +[]()
-	{
-		plugin_enabled = true;
-		return true;
-	};
-	on_disable += +[]() { plugin_enabled = false; };
-}
-
-TEST(utility_tests, plugin_test)
-{
-	auto p = sek::plugin::get("test_plugin");
-	EXPECT_FALSE(p.enabled());
-	EXPECT_FALSE(plugin_enabled);
-
-	EXPECT_TRUE(p.enable());
-	EXPECT_TRUE(p.enabled());
-	EXPECT_TRUE(plugin_enabled);
-
-	EXPECT_FALSE(p.enable());
-	EXPECT_TRUE(p.disable());
-	EXPECT_FALSE(p.enabled());
-	EXPECT_FALSE(plugin_enabled);
-}
-
 #include "sekhmet/type_info.hpp"
 
 namespace
@@ -69,13 +36,57 @@ constexpr std::string_view sek::type_name<test_child>() noexcept
 SEK_EXTERN_TYPE(test_child)
 SEK_EXPORT_TYPE(test_child)
 
+#include "sekhmet/logger.hpp"
+#include "sekhmet/plugin.hpp"
+
+static bool plugin_enabled = false;
+
+SEK_PLUGIN("test_plugin")
+{
+	sek::logger::info() << fmt::format("Initializing plugin \"{}\"", info.id);
+
+	on_enable += +[]()
+	{
+		sek::type_info::reflect<test_parent_middle>().parent<test_parent_top>();
+		plugin_enabled = true;
+		return true;
+	};
+	on_disable += +[]()
+	{
+		sek::type_info::reset<test_parent_middle>();
+		plugin_enabled = false;
+	};
+}
+
+TEST(utility_tests, plugin_test)
+{
+	auto p = sek::plugin::get("test_plugin");
+	EXPECT_FALSE(p.enabled());
+	EXPECT_FALSE(plugin_enabled);
+
+	/* Enable from loaded. */
+	EXPECT_TRUE(p.enable());
+	EXPECT_TRUE(p.enabled());
+	EXPECT_TRUE(plugin_enabled);
+
+	/* Double-enable & disable from enabled. */
+	EXPECT_FALSE(p.enable());
+	EXPECT_TRUE(p.disable());
+	EXPECT_FALSE(p.enabled());
+	EXPECT_FALSE(plugin_enabled);
+
+	/* Enable from disabled. */
+	EXPECT_TRUE(p.enable());
+	EXPECT_TRUE(p.enabled());
+	EXPECT_TRUE(plugin_enabled);
+}
+
 TEST(utility_tests, type_info_test)
 {
-	sek::type_info::reflect<test_parent_middle>().parent<test_parent_top>();
-
 	// clang-format off
-	sek::type_info::reflect<test_child>().parent<test_parent_middle>();
-//		.attrib<int>(0xff).attrib<int>(0xfc).attrib<test_attribute>()
+	sek::type_info::reflect<test_child>()
+		.attrib<int>(0xff).attrib<0xfc>().attrib<test_attribute>()
+		.parent<test_parent_middle>();
 	// clang-format on
 
 	auto info = sek::type_info::get<test_child>();
