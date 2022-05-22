@@ -5,8 +5,7 @@
 #pragma once
 
 #include "aligned_storage.hpp"
-#include "define.h"
-#include "meta_containers.hpp"
+#include "assert.hpp"
 #include "static_string.hpp"
 
 namespace sek
@@ -101,8 +100,69 @@ namespace sek
 			};
 			struct parent_node : basic_node<parent_node>
 			{
+				constexpr parent_node(type_handle type, any (*cast)(any)) noexcept : type(type), cast(cast) {}
+
 				type_handle type;
 				any (*cast)(any);
+			};
+
+			template<typename T>
+			struct node_list
+			{
+				struct iterator
+				{
+					typedef T value_type;
+					typedef const T *pointer;
+					typedef const T *const_pointer;
+					typedef const T &reference;
+					typedef const T &const_reference;
+					typedef std::ptrdiff_t difference_type;
+					typedef std::size_t size_type;
+					typedef std::forward_iterator_tag iterator_category;
+
+					constexpr iterator() noexcept = default;
+					constexpr explicit iterator(pointer node) noexcept : node(node) {}
+
+					constexpr iterator &operator++() noexcept
+					{
+						node = node->next;
+						return *this;
+					}
+					constexpr iterator operator++(int) noexcept
+					{
+						auto temp = *this;
+						++(*this);
+						return temp;
+					}
+
+					[[nodiscard]] constexpr pointer operator->() const noexcept { return node; }
+					[[nodiscard]] constexpr reference operator*() const noexcept { return *node; }
+
+					[[nodiscard]] constexpr bool operator==(const iterator &) const noexcept = default;
+
+					pointer node = nullptr;
+				};
+
+				typedef typename iterator::value_type value_type;
+				typedef typename iterator::pointer pointer;
+				typedef typename iterator::const_pointer const_pointer;
+				typedef typename iterator::reference reference;
+				typedef typename iterator::const_reference const_reference;
+				typedef typename iterator::difference_type difference_type;
+				typedef typename iterator::size_type size_type;
+
+				[[nodiscard]] constexpr iterator begin() const noexcept { return iterator{front}; }
+				[[nodiscard]] constexpr iterator cbegin() const noexcept { return begin(); }
+				[[nodiscard]] constexpr iterator end() const noexcept { return iterator{}; }
+				[[nodiscard]] constexpr iterator cend() const noexcept { return end(); }
+
+				constexpr void insert(T &node) noexcept
+				{
+					node.next = front;
+					front = &node;
+				}
+
+				const T *front = nullptr;
 			};
 
 			[[nodiscard]] constexpr bool is_empty() const noexcept { return flags & IS_EMPTY; }
@@ -110,15 +170,17 @@ namespace sek
 			[[nodiscard]] constexpr bool is_range() const noexcept { return flags & IS_RANGE; }
 			[[nodiscard]] constexpr bool is_pointer() const noexcept { return flags & IS_POINTER; }
 
+			template<typename T, typename P>
+			void add_parent() noexcept;
+
 			const std::string_view name;
 			const std::size_t size;
 			const std::size_t align;
 			const std::size_t extent;
-
-			/* Underlying value type of either a pointer or a range. */
-			const type_handle value_type;
-
+			const type_handle value_type; /* Underlying value type of either a pointer or a range. */
 			const flags_t flags;
+
+			node_list<parent_node> parents = {};
 		};
 
 		template<typename T>
@@ -154,18 +216,13 @@ namespace sek
 				.flags = make_type_flags<T>(),
 			};
 		}
-
-		//		template<typename T, typename P>
-		//		constexpr type_data::parent_node make_type_parent() noexcept
-		//		{
-		//			static
-		//		}
 	}	 // namespace detail
 
 	/** @brief Structure used to reference reflected information about a type. */
 	class type_info
 	{
 		friend struct detail::type_handle;
+		friend class any;
 
 		using data_t = detail::type_data;
 		using handle_t = detail::type_handle;
@@ -180,6 +237,87 @@ namespace sek
 
 		SEK_API static data_t &register_type(handle_t handle) noexcept;
 
+		template<typename V>
+		class data_node_iterator
+		{
+			friend class type_info;
+
+		public:
+			typedef V value_type;
+			typedef const V *pointer;
+			typedef const V *const_pointer;
+			typedef V reference;
+			typedef V const_reference;
+			typedef std::ptrdiff_t difference_type;
+			typedef std::size_t size_type;
+			typedef std::forward_iterator_tag iterator_category;
+
+		private:
+			constexpr explicit data_node_iterator(V node_value) noexcept : node_value(node_value) {}
+
+		public:
+			constexpr data_node_iterator() noexcept = default;
+
+			constexpr data_node_iterator &operator++() noexcept
+			{
+				node_value.node = node()->next;
+				return *this;
+			}
+			constexpr data_node_iterator operator++(int) noexcept
+			{
+				auto temp = *this;
+				++(*this);
+				return temp;
+			}
+
+			[[nodiscard]] constexpr pointer operator->() const noexcept { return &node_value; }
+			[[nodiscard]] constexpr reference operator*() const noexcept { return node_value; }
+
+			[[nodiscard]] constexpr bool operator==(const data_node_iterator &) const noexcept = default;
+
+		private:
+			[[nodiscard]] constexpr auto *node() const noexcept { return node_value.node; }
+
+			value_type node_value;
+		};
+
+		/* Custom view, as CLang has issues with `std::ranges::subrange` at this time. */
+		template<typename Iter>
+		class data_node_view
+		{
+		public:
+			typedef typename Iter::value_type value_type;
+			typedef typename Iter::pointer pointer;
+			typedef typename Iter::const_pointer const_pointer;
+			typedef typename Iter::reference reference;
+			typedef typename Iter::const_reference const_reference;
+			typedef typename Iter::difference_type difference_type;
+			typedef typename Iter::size_type size_type;
+
+			typedef Iter iterator;
+			typedef Iter const_iterator;
+
+		public:
+			constexpr data_node_view() noexcept = default;
+			constexpr data_node_view(iterator first, iterator last) noexcept : first(first), last(last) {}
+
+			[[nodiscard]] constexpr iterator begin() const noexcept { return first; }
+			[[nodiscard]] constexpr iterator cbegin() const noexcept { return begin(); }
+			[[nodiscard]] constexpr iterator end() const noexcept { return last; }
+			[[nodiscard]] constexpr iterator cend() const noexcept { return end(); }
+
+			[[nodiscard]] constexpr reference front() const noexcept { return *begin(); }
+
+			[[nodiscard]] constexpr bool empty() const noexcept { return begin() == end(); }
+			[[nodiscard]] constexpr size_type size() const noexcept { return std::distance(begin(), end()); }
+
+			[[nodiscard]] constexpr bool operator==(const data_node_view &) const noexcept = default;
+
+		private:
+			Iter first;
+			Iter last;
+		};
+
 	public:
 		template<typename T, typename... Attr>
 		class type_factory
@@ -189,8 +327,53 @@ namespace sek
 			constexpr explicit type_factory(data_t &data) noexcept : data(data) {}
 
 		public:
+			constexpr type_factory(const type_factory &) noexcept = default;
+			constexpr type_factory &operator=(const type_factory &) noexcept = default;
+			constexpr type_factory(type_factory &&) noexcept = default;
+			constexpr type_factory &operator=(type_factory &&) noexcept = default;
+
+			// clang-format off
+			/** Adds `P` to the list of parents of `T`. */
+			template<typename P>
+			type_factory &parent() requires std::derived_from<T, P> && std::same_as<std::remove_cvref_t<P>, P>
+			{
+				data.template add_parent<T, P>();
+				return *this;
+			}
+			// clang-format on
+
 		private:
 			data_t &data;
+		};
+
+		/** @brief Structure used to represent information about a parent-child relationship between reflected types. */
+		class parent_info
+		{
+			friend class data_node_iterator<parent_info>;
+			friend class type_info;
+
+			constexpr parent_info() noexcept = default;
+			constexpr explicit parent_info(const data_t::parent_node *node) noexcept : node(node) {}
+
+		public:
+			constexpr parent_info(const parent_info &) noexcept = default;
+			constexpr parent_info &operator=(const parent_info &) noexcept = default;
+			constexpr parent_info(parent_info &&) noexcept = default;
+			constexpr parent_info &operator=(parent_info &&) noexcept = default;
+
+			/** Returns type info of the parent type. */
+			[[nodiscard]] constexpr type_info type() const noexcept { return type_info{node->type}; }
+
+			/** Casts an `any` instance containing an object (or reference to one) of child type to
+			 * an `any` instance of parent type (preserving const-ness).
+			 * @note Passed `any` instance must be a reference. Passing a non-reference `any` will result in
+			 * undefined behavior (likely a crash). */
+			[[nodiscard]] any cast(any child) const;
+
+			[[nodiscard]] constexpr bool operator==(const parent_info &) const noexcept = default;
+
+		private:
+			const data_t::parent_node *node = nullptr;
 		};
 
 	public:
@@ -225,6 +408,10 @@ namespace sek
 		}
 
 	private:
+		friend class parent_info;
+
+		using parent_iterator = data_node_iterator<parent_info>;
+
 		constexpr explicit type_info(const data_t *data) noexcept : data(data) {}
 		constexpr explicit type_info(handle_t handle) noexcept : data(handle.get()) {}
 
@@ -260,6 +447,25 @@ namespace sek
 		/** Returns value type oof the underlying range, pointer or pointer-like type.
 		 * @note If the type is not a range, pointer or pointer-like, returns identity. */
 		[[nodiscard]] constexpr type_info value_type() const noexcept { return type_info{data->value_type}; }
+
+		/** Returns a range of parents of this type. */
+		[[nodiscard]] constexpr data_node_view<parent_iterator> parents() const noexcept
+		{
+			return {parent_iterator{parent_info{data->parents.front}}, {}};
+		}
+
+		/** Checks if the underlying type inherits a type with the specified name. */
+		[[nodiscard]] constexpr bool inherits(std::string_view name) const noexcept
+		{
+			const auto pred = [name](auto &n) { return n.type->name == name || type_info{n.type}.inherits(name); };
+			return std::ranges::any_of(data->parents, pred);
+		}
+		/** Checks if the underlying type inherits 'T'. */
+		template<typename T>
+		[[nodiscard]] constexpr bool inherits() const noexcept
+		{
+			return inherits(type_name<T>());
+		}
 
 		[[nodiscard]] constexpr bool operator==(const type_info &other) const noexcept
 		{
@@ -560,6 +766,32 @@ namespace sek
 	{
 		return any{std::in_place_type<T>, std::forward<std::initializer_list<U>>(il), std::forward<Args>(args)...};
 	}
+
+	namespace detail
+	{
+		template<typename T, typename P>
+		void type_data::add_parent() noexcept
+		{
+			constinit static parent_node node{
+				type_handle(type_selector<P>),
+				+[](any child) -> any
+				{
+					SEK_ASSERT(child.is_ref(), "Cannot cast by-value `any`");
+
+					if (child.type() != type_info::get<T>()) [[unlikely]]
+						return any{};
+					/* Need to forward const-ness. */
+					return child.is_const() ? forward_any(*static_cast<const P *>(child.template as_cptr<T>())) :
+											  forward_any(*static_cast<P *>(child.template as_ptr<T>()));
+				},
+			};
+
+			if (!node.next) [[likely]]
+				parents.insert(node);
+		}
+	}	 // namespace detail
+
+	any type_info::parent_info::cast(any child) const { return node->cast(std::move(child)); }
 }	 // namespace sek
 
 /** Macro used to declare an instance of type info for type `T` as extern.
