@@ -17,12 +17,12 @@ namespace sek
 	{
 		struct plugin_info
 		{
-			consteval plugin_info(std::string_view id, version eng_ver) noexcept : id(id), engine_ver(eng_ver) {}
+			consteval plugin_info(version eng_ver, std::string_view id) noexcept : engine_ver(eng_ver), id(id) {}
 
-			/** Id of the plugin. */
-			const std::string_view id;
 			/** Version of the engine the plugin was compiled for. */
 			const version engine_ver;
+			/** Id of the plugin. */
+			const std::string_view id;
 		};
 		struct plugin_data
 		{
@@ -133,7 +133,7 @@ namespace sek
 		template<>                                                                                                     \
 		struct plugin_instance<(id)> : sek::detail::basic_plugin<plugin_instance<(id)>>                                \
 		{                                                                                                              \
-			plugin_instance() : basic_plugin({(id), sek::version{SEK_ENGINE_VERSION}})                                 \
+			plugin_instance() : basic_plugin({sek::version{SEK_ENGINE_VERSION}, (id)})                                 \
 			{                                                                                                          \
 			}                                                                                                          \
 			void init();                                                                                               \

@@ -137,6 +137,9 @@ namespace sek
 		/** @copydoc log */
 		basic_logger &operator<<(sv_t msg) { return log(msg); }
 
+		/** Returns event proxy for the internal log event. */
+		[[nodiscard]] constexpr event_proxy<event_t> on_log() noexcept { return event_proxy{log_event}; }
+
 		constexpr void swap(basic_logger &other) noexcept
 		{
 			using std::swap;
@@ -147,10 +150,13 @@ namespace sek
 
 		friend constexpr void swap(basic_logger &a, basic_logger &b) noexcept { a.swap(b); }
 
-		/* No reason to make getters & setters for these. */
-
+	private:
 		/** Event used to dispatch logged messages. */
 		event_t log_event;
+
+	public:
+		/* No reason to make getters & setters for these. */
+
 		/** Formatter delegate used to format logged messages. */
 		formatter_t formatter = default_format;
 		/** Log level of this logger. */

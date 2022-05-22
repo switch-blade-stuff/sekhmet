@@ -11,7 +11,7 @@ namespace sek
 	static logger make_logger(log_level level)
 	{
 		logger result{level};
-		result.log_event += +[](std::string_view msg) { fputs(msg.data(), stdout); };
+		result.on_log() += +[](std::string_view msg) { fputs(msg.data(), stdout); };
 		return result;
 	}
 
