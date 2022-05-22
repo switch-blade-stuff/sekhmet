@@ -609,8 +609,15 @@ namespace sek
 		}
 		any &operator=(const any &other)
 		{
-			if (this != &other && other.vtable) [[likely]]
-				other.vtable->copy_assign(*this, other);
+			if (this != &other) [[likely]]
+			{
+				if (empty() && other.vtable) [[unlikely]]
+					other.vtable->copy_construct(*this, other);
+				else if (other.vtable) [[likely]]
+					other.vtable->copy_assign(*this, other);
+				else
+					reset_impl();
+			}
 			return *this;
 		}
 		~any() { reset_impl(); }
