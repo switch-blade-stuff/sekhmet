@@ -484,7 +484,7 @@ namespace sek
 		using constructor_iterator = detail::type_node_iterator<constructor_info>;
 
 		constexpr explicit type_info(const data_t *data) noexcept : data(data) {}
-		constexpr explicit type_info(handle_t handle) noexcept : data(handle.get ? handle.get() : nullptr) {}
+		constexpr explicit type_info(handle_t handle) noexcept : data(handle.get()) {}
 
 	public:
 		/** Initializes an invalid type info (type info with no underlying type). */
@@ -1072,7 +1072,10 @@ namespace sek
 		private:
 			friend class signature_info;
 
-			constexpr explicit arg_iterator(const detail::type_handle *ptr) noexcept : ptr(ptr), ref_helper(*ptr) {}
+			constexpr explicit arg_iterator(const detail::type_handle *ptr) noexcept
+				: ptr(ptr), ref_helper(ptr && ptr->get ? ptr->get() : nullptr)
+			{
+			}
 
 		public:
 			constexpr arg_iterator() noexcept = default;
@@ -1138,7 +1141,7 @@ namespace sek
 
 		using arg_view = detail::type_data_view<arg_iterator>;
 
-		constexpr signature_info(detail::type_handle ret_t, std::span<detail::type_handle> arg_ts) noexcept
+		constexpr signature_info(type_info ret_t, std::span<detail::type_handle> arg_ts) noexcept
 			: ret_type(ret_t), arg_types(arg_ts)
 		{
 		}
@@ -1158,20 +1161,28 @@ namespace sek
 		/** Checks if the signature is invocable with a set of arguments. */
 		[[nodiscard]] constexpr bool invocable_with(std::span<type_info> types) const noexcept
 		{
-			const auto as = args();
-			for (std::size_t i = 0, max = static_cast<std::size_t>(as.size()); i < max; ++i)
-				if (as[i] != types[i]) [[unlikely]]
-					return false;
-			return true;
+			if (const auto argc = types.size(); argc != arg_types.size())
+				return false;
+			else
+			{
+				for (std::size_t i = 0; i < argc; ++i)
+					if (type_info{arg_types[i]} != types[i]) [[unlikely]]
+						return false;
+				return true;
+			}
 		}
 		/** @copydoc invocable_with */
-		[[nodiscard]] constexpr bool invocable_with(std::span<any> values) const noexcept
+		[[nodiscard]] constexpr bool invocable_with(std::span<any> argv) const noexcept
 		{
-			const auto as = args();
-			for (std::size_t i = 0, max = static_cast<std::size_t>(as.size()); i < max; ++i)
-				if (as[i] != values[i].type()) [[unlikely]]
-					return false;
-			return true;
+			if (const auto argc = argv.size(); argc != arg_types.size())
+				return false;
+			else
+			{
+				for (std::size_t i = 0; i < argc; ++i)
+					if (type_info{arg_types[i]} != argv[i].type()) [[unlikely]]
+						return false;
+				return true;
+			}
 		}
 
 	private:

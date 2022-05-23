@@ -243,7 +243,7 @@ TEST(utility_tests, any_test)
 		EXPECT_EQ(a2.as_ptr<test_parent_f>(), a1.as_ptr<test_child_if>());
 		EXPECT_EQ(*a2.as_ptr<test_parent_f>(), data);
 
-#ifndef NDEBUG
+#if !defined(NDEBUG)
 		/* Parent cast cannot be by-value. */
 		EXPECT_DEATH(a2 = parent_f->cast(std::as_const(a1)), ".*");
 #endif
@@ -253,5 +253,6 @@ TEST(utility_tests, any_test)
 		auto a3 = info.construct(sek::make_any<int>(data.i), sek::make_any<float>(data.f));
 		EXPECT_EQ(a1, a2);
 		EXPECT_EQ(a2, a3);
+		EXPECT_EQ(info.construct(), sek::make_any<test_child_if>());
 	}
 }
