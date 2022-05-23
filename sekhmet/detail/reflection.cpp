@@ -2,10 +2,9 @@
 // Created by switchblade on 16/05/22.
 //
 
-#include "type_info.hpp"
-
 #include "dense_map.hpp"
 #include "logger.hpp"
+#include "reflection.hpp"
 #include <shared_mutex>
 
 namespace sek

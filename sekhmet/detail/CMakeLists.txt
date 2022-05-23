@@ -15,6 +15,6 @@ target_sources(${PROJECT_NAME} PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/intern.cpp
         ${CMAKE_CURRENT_LIST_DIR}/logger.cpp
         ${CMAKE_CURRENT_LIST_DIR}/plugin.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/type_info.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/reflection.cpp
         ${CMAKE_CURRENT_LIST_DIR}/assets.cpp)
 target_link_libraries(${PROJECT_NAME} PUBLIC fmt)

@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 
-#include "sekhmet/type_info.hpp"
+#include "sekhmet/reflection.hpp"
 
 namespace
 {
