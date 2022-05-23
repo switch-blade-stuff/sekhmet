@@ -83,13 +83,14 @@ namespace sek
 		struct type_data;
 		struct type_handle
 		{
+			constexpr type_handle() noexcept = default;
 			template<typename T>
 			constexpr explicit type_handle(type_selector_t<T>) noexcept;
 
 			[[nodiscard]] constexpr type_data *operator->() const noexcept { return get(); }
 			[[nodiscard]] constexpr type_data &operator*() const noexcept { return *get(); }
 
-			type_data *(*get)() noexcept;
+			type_data *(*get)() noexcept = nullptr;
 		};
 
 		struct type_data
@@ -118,16 +119,29 @@ namespace sek
 					constinit static const ctor_node value;
 				};
 
-				constexpr ctor_node(std::span<const type_handle> args,
-									void (*invoke_at)(any, std::span<any>),
-									any (*invoke)(std::span<any>)) noexcept
-					: arg_types(args), invoke_at(invoke_at), invoke(invoke)
+				constexpr ctor_node(void (*invoke_at)(any, std::span<any>), any (*invoke)(std::span<any>)) noexcept
+					: invoke_at(invoke_at), invoke(invoke)
 				{
 				}
 
-				std::span<const type_handle> arg_types;
+				std::span<type_handle> arg_types;
 				void (*invoke_at)(any, std::span<any>); /* Placement constructor. */
 				any (*invoke)(std::span<any>);			/* Allocating constructor. */
+			};
+			template<typename T, typename... Args>
+			struct ctor_instance : ctor_node
+			{
+				constinit static ctor_instance value;
+
+				constexpr ctor_instance(std::array<type_handle, sizeof...(Args)> arg_ts,
+										void (*invoke_at)(any, std::span<any>),
+										any (*invoke)(std::span<any>)) noexcept
+					: ctor_node(invoke_at, invoke), arg_ts_array(arg_ts)
+				{
+					ctor_node::arg_types = {arg_ts_array};
+				}
+
+				std::array<type_handle, sizeof...(Args)> arg_ts_array;
 			};
 			struct parent_node : basic_node<parent_node>
 			{
@@ -139,7 +153,8 @@ namespace sek
 			struct attrib_node;
 			struct func_node : basic_node<func_node>
 			{
-				std::span<const type_handle> arg_types;
+				std::span<type_handle> arg_types;
+				any (*invoke)(std::span<any>);
 			};
 
 			template<typename T>
@@ -220,8 +235,8 @@ namespace sek
 			const type_handle value_type; /* Underlying value type of either a pointer or a range. */
 			const flags_t flags;
 
-			void (*dtor)(any) = nullptr; /* Placement destructor. */
-			node_list<ctor_node> ctors = {};
+			void (*destructor)(any) = nullptr; /* Placement destructor. */
+			node_list<ctor_node> constructors = {};
 
 			node_list<parent_node> parents = {};
 			node_list<attrib_node> attribs = {};
@@ -230,7 +245,129 @@ namespace sek
 
 		template<typename T>
 		constexpr type_data make_type_data() noexcept;
+
+		template<typename V>
+		class type_node_iterator
+		{
+			friend class type_info;
+
+		public:
+			typedef V value_type;
+			typedef const V *pointer;
+			typedef const V *const_pointer;
+			typedef V reference;
+			typedef V const_reference;
+			typedef std::ptrdiff_t difference_type;
+			typedef std::size_t size_type;
+			typedef std::forward_iterator_tag iterator_category;
+
+		public:
+			constexpr explicit type_node_iterator(V node_value) noexcept : node_value(node_value) {}
+			constexpr type_node_iterator() noexcept = default;
+
+			constexpr type_node_iterator &operator++() noexcept
+			{
+				node_value.node = node()->next;
+				return *this;
+			}
+			constexpr type_node_iterator operator++(int) noexcept
+			{
+				auto temp = *this;
+				++(*this);
+				return temp;
+			}
+
+			[[nodiscard]] constexpr pointer operator->() const noexcept { return &node_value; }
+			[[nodiscard]] constexpr reference operator*() const noexcept { return node_value; }
+
+			[[nodiscard]] constexpr bool operator==(const type_node_iterator &) const noexcept = default;
+
+		private:
+			[[nodiscard]] constexpr auto *node() const noexcept { return node_value.node; }
+
+			value_type node_value;
+		};
+
+		/* Custom view, as CLang has issues with `std::ranges::subrange` at this time. */
+		template<typename Iter>
+		class type_data_view
+		{
+		public:
+			typedef typename Iter::value_type value_type;
+			typedef typename Iter::pointer pointer;
+			typedef typename Iter::const_pointer const_pointer;
+			typedef typename Iter::reference reference;
+			typedef typename Iter::const_reference const_reference;
+			typedef typename Iter::difference_type difference_type;
+			typedef typename Iter::size_type size_type;
+
+			typedef Iter iterator;
+			typedef Iter const_iterator;
+
+		public:
+			constexpr type_data_view() noexcept = default;
+			constexpr type_data_view(iterator first, iterator last) noexcept : first(first), last(last) {}
+
+			[[nodiscard]] constexpr iterator begin() const noexcept { return first; }
+			[[nodiscard]] constexpr iterator cbegin() const noexcept { return begin(); }
+			[[nodiscard]] constexpr iterator end() const noexcept { return last; }
+			[[nodiscard]] constexpr iterator cend() const noexcept { return end(); }
+
+			[[nodiscard]] constexpr reference front() const noexcept { return *begin(); }
+			[[nodiscard]] constexpr reference back() const noexcept
+				requires std::bidirectional_iterator<Iter>
+			{
+				return *std::prev(end());
+			}
+			[[nodiscard]] constexpr reference at(size_type i) const noexcept
+				requires std::random_access_iterator<Iter>
+			{
+				return begin()[static_cast<difference_type>(i)];
+			}
+			[[nodiscard]] constexpr reference operator[](size_type i) const noexcept
+				requires std::random_access_iterator<Iter>
+			{
+				return at(i);
+			}
+
+			[[nodiscard]] constexpr bool empty() const noexcept { return begin() == end(); }
+			[[nodiscard]] constexpr size_type size() const noexcept
+			{
+				return static_cast<size_type>(std::distance(begin(), end()));
+			}
+
+			[[nodiscard]] constexpr bool operator==(const type_data_view &other) const noexcept
+			{
+				return std::equal(first, last, other.first, other.last);
+			}
+
+		private:
+			Iter first;
+			Iter last;
+		};
 	}	 // namespace detail
+
+	/** Exception thrown when the type of `any` is not as expected. */
+	class bad_any_type : public std::runtime_error
+	{
+	public:
+		bad_any_type() : std::runtime_error("Invalid type of `any` object") {}
+		explicit bad_any_type(const std::string &msg) : std::runtime_error(msg) {}
+		explicit bad_any_type(const char *msg) : std::runtime_error(msg) {}
+		~bad_any_type() override = default;
+	};
+
+	/** @brief Structure used to represent information about a parent-child relationship between reflected types. */
+	class parent_info;
+
+	/** @brief Structure used to represent a signature of a constructor or a function. */
+	class signature_info;
+
+	/** @brief Structure used to represent information about a constructor of a reflected type. */
+	class constructor_info;
+
+	/** @brief Structure used to represent information about a function of a reflected type. */
+	class function_info;
 
 	/** @brief Structure used to reference reflected information about a type. */
 	class type_info
@@ -251,87 +388,6 @@ namespace sek
 
 		SEK_API static data_t &register_type(handle_t handle) noexcept;
 
-		template<typename V>
-		class data_node_iterator
-		{
-			friend class type_info;
-
-		public:
-			typedef V value_type;
-			typedef const V *pointer;
-			typedef const V *const_pointer;
-			typedef V reference;
-			typedef V const_reference;
-			typedef std::ptrdiff_t difference_type;
-			typedef std::size_t size_type;
-			typedef std::forward_iterator_tag iterator_category;
-
-		private:
-			constexpr explicit data_node_iterator(V node_value) noexcept : node_value(node_value) {}
-
-		public:
-			constexpr data_node_iterator() noexcept = default;
-
-			constexpr data_node_iterator &operator++() noexcept
-			{
-				node_value.node = node()->next;
-				return *this;
-			}
-			constexpr data_node_iterator operator++(int) noexcept
-			{
-				auto temp = *this;
-				++(*this);
-				return temp;
-			}
-
-			[[nodiscard]] constexpr pointer operator->() const noexcept { return &node_value; }
-			[[nodiscard]] constexpr reference operator*() const noexcept { return node_value; }
-
-			[[nodiscard]] constexpr bool operator==(const data_node_iterator &) const noexcept = default;
-
-		private:
-			[[nodiscard]] constexpr auto *node() const noexcept { return node_value.node; }
-
-			value_type node_value;
-		};
-
-		/* Custom view, as CLang has issues with `std::ranges::subrange` at this time. */
-		template<typename Iter>
-		class data_node_view
-		{
-		public:
-			typedef typename Iter::value_type value_type;
-			typedef typename Iter::pointer pointer;
-			typedef typename Iter::const_pointer const_pointer;
-			typedef typename Iter::reference reference;
-			typedef typename Iter::const_reference const_reference;
-			typedef typename Iter::difference_type difference_type;
-			typedef typename Iter::size_type size_type;
-
-			typedef Iter iterator;
-			typedef Iter const_iterator;
-
-		public:
-			constexpr data_node_view() noexcept = default;
-			constexpr data_node_view(iterator first, iterator last) noexcept : first(first), last(last) {}
-
-			[[nodiscard]] constexpr iterator begin() const noexcept { return first; }
-			[[nodiscard]] constexpr iterator cbegin() const noexcept { return begin(); }
-			[[nodiscard]] constexpr iterator end() const noexcept { return last; }
-			[[nodiscard]] constexpr iterator cend() const noexcept { return end(); }
-
-			[[nodiscard]] constexpr reference front() const noexcept { return *begin(); }
-
-			[[nodiscard]] constexpr bool empty() const noexcept { return begin() == end(); }
-			[[nodiscard]] constexpr size_type size() const noexcept { return std::distance(begin(), end()); }
-
-			[[nodiscard]] constexpr bool operator==(const data_node_view &) const noexcept = default;
-
-		private:
-			Iter first;
-			Iter last;
-		};
-
 	public:
 		template<typename T, typename... Attr>
 		class type_factory
@@ -347,22 +403,37 @@ namespace sek
 			constexpr type_factory &operator=(type_factory &&) noexcept = default;
 
 			// clang-format off
-			/** Adds `P` to the list of parents of `T`. */
+			/** Adds a constructor to `T`'s list of constructors.
+			 * @tparam Args Signature of the constructor. */
+			template<typename... Args>
+			type_factory &constructor() requires std::constructible_from<T, Args...>
+			{
+				data.template add_ctor<T, Args...>();
+				return *this;
+			}
+			/** Adds `P` to the list of parents of `T`.
+			 * @tparam P Parent type of `T`. */
 			template<typename P>
 			type_factory &parent() requires std::derived_from<T, P> && std::same_as<std::remove_cvref_t<P>, P>
 			{
 				data.template add_parent<T, P>();
 				return *this;
 			}
-			/** Adds an attribute to `T`'s list of attributes. */
+			/** Adds an attribute to `T`'s list of attributes.
+			 * @tparam A Type of the attribute. */
 			template<typename A, typename... Args>
 			type_factory<T, A, Attr...> attrib(Args &&...args)
 			{
 				data.template add_attrib<T>(type_seq<A, Attr...>, [&](){ return make_any<A>(std::forward<Args>(args)...); });
 				return type_factory<T, A, Attr...>{data};
 			}
-			/** Adds an attribute to `T`'s list of attributes. */
-			template<auto Value, typename A = std::remove_cvref_t<decltype(Value)>>
+			/** Adds an attribute to `T`'s list of attributes.
+			 * @tparam Value Value of the attribute. */
+			template<auto Value>
+			auto attrib() { return attrib<std::remove_cvref_t<decltype(Value)>, Value>(); }
+			/** @copydoc attrib
+			 * @tparam A Type of the attribute. */
+			template<typename A, auto Value>
 			type_factory<T, A, Attr...> attrib()
 			{
 				data.template add_attrib<T>(type_seq<A, Attr...>, [](){ return forward_any(auto_constant<Value>::value); });
@@ -372,36 +443,6 @@ namespace sek
 
 		private:
 			data_t &data;
-		};
-
-		/** @brief Structure used to represent information about a parent-child relationship between reflected types. */
-		class parent_info
-		{
-			friend class data_node_iterator<parent_info>;
-			friend class type_info;
-
-			constexpr parent_info() noexcept = default;
-			constexpr explicit parent_info(const data_t::parent_node *node) noexcept : node(node) {}
-
-		public:
-			constexpr parent_info(const parent_info &) noexcept = default;
-			constexpr parent_info &operator=(const parent_info &) noexcept = default;
-			constexpr parent_info(parent_info &&) noexcept = default;
-			constexpr parent_info &operator=(parent_info &&) noexcept = default;
-
-			/** Returns type info of the parent type. */
-			[[nodiscard]] constexpr type_info type() const noexcept { return type_info{node->type}; }
-
-			/** Casts an `any` instance containing an object (or reference to one) of child type to
-			 * an `any` instance of parent type (preserving const-ness).
-			 * @note Passed `any` instance must be a reference. Passing a non-reference `any` will result in
-			 * undefined behavior (likely a crash). */
-			[[nodiscard]] any cast(any child) const;
-
-			[[nodiscard]] constexpr bool operator==(const parent_info &) const noexcept = default;
-
-		private:
-			const data_t::parent_node *node = nullptr;
 		};
 
 	public:
@@ -437,11 +478,13 @@ namespace sek
 
 	private:
 		friend class parent_info;
+		friend class signature_info;
 
-		using parent_iterator = data_node_iterator<parent_info>;
+		using parent_iterator = detail::type_node_iterator<parent_info>;
+		using constructor_iterator = detail::type_node_iterator<constructor_info>;
 
 		constexpr explicit type_info(const data_t *data) noexcept : data(data) {}
-		constexpr explicit type_info(handle_t handle) noexcept : data(handle.get()) {}
+		constexpr explicit type_info(handle_t handle) noexcept : data(handle.get ? handle.get() : nullptr) {}
 
 	public:
 		/** Initializes an invalid type info (type info with no underlying type). */
@@ -475,12 +518,25 @@ namespace sek
 		 * @note If the type is not a range, pointer or pointer-like, returns identity. */
 		[[nodiscard]] constexpr type_info value_type() const noexcept { return type_info{data->value_type}; }
 
-		/** Returns a range of parents of this type. */
-		[[nodiscard]] constexpr data_node_view<parent_iterator> parents() const noexcept
-		{
-			return {parent_iterator{parent_info{data->parents.front}}, {}};
-		}
+		/** Returns a range of constructors of this type. */
+		[[nodiscard]] constexpr detail::type_data_view<constructor_iterator> constructors() const noexcept;
+		/** Checks if the type is constructable with the specified set of arguments. */
+		[[nodiscard]] constexpr bool constructable_with(std::span<type_info> args) const noexcept;
+		/** @copydoc constructable_with */
+		[[nodiscard]] constexpr bool constructable_with(std::span<any> args) const noexcept;
+		/** Constructs the underlying type with the passed arguments & returns an `any` managing the constructed object.
+		 * @param args Arguments passed to the constructor.
+		 * @return `any` managing the constructed object.
+		 * @throw bad_any_type If no constructor accepting `args` was found. */
+		[[nodiscard]] any construct(std::span<any> args = {}) const;
+		// clang-format off
+		/** @copydoc construct */
+		template<typename... AnyArgs>
+		[[nodiscard]] any construct(AnyArgs &&...args) const requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>;
+		// clang-format on
 
+		/** Returns a range of parents of this type. */
+		[[nodiscard]] constexpr detail::type_data_view<parent_iterator> parents() const noexcept;
 		/** Checks if the underlying type inherits a type with the specified name. */
 		[[nodiscard]] constexpr bool inherits(std::string_view name) const noexcept
 		{
@@ -797,14 +853,18 @@ namespace sek
 				t.storage = storage_t(std::in_place_type<T>, *static_cast<const T *>(f.data()));
 			};
 
-			if constexpr (std::is_const_v<T> || !std::is_copy_assignable_v<T>)
+			using Tc = std::add_const_t<T>;
+			if constexpr (!requires(T & a, Tc & b) { a = b; })
 				reset_copy(to, from);
-			else if (to.info != from.info)
-				reset_copy(to, from);
-			else if constexpr (local_candidate<T>)
-				*to.storage.local.template get<T>() = *static_cast<const T *>(from.data());
 			else
-				*static_cast<T *>(to.storage.external) = *static_cast<const T *>(from.data());
+			{
+				if (to.info != from.info)
+					reset_copy(to, from);
+				else if constexpr (local_candidate<T>)
+					*to.storage.local.template get<T>() = *static_cast<Tc *>(from.data());
+				else
+					*static_cast<T *>(to.storage.external) = *static_cast<Tc *>(from.data());
+			}
 			to.flags = make_flags<T>();
 		},
 		.compare = +[](const any &a, const any &b) -> bool
@@ -865,60 +925,53 @@ namespace sek
 		constexpr decltype(auto) unwrap_any_arg(type_selector_t<T>, any &a)
 		{
 			using U = std::remove_reference_t<T>;
-			if constexpr (std::is_const_v<U>)
-				return std::forward<T>(*a.as_cptr<U>());
+			if constexpr (!std::is_reference_v<T> || std::is_const_v<U>)
+				return *a.as_cptr<U>();
 			else
 			{
-				SEK_ASSERT(!a.is_const(), "Cannot bind const `any` to non-const argument");
+				SEK_ASSERT(!a.is_const(), "Cannot bind const `any` to non-const reference argument");
 				return std::forward<T>(*a.as_ptr<U>());
 			}
 		}
 
 		template<typename T, typename... Args>
-		constexpr type_data::ctor_node make_type_ctor() noexcept
-		{
-			// clang-format off
-			constexpr auto arg_ts = std::array<type_handle, sizeof...(Args)>{type_handle{type_selector<Args>}...};
-			// clang-format on
-			return type_data::ctor_node{
-				{auto_constant<arg_ts>::value},
-				+[](any obj, std::span<any> args)
+		constinit type_data::ctor_instance<T, Args...> type_data::ctor_instance<T, Args...>::value = {
+			{type_handle{type_selector<std::decay_t<Args>>}...},
+			+[](any obj, std::span<any> args)
+			{
+				constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, T * p, std::span<any> & as)
 				{
-					constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, T * p, std::span<any> & as)
-					{
-						if constexpr (sizeof...(Args) == 0 || std::is_aggregate_v<T>)
-							new (p) T{unwrap_any_arg(type_selector<type_seq_element_t<Is, type_seq_t<Args...>>>, as[Is])...};
-						else
-							new (p) T(unwrap_any_arg(type_selector<type_seq_element_t<Is, type_seq_t<Args...>>>, as[Is])...);
-					};
+					if constexpr (sizeof...(Args) == 0 || std::is_aggregate_v<T>)
+						new (p) T{unwrap_any_arg(type_selector<type_seq_element_t<Is, type_seq_t<Args...>>>, as[Is])...};
+					else
+						new (p) T(unwrap_any_arg(type_selector<type_seq_element_t<Is, type_seq_t<Args...>>>, as[Is])...);
+				};
 
-					SEK_ASSERT(!obj.is_const(), "Cannot placement construct a const `any`");
-					SEK_ASSERT(obj.is_ref(), "Cannot placement construct a non-reference `any`");
+				SEK_ASSERT(!obj.is_const(), "Cannot placement construct a const `any`");
+				SEK_ASSERT(obj.is_ref(), "Cannot placement construct a non-reference `any`");
 
-					unwrap(std::make_index_sequence<sizeof...(Args)>(), obj.template as_ptr<T>(), args);
-				},
-				+[](std::span<any> args) -> any
+				unwrap(std::make_index_sequence<sizeof...(Args)>(), obj.template as_ptr<T>(), args);
+			},
+			+[](std::span<any> args) -> any
+			{
+				constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, std::span<any> & as)
 				{
-					constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, std::span<any> & as)
-					{
-						return make_any<T>(
-							unwrap_any_arg(type_selector<type_seq_element_t<Is, type_seq_t<Args...>>>, as[Is])...);
-					};
-					return unwrap(std::make_index_sequence<sizeof...(Args)>(), args);
-				},
-			};
-		}
-		template<typename T>
-		constinit const type_data::ctor_node type_data::ctor_node::default_instance<T>::value = make_type_ctor<T>();
+					return make_any<T>(unwrap_any_arg(type_selector<type_seq_element_t<Is, type_seq_t<Args...>>>, as[Is])...);
+				};
+				return unwrap(std::make_index_sequence<sizeof...(Args)>(), args);
+			},
+		};
 
 		template<typename T, typename... Args>
 		void type_data::add_ctor() noexcept
 		{
 			if constexpr (sizeof...(Args) != 0) /* Default constructor is automatically added. */
 			{
-				constinit static auto node = make_type_ctor<T, Args...>();
+				/* We want to preserve all qualifiers of arguments,
+				 * as they will be used for binding. */
+				auto &node = ctor_instance<T, Args...>::value;
 				if (!node.next) [[likely]]
-					ctors.insert(node);
+					constructors.insert(node);
 			}
 		}
 		template<typename T, typename P>
@@ -979,15 +1032,13 @@ namespace sek
 		template<typename T>
 		constexpr type_data make_type_data() noexcept
 		{
-			using ctor_node = type_data::ctor_node;
-			using ctor_list = type_data::node_list<ctor_node>;
-
+			using ct_list = type_data::node_list<type_data::ctor_node>;
 			return type_data{
 				.name = type_name<T>(),
 				.extent = std::is_bounded_array_v<T> ? std::extent_v<T> : 0,
 				.value_type = type_handle{select_value_type<T>()},
 				.flags = make_type_flags<T>(),
-				.dtor = +[](any obj) -> void
+				.destructor = +[](any obj) -> void
 				{
 					if constexpr (std::is_destructible_v<T>)
 					{
@@ -996,12 +1047,275 @@ namespace sek
 						std::destroy_at(obj.template as_ptr<T>());
 					}
 				},
-				.ctors = std::is_default_constructible_v<T> ? ctor_list{&ctor_node::default_instance<T>::value} : ctor_list{},
+				.constructors = std::is_default_constructible_v<T> ? ct_list{&type_data::ctor_instance<T>::value} : ct_list{},
 			};
 		}
 	}	 // namespace detail
 
-	any type_info::parent_info::cast(any child) const { return node->cast(std::move(child)); }
+	class signature_info
+	{
+		friend class constructor_info;
+		friend class function_info;
+
+		class arg_iterator
+		{
+		public:
+			typedef type_info value_type;
+			typedef const type_info *pointer;
+			typedef const type_info *const_pointer;
+			typedef type_info reference;
+			typedef type_info const_reference;
+			typedef std::ptrdiff_t difference_type;
+			typedef std::size_t size_type;
+			typedef std::random_access_iterator_tag iterator_category;
+
+		private:
+			friend class signature_info;
+
+			constexpr explicit arg_iterator(const detail::type_handle *ptr) noexcept : ptr(ptr), ref_helper(*ptr) {}
+
+		public:
+			constexpr arg_iterator() noexcept = default;
+
+			constexpr arg_iterator &operator++() noexcept { return operator+=(1); }
+			constexpr arg_iterator &operator+=(difference_type n) noexcept
+			{
+				ref_helper = type_info{*(ptr += n)};
+				return *this;
+			}
+			constexpr arg_iterator operator++(int) noexcept
+			{
+				auto temp = *this;
+				++(*this);
+				return temp;
+			}
+			constexpr arg_iterator &operator--() noexcept { return operator-=(1); }
+			constexpr arg_iterator &operator-=(difference_type n) noexcept { return operator+=(-n); }
+			constexpr arg_iterator operator--(int) noexcept
+			{
+				auto temp = *this;
+				--(*this);
+				return temp;
+			}
+
+			[[nodiscard]] constexpr arg_iterator operator+(difference_type n) const noexcept
+			{
+				return arg_iterator{ptr + n};
+			}
+			[[nodiscard]] constexpr arg_iterator operator-(difference_type n) const noexcept
+			{
+				return arg_iterator{ptr - n};
+			}
+			[[nodiscard]] constexpr difference_type operator-(const arg_iterator &other) const noexcept
+			{
+				return ptr - other.ptr;
+			}
+			[[nodiscard]] friend constexpr arg_iterator operator+(difference_type n, const arg_iterator &iter) noexcept
+			{
+				return iter + n;
+			}
+
+			[[nodiscard]] constexpr pointer operator->() const noexcept { return &ref_helper; }
+			[[nodiscard]] constexpr reference operator*() const noexcept { return ref_helper; }
+			[[nodiscard]] constexpr reference operator[](difference_type i) const noexcept
+			{
+				return *arg_iterator{ptr + i};
+			}
+
+			[[nodiscard]] constexpr auto operator<=>(const arg_iterator &other) const noexcept
+			{
+				return ptr <=> other.ptr;
+			}
+			[[nodiscard]] constexpr bool operator==(const arg_iterator &other) const noexcept
+			{
+				return ptr == other.ptr;
+			}
+
+		private:
+			const detail::type_handle *ptr = nullptr;
+			type_info ref_helper;
+		};
+
+		using arg_view = detail::type_data_view<arg_iterator>;
+
+		constexpr signature_info(detail::type_handle ret_t, std::span<detail::type_handle> arg_ts) noexcept
+			: ret_type(ret_t), arg_types(arg_ts)
+		{
+		}
+
+	public:
+		signature_info() = delete;
+
+		/** Returns type info of the return type of this signature.
+		 * @note Returns invalid type info if the signature is a constructor signature. */
+		[[nodiscard]] constexpr type_info ret() const noexcept { return ret_type; }
+		/** Returns a view of argument types of this signature. */
+		[[nodiscard]] constexpr arg_view args() const noexcept
+		{
+			return arg_view{arg_iterator{std::to_address(arg_types.begin())}, arg_iterator{std::to_address(arg_types.end())}};
+		}
+
+		/** Checks if the signature is invocable with a set of arguments. */
+		[[nodiscard]] constexpr bool invocable_with(std::span<type_info> types) const noexcept
+		{
+			const auto as = args();
+			for (std::size_t i = 0, max = static_cast<std::size_t>(as.size()); i < max; ++i)
+				if (as[i] != types[i]) [[unlikely]]
+					return false;
+			return true;
+		}
+		/** @copydoc invocable_with */
+		[[nodiscard]] constexpr bool invocable_with(std::span<any> values) const noexcept
+		{
+			const auto as = args();
+			for (std::size_t i = 0, max = static_cast<std::size_t>(as.size()); i < max; ++i)
+				if (as[i] != values[i].type()) [[unlikely]]
+					return false;
+			return true;
+		}
+
+	private:
+		[[nodiscard]] std::string make_error_msg() const
+		{
+			const auto as = args();
+
+			std::string result = "Invalid argument types. Expected: [";
+			for (std::size_t i = 0, max = i < as.size();;)
+			{
+				result.append(1, '\"').append(as[i].name()).append(1, '\"');
+				if (++i != max) [[likely]]
+					result.append(", ");
+				else
+					break;
+			}
+			result.append("]");
+
+			return result;
+		}
+		[[nodiscard]] bool assert_args(std::span<any> values) const
+		{
+			if (!invocable_with(values)) [[unlikely]]
+				throw bad_any_type(make_error_msg());
+			return true;
+		}
+
+		type_info ret_type; /* Invalid if constructor signature. */
+		std::span<detail::type_handle> arg_types;
+	};
+
+	class constructor_info
+	{
+		friend class detail::type_node_iterator<constructor_info>;
+		friend class type_info;
+
+		using node_t = detail::type_data::ctor_node;
+
+		constexpr constructor_info() noexcept = default;
+		constexpr explicit constructor_info(const node_t *node) noexcept : node(node) {}
+
+	public:
+		constexpr constructor_info(const constructor_info &) noexcept = default;
+		constexpr constructor_info &operator=(const constructor_info &) noexcept = default;
+		constexpr constructor_info(constructor_info &&) noexcept = default;
+		constexpr constructor_info &operator=(constructor_info &&) noexcept = default;
+
+		/** Returns signature info of the constructor.
+		 * @note Return type of constructor signature is always invalid. */
+		[[nodiscard]] constexpr signature_info signature() const noexcept { return {{}, node->arg_types}; }
+
+		/** Invokes the underlying constructor, producing an instance of `any`.
+		 * @param args Arguments passed to the constructor.
+		 * @throw bad_any_type If the constructor cannot be invoked with the passed arguments. */
+		[[nodiscard]] any invoke(std::span<any> args) const
+		{
+			if (signature().assert_args(args)) [[likely]]
+				return node->invoke(args);
+			return {};
+		}
+		/** Invokes the underlying constructor in-place on a reference `any`.
+		 * @param instance `any` referencing memory of the to be constructed object.
+		 * @param args Arguments passed to the constructor.
+		 * @throw bad_any_type If the constructor cannot be invoked with the passed arguments.
+		 * @warning Passed `any` instance must be a non-const reference. Passing a non-reference or const `any` will
+		 * result in undefined behavior (likely a crash). */
+		void invoke(any instance, std::span<any> args) const
+		{
+			if (signature().assert_args(args)) [[likely]]
+				node->invoke_at(std::move(instance), args);
+		}
+
+		[[nodiscard]] constexpr bool operator==(const constructor_info &) const noexcept = default;
+
+	private:
+		const node_t *node = nullptr;
+	};
+
+	constexpr detail::type_data_view<type_info::constructor_iterator> type_info::constructors() const noexcept
+	{
+		return {constructor_iterator{constructor_info{data->constructors.front}}, {}};
+	}
+	constexpr bool type_info::constructable_with(std::span<type_info> args) const noexcept
+	{
+		return std::ranges::any_of(constructors(), [&args](auto c) { return c.signature().invocable_with(args); });
+	}
+	constexpr bool type_info::constructable_with(std::span<any> args) const noexcept
+	{
+		return std::ranges::any_of(constructors(), [&args](auto c) { return c.signature().invocable_with(args); });
+	}
+
+	any type_info::construct(std::span<any> args) const
+	{
+		const auto ctors = constructors();
+		const auto ctor = std::ranges::find_if(ctors, [&args](auto c) { return c.signature().invocable_with(args); });
+		if (ctor == ctors.end()) [[unlikely]]
+			throw bad_any_type("No matching constructor found");
+		else
+			return ctor->node->invoke(args);
+	}
+	// clang-format off
+	template<typename... AnyArgs>
+	any type_info::construct(AnyArgs &&...args) const requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>
+	{
+		std::array<any, sizeof...(AnyArgs)> args_array = {std::move(args)...};
+		return construct({args_array});
+	}
+	// clang-format on
+
+	class parent_info
+	{
+		friend class detail::type_node_iterator<parent_info>;
+		friend class type_info;
+
+		using node_t = detail::type_data::parent_node;
+
+		constexpr parent_info() noexcept = default;
+		constexpr explicit parent_info(const node_t *node) noexcept : node(node) {}
+
+	public:
+		constexpr parent_info(const parent_info &) noexcept = default;
+		constexpr parent_info &operator=(const parent_info &) noexcept = default;
+		constexpr parent_info(parent_info &&) noexcept = default;
+		constexpr parent_info &operator=(parent_info &&) noexcept = default;
+
+		/** Returns type info of the parent type. */
+		[[nodiscard]] constexpr type_info type() const noexcept { return type_info{node->type}; }
+
+		/** Casts an `any` instance containing an object (or reference to one) of child type to
+		 * an `any` instance of parent type (preserving const-ness).
+		 * @note Passed `any` instance must be a reference. Passing a non-reference `any` will result in
+		 * undefined behavior (likely a crash). */
+		[[nodiscard]] any cast(any child) const { return node->cast(std::move(child)); }
+
+		[[nodiscard]] constexpr bool operator==(const parent_info &) const noexcept = default;
+
+	private:
+		const node_t *node = nullptr;
+	};
+
+	constexpr detail::type_data_view<type_info::parent_iterator> type_info::parents() const noexcept
+	{
+		return {parent_iterator{parent_info{data->parents.front}}, {}};
+	}
 }	 // namespace sek
 
 /** Macro used to declare an instance of type info for type `T` as extern.

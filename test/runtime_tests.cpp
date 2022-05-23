@@ -207,7 +207,11 @@ TEST(utility_tests, any_test)
 		EXPECT_EQ(a1.cdata(), &data);
 	}
 	{
-		sek::type_info::reflect<test_child_if>().parent<test_parent_i>().parent<test_parent_f>();
+		// clang-format off
+		sek::type_info::reflect<test_child_if>()
+		    .parent<test_parent_i>().parent<test_parent_f>()
+		    .constructor<int, float>().constructor<const test_child_if &>();
+		// clang-format on
 		const auto info = sek::type_info::get<test_child_if>();
 		const auto data = test_child_if{10, std::numbers::pi_v<float>};
 		auto a1 = sek::make_any<test_child_if>(data);
@@ -244,9 +248,9 @@ TEST(utility_tests, any_test)
 		EXPECT_DEATH(a2 = parent_f->cast(std::as_const(a1)), ".*");
 #endif
 
-		a1 = sek::make_any<test_child_if>(data);
-		a2 = sek::forward_any(data);
-		auto a3 = sek::forward_any(data);
+		a1 = sek::forward_any(data);
+		a2 = info.construct(a1.ref());
+		auto a3 = info.construct(sek::make_any<int>(data.i), sek::make_any<float>(data.f));
 		EXPECT_EQ(a1, a2);
 		EXPECT_EQ(a2, a3);
 	}
