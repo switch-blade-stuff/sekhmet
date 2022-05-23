@@ -962,6 +962,19 @@ namespace sek
 				.extent = std::is_bounded_array_v<T> ? std::extent_v<T> : 0,
 				.value_type = type_handle{select_value_type<T>()},
 				.flags = make_type_flags<T>(),
+				.dtor =
+					+[](any obj)
+					{
+						if constexpr (std::is_destructible_v<T>)
+						{
+							SEK_ASSERT(!obj.is_const(), "Cannot placement destroy a const `any`");
+							SEK_ASSERT(obj.is_ref(), "Cannot placement destroy a non-reference `any`");
+							if constexpr (std::is_array_v<T>)
+								delete[] obj.template as_ptr<T>();
+							else
+								delete obj.template as_ptr<T>();
+						}
+					},
 				.ctors = std::is_default_constructible_v<T> ? ctor_list{&ctor_node::default_instance<T>::value} : ctor_list{},
 			};
 		}
