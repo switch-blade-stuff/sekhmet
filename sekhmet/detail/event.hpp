@@ -20,6 +20,11 @@ namespace sek
 	/** @brief Id used to uniquely reference event subscribers. */
 	using event_id = std::ptrdiff_t;
 
+	namespace detail
+	{
+		constexpr auto event_placeholder = static_cast<event_id>(-1);
+	}
+
 	/** @brief Structure used to manage a set of delegates.
 	 *
 	 * @tparam R Return type of the event's delegates
@@ -140,9 +145,6 @@ namespace sek
 		typedef typename iterator::difference_type difference_type;
 		typedef typename id_data_t::allocator_type id_allocator_type;
 
-	private:
-		constexpr static auto placeholder = static_cast<event_id>(-1);
-
 	public:
 		/** Initializes an empty event. */
 		constexpr basic_event() noexcept(noexcept(sub_data_t{}) &&noexcept(id_data_t{})) = default;
@@ -200,10 +202,10 @@ namespace sek
 			/* Insert the subscriber & resize the id list if needed. */
 			sub_data.emplace(sub_data.begin() + pos, subscriber);
 			if (sub_data.size() > id_data.size()) [[unlikely]]
-				id_data.resize(sub_data.size() * 2, placeholder);
+				id_data.resize(sub_data.size() * 2, detail::event_placeholder);
 
 			/* If there already is an id we can re-use, use that id. */
-			if (next_id != placeholder)
+			if (next_id != detail::event_placeholder)
 			{
 				const auto id = next_id;
 				auto id_iter = id_data.begin() + id;
@@ -218,7 +220,7 @@ namespace sek
 			for (auto id_iter = id_data.begin() + pos;; ++id_iter)
 			{
 				SEK_ASSERT(id_iter != id_data.end(), "End of id list should never be reached");
-				if (*id_iter == placeholder)
+				if (*id_iter == detail::event_placeholder)
 				{
 					*id_iter = pos;
 					return sub_data.begin()[pos].id = static_cast<event_id>(std::distance(id_data.begin(), id_iter));
@@ -491,7 +493,7 @@ namespace sek
 	private:
 		id_data_t id_data;
 		sub_data_t sub_data;
-		event_id next_id = placeholder;
+		event_id next_id = detail::event_placeholder;
 	};
 
 	namespace detail

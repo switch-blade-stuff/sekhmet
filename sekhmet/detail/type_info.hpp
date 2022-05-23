@@ -524,6 +524,7 @@ namespace sek
 		{
 			void (*copy_construct)(any &, const any &);
 			void (*copy_assign)(any &, const any &);
+			bool (*compare)(const any &, const any &);
 			void (*destroy)(any &);
 		};
 
@@ -614,22 +615,11 @@ namespace sek
 			return *this;
 		}
 
-		any(const any &other)
-		{
-			if (other.vtable) [[likely]]
-				other.vtable->copy_construct(*this, other);
-		}
+		any(const any &other) { copy_construct(other); }
 		any &operator=(const any &other)
 		{
 			if (this != &other) [[likely]]
-			{
-				if (empty() && other.vtable) [[unlikely]]
-					other.vtable->copy_construct(*this, other);
-				else if (other.vtable) [[likely]]
-					other.vtable->copy_assign(*this, other);
-				else
-					reset_impl();
-			}
+				copy_assign(other);
 			return *this;
 		}
 		~any() { reset_impl(); }
@@ -698,7 +688,8 @@ namespace sek
 		/** @copydoc cdata */
 		[[nodiscard]] constexpr const void *data() const noexcept { return cdata(); }
 
-		/** Returns an instance of `any` referencing the managed object. */
+		/** Returns an instance of `any` referencing the managed object.
+		 * @note Preserves const-ness of the managed object. */
 		[[nodiscard]] any ref() const noexcept
 		{
 			return any{vtable, info, const_cast<void *>(data()), static_cast<flags_t>(IS_REF | (flags & IS_CONST))};
@@ -737,6 +728,17 @@ namespace sek
 			return as_cptr<T>();
 		}
 
+		/** Compares managed objects by-value.
+		 * @return true if the managed/referenced objects compare equal,
+		 * false if they do not or if they are of different types. */
+		[[nodiscard]] constexpr bool operator==(const any &other) const
+		{
+			if (empty() && other.empty()) [[unlikely]]
+				return true;
+			else
+				return info == other.info && vtable->compare(*this, other);
+		}
+
 		constexpr void swap(any &other) noexcept
 		{
 			std::swap(vtable, other.vtable);
@@ -749,13 +751,34 @@ namespace sek
 	private:
 		void reset_impl()
 		{
-			if (vtable != nullptr) [[likely]]
+			/* References are not destroyed. */
+			if (flags & IS_REF) [[unlikely]]
+				return;
+			else if (vtable != nullptr) [[likely]]
 				vtable->destroy(*this);
+		}
+		void copy_construct(const any &from)
+		{
+			if (from.vtable != nullptr) [[likely]]
+				from.vtable->copy_construct(*this, from);
+			vtable = from.vtable;
+			info = from.info;
+		}
+		void copy_assign(const any &from)
+		{
+			if (empty() && from.vtable != nullptr) [[unlikely]]
+				from.vtable->copy_construct(*this, from);
+			else if (from.vtable != nullptr) [[likely]]
+				from.vtable->copy_assign(*this, from);
+			else
+				reset();
+			vtable = from.vtable;
+			info = from.info;
 		}
 
 		const vtable_t *vtable = nullptr;
-		type_info info;
-		storage_t storage;
+		type_info info = {};
+		storage_t storage = {};
 		flags_t flags = {};
 	};
 
@@ -763,8 +786,6 @@ namespace sek
 	constinit const any::vtable_t any::vtable_instance<T>::value = {
 		.copy_construct = +[](any &to, const any &from) -> void
 		{
-			to.vtable = from.vtable;
-			to.info = from.info;
 			to.storage = storage_t(std::in_place_type<T>, *static_cast<const T *>(from.data()));
 			to.flags = make_flags<T>();
 		},
@@ -773,7 +794,6 @@ namespace sek
 			constexpr auto reset_copy = [](any &t, const any &f)
 			{
 				t.reset();
-				t.info = f.info;
 				t.storage = storage_t(std::in_place_type<T>, *static_cast<const T *>(f.data()));
 			};
 
@@ -785,15 +805,22 @@ namespace sek
 				*to.storage.local.template get<T>() = *static_cast<const T *>(from.data());
 			else
 				*static_cast<T *>(to.storage.external) = *static_cast<const T *>(from.data());
-			to.vtable = from.vtable;
 			to.flags = make_flags<T>();
+		},
+		.compare = +[](const any &a, const any &b) -> bool
+		{
+			/* At this point, both types are equal. */
+			const auto a_ptr = a.template as_cptr<T>();
+			const auto b_ptr = b.template as_cptr<T>();
+			if (a_ptr == b_ptr) [[unlikely]]
+				return true;
+			else if constexpr (!std::equality_comparable<T>)
+				return false;
+			else
+				return *a_ptr == *b_ptr;
 		},
 		.destroy = +[](any &instance) -> void
 		{
-			/* References are not destroyed. */
-			if (instance.flags & IS_REF) [[unlikely]]
-				return;
-
 			if constexpr (local_candidate<T>)
 				std::destroy_at(instance.storage.local.template get<T>());
 			else if constexpr (std::is_bounded_array_v<T>)
@@ -831,8 +858,6 @@ namespace sek
 	{
 		struct type_data::attrib_node : basic_node<attrib_node>
 		{
-			constexpr attrib_node() noexcept = default;
-
 			any data;
 		};
 
@@ -853,10 +878,10 @@ namespace sek
 		constexpr type_data::ctor_node make_type_ctor() noexcept
 		{
 			// clang-format off
-			constexpr auto &arg_ts = auto_constant<std::array<type_handle, sizeof...(Args)>{type_handle{type_selector<Args>}...}>::value;
+			constexpr auto arg_ts = std::array<type_handle, sizeof...(Args)>{type_handle{type_selector<Args>}...};
 			// clang-format on
 			return type_data::ctor_node{
-				{arg_ts},
+				{auto_constant<arg_ts>::value},
 				+[](any obj, std::span<any> args)
 				{
 					constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, T * p, std::span<any> & as)
@@ -962,19 +987,15 @@ namespace sek
 				.extent = std::is_bounded_array_v<T> ? std::extent_v<T> : 0,
 				.value_type = type_handle{select_value_type<T>()},
 				.flags = make_type_flags<T>(),
-				.dtor =
-					+[](any obj)
+				.dtor = +[](any obj) -> void
+				{
+					if constexpr (std::is_destructible_v<T>)
 					{
-						if constexpr (std::is_destructible_v<T>)
-						{
-							SEK_ASSERT(!obj.is_const(), "Cannot placement destroy a const `any`");
-							SEK_ASSERT(obj.is_ref(), "Cannot placement destroy a non-reference `any`");
-							if constexpr (std::is_array_v<T>)
-								delete[] obj.template as_ptr<T>();
-							else
-								delete obj.template as_ptr<T>();
-						}
-					},
+						SEK_ASSERT(!obj.is_const(), "Cannot placement destroy a const `any`");
+						SEK_ASSERT(obj.is_ref(), "Cannot placement destroy a non-reference `any`");
+						std::destroy_at(obj.template as_ptr<T>());
+					}
+				},
 				.ctors = std::is_default_constructible_v<T> ? ctor_list{&ctor_node::default_instance<T>::value} : ctor_list{},
 			};
 		}

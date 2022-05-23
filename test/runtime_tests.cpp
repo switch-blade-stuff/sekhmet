@@ -243,5 +243,11 @@ TEST(utility_tests, any_test)
 		/* Parent cast cannot be by-value. */
 		EXPECT_DEATH(a2 = parent_f->cast(std::as_const(a1)), ".*");
 #endif
+
+		a1 = sek::make_any<test_child_if>(data);
+		a2 = sek::forward_any(data);
+		auto a3 = sek::forward_any(data);
+		EXPECT_EQ(a1, a2);
+		EXPECT_EQ(a2, a3);
 	}
 }
