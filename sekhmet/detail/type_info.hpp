@@ -6,6 +6,7 @@
 
 #include <new>
 #include <span>
+#include <utility>
 
 #include "aligned_storage.hpp"
 #include "assert.hpp"
@@ -534,6 +535,18 @@ namespace sek
 		template<typename... AnyArgs>
 		[[nodiscard]] any construct(AnyArgs &&...args) const requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>;
 		// clang-format on
+		/** Constructs the underlying type with the passed arguments in-place.
+		 * @param instance `any` referencing memory of the to be constructed object.
+		 * @param args Arguments passed to the constructor.
+		 * @throw bad_any_type If no constructor accepting `args` was found.
+		 * @warning Passed `any` instance must be a non-const reference. Passing a non-reference or const `any` will
+		 * result in undefined behavior (likely a crash). */
+		void construct_at(any instance, std::span<any> args = {}) const;
+		// clang-format off
+		/** @copydoc construct */
+		template<typename... AnyArgs>
+		void construct_at(any instance, AnyArgs &&...args) const requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>;
+		// clang-format on
 
 		/** Returns a range of parents of this type. */
 		[[nodiscard]] constexpr detail::type_data_view<parent_iterator> parents() const noexcept;
@@ -681,10 +694,13 @@ namespace sek
 		~any() { reset_impl(); }
 
 		/** Initializes `any` with the managed object direct-initialized from `value`. */
+		// clang-format off
 		template<typename T>
-		any(T &&value) noexcept : any(std::in_place_type<T>, std::forward<T>(value))
+		any(T &&value) noexcept requires(!std::same_as<std::decay_t<T>, any>) : any(std::in_place_type<T>, std::forward<T>(value))
 		{
 		}
+		// clang-format on
+
 		/** Initializes `any` in-place using the passed arguments. */
 		template<typename T, typename... Args>
 		explicit any(std::in_place_type_t<T>, Args &&...args) noexcept
@@ -1289,6 +1305,23 @@ namespace sek
 	{
 		std::array<any, sizeof...(AnyArgs)> args_array = {std::move(args)...};
 		return construct({args_array});
+	}
+	// clang-format on
+	void type_info::construct_at(any instance, std::span<any> args) const
+	{
+		const auto ctors = constructors();
+		const auto ctor = std::ranges::find_if(ctors, [&args](auto c) { return c.signature().invocable_with(args); });
+		if (ctor == ctors.end()) [[unlikely]]
+			throw bad_any_type("No matching constructor found");
+		else
+			ctor->node->invoke_at(std::move(instance), args);
+	}
+	// clang-format off
+	template<typename... AnyArgs>
+	void type_info::construct_at(any instance, AnyArgs &&...args) const requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>
+	{
+		std::array<any, sizeof...(AnyArgs)> args_array = {std::move(args)...};
+		construct_at(std::move(instance), {args_array});
 	}
 	// clang-format on
 
