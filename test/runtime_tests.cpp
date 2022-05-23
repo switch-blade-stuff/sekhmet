@@ -95,8 +95,6 @@ TEST(utility_tests, type_info_test)
 	EXPECT_TRUE(info.valid());
 	EXPECT_EQ(info.name(), "test_child");
 	EXPECT_EQ(info.name(), sek::type_name<test_child>());
-	EXPECT_EQ(info.size(), sizeof(test_child));
-	EXPECT_EQ(info.align(), alignof(test_child));
 	EXPECT_TRUE(info.is_empty());
 	EXPECT_FALSE(info.has_extent());
 	EXPECT_EQ(info.extent(), 0);
@@ -116,6 +114,13 @@ TEST(utility_tests, type_info_test)
 	EXPECT_TRUE(sek::type_info::get<test_child[2]>().is_range());
 	EXPECT_EQ(sek::type_info::get<test_child[2]>().extent(), 2);
 	EXPECT_EQ(sek::type_info::get<test_child[2]>().value_type(), info);
+
+	EXPECT_FALSE(sek::type_info::get<test_child[]>().has_extent());
+	EXPECT_TRUE(sek::type_info::get<test_child[]>().is_array());
+	EXPECT_FALSE(sek::type_info::get<test_child[]>().is_range());
+	EXPECT_FALSE(sek::type_info::get<test_child[]>().is_pointer());
+	EXPECT_EQ(sek::type_info::get<test_child[]>().extent(), 0);
+	EXPECT_NE(sek::type_info::get<test_child[]>().value_type(), info);
 
 	EXPECT_TRUE(sek::type_info::get<test_child *>().is_pointer());
 	EXPECT_EQ(sek::type_info::get<test_child *>().value_type(), info);
