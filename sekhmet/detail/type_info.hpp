@@ -824,8 +824,7 @@ namespace sek
 	template<typename T, typename U, typename... Args>
 	[[nodiscard]] any make_any(std::initializer_list<U> il, Args &&...args)
 	{
-		using V = std::conditional_t<std::is_lvalue_reference_v<T>, T, std::decay_t<T>>;
-		return any{std::in_place_type<V>, std::forward<std::initializer_list<U>>(il), std::forward<Args>(args)...};
+		return any{std::in_place_type<std::decay_t<T>>, std::forward<std::initializer_list<U>>(il), std::forward<Args>(args)...};
 	}
 
 	namespace detail
