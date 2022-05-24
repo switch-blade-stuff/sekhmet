@@ -254,12 +254,5 @@ TEST(utility_tests, any_test)
 		EXPECT_EQ(a1, a2);
 		EXPECT_EQ(a2, a3);
 		EXPECT_EQ(info.construct(), sek::make_any<test_child_if>());
-
-		sek::type_storage<test_child_if> bytes;
-		auto a4 = sek::forward_any(*bytes.get<test_child_if>());
-		info.construct_at(a4.ref(), a1.ref());
-		EXPECT_EQ(a4, a3);
-		EXPECT_EQ(a4, a2);
-		EXPECT_EQ(a4, a1);
 	}
 }

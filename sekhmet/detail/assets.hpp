@@ -396,5 +396,5 @@ namespace sek
 		handle_t handle;
 	};
 
-	extern template class SEK_API_IMPORT detail::service<asset_repository>;
+	extern template class SEK_API_IMPORT service<asset_repository>;
 }	 // namespace sek

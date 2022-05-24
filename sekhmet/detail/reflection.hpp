@@ -10,65 +10,10 @@
 
 #include "aligned_storage.hpp"
 #include "assert.hpp"
-#include "static_string.hpp"
+#include "type_name.hpp"
 
 namespace sek
 {
-	namespace detail
-	{
-		template<basic_static_string Src, std::size_t J, std::size_t I, std::size_t Last, std::size_t N>
-		consteval auto format_type_name(basic_static_string<char, N> result) noexcept
-		{
-			if constexpr (I == Last)
-			{
-				result[J] = '\0';
-				return result;
-			}
-			else
-			{
-				result[J] = static_cast<typename decltype(result)::value_type>(Src[I]);
-				return format_type_name<Src, J + 1, I + 1, Last>(result);
-			}
-		}
-		template<basic_static_string Src, std::size_t J, std::size_t I, std::size_t Last, std::size_t N>
-		consteval auto format_type_name() noexcept
-		{
-			return format_type_name<Src, J, I, Last, N>({});
-		}
-		template<basic_static_string Name>
-		consteval auto format_type_name() noexcept
-		{
-#if defined(__clang__) || defined(__GNUC__)
-			constexpr auto offset_start = Name.find_first('=') + 2;
-			constexpr auto offset_end = Name.find_last(']');
-			constexpr auto trimmed_length = offset_end - offset_start + 1;
-#elif defined(_MSC_VER)
-			constexpr auto offset_start = Name.find_first('<') + 1;
-			constexpr auto offset_end = Name.find_last('>');
-			constexpr auto trimmed_length = offset_end - offset_start + 1;
-#else
-#error "Implement type name generation for this compiler"
-#endif
-			return format_type_name<Name, 0, offset_start, offset_end, trimmed_length>();
-		}
-
-		template<typename T>
-		[[nodiscard]] constexpr std::basic_string_view<char> generate_type_name() noexcept
-		{
-			constexpr auto &value = auto_constant<format_type_name<SEK_PRETTY_FUNC>()>::value;
-			return std::basic_string_view<char>{value.begin(), value.end()};
-		}
-	}	 // namespace detail
-
-	/** Returns name of the specified type.
-	 * @warning Consistency of generated type names across different compilers is not guaranteed.
-	 * To generate consistent type names, overload this function for the desired type. */
-	template<typename T>
-	[[nodiscard]] constexpr std::string_view type_name() noexcept
-	{
-		return detail::generate_type_name<T>();
-	}
-
 	class any;
 	class type_info;
 
@@ -120,24 +65,18 @@ namespace sek
 					constinit static const ctor_node value;
 				};
 
-				constexpr ctor_node(void (*invoke_at)(any, std::span<any>), any (*invoke)(std::span<any>)) noexcept
-					: invoke_at(invoke_at), invoke(invoke)
-				{
-				}
+				constexpr explicit ctor_node(any (*invoke)(std::span<any>)) noexcept : invoke(invoke) {}
 
 				std::span<type_handle> arg_types;
-				void (*invoke_at)(any, std::span<any>); /* Placement constructor. */
-				any (*invoke)(std::span<any>);			/* Allocating constructor. */
+				any (*invoke)(std::span<any>);
 			};
 			template<typename T, typename... Args>
 			struct ctor_instance : ctor_node
 			{
 				constinit static ctor_instance value;
 
-				constexpr ctor_instance(std::array<type_handle, sizeof...(Args)> arg_ts,
-										void (*invoke_at)(any, std::span<any>),
-										any (*invoke)(std::span<any>)) noexcept
-					: ctor_node(invoke_at, invoke), arg_ts_array(arg_ts)
+				constexpr ctor_instance(std::array<type_handle, sizeof...(Args)> arg_ts, any (*invoke)(std::span<any>)) noexcept
+					: ctor_node(invoke), arg_ts_array(arg_ts)
 				{
 					ctor_node::arg_types = {arg_ts_array};
 				}
@@ -358,9 +297,6 @@ namespace sek
 		~bad_any_type() override = default;
 	};
 
-	/** @brief Structure used to represent information about a parent-child relationship between reflected types. */
-	class parent_info;
-
 	/** @brief Structure used to represent a signature of a constructor or a function. */
 	class signature_info;
 
@@ -369,6 +305,12 @@ namespace sek
 
 	/** @brief Structure used to represent information about a function of a reflected type. */
 	class function_info;
+
+	/** @brief Structure used to represent information about a parent-child relationship between reflected types. */
+	class parent_info;
+
+	/** @brief Structure used to represent information about a conversion cast of a reflected type. */
+	class conversion_info;
 
 	/** @brief Structure used to reference reflected information about a type. */
 	class type_info
@@ -534,18 +476,6 @@ namespace sek
 		/** @copydoc construct */
 		template<typename... AnyArgs>
 		[[nodiscard]] any construct(AnyArgs &&...args) const requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>;
-		// clang-format on
-		/** Constructs the underlying type with the passed arguments in-place.
-		 * @param instance `any` referencing memory of the to be constructed object.
-		 * @param args Arguments passed to the constructor.
-		 * @throw bad_any_type If no constructor accepting `args` was found.
-		 * @warning Passed `any` instance must be a non-const reference. Passing a non-reference or const `any` will
-		 * result in undefined behavior (likely a crash). */
-		void construct_at(any instance, std::span<any> args = {}) const;
-		// clang-format off
-		/** @copydoc construct */
-		template<typename... AnyArgs>
-		void construct_at(any instance, AnyArgs &&...args) const requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>;
 		// clang-format on
 
 		/** Returns a range of parents of this type. */
@@ -760,12 +690,19 @@ namespace sek
 		/** @copydoc cdata */
 		[[nodiscard]] constexpr const void *data() const noexcept { return cdata(); }
 
-		/** Returns an instance of `any` referencing the managed object.
+		/** Returns an `any` referencing to the managed object.
 		 * @note Preserves const-ness of the managed object. */
-		[[nodiscard]] any ref() const noexcept
+		[[nodiscard]] any ref() noexcept
 		{
-			return any{vtable, info, const_cast<void *>(data()), static_cast<flags_t>(IS_REF | (flags & IS_CONST))};
+			return any{vtable, info, cdata(), static_cast<flags_t>(IS_REF | (flags & IS_CONST))};
 		}
+		/** Returns a const `any` referencing to the managed object. */
+		[[nodiscard]] any cref() const noexcept
+		{
+			return any{vtable, info, cdata(), static_cast<flags_t>(IS_REF | IS_CONST)};
+		}
+		/** @copydoc cref */
+		[[nodiscard]] any ref() const noexcept { return cref(); }
 
 		/** Returns pointer to the managed or referenced object as `T` pointer.
 		 * @note `T` must be the same as the underlying object.
@@ -943,31 +880,15 @@ namespace sek
 			using U = std::remove_reference_t<T>;
 			if constexpr (!std::is_reference_v<T> || std::is_const_v<U>)
 				return *a.as_cptr<U>();
+			else if (a.is_const()) [[unlikely]]
+				throw bad_any_type("Cannot bind const `any` to non-const reference argument");
 			else
-			{
-				SEK_ASSERT(!a.is_const(), "Cannot bind const `any` to non-const reference argument");
 				return std::forward<T>(*a.as_ptr<U>());
-			}
 		}
 
 		template<typename T, typename... Args>
 		constinit type_data::ctor_instance<T, Args...> type_data::ctor_instance<T, Args...>::value = {
 			{type_handle{type_selector<std::decay_t<Args>>}...},
-			+[](any obj, std::span<any> args)
-			{
-				constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, T * p, std::span<any> & as)
-				{
-					if constexpr (sizeof...(Args) == 0 || std::is_aggregate_v<T>)
-						new (p) T{unwrap_any_arg(type_selector<type_seq_element_t<Is, type_seq_t<Args...>>>, as[Is])...};
-					else
-						new (p) T(unwrap_any_arg(type_selector<type_seq_element_t<Is, type_seq_t<Args...>>>, as[Is])...);
-				};
-
-				SEK_ASSERT(!obj.is_const(), "Cannot placement construct a const `any`");
-				SEK_ASSERT(obj.is_ref(), "Cannot placement construct a non-reference `any`");
-
-				unwrap(std::make_index_sequence<sizeof...(Args)>(), obj.template as_ptr<T>(), args);
-			},
 			+[](std::span<any> args) -> any
 			{
 				constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, std::span<any> & as)
@@ -997,8 +918,6 @@ namespace sek
 				type_handle(type_selector<P>),
 				+[](any child) -> any
 				{
-					SEK_ASSERT(child.is_ref(), "Cannot cast by-value `any`");
-
 					if (child.type() != type_info::get<T>()) [[unlikely]]
 						return any{};
 					/* Need to forward const-ness. */
@@ -1054,15 +973,6 @@ namespace sek
 				.extent = std::is_bounded_array_v<T> ? std::extent_v<T> : 0,
 				.value_type = type_handle{select_value_type<T>()},
 				.flags = make_type_flags<T>(),
-				.destructor = +[](any obj) -> void
-				{
-					if constexpr (std::is_destructible_v<T>)
-					{
-						SEK_ASSERT(!obj.is_const(), "Cannot placement destroy a const `any`");
-						SEK_ASSERT(obj.is_ref(), "Cannot placement destroy a non-reference `any`");
-						std::destroy_at(obj.template as_ptr<T>());
-					}
-				},
 				.constructors = std::is_default_constructible_v<T> ? ct_list{&type_data::ctor_instance<T>::value} : ct_list{},
 			};
 		}
@@ -1259,17 +1169,6 @@ namespace sek
 				return node->invoke(args);
 			return {};
 		}
-		/** Invokes the underlying constructor in-place on a reference `any`.
-		 * @param instance `any` referencing memory of the to be constructed object.
-		 * @param args Arguments passed to the constructor.
-		 * @throw bad_any_type If the constructor cannot be invoked with the passed arguments.
-		 * @warning Passed `any` instance must be a non-const reference. Passing a non-reference or const `any` will
-		 * result in undefined behavior (likely a crash). */
-		void invoke(any instance, std::span<any> args) const
-		{
-			if (signature().assert_args(args)) [[likely]]
-				node->invoke_at(std::move(instance), args);
-		}
 
 		[[nodiscard]] constexpr bool operator==(const constructor_info &) const noexcept = default;
 
@@ -1307,23 +1206,6 @@ namespace sek
 		return construct({args_array});
 	}
 	// clang-format on
-	void type_info::construct_at(any instance, std::span<any> args) const
-	{
-		const auto ctors = constructors();
-		const auto ctor = std::ranges::find_if(ctors, [&args](auto c) { return c.signature().invocable_with(args); });
-		if (ctor == ctors.end()) [[unlikely]]
-			throw bad_any_type("No matching constructor found");
-		else
-			ctor->node->invoke_at(std::move(instance), args);
-	}
-	// clang-format off
-	template<typename... AnyArgs>
-	void type_info::construct_at(any instance, AnyArgs &&...args) const requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>
-	{
-		std::array<any, sizeof...(AnyArgs)> args_array = {std::move(args)...};
-		construct_at(std::move(instance), {args_array});
-	}
-	// clang-format on
 
 	class parent_info
 	{
@@ -1348,7 +1230,11 @@ namespace sek
 		 * an `any` instance of parent type (preserving const-ness).
 		 * @note Passed `any` instance must be a reference. Passing a non-reference `any` will result in
 		 * undefined behavior (likely a crash). */
-		[[nodiscard]] any cast(any child) const { return node->cast(std::move(child)); }
+		[[nodiscard]] any cast(any child) const
+		{
+			SEK_ASSERT(child.is_ref(), "Cannot cast by-value `any`");
+			return node->cast(std::move(child));
+		}
 
 		[[nodiscard]] constexpr bool operator==(const parent_info &) const noexcept = default;
 

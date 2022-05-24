@@ -19,10 +19,10 @@
 
 namespace sek
 {
+	template class SEK_API_EXPORT service<asset_repository>;
+
 	namespace detail
 	{
-		template class SEK_API_EXPORT service<asset_repository>;
-
 		namespace json = serialization::json;
 		namespace ubj = serialization::ubj;
 

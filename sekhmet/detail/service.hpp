@@ -7,9 +7,13 @@
 #include <atomic>
 
 #include "define.h"
+#include "event.hpp"
 
-namespace sek::detail
+namespace sek
 {
+	/** @brief Base class for service implementation.
+	 * @tparam T Type of service child.
+	 * @tparam Policy Service uniqueness & availability policy. */
 	template<typename T>
 	class SEK_API service
 	{
