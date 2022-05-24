@@ -915,7 +915,83 @@ namespace sek
 		flags_t flags = {};
 	};
 
-	/** @brief Type-erased reference to objects. */
+	template<typename T>
+	constinit const any::vtable_t any::vtable_instance<T>::value = {
+		.copy_construct = +[](any &to, const any &from) -> void
+		{
+			to.storage = storage_t(std::in_place_type<T>, *static_cast<const T *>(from.data()));
+			to.flags = make_flags<T>();
+		},
+		.copy_assign = +[](any &to, const any &from) -> void
+		{
+			constexpr auto reset_copy = [](any &t, const any &f)
+			{
+				t.reset();
+				t.storage = storage_t(std::in_place_type<T>, *static_cast<const T *>(f.data()));
+			};
+
+			using Tc = std::add_const_t<T>;
+			if constexpr (!requires(T & a, Tc & b) { a = b; })
+				reset_copy(to, from);
+			else
+			{
+				if (to.info != from.info)
+					reset_copy(to, from);
+				else if constexpr (local_candidate<T>)
+					*to.storage.local.template get<T>() = *static_cast<Tc *>(from.data());
+				else
+					*static_cast<T *>(to.storage.external) = *static_cast<Tc *>(from.data());
+			}
+			to.flags = make_flags<T>();
+		},
+		.compare = +[](const any &a, const any &b) -> bool
+		{
+			/* At this point, both types are equal. */
+			const auto a_ptr = a.template as_cptr<T>();
+			const auto b_ptr = b.template as_cptr<T>();
+			if (a_ptr == b_ptr) [[unlikely]]
+				return true;
+			else if constexpr (!std::equality_comparable<T>)
+				return false;
+			else
+				return *a_ptr == *b_ptr;
+		},
+		.destroy = +[](any &instance) -> void
+		{
+			if constexpr (local_candidate<T>)
+				std::destroy_at(instance.storage.local.template get<T>());
+			else if constexpr (std::is_bounded_array_v<T>)
+				delete[] static_cast<T *>(instance.storage.external);
+			else
+				delete static_cast<T *>(instance.storage.external);
+		},
+	};
+
+	/** Forwards the passed value by-reference if possible, otherwise constructs a new instance in-place. */
+	template<typename T>
+	[[nodiscard]] any forward_any(T &&value)
+	{
+		using U = std::conditional_t<std::is_lvalue_reference_v<T>, T, std::decay_t<T>>;
+		return any{std::in_place_type<U>, value};
+	}
+
+	/** Returns `any`, containing an instance of `T` constructed in-place.
+	 * @param args Arguments used to construct the instance. */
+	template<typename T, typename... Args>
+	[[nodiscard]] any make_any(Args &&...args)
+	{
+		using U = std::conditional_t<std::is_lvalue_reference_v<T>, T, std::decay_t<T>>;
+		return any{std::in_place_type<U>, std::forward<Args>(args)...};
+	}
+	/** @copydoc make_any
+	 * @param il Initializer list passed to the constructor. */
+	template<typename T, typename U, typename... Args>
+	[[nodiscard]] any make_any(std::initializer_list<U> il, Args &&...args)
+	{
+		return any{std::in_place_type<std::decay_t<T>>, std::forward<std::initializer_list<U>>(il), std::forward<Args>(args)...};
+	}
+
+	/** @brief Type-erased reference to objects. Effectively it is a reference-only wrapper around `any`. */
 	class any_ref
 	{
 	public:
@@ -1038,82 +1114,6 @@ namespace sek
 
 		type_storage<any> storage;
 	};
-
-	template<typename T>
-	constinit const any::vtable_t any::vtable_instance<T>::value = {
-		.copy_construct = +[](any &to, const any &from) -> void
-		{
-			to.storage = storage_t(std::in_place_type<T>, *static_cast<const T *>(from.data()));
-			to.flags = make_flags<T>();
-		},
-		.copy_assign = +[](any &to, const any &from) -> void
-		{
-			constexpr auto reset_copy = [](any &t, const any &f)
-			{
-				t.reset();
-				t.storage = storage_t(std::in_place_type<T>, *static_cast<const T *>(f.data()));
-			};
-
-			using Tc = std::add_const_t<T>;
-			if constexpr (!requires(T & a, Tc & b) { a = b; })
-				reset_copy(to, from);
-			else
-			{
-				if (to.info != from.info)
-					reset_copy(to, from);
-				else if constexpr (local_candidate<T>)
-					*to.storage.local.template get<T>() = *static_cast<Tc *>(from.data());
-				else
-					*static_cast<T *>(to.storage.external) = *static_cast<Tc *>(from.data());
-			}
-			to.flags = make_flags<T>();
-		},
-		.compare = +[](const any &a, const any &b) -> bool
-		{
-			/* At this point, both types are equal. */
-			const auto a_ptr = a.template as_cptr<T>();
-			const auto b_ptr = b.template as_cptr<T>();
-			if (a_ptr == b_ptr) [[unlikely]]
-				return true;
-			else if constexpr (!std::equality_comparable<T>)
-				return false;
-			else
-				return *a_ptr == *b_ptr;
-		},
-		.destroy = +[](any &instance) -> void
-		{
-			if constexpr (local_candidate<T>)
-				std::destroy_at(instance.storage.local.template get<T>());
-			else if constexpr (std::is_bounded_array_v<T>)
-				delete[] static_cast<T *>(instance.storage.external);
-			else
-				delete static_cast<T *>(instance.storage.external);
-		},
-	};
-
-	/** Forwards the passed value by-reference if possible, otherwise constructs a new instance in-place. */
-	template<typename T>
-	[[nodiscard]] any forward_any(T &&value)
-	{
-		using U = std::conditional_t<std::is_lvalue_reference_v<T>, T, std::decay_t<T>>;
-		return any{std::in_place_type<U>, value};
-	}
-
-	/** Returns `any`, containing an instance of `T` constructed in-place.
-	 * @param args Arguments used to construct the instance. */
-	template<typename T, typename... Args>
-	[[nodiscard]] any make_any(Args &&...args)
-	{
-		using U = std::conditional_t<std::is_lvalue_reference_v<T>, T, std::decay_t<T>>;
-		return any{std::in_place_type<U>, std::forward<Args>(args)...};
-	}
-	/** @copydoc make_any
-	 * @param il Initializer list passed to the constructor. */
-	template<typename T, typename U, typename... Args>
-	[[nodiscard]] any make_any(std::initializer_list<U> il, Args &&...args)
-	{
-		return any{std::in_place_type<std::decay_t<T>>, std::forward<std::initializer_list<U>>(il), std::forward<Args>(args)...};
-	}
 
 	namespace detail
 	{
