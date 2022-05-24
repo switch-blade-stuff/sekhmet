@@ -264,45 +264,38 @@ TEST(utility_tests, any_test)
 		auto parent_i = std::find_if(parents.begin(), parents.end(), pred_i);
 		EXPECT_NE(parent_i, parents.end());
 
-		auto a2 = parent_i->cast(a1.ref());
-		EXPECT_TRUE(a2.is_ref());
-		EXPECT_NE(a2.as_ptr<test_parent_i>(), nullptr);
-		EXPECT_EQ(a2.as_ptr<test_parent_i>(), a1.as_ptr<test_child_if>());
-		EXPECT_EQ(*a2.as_ptr<test_parent_i>(), data);
+		auto ar1 = parent_i->cast(a1.ref());
+		EXPECT_NE(ar1.as_ptr<test_parent_i>(), nullptr);
+		EXPECT_EQ(ar1.as_ptr<test_parent_i>(), a1.as_ptr<test_child_if>());
+		EXPECT_EQ(*ar1.as_ptr<test_parent_i>(), data);
 
 		constexpr auto pred_f = [](auto p) { return p.type() == sek::type_info::get<test_parent_f>(); };
 		auto parent_f = std::find_if(parents.begin(), parents.end(), pred_f);
 		EXPECT_NE(parent_f, parents.end());
 
-		a2 = parent_f->cast(a1.ref());
-		EXPECT_TRUE(a2.is_ref());
-		EXPECT_NE(a2.as_ptr<test_parent_f>(), nullptr);
-		EXPECT_EQ(a2.as_ptr<test_parent_f>(), a1.as_ptr<test_child_if>());
-		EXPECT_EQ(*a2.as_ptr<test_parent_f>(), data);
+		ar1 = parent_f->cast(a1.ref());
+		EXPECT_NE(ar1.as_ptr<test_parent_f>(), nullptr);
+		EXPECT_EQ(ar1.as_ptr<test_parent_f>(), a1.as_ptr<test_child_if>());
+		EXPECT_EQ(*ar1.as_ptr<test_parent_f>(), data);
 
 		auto *pf = a1.try_cast<test_parent_f>();
 		EXPECT_NE(pf, nullptr);
 		EXPECT_EQ(pf, a1.as_ptr<test_child_if>());
-		EXPECT_EQ(pf, a2.as_ptr<test_parent_f>());
+		EXPECT_EQ(pf, ar1.as_ptr<test_parent_f>());
 		EXPECT_EQ(*pf, data);
 
 		auto *cpf = a1.try_cast<const test_parent_f>();
 		EXPECT_NE(cpf, nullptr);
 		EXPECT_EQ(cpf, a1.as_ptr<test_child_if>());
-		EXPECT_EQ(cpf, a2.as_ptr<test_parent_f>());
+		EXPECT_EQ(cpf, ar1.as_ptr<test_parent_f>());
 		EXPECT_EQ(cpf, pf);
 		EXPECT_EQ(*cpf, data);
 
-		a2 = std::as_const(a1).convert(sek::type_info::get<test_parent_f>());
+		auto a2 = std::as_const(a1).convert(sek::type_info::get<test_parent_f>());
 		EXPECT_FALSE(a2.empty());
 		EXPECT_EQ(a2.as_cptr<test_parent_f>(), a1.as_ptr<test_child_if>());
 		EXPECT_EQ(a2.as_cptr<test_parent_f>(), cpf);
 		EXPECT_EQ(a2.as_cptr<test_parent_f>(), pf);
-
-#if !defined(NDEBUG)
-		/* Parent cast cannot be by-value. */
-		EXPECT_DEATH(a2 = parent_f->cast(std::as_const(a1)), ".*");
-#endif
 
 		a1 = sek::forward_any(data);
 		a2 = info.construct(a1.ref());

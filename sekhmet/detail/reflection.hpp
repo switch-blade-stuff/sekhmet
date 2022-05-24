@@ -15,6 +15,7 @@
 namespace sek
 {
 	class any;
+	class any_ref;
 	class type_info;
 
 	template<typename T>
@@ -91,10 +92,10 @@ namespace sek
 			struct attrib_node;
 			struct parent_node : basic_node<parent_node>
 			{
-				constexpr parent_node(type_handle type, any (*cast)(any)) noexcept : type(type), cast(cast) {}
+				constexpr parent_node(type_handle type, any_ref (*cast)(any_ref)) noexcept : type(type), cast(cast) {}
 
 				type_handle type;
-				any (*cast)(any);
+				any_ref (*cast)(any_ref);
 			};
 			struct conv_node : basic_node<conv_node>
 			{
@@ -586,6 +587,8 @@ namespace sek
 	/** @brief Type-erased container of objects. */
 	class any
 	{
+		friend class any_ref;
+
 		struct vtable_t
 		{
 			void (*copy_construct)(any &, const any &);
@@ -721,10 +724,10 @@ namespace sek
 		{
 		}
 
-		/** Returns type info of the stored object. */
+		/** Returns type info of the managed object. */
 		[[nodiscard]] constexpr type_info type() const noexcept { return info; }
 
-		/** Checks if `any` manages an object or a reference. */
+		/** Checks if `any` manages an object. */
 		[[nodiscard]] constexpr bool empty() const noexcept { return vtable == nullptr; }
 		/** Checks if `any` references an externally-stored object. */
 		[[nodiscard]] constexpr bool is_ref() const noexcept { return flags & IS_REF; }
@@ -743,13 +746,13 @@ namespace sek
 			flags = {};
 		}
 
-		/** Returns raw pointer to the managed or referenced object's data.
-		 * @note If the managed or referenced object is const-qualified, returns nullptr. */
+		/** Returns raw pointer to the managed object's data.
+		 * @note If the managed object is const-qualified, returns nullptr. */
 		[[nodiscard]] constexpr void *data() noexcept
 		{
 			return is_const() ? nullptr : is_local() ? storage.local.data() : storage.external;
 		}
-		/** Returns raw const pointer to the managed or referenced object's data. */
+		/** Returns raw const pointer to the managed object's data. */
 		[[nodiscard]] constexpr const void *cdata() const noexcept
 		{
 			return is_local() ? storage.local.data() : storage.external;
@@ -771,7 +774,7 @@ namespace sek
 		/** @copydoc cref */
 		[[nodiscard]] any ref() const noexcept { return cref(); }
 
-		/** Returns pointer to the managed or referenced object as `T` pointer.
+		/** Returns pointer to the managed object as `T` pointer.
 		 * @note `T` must be the same as the underlying object.
 		 * @return Pointer to the underlying object or nullptr if the underlying object is const or of a different type. */
 		template<typename T>
@@ -786,7 +789,7 @@ namespace sek
 				return nullptr;
 			}
 		}
-		/** Returns const pointer to the managed or referenced object as `T` pointer.
+		/** Returns const pointer to the managed object as `T` pointer.
 		 * @note `T` must be the same as the underlying object.
 		 * @return Pointer to the underlying object or nullptr if the underlying object is of a different type. */
 		template<typename T>
@@ -859,7 +862,7 @@ namespace sek
 		[[nodiscard]] any convert(type_info to_type) const noexcept;
 
 		/** Compares managed objects by-value.
-		 * @return true if the managed/referenced objects compare equal,
+		 * @return true if the managed objects compare equal,
 		 * false if they do not or if they are of different types. */
 		[[nodiscard]] bool operator==(const any &other) const
 		{
@@ -910,6 +913,130 @@ namespace sek
 		type_info info = {};
 		storage_t storage = {};
 		flags_t flags = {};
+	};
+
+	/** @brief Type-erased reference to objects. */
+	class any_ref
+	{
+	public:
+		any_ref() = delete;
+		any_ref(const any_ref &) = delete;
+		any_ref &operator=(const any_ref &) = delete;
+
+		/** Initializes `any` reference from an `any` instance by-move.
+		 * @param data `any` storing a reference to an object.
+		 * @note Provided `any` must be a reference, using a non-reference `any` will result in undefined behavior. */
+		any_ref(any &&data) noexcept
+		{
+			SEK_ASSERT(data.is_ref(), "Passed `any` must be a reference");
+			std::construct_at(storage.get<any>(), std::move(data));
+		}
+		/** Initializes `any` reference from an `any` instance.
+		 * @param data `any` containing data to be referenced. */
+		any_ref(any &data) noexcept { std::construct_at(storage.get<any>(), data.ref()); }
+		/** @copydoc any_ref */
+		any_ref(const any &data) noexcept { std::construct_at(storage.get<any>(), data.ref()); }
+
+		constexpr any_ref(any_ref &&other) noexcept { std::construct_at(storage.get<any>(), std::move(other.value())); }
+		constexpr any_ref &operator=(any_ref &&other) noexcept
+		{
+			value().swap(other.value());
+			return *this;
+		}
+		constexpr ~any_ref() = default;
+
+		/** @copydoc any::type */
+		[[nodiscard]] constexpr type_info type() const noexcept { return value().type(); }
+
+		/** @copydoc any::empty */
+		[[nodiscard]] constexpr bool empty() const noexcept { return value().empty(); }
+		/** @copydoc any::is_const */
+		[[nodiscard]] constexpr bool is_const() const noexcept { return value().is_const(); }
+
+		/** @copydoc any::data */
+		[[nodiscard]] constexpr void *data() noexcept { return !is_const() ? value().storage.external : nullptr; }
+		/** @copydoc any::cdata */
+		[[nodiscard]] constexpr const void *cdata() const noexcept { return value().storage.external; }
+		/** @copydoc cdata */
+		[[nodiscard]] constexpr const void *data() const noexcept { return value().storage.external; }
+
+		/** @copydoc any::as_ptr */
+		template<typename T>
+		[[nodiscard]] constexpr T *as_ptr() noexcept
+		{
+			if constexpr (std::is_const_v<T>)
+				return as_cptr<T>();
+			else
+			{
+				if (type() == type_info::get<T>()) [[likely]]
+					return static_cast<T *>(data());
+				return nullptr;
+			}
+		}
+		/** @copydoc any::as_cptr */
+		template<typename T>
+		[[nodiscard]] constexpr std::add_const_t<T> *as_cptr() const noexcept
+		{
+			using U = std::remove_const_t<T>;
+			if (type() == type_info::get<U>()) [[likely]]
+				return static_cast<const U *>(cdata());
+			return nullptr;
+		}
+		/** @copydoc as_ptr */
+		template<typename T>
+		[[nodiscard]] constexpr std::add_const_t<T> *as_ptr() const noexcept
+		{
+			return as_cptr<T>();
+		}
+
+		/** @copydoc any::try_cast */
+		template<typename T>
+		[[nodiscard]] T *try_cast() noexcept;
+		/** @copydoc try_cast */
+		template<typename T>
+		[[nodiscard]] std::add_const_t<T> *try_cast() const noexcept;
+		/** @copydoc any::cast */
+		template<typename T>
+		[[nodiscard]] T cast();
+		/** @copydoc cast */
+		template<typename T>
+		[[nodiscard]] T cast() const;
+
+		/** @brief Converts the underlying object to the passed type.
+		 *
+		 * If the type of the managed object is same as `type`,
+		 * equivalent to `operator any()`. Otherwise, attempts to cast the underlying
+		 * object using one of it's reflected parents and explicit conversions.
+		 *
+		 * @param to_type Type to convert the managed object to.
+		 * @return An instance of `any` containing the converted instance, or empty `any` if no such conversion is possible.
+		 * @note If no parent cast is found, explicit conversion will return a copy of the underlying object. */
+		[[nodiscard]] any convert(std::string_view to_type) noexcept;
+		/** @copydoc convert */
+		[[nodiscard]] any convert(type_info to_type) noexcept;
+		/** @copydoc convert */
+		[[nodiscard]] any convert(std::string_view to_type) const noexcept;
+		/** @copydoc convert */
+		[[nodiscard]] any convert(type_info to_type) const noexcept;
+
+		/** Returns `any` isntance referencing the managed object. */
+		[[nodiscard]] operator any() noexcept { return value().ref(); }
+		/** @copydoc operator any */
+		[[nodiscard]] operator any() const noexcept { return value().ref(); }
+
+		/** @copydoc any::operator== */
+		[[nodiscard]] bool operator==(const any &other) const { return value() == other; }
+		/** @copydoc any::operator== */
+		[[nodiscard]] bool operator==(const any_ref &other) const { return value() == other.value(); }
+
+		constexpr void swap(any_ref &other) noexcept { value().swap(other.value()); }
+		friend constexpr void swap(any_ref &a, any_ref &b) noexcept { a.swap(b); }
+
+	private:
+		[[nodiscard]] constexpr any &value() noexcept { return *storage.get<any>(); }
+		[[nodiscard]] constexpr const any &value() const noexcept { return *storage.get<any>(); }
+
+		type_storage<any> storage;
 	};
 
 	template<typename T>
@@ -1037,7 +1164,7 @@ namespace sek
 		{
 			constinit static parent_node node{
 				type_handle(type_selector<P>),
-				+[](any child) -> any
+				+[](any_ref child) -> any_ref
 				{
 					if (child.type() != type_info::get<T>()) [[unlikely]]
 						return any{};
@@ -1377,11 +1504,7 @@ namespace sek
 		 * an `any` reference of parent type (preserving const-ness).
 		 * @note Passed `any` instance must be a reference. Passing a non-reference `any` will result in
 		 * undefined behavior (likely a crash). */
-		[[nodiscard]] any cast(any child) const
-		{
-			SEK_ASSERT(child.is_ref(), "Cannot cast by-value `any`");
-			return node->cast(std::move(child));
-		}
+		[[nodiscard]] any_ref cast(any_ref child) const { return node->cast(std::move(child)); }
 
 		[[nodiscard]] constexpr bool operator==(const parent_info &) const noexcept = default;
 
@@ -1439,7 +1562,7 @@ namespace sek
 		/** Returns raw pointer to attribute's data. */
 		[[nodiscard]] constexpr const void *data() const noexcept { return node->data.cdata(); }
 		/** Returns `any` reference to the attribute data. */
-		[[nodiscard]] any value() const noexcept { return node->data.ref(); }
+		[[nodiscard]] any_ref value() const noexcept { return {node->data.ref()}; }
 
 		[[nodiscard]] bool operator==(const attribute_info &other) const noexcept
 		{
@@ -1476,18 +1599,17 @@ namespace sek
 			const auto parents = info.parents();
 			auto iter = std::find_if(parents.begin(), parents.end(), [t_info](auto p) { return p.type() == t_info; });
 			if (iter != parents.end()) [[likely]]
-				if (auto p_cast = iter->cast(ref()); !p_cast.is_const()) [[likely]]
-				{
-					SEK_ASSERT(p_cast.is_ref());
-					return static_cast<T *>(p_cast.storage.external);
-				}
+			{
+				auto p_cast = iter->cast(*this);
+				if (!p_cast.is_const()) [[likely]]
+					return static_cast<T *>(p_cast.data());
+			}
 
 			/* No immediate parent found, search up the inheritance hierarchy. */
 			for (auto p : parents)
 			{
-				auto p_cast = p.cast(ref());
-				SEK_ASSERT(p_cast.is_ref());
-				if (auto p_ptr = p_cast.template try_cast<T>(); p_ptr != nullptr) [[likely]]
+				auto p_ptr = p.cast(*this).template try_cast<T>();
+				if (p_ptr != nullptr) [[likely]]
 					return p_ptr;
 			}
 		}
@@ -1505,18 +1627,13 @@ namespace sek
 			const auto parents = info.parents();
 			auto iter = std::find_if(parents.begin(), parents.end(), [t_info](auto p) { return p.type() == t_info; });
 			if (iter != parents.end()) [[likely]]
-			{
-				auto p_cast = iter->cast(ref());
-				SEK_ASSERT(p_cast.is_ref());
-				return static_cast<U *>(p_cast.storage.external);
-			}
+				return static_cast<U *>(iter->cast(*this).cdata());
 
 			/* No immediate parent found, search up the inheritance hierarchy. */
 			for (auto p : parents)
 			{
-				const auto p_cast = p.cast(ref());
-				SEK_ASSERT(p_cast.is_ref());
-				if (auto p_ptr = p_cast.template try_cast<U>(); p_ptr != nullptr) [[likely]]
+				auto p_ptr = p.cast(*this).template try_cast<U>();
+				if (p_ptr != nullptr) [[likely]]
 					return p_ptr;
 			}
 		}
@@ -1533,7 +1650,7 @@ namespace sek
 			const auto parents = info.parents();
 			auto p_iter = std::find_if(parents.begin(), parents.end(), [n](auto p) { return p.type().name() == n; });
 			if (p_iter != parents.end()) [[likely]]
-				return p_iter->cast(ref());
+				return p_iter->cast(*this);
 
 			/* Attempt to cast to an explicit conversion. */
 			const auto convs = info.conversions();
@@ -1544,7 +1661,7 @@ namespace sek
 			/* Search up the inheritance hierarchy. */
 			for (auto p : parents)
 			{
-				auto p_result = p.cast(ref()).convert(n);
+				auto p_result = p.cast(*this).convert(n);
 				if (!p_result.empty()) [[likely]]
 					return p_result;
 			}
@@ -1563,7 +1680,7 @@ namespace sek
 			const auto parents = info.parents();
 			auto p_iter = std::find_if(parents.begin(), parents.end(), [n](auto p) { return p.type().name() == n; });
 			if (p_iter != parents.end()) [[likely]]
-				return p_iter->cast(ref());
+				return p_iter->cast(*this);
 
 			/* Attempt to cast to an explicit conversion. */
 			const auto convs = info.conversions();
@@ -1574,7 +1691,7 @@ namespace sek
 			/* Search up the inheritance hierarchy. */
 			for (auto p : parents)
 			{
-				const auto p_cast = p.cast(ref());
+				const auto p_cast = p.cast(*this);
 				auto p_result = p_cast.convert(n);
 				if (!p_result.empty()) [[likely]]
 					return p_result;
@@ -1584,6 +1701,31 @@ namespace sek
 		}
 	}
 	any any::convert(type_info to_type) const noexcept { return convert(to_type.name()); }
+
+	template<typename T>
+	T *any_ref::try_cast() noexcept
+	{
+		return value().template try_cast<T>();
+	}
+	template<typename T>
+	std::add_const_t<T> *any_ref::try_cast() const noexcept
+	{
+		return value().template try_cast<T>();
+	}
+	template<typename T>
+	T any_ref::cast()
+	{
+		return value().template cast<T>();
+	}
+	template<typename T>
+	T any_ref::cast() const
+	{
+		return value().template cast<T>();
+	}
+	any any_ref::convert(std::string_view n) noexcept { return value().convert(n); }
+	any any_ref::convert(type_info to_type) noexcept { return value().convert(to_type); }
+	any any_ref::convert(std::string_view n) const noexcept { return value().convert(n); }
+	any any_ref::convert(type_info to_type) const noexcept { return value().convert(to_type); }
 
 	namespace literals
 	{
