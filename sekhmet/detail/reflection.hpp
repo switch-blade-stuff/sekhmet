@@ -83,6 +83,12 @@ namespace sek
 
 				std::array<type_handle, sizeof...(Args)> arg_ts_array;
 			};
+			struct func_node : basic_node<func_node>
+			{
+				std::span<type_handle> arg_types;
+				any (*invoke)(std::span<any>);
+			};
+			struct attrib_node;
 			struct parent_node : basic_node<parent_node>
 			{
 				constexpr parent_node(type_handle type, any (*cast)(any)) noexcept : type(type), cast(cast) {}
@@ -90,11 +96,12 @@ namespace sek
 				type_handle type;
 				any (*cast)(any);
 			};
-			struct attrib_node;
-			struct func_node : basic_node<func_node>
+			struct conv_node : basic_node<conv_node>
 			{
-				std::span<type_handle> arg_types;
-				any (*invoke)(std::span<any>);
+				constexpr conv_node(type_handle type, any (*convert)(any)) noexcept : type(type), convert(convert) {}
+
+				type_handle type;
+				any (*convert)(any);
 			};
 
 			template<typename T>
@@ -167,6 +174,8 @@ namespace sek
 			void add_ctor() noexcept;
 			template<typename T, typename P>
 			void add_parent() noexcept;
+			template<typename T, typename U>
+			void add_conv() noexcept;
 			template<typename T, typename A, typename... As>
 			void add_attrib(type_seq_t<A, As...>, auto &&);
 
@@ -177,10 +186,11 @@ namespace sek
 
 			void (*destructor)(any) = nullptr; /* Placement destructor. */
 			node_list<ctor_node> constructors = {};
+			node_list<func_node> funcs = {};
 
 			node_list<parent_node> parents = {};
+			node_list<conv_node> convs = {};
 			node_list<attrib_node> attribs = {};
-			node_list<func_node> funcs = {};
 		};
 
 		template<typename T>
@@ -220,7 +230,10 @@ namespace sek
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return &node_value; }
 			[[nodiscard]] constexpr reference operator*() const noexcept { return node_value; }
 
-			[[nodiscard]] constexpr bool operator==(const type_node_iterator &) const noexcept = default;
+			[[nodiscard]] constexpr bool operator==(const type_node_iterator &other) const noexcept
+			{
+				return node_value == other.node_value;
+			}
 
 		private:
 			[[nodiscard]] constexpr auto *node() const noexcept { return node_value.node; }
@@ -306,6 +319,9 @@ namespace sek
 	/** @brief Structure used to represent information about a function of a reflected type. */
 	class function_info;
 
+	/** @brief Structure used to represent information about an attribute of a reflected type. */
+	class attribute_info;
+
 	/** @brief Structure used to represent information about a parent-child relationship between reflected types. */
 	class parent_info;
 
@@ -339,6 +355,15 @@ namespace sek
 
 			constexpr explicit type_factory(data_t &data) noexcept : data(data) {}
 
+			// clang-format off
+			template<typename U>
+			constexpr static bool good_cast = requires (T v) { static_cast<U>(v); };
+			template<typename U>
+			constexpr static bool unqualified = std::same_as<std::remove_cvref_t<U>, U>;
+			template<typename U>
+			constexpr static bool different = !std::same_as<std::remove_cvref_t<U>, T>;
+			// clang-format on
+
 		public:
 			constexpr type_factory(const type_factory &) noexcept = default;
 			constexpr type_factory &operator=(const type_factory &) noexcept = default;
@@ -357,15 +382,23 @@ namespace sek
 			/** Adds `P` to the list of parents of `T`.
 			 * @tparam P Parent type of `T`. */
 			template<typename P>
-			type_factory &parent() requires std::derived_from<T, P> && std::same_as<std::remove_cvref_t<P>, P>
+			type_factory &parent() requires std::derived_from<T, P> && unqualified<P> && different<P>
 			{
 				data.template add_parent<T, P>();
+				return *this;
+			}
+			/** Adds `U` to `T`'s list of conversions.
+			 * @tparam U Type that `T` can be `static_cast` to. */
+			template<typename U>
+			type_factory &convertible() requires good_cast<U> && unqualified<U> && different<U>
+			{
+				data.template add_conv<T, U>();
 				return *this;
 			}
 			/** Adds an attribute to `T`'s list of attributes.
 			 * @tparam A Type of the attribute. */
 			template<typename A, typename... Args>
-			type_factory<T, A, Attr...> attrib(Args &&...args)
+			type_factory<T, A, Attr...> attribute(Args &&...args)
 			{
 				data.template add_attrib<T>(type_seq<A, Attr...>, [&](){ return make_any<A>(std::forward<Args>(args)...); });
 				return type_factory<T, A, Attr...>{data};
@@ -373,11 +406,11 @@ namespace sek
 			/** Adds an attribute to `T`'s list of attributes.
 			 * @tparam Value Value of the attribute. */
 			template<auto Value>
-			auto attrib() { return attrib<std::remove_cvref_t<decltype(Value)>, Value>(); }
-			/** @copydoc attrib
+			auto attribute() { return attribute<std::remove_cvref_t<decltype(Value)>, Value>(); }
+			/** @copydoc attribute
 			 * @tparam A Type of the attribute. */
 			template<typename A, auto Value>
-			type_factory<T, A, Attr...> attrib()
+			type_factory<T, A, Attr...> attribute()
 			{
 				data.template add_attrib<T>(type_seq<A, Attr...>, [](){ return forward_any(auto_constant<Value>::value); });
 				return type_factory<T, A, Attr...>{data};
@@ -420,11 +453,15 @@ namespace sek
 		}
 
 	private:
-		friend class parent_info;
 		friend class signature_info;
+		friend class parent_info;
+		friend class conversion_info;
+		friend class attribute_info;
 
 		using parent_iterator = detail::type_node_iterator<parent_info>;
+		using conversion_iterator = detail::type_node_iterator<conversion_info>;
 		using constructor_iterator = detail::type_node_iterator<constructor_info>;
+		using attribute_iterator = detail::type_node_iterator<attribute_info>;
 
 		constexpr explicit type_info(const data_t *data) noexcept : data(data) {}
 		constexpr explicit type_info(handle_t handle) noexcept : data(handle.get()) {}
@@ -480,6 +517,12 @@ namespace sek
 
 		/** Returns a range of parents of this type. */
 		[[nodiscard]] constexpr detail::type_data_view<parent_iterator> parents() const noexcept;
+		/** Checks if the underlying type inherits the specified type. */
+		[[nodiscard]] constexpr bool inherits(type_info info) const noexcept
+		{
+			const auto pred = [info](auto &n) { return type_info{n.type} == info || type_info{n.type}.inherits(info); };
+			return std::ranges::any_of(data->parents, pred);
+		}
 		/** Checks if the underlying type inherits a type with the specified name. */
 		[[nodiscard]] constexpr bool inherits(std::string_view name) const noexcept
 		{
@@ -493,9 +536,33 @@ namespace sek
 			return inherits(type_name<T>());
 		}
 
+		/** Returns a range of attributes of this type. */
+		[[nodiscard]] constexpr detail::type_data_view<attribute_iterator> attributes() const noexcept;
+
+		/** Returns a range of conversions of this type. */
+		[[nodiscard]] constexpr detail::type_data_view<conversion_iterator> conversions() const noexcept;
+		/** Checks if the underlying type is convertible to the specified type via `static_cast`. */
+		[[nodiscard]] constexpr bool convertible_to(type_info info) const noexcept
+		{
+			const auto pred = [info](auto &n) { return type_info{n.type} == info; };
+			return std::ranges::any_of(data->convs, pred);
+		}
+		/** Checks if the underlying type is convertible to a type with the specified name via `static_cast`. */
+		[[nodiscard]] constexpr bool convertible_to(std::string_view name) const noexcept
+		{
+			const auto pred = [name](auto &n) { return n.type->name == name; };
+			return std::ranges::any_of(data->convs, pred);
+		}
+		/** Checks if the underlying type is convertible to 'T' via `static_cast`. */
+		template<typename T>
+		[[nodiscard]] constexpr bool convertible_to() const noexcept
+		{
+			return convertible_to(type_name<T>());
+		}
+
 		[[nodiscard]] constexpr bool operator==(const type_info &other) const noexcept
 		{
-			return data == other.data || name() == other.name();
+			return data == other.data || (data && other.data && name() == other.name());
 		}
 
 		constexpr void swap(type_info &other) noexcept { std::swap(data, other.data); }
@@ -723,7 +790,7 @@ namespace sek
 		 * @note `T` must be the same as the underlying object.
 		 * @return Pointer to the underlying object or nullptr if the underlying object is of a different type. */
 		template<typename T>
-		[[nodiscard]] constexpr const std::remove_const_t<T> *as_cptr() const noexcept
+		[[nodiscard]] constexpr std::add_const_t<T> *as_cptr() const noexcept
 		{
 			using U = std::remove_const_t<T>;
 			if (info == type_info::get<U>()) [[likely]]
@@ -732,15 +799,69 @@ namespace sek
 		}
 		/** @copydoc as_ptr */
 		template<typename T>
-		[[nodiscard]] constexpr const std::remove_const_t<T> *as_ptr() const noexcept
+		[[nodiscard]] constexpr std::add_const_t<T> *as_ptr() const noexcept
 		{
 			return as_cptr<T>();
 		}
 
+		/** @brief Attempts to cast the underlying object to type `T`.
+		 *
+		 * If the type of the managed object is same as `std::remove_cvref_t<T>`, equivalent to `as_ptr<T>()`.
+		 * Otherwise, attempts to cast the underlying object using one of it's reflected parents.
+		 *
+		 * @return Pointer to the underlying object, cast to type `T`, or nullptr if such cast is not available. */
+		template<typename T>
+		[[nodiscard]] T *try_cast() noexcept;
+		/** @copydoc try_cast */
+		template<typename T>
+		[[nodiscard]] std::add_const_t<T> *try_cast() const noexcept;
+		/** @brief Casts the underlying object to type `T`.
+		 *
+		 * If the type of the managed object is same as `std::remove_cvref_t<T>`,
+		 * equivalent to `*as_ptr<std::remove_ref_t<T>>()`. Otherwise, attempts to cast
+		 * the underlying object using one of it's reflected parents.
+		 *
+		 * @return The underlying underlying object, cast to type `T`.
+		 * @throw bad_any_type If no such cast is possible. */
+		template<typename T>
+		[[nodiscard]] T cast()
+		{
+			auto ptr = try_cast<std::remove_reference_t<T>>();
+			if (!ptr) [[unlikely]]
+				throw bad_any_type("Invalid any cast");
+			return static_cast<T>(*ptr);
+		}
+		/** @copydoc cast */
+		template<typename T>
+		[[nodiscard]] T cast() const
+		{
+			auto ptr = try_cast<std::remove_reference_t<T>>();
+			if (!ptr) [[unlikely]]
+				throw bad_any_type("Invalid any cast");
+			return static_cast<T>(*ptr);
+		}
+
+		/** @brief Converts the underlying object to the passed type.
+		 *
+		 * If the type of the managed object is same as `type`,
+		 * equivalent to `ref()`. Otherwise, attempts to cast the underlying
+		 * object using one of it's reflected parents and explicit conversions.
+		 *
+		 * @param to_type Type to convert the managed object to.
+		 * @return An instance of `any` containing the converted instance, or empty `any` if no such conversion is possible.
+		 * @note If no parent cast is found, explicit conversion will return a copy of the underlying object. */
+		[[nodiscard]] any convert(std::string_view to_type) noexcept;
+		/** @copydoc convert */
+		[[nodiscard]] any convert(type_info to_type) noexcept;
+		/** @copydoc convert */
+		[[nodiscard]] any convert(std::string_view to_type) const noexcept;
+		/** @copydoc convert */
+		[[nodiscard]] any convert(type_info to_type) const noexcept;
+
 		/** Compares managed objects by-value.
 		 * @return true if the managed/referenced objects compare equal,
 		 * false if they do not or if they are of different types. */
-		[[nodiscard]] constexpr bool operator==(const any &other) const
+		[[nodiscard]] bool operator==(const any &other) const
 		{
 			if (empty() && other.empty()) [[unlikely]]
 				return true;
@@ -928,6 +1049,32 @@ namespace sek
 
 			if (!node.next) [[likely]]
 				parents.insert(node);
+		}
+		template<typename T, typename U>
+		void type_data::add_conv() noexcept
+		{
+			constinit static conv_node node{
+				type_handle(type_selector<U>),
+				+[](any instance) -> any
+				{
+					// clang-format off
+					constexpr bool good_cast = requires(T &v) { static_cast<U>(v); };
+					constexpr bool good_const_cast = requires(const T &v) { static_cast<U>(v); };
+					// clang-format on
+
+					if (instance.type() == type_info::get<T>()) [[likely]]
+					{
+						if (!instance.is_const() && good_cast)
+							return forward_any(static_cast<U>(*instance.template as_ptr<T>()));
+						else if (good_const_cast)
+							return forward_any(static_cast<U>(*instance.template as_cptr<T>()));
+					}
+					return {};
+				},
+			};
+
+			if (!node.next) [[likely]]
+				convs.insert(node);
 		}
 		template<typename T, typename A, typename... As>
 		void type_data::add_attrib(type_seq_t<A, As...>, auto &&generator)
@@ -1226,8 +1373,8 @@ namespace sek
 		/** Returns type info of the parent type. */
 		[[nodiscard]] constexpr type_info type() const noexcept { return type_info{node->type}; }
 
-		/** Casts an `any` instance containing an object (or reference to one) of child type to
-		 * an `any` instance of parent type (preserving const-ness).
+		/** Casts an `any` instance containing a reference to an oobject of child type to
+		 * an `any` reference of parent type (preserving const-ness).
 		 * @note Passed `any` instance must be a reference. Passing a non-reference `any` will result in
 		 * undefined behavior (likely a crash). */
 		[[nodiscard]] any cast(any child) const
@@ -1241,11 +1388,210 @@ namespace sek
 	private:
 		const node_t *node = nullptr;
 	};
+	class conversion_info
+	{
+		friend class detail::type_node_iterator<conversion_info>;
+		friend class type_info;
+
+		using node_t = detail::type_data::conv_node;
+
+		constexpr conversion_info() noexcept = default;
+		constexpr explicit conversion_info(const node_t *node) noexcept : node(node) {}
+
+	public:
+		constexpr conversion_info(const conversion_info &) noexcept = default;
+		constexpr conversion_info &operator=(const conversion_info &) noexcept = default;
+		constexpr conversion_info(conversion_info &&) noexcept = default;
+		constexpr conversion_info &operator=(conversion_info &&) noexcept = default;
+
+		/** Returns type info of the converted-to type. */
+		[[nodiscard]] constexpr type_info type() const noexcept { return type_info{node->type}; }
+
+		/** Converts an `any` instance containing an object (or reference to one) of source type to
+		 * an `any` instance of converted-to type (as if via `static_cast`).
+		 * If such cast is not possible, returns empty `any`. */
+		[[nodiscard]] any convert(any child) const { return node->convert(std::move(child)); }
+
+		[[nodiscard]] constexpr bool operator==(const conversion_info &) const noexcept = default;
+
+	private:
+		const node_t *node = nullptr;
+	};
+	class attribute_info
+	{
+		friend class detail::type_node_iterator<attribute_info>;
+		friend class type_info;
+
+		using node_t = detail::type_data::attrib_node;
+
+		constexpr attribute_info() noexcept = default;
+		constexpr explicit attribute_info(const node_t *node) noexcept : node(node) {}
+
+	public:
+		constexpr attribute_info(const attribute_info &) noexcept = default;
+		constexpr attribute_info &operator=(const attribute_info &) noexcept = default;
+		constexpr attribute_info(attribute_info &&) noexcept = default;
+		constexpr attribute_info &operator=(attribute_info &&) noexcept = default;
+
+		/** Returns type info of the attribute. */
+		[[nodiscard]] constexpr type_info type() const noexcept { return type_info{node->data.type()}; }
+
+		/** Returns raw pointer to attribute's data. */
+		[[nodiscard]] constexpr const void *data() const noexcept { return node->data.cdata(); }
+		/** Returns `any` reference to the attribute data. */
+		[[nodiscard]] any value() const noexcept { return node->data.ref(); }
+
+		[[nodiscard]] bool operator==(const attribute_info &other) const noexcept
+		{
+			return node == other.node || (node && other.node && node->data == other.node->data);
+		}
+
+	private:
+		const node_t *node = nullptr;
+	};
 
 	constexpr detail::type_data_view<type_info::parent_iterator> type_info::parents() const noexcept
 	{
 		return {parent_iterator{parent_info{data->parents.front}}, {}};
 	}
+	constexpr detail::type_data_view<type_info::conversion_iterator> type_info::conversions() const noexcept
+	{
+		return {conversion_iterator{conversion_info{data->convs.front}}, {}};
+	}
+	constexpr detail::type_data_view<type_info::attribute_iterator> type_info::attributes() const noexcept
+	{
+		return {attribute_iterator{attribute_info{data->attribs.front}}, {}};
+	}
+
+	template<typename T>
+	T *any::try_cast() noexcept
+	{
+		if constexpr (std::is_const_v<T>)
+			return static_cast<const any *>(this)->template try_cast<T>();
+		else if (const auto t_info = type_info::get<T>(); info == t_info)
+			return as_ptr<T>();
+		else
+		{
+			/* Attempt to cast to an immediate parent. */
+			const auto parents = info.parents();
+			auto iter = std::find_if(parents.begin(), parents.end(), [t_info](auto p) { return p.type() == t_info; });
+			if (iter != parents.end()) [[likely]]
+			{
+				auto p_cast = iter->cast(ref());
+				SEK_ASSERT(p_cast.is_ref());
+
+				if (!p_cast.is_const()) [[likely]]
+					return static_cast<T *>(p_cast.storage.external);
+			}
+
+			/* No immediate parent found, search up the inheritance hierarchy. */
+			for (auto p : parents)
+				if (auto p_cast = p.cast(ref()); !p_cast.empty() && !p_cast.is_const()) [[likely]]
+				{
+					SEK_ASSERT(p_cast.is_ref());
+					return static_cast<T *>(p_cast.storage.external);
+				}
+
+			return nullptr;
+		}
+	}
+	template<typename T>
+	std::add_const_t<T> *any::try_cast() const noexcept
+	{
+		if (const auto t_info = type_info::get<T>(); info == t_info)
+			return as_ptr<T>();
+		else
+		{
+			using U = std::add_const_t<T>;
+
+			/* Attempt to cast to an immediate parent. */
+			const auto parents = info.parents();
+			auto iter = std::find_if(parents.begin(), parents.end(), [t_info](auto p) { return p.type() == t_info; });
+			if (iter != parents.end()) [[likely]]
+			{
+				auto p_cast = iter->cast(ref());
+				SEK_ASSERT(p_cast.is_ref());
+				return static_cast<U *>(p_cast.storage.external);
+			}
+
+			/* No immediate parent found, search up the inheritance hierarchy. */
+			for (auto p : parents)
+				if (auto p_cast = p.cast(ref()); !p_cast.empty()) [[likely]]
+				{
+					SEK_ASSERT(p_cast.is_ref());
+					return static_cast<U *>(p_cast.storage.external);
+				}
+
+			return nullptr;
+		}
+	}
+
+	any any::convert(std::string_view n) noexcept
+	{
+		if (info.name() == n)
+			return ref();
+		else
+		{
+			/* Attempt to cast to an immediate parent. */
+			const auto parents = info.parents();
+			auto p_iter = std::find_if(parents.begin(), parents.end(), [n](auto p) { return p.type().name() == n; });
+			if (p_iter != parents.end()) [[likely]]
+				return p_iter->cast(ref());
+
+			/* Attempt to cast to an explicit conversion. */
+			const auto convs = info.conversions();
+			auto conv_iter = std::find_if(convs.begin(), convs.end(), [n](auto c) { return c.type().name() == n; });
+			if (conv_iter != convs.end()) [[likely]]
+				return conv_iter->convert(ref());
+
+			/* Search up the inheritance hierarchy. */
+			for (auto p : parents)
+			{
+				auto p_cast = p.cast(ref());
+				if (!p_cast.empty()) [[likely]]
+					return p_cast;
+			}
+
+			return {};
+		}
+	}
+	any any::convert(type_info to_type) noexcept { return convert(to_type.name()); }
+	any any::convert(std::string_view n) const noexcept
+	{
+		if (info.name() == n)
+			return ref();
+		else
+		{
+			/* Attempt to cast to an immediate parent. */
+			const auto parents = info.parents();
+			auto p_iter = std::find_if(parents.begin(), parents.end(), [n](auto p) { return p.type().name() == n; });
+			if (p_iter != parents.end()) [[likely]]
+				return p_iter->cast(ref());
+
+			/* Attempt to cast to an explicit conversion. */
+			const auto convs = info.conversions();
+			auto conv_iter = std::find_if(convs.begin(), convs.end(), [n](auto c) { return c.type().name() == n; });
+			if (conv_iter != convs.end()) [[likely]]
+				return conv_iter->convert(ref());
+
+			/* Search up the inheritance hierarchy. */
+			for (auto p : parents)
+			{
+				auto p_cast = p.cast(ref());
+				if (!p_cast.empty()) [[likely]]
+					return p_cast;
+			}
+
+			return {};
+		}
+	}
+	any any::convert(type_info to_type) const noexcept { return convert(to_type.name()); }
+
+	namespace literals
+	{
+		/** Retrieves a reflected type from the runtime database. */
+		[[nodiscard]] type_info operator""_type(const char *str, std::size_t n) { return type_info::get({str, n}); }
+	}	 // namespace literals
 }	 // namespace sek
 
 /** Macro used to declare an instance of type info for type `T` as extern.

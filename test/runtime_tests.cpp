@@ -85,7 +85,7 @@ TEST(utility_tests, type_info_test)
 {
 	// clang-format off
 	sek::type_info::reflect<test_child>()
-		.attrib<int>(0xff).attrib<0xfc>().attrib<test_attribute>()
+		.attribute<int>(0xff).attribute<0xfc>().attribute<test_attribute>()
 		.parent<test_parent_middle>();
 	// clang-format on
 
@@ -128,6 +128,14 @@ TEST(utility_tests, type_info_test)
 
 	sek::type_info::reset<test_child>();
 	EXPECT_FALSE(sek::type_info::get("test_child"));
+
+	const auto attribs = info.attributes();
+	// clang-format off
+	EXPECT_TRUE(std::any_of(attribs.begin(), attribs.end(), [](auto n) { return n.type() == sek::type_info::get<int>(); }));
+	EXPECT_TRUE(std::any_of(attribs.begin(), attribs.end(), [](auto n) { return n.value() == sek::make_any<int>(0xff); }));
+	EXPECT_TRUE(std::any_of(attribs.begin(), attribs.end(), [](auto n) { return n.value() == sek::make_any<int>(0xfc); }));
+	EXPECT_TRUE(std::any_of(attribs.begin(), attribs.end(), [](auto n) { return n.type() == sek::type_info::get<test_attribute>(); }));
+	// clang-format on
 }
 
 namespace
@@ -207,6 +215,26 @@ TEST(utility_tests, any_test)
 		EXPECT_EQ(a1.cdata(), &data);
 	}
 	{
+		sek::type_info::reflect<int>().convertible<float>();
+
+		const auto info = sek::type_info::get<int>();
+		const auto data = 10;
+		const auto a1 = sek::make_any<int>(data);
+
+		const auto convs = info.conversions();
+		EXPECT_FALSE(convs.empty());
+		EXPECT_TRUE(info.convertible_to<float>());
+
+		auto a2 = convs.front().convert(a1.ref());
+		EXPECT_FALSE(a2.empty());
+		EXPECT_EQ(a2, sek::make_any<float>(static_cast<float>(data)));
+
+		auto a3 = a1.convert(sek::type_info::get<float>());
+		EXPECT_FALSE(a3.empty());
+		EXPECT_EQ(a3, sek::make_any<float>(static_cast<float>(data)));
+		EXPECT_EQ(a3, a2);
+	}
+	{
 		// clang-format off
 		sek::type_info::reflect<test_child_if>()
 			.constructor<int, float>().constructor<const test_child_if &>()
@@ -242,6 +270,25 @@ TEST(utility_tests, any_test)
 		EXPECT_NE(a2.as_ptr<test_parent_f>(), nullptr);
 		EXPECT_EQ(a2.as_ptr<test_parent_f>(), a1.as_ptr<test_child_if>());
 		EXPECT_EQ(*a2.as_ptr<test_parent_f>(), data);
+
+		auto *pf = a1.try_cast<test_parent_f>();
+		EXPECT_NE(pf, nullptr);
+		EXPECT_EQ(pf, a1.as_ptr<test_child_if>());
+		EXPECT_EQ(pf, a2.as_ptr<test_parent_f>());
+		EXPECT_EQ(*pf, data);
+
+		auto *cpf = a1.try_cast<const test_parent_f>();
+		EXPECT_NE(cpf, nullptr);
+		EXPECT_EQ(cpf, a1.as_ptr<test_child_if>());
+		EXPECT_EQ(cpf, a2.as_ptr<test_parent_f>());
+		EXPECT_EQ(cpf, pf);
+		EXPECT_EQ(*cpf, data);
+
+		a2 = a1.convert(sek::type_info::get<test_parent_f>());
+		EXPECT_FALSE(a2.empty());
+		EXPECT_EQ(a2.as_ptr<test_parent_f>(), a1.as_ptr<test_child_if>());
+		EXPECT_EQ(a2.as_ptr<test_parent_f>(), cpf);
+		EXPECT_EQ(a2.as_ptr<test_parent_f>(), pf);
 
 #if !defined(NDEBUG)
 		/* Parent cast cannot be by-value. */
