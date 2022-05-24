@@ -1004,14 +1004,14 @@ namespace sek
 		 * @note Provided `any` must be a reference, using a non-reference `any` will result in undefined behavior. */
 		any_ref(any &&data) noexcept
 		{
-			SEK_ASSERT(data.is_ref(), "Passed `any` must be a reference");
+			SEK_ASSERT(data.is_ref(), "Unable to move-initialize `any_ref` from a non-reference `any`");
 			std::construct_at(storage.get<any>(), std::move(data));
 		}
 		/** Initializes `any` reference from an `any` instance.
 		 * @param data `any` containing data to be referenced. */
-		any_ref(any &data) noexcept { std::construct_at(storage.get<any>(), data.ref()); }
+		any_ref(any &data) noexcept : any_ref(data.ref()) {}
 		/** @copydoc any_ref */
-		any_ref(const any &data) noexcept { std::construct_at(storage.get<any>(), data.ref()); }
+		any_ref(const any &data) noexcept : any_ref(data.ref()) {}
 
 		constexpr any_ref(any_ref &&other) noexcept { std::construct_at(storage.get<any>(), std::move(other.value())); }
 		constexpr any_ref &operator=(any_ref &&other) noexcept
