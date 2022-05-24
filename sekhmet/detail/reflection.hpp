@@ -1486,11 +1486,14 @@ namespace sek
 
 			/* No immediate parent found, search up the inheritance hierarchy. */
 			for (auto p : parents)
-				if (auto p_cast = p.cast(ref()); !p_cast.empty() && !p_cast.is_const()) [[likely]]
-				{
-					SEK_ASSERT(p_cast.is_ref());
+			{
+				auto p_cast = p.cast(ref());
+				auto p_ptr = p_cast.template try_cast<T>();
+				SEK_ASSERT(p_cast.is_ref());
+
+				if (p_ptr != nullptr) [[likely]]
 					return static_cast<T *>(p_cast.storage.external);
-				}
+			}
 
 			return nullptr;
 		}
@@ -1516,11 +1519,14 @@ namespace sek
 
 			/* No immediate parent found, search up the inheritance hierarchy. */
 			for (auto p : parents)
-				if (auto p_cast = p.cast(ref()); !p_cast.empty()) [[likely]]
-				{
-					SEK_ASSERT(p_cast.is_ref());
+			{
+				const auto p_cast = p.cast(ref());
+				auto p_ptr = p_cast.template try_cast<U>();
+				SEK_ASSERT(p_cast.is_ref());
+
+				if (p_ptr != nullptr) [[likely]]
 					return static_cast<U *>(p_cast.storage.external);
-				}
+			}
 
 			return nullptr;
 		}
@@ -1547,9 +1553,9 @@ namespace sek
 			/* Search up the inheritance hierarchy. */
 			for (auto p : parents)
 			{
-				auto p_cast = p.cast(ref());
-				if (!p_cast.empty()) [[likely]]
-					return p_cast;
+				auto p_result = p.cast(ref()).convert(n);
+				if (!p_result.empty()) [[likely]]
+					return p_result;
 			}
 
 			return {};
@@ -1577,9 +1583,10 @@ namespace sek
 			/* Search up the inheritance hierarchy. */
 			for (auto p : parents)
 			{
-				auto p_cast = p.cast(ref());
-				if (!p_cast.empty()) [[likely]]
-					return p_cast;
+				const auto p_cast = p.cast(ref());
+				auto p_result = p_cast.convert(n);
+				if (!p_result.empty()) [[likely]]
+					return p_result;
 			}
 
 			return {};

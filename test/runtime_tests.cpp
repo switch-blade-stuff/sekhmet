@@ -83,6 +83,8 @@ TEST(utility_tests, plugin_test)
 
 TEST(utility_tests, type_info_test)
 {
+	using namespace sek::literals;
+
 	// clang-format off
 	sek::type_info::reflect<test_child>()
 		.attribute<int>(0xff).attribute<0xfc>().attribute<test_attribute>()
@@ -91,7 +93,7 @@ TEST(utility_tests, type_info_test)
 
 	auto info = sek::type_info::get<test_child>();
 
-	EXPECT_EQ(info, sek::type_info::get("test_child"));
+	EXPECT_EQ(info, "test_child"_type);
 	EXPECT_TRUE(info.valid());
 	EXPECT_EQ(info.name(), "test_child");
 	EXPECT_EQ(info.name(), sek::type_name<test_child>());
@@ -124,10 +126,10 @@ TEST(utility_tests, type_info_test)
 
 	EXPECT_TRUE(sek::type_info::get<test_child *>().is_pointer());
 	EXPECT_EQ(sek::type_info::get<test_child *>().value_type(), info);
-	EXPECT_EQ(sek::type_info::get<const test_child *>().value_type(), sek::type_info::get<const test_child>());
+	EXPECT_EQ(sek::type_info::get<const test_child *>().value_type(), sek::type_info::get<test_child>());
 
 	sek::type_info::reset<test_child>();
-	EXPECT_FALSE(sek::type_info::get("test_child"));
+	EXPECT_FALSE("test_child"_type);
 
 	const auto attribs = info.attributes();
 	// clang-format off
@@ -136,6 +138,13 @@ TEST(utility_tests, type_info_test)
 	EXPECT_TRUE(std::any_of(attribs.begin(), attribs.end(), [](auto n) { return n.value() == sek::make_any<int>(0xfc); }));
 	EXPECT_TRUE(std::any_of(attribs.begin(), attribs.end(), [](auto n) { return n.type() == sek::type_info::get<test_attribute>(); }));
 	// clang-format on
+
+	auto a1 = info.construct();
+	EXPECT_FALSE(a1.empty());
+	auto a1c = std::as_const(a1).ref();
+	auto a2 = std::as_const(a1c).convert("top_parent");
+	EXPECT_FALSE(a2.empty());
+	EXPECT_EQ(a2.as_cptr<test_parent_top>(), a1.as_ptr<test_child>());
 }
 
 namespace
@@ -284,11 +293,11 @@ TEST(utility_tests, any_test)
 		EXPECT_EQ(cpf, pf);
 		EXPECT_EQ(*cpf, data);
 
-		a2 = a1.convert(sek::type_info::get<test_parent_f>());
+		a2 = std::as_const(a1).convert(sek::type_info::get<test_parent_f>());
 		EXPECT_FALSE(a2.empty());
-		EXPECT_EQ(a2.as_ptr<test_parent_f>(), a1.as_ptr<test_child_if>());
-		EXPECT_EQ(a2.as_ptr<test_parent_f>(), cpf);
-		EXPECT_EQ(a2.as_ptr<test_parent_f>(), pf);
+		EXPECT_EQ(a2.as_cptr<test_parent_f>(), a1.as_ptr<test_child_if>());
+		EXPECT_EQ(a2.as_cptr<test_parent_f>(), cpf);
+		EXPECT_EQ(a2.as_cptr<test_parent_f>(), pf);
 
 #if !defined(NDEBUG)
 		/* Parent cast cannot be by-value. */
