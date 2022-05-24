@@ -1469,44 +1469,38 @@ namespace sek
 		if constexpr (std::is_const_v<T>)
 			return static_cast<const any *>(this)->template try_cast<T>();
 		else if (const auto t_info = type_info::get<T>(); info == t_info)
-			return as_ptr<T>();
-		else
+			return static_cast<T *>(data());
+		else if constexpr (std::is_class_v<T> && !std::is_union_v<T>) /* Ignore non-inheritable types. */
 		{
 			/* Attempt to cast to an immediate parent. */
 			const auto parents = info.parents();
 			auto iter = std::find_if(parents.begin(), parents.end(), [t_info](auto p) { return p.type() == t_info; });
 			if (iter != parents.end()) [[likely]]
-			{
-				auto p_cast = iter->cast(ref());
-				SEK_ASSERT(p_cast.is_ref());
-
-				if (!p_cast.is_const()) [[likely]]
+				if (auto p_cast = iter->cast(ref()); !p_cast.is_const()) [[likely]]
+				{
+					SEK_ASSERT(p_cast.is_ref());
 					return static_cast<T *>(p_cast.storage.external);
-			}
+				}
 
 			/* No immediate parent found, search up the inheritance hierarchy. */
 			for (auto p : parents)
 			{
 				auto p_cast = p.cast(ref());
-				auto p_ptr = p_cast.template try_cast<T>();
 				SEK_ASSERT(p_cast.is_ref());
-
-				if (p_ptr != nullptr) [[likely]]
-					return static_cast<T *>(p_cast.storage.external);
+				if (auto p_ptr = p_cast.template try_cast<T>(); p_ptr != nullptr) [[likely]]
+					return p_ptr;
 			}
-
-			return nullptr;
 		}
+		return nullptr;
 	}
 	template<typename T>
 	std::add_const_t<T> *any::try_cast() const noexcept
 	{
+		using U = std::add_const_t<T>;
 		if (const auto t_info = type_info::get<T>(); info == t_info)
-			return as_ptr<T>();
-		else
+			return static_cast<U *>(data());
+		else if constexpr (std::is_class_v<T> && !std::is_union_v<T>) /* Ignore non-inheritable types. */
 		{
-			using U = std::add_const_t<T>;
-
 			/* Attempt to cast to an immediate parent. */
 			const auto parents = info.parents();
 			auto iter = std::find_if(parents.begin(), parents.end(), [t_info](auto p) { return p.type() == t_info; });
@@ -1521,15 +1515,12 @@ namespace sek
 			for (auto p : parents)
 			{
 				const auto p_cast = p.cast(ref());
-				auto p_ptr = p_cast.template try_cast<U>();
 				SEK_ASSERT(p_cast.is_ref());
-
-				if (p_ptr != nullptr) [[likely]]
-					return static_cast<U *>(p_cast.storage.external);
+				if (auto p_ptr = p_cast.template try_cast<U>(); p_ptr != nullptr) [[likely]]
+					return p_ptr;
 			}
-
-			return nullptr;
 		}
+		return nullptr;
 	}
 
 	any any::convert(std::string_view n) noexcept
