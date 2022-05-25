@@ -133,10 +133,10 @@ TEST(utility_tests, type_info_test)
 
 	const auto attribs = info.attributes();
 	// clang-format off
-	EXPECT_TRUE(std::any_of(attribs.begin(), attribs.end(), [](auto n) { return n.type() == sek::type_info::get<int>(); }));
+	EXPECT_TRUE(info.has_attribute<int>());
+	EXPECT_TRUE(info.has_attribute<test_attribute>());
 	EXPECT_TRUE(std::any_of(attribs.begin(), attribs.end(), [](auto n) { return n.value() == sek::make_any<int>(0xff); }));
 	EXPECT_TRUE(std::any_of(attribs.begin(), attribs.end(), [](auto n) { return n.value() == sek::make_any<int>(0xfc); }));
-	EXPECT_TRUE(std::any_of(attribs.begin(), attribs.end(), [](auto n) { return n.type() == sek::type_info::get<test_attribute>(); }));
 	// clang-format on
 
 	auto a1 = info.construct();
@@ -172,6 +172,7 @@ namespace
 		constexpr test_child_if() noexcept = default;
 		constexpr test_child_if(int i, float f) noexcept : test_parent_i(i), test_parent_f(f) {}
 
+		constexpr void set_i(int v) noexcept { i = v; }
 		[[nodiscard]] constexpr int &get_i() noexcept { return i; }
 		[[nodiscard]] constexpr const int &get_i_const() const noexcept { return i; }
 
@@ -251,8 +252,8 @@ TEST(utility_tests, any_test)
 		sek::type_info::reflect<test_child_if>()
 			.constructor<int, float>().constructor<const test_child_if &>()
 			.parent<test_parent_i>().parent<test_parent_f>()
-			.function<&test_child_if::get_i_const>("get_i_const")
-			.function<&test_child_if::get_i>("get_i");
+			.function<&test_child_if::get_i>("get_i").function<&test_child_if::set_i>("set_i")
+			.function<&test_child_if::get_i_const>("get_i_const");
 		// clang-format on
 		const auto info = sek::type_info::get<test_child_if>();
 		const auto data = test_child_if{10, std::numbers::pi_v<float>};
