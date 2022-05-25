@@ -172,6 +172,9 @@ namespace
 		constexpr test_child_if() noexcept = default;
 		constexpr test_child_if(int i, float f) noexcept : test_parent_i(i), test_parent_f(f) {}
 
+		[[nodiscard]] constexpr int &get_i() noexcept { return i; }
+		[[nodiscard]] constexpr const int &get_i_const() const noexcept { return i; }
+
 		constexpr bool operator==(const test_child_if &) const noexcept = default;
 	};
 }	 // namespace
@@ -247,7 +250,9 @@ TEST(utility_tests, any_test)
 		// clang-format off
 		sek::type_info::reflect<test_child_if>()
 			.constructor<int, float>().constructor<const test_child_if &>()
-		    .parent<test_parent_i>().parent<test_parent_f>();
+			.parent<test_parent_i>().parent<test_parent_f>()
+			.function<&test_child_if::get_i_const>("get_i_const")
+			.function<&test_child_if::get_i>("get_i");
 		// clang-format on
 		const auto info = sek::type_info::get<test_child_if>();
 		const auto data = test_child_if{10, std::numbers::pi_v<float>};
@@ -303,5 +308,21 @@ TEST(utility_tests, any_test)
 		EXPECT_EQ(a1, a2);
 		EXPECT_EQ(a2, a3);
 		EXPECT_EQ(info.construct(), sek::make_any<test_child_if>());
+
+		const auto funcs = info.functions();
+		EXPECT_FALSE(funcs.empty());
+
+#ifndef NDEBUG
+		EXPECT_DEATH(a2 = a1.invoke("get_i"), ".*");
+#endif
+		a1 = a3.invoke("get_i");
+		EXPECT_TRUE(a1.is_ref());
+		EXPECT_FALSE(a1.is_const());
+		EXPECT_EQ(a1.cast<int>(), data.i);
+		a2 = a3.cref().invoke("get_i_const");
+		EXPECT_TRUE(a2.is_ref());
+		EXPECT_TRUE(a2.is_const());
+		EXPECT_EQ(a2.cast<int>(), data.i);
+		EXPECT_EQ(a1.cdata(), a2.cdata());
 	}
 }

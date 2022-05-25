@@ -10,6 +10,7 @@
 
 #include "aligned_storage.hpp"
 #include "assert.hpp"
+#include "meta_util.hpp"
 #include "type_name.hpp"
 
 namespace sek
@@ -86,8 +87,28 @@ namespace sek
 			};
 			struct func_node : basic_node<func_node>
 			{
+				constexpr func_node(type_handle ret_type, any (*invoke)(any, std::span<any>)) noexcept
+					: ret_type(ret_type), invoke(invoke)
+				{
+				}
+
+				std::string_view name;
+				type_handle ret_type;
 				std::span<type_handle> arg_types;
-				any (*invoke)(std::span<any>);
+				any (*invoke)(any, std::span<any>);
+			};
+			template<typename T, auto F, typename R, typename... Args>
+			struct func_instance : func_node
+			{
+				constexpr func_instance(type_handle ret_type,
+										std::array<type_handle, sizeof...(Args)> arg_ts,
+										any (*invoke)(any, std::span<any>)) noexcept
+					: func_node(ret_type, invoke), arg_ts_array(arg_ts)
+				{
+					func_node::arg_types = {arg_ts_array};
+				}
+
+				std::array<type_handle, sizeof...(Args)> arg_ts_array;
 			};
 			struct attrib_node;
 			struct parent_node : basic_node<parent_node>
@@ -173,6 +194,8 @@ namespace sek
 
 			template<typename T, typename... Args>
 			void add_ctor() noexcept;
+			template<typename T, auto F, typename R, typename... Args>
+			void add_func(type_seq_t<Args...>, std::string_view) noexcept;
 			template<typename T, typename P>
 			void add_parent() noexcept;
 			template<typename T, typename U>
@@ -363,6 +386,13 @@ namespace sek
 			constexpr static bool unqualified = std::same_as<std::remove_cvref_t<U>, U>;
 			template<typename U>
 			constexpr static bool different = !std::same_as<std::remove_cvref_t<U>, T>;
+			template<auto F>
+			constexpr static bool member_func = requires {
+													typename func_traits<F>::instance_type;
+													std::same_as<std::remove_cv_t<typename func_traits<F>::instance_type>, T>;
+												};
+			template<auto F>
+			constexpr static bool free_func = std::is_function_v<decltype(F)>;
 			// clang-format on
 
 		public:
@@ -378,6 +408,16 @@ namespace sek
 			type_factory &constructor() requires std::constructible_from<T, Args...>
 			{
 				data.template add_ctor<T, Args...>();
+				return *this;
+			}
+			/** Adds a member or member function to `T`'s list of function.
+			 * @note Free functions accepting a pointer to `T` as their first argument will be treated like member functions.
+			 * @param name Name of the function. This name will be used to invoke the function at runtime. */
+			template<auto F>
+			type_factory &function(std::string_view name) requires(member_func<F> || free_func<F>)
+			{
+				using traits = func_traits<F>;
+				data.template add_func<T, F, typename traits::return_type>(typename traits::arg_types{}, name);
 				return *this;
 			}
 			/** Adds `P` to the list of parents of `T`.
@@ -459,9 +499,10 @@ namespace sek
 		friend class conversion_info;
 		friend class attribute_info;
 
+		using constructor_iterator = detail::type_node_iterator<constructor_info>;
+		using function_iterator = detail::type_node_iterator<function_info>;
 		using parent_iterator = detail::type_node_iterator<parent_info>;
 		using conversion_iterator = detail::type_node_iterator<conversion_info>;
-		using constructor_iterator = detail::type_node_iterator<constructor_info>;
 		using attribute_iterator = detail::type_node_iterator<attribute_info>;
 
 		constexpr explicit type_info(const data_t *data) noexcept : data(data) {}
@@ -499,7 +540,7 @@ namespace sek
 		 * @note If the type is not a range, pointer or pointer-like, returns identity. */
 		[[nodiscard]] constexpr type_info value_type() const noexcept { return type_info{data->value_type}; }
 
-		/** Returns a range of constructors of this type. */
+		/** Returns a view containing constructors of this type. */
 		[[nodiscard]] constexpr detail::type_data_view<constructor_iterator> constructors() const noexcept;
 		/** Checks if the type is constructable with the specified set of arguments. */
 		[[nodiscard]] constexpr bool constructable_with(std::span<type_info> args) const noexcept;
@@ -516,7 +557,24 @@ namespace sek
 		[[nodiscard]] any construct(AnyArgs &&...args) const requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>;
 		// clang-format on
 
-		/** Returns a range of parents of this type. */
+		/** Returns a view containing functions of this type. */
+		[[nodiscard]] constexpr detail::type_data_view<function_iterator> functions() const noexcept;
+		/** Invokes the specified function on the passed instance.
+		 * @param name Name of the reflected function.
+		 * @param instance Instance of the object this function is invoked on.
+		 * If `function_info` represents a static function who's first argument is not an instance pointer, instance is ignored.
+		 * @param args Arguments passed to the function.
+		 * @return Value returned by the function. If the underlying function's return type is void, returns an empty `any`.
+		 * @throw bad_any_type If the function cannot be invoked with the passed arguments or such function does not exist.
+		 * @warning Invoking a non-const function on a const object will result in undefined behavior. */
+		any invoke(std::string_view name, any instance, std::span<any> args) const;
+		// clang-format off
+		/** @copydoc invoke */
+		template<typename... AnyArgs>
+		any invoke(std::string_view name, any instance, AnyArgs &&...args) const requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>;
+		// clang-format on
+
+		/** Returns a view containing parents of this type. */
 		[[nodiscard]] constexpr detail::type_data_view<parent_iterator> parents() const noexcept;
 		/** Checks if the underlying type inherits the specified type. */
 		[[nodiscard]] constexpr bool inherits(type_info info) const noexcept
@@ -537,10 +595,10 @@ namespace sek
 			return inherits(type_name<T>());
 		}
 
-		/** Returns a range of attributes of this type. */
+		/** Returns a view containing attributes of this type. */
 		[[nodiscard]] constexpr detail::type_data_view<attribute_iterator> attributes() const noexcept;
 
-		/** Returns a range of conversions of this type. */
+		/** Returns a view containing conversions of this type. */
 		[[nodiscard]] constexpr detail::type_data_view<conversion_iterator> conversions() const noexcept;
 		/** Checks if the underlying type is convertible to the specified type via `static_cast`. */
 		[[nodiscard]] constexpr bool convertible_to(type_info info) const noexcept
@@ -829,10 +887,15 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] T cast()
 		{
-			auto ptr = try_cast<std::remove_reference_t<T>>();
-			if (!ptr) [[unlikely]]
-				throw bad_any_type("Invalid any cast");
-			return static_cast<T>(*ptr);
+			if constexpr (std::same_as<std::remove_reference_t<T>, T>) /* Always treat by-value casts as const. */
+				return static_cast<const any *>(this)->template cast<T>();
+			else
+			{
+				auto ptr = try_cast<std::remove_reference_t<T>>();
+				if (!ptr) [[unlikely]]
+					throw bad_any_type("Invalid any cast");
+				return static_cast<T>(*ptr);
+			}
 		}
 		/** @copydoc cast */
 		template<typename T>
@@ -860,6 +923,24 @@ namespace sek
 		[[nodiscard]] any convert(std::string_view to_type) const noexcept;
 		/** @copydoc convert */
 		[[nodiscard]] any convert(type_info to_type) const noexcept;
+
+		/** Invokes the specified function on the managed object.
+		 * @param name Name of the reflected function.
+		 * @param args Arguments passed to the function.
+		 * @return Value returned by the function. If the underlying function's return type is void, returns an empty `any`.
+		 * @throw bad_any_type If the function cannot be invoked with the passed arguments.
+		 * @warning Invoking a non-const function on a const object will result in undefined behavior. */
+		any invoke(std::string_view name, std::span<any> args);
+		/** @copydoc invoke */
+		any invoke(std::string_view name, std::span<any> args) const;
+		// clang-format off
+		/** @copydoc invoke */
+		template<typename... AnyArgs>
+		any invoke(std::string_view name, AnyArgs &&...args) requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>;
+		/** @copydoc invoke */
+		template<typename... AnyArgs>
+		any invoke(std::string_view name, AnyArgs &&...args) const requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>;
+		// clang-format on
 
 		/** Compares managed objects by-value.
 		 * @return true if the managed objects compare equal,
@@ -1095,6 +1176,19 @@ namespace sek
 		/** @copydoc convert */
 		[[nodiscard]] any convert(type_info to_type) const noexcept;
 
+		/** @copydoc any::invoke */
+		any invoke(std::string_view name, std::span<any> args);
+		/** @copydoc any::invoke */
+		any invoke(std::string_view name, std::span<any> args) const;
+		// clang-format off
+		/** @copydoc any::invoke */
+		template<typename... AnyArgs>
+		any invoke(std::string_view name, AnyArgs &&...args) requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>;
+		/** @copydoc any::invoke */
+		template<typename... AnyArgs>
+		any invoke(std::string_view name, AnyArgs &&...args) const requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>;
+		// clang-format on
+
 		/** Returns `any` isntance referencing the managed object. */
 		[[nodiscard]] operator any() noexcept { return value().ref(); }
 		/** @copydoc operator any */
@@ -1122,16 +1216,21 @@ namespace sek
 			any data;
 		};
 
+		void assert_mutable_any(const any &a [[maybe_unused]])
+		{
+			SEK_ASSERT(!a.is_const(), "Cannot bind const `any` to non-const instance");
+		}
 		template<typename T>
 		constexpr decltype(auto) unwrap_any_arg(type_selector_t<T>, any &a)
 		{
 			using U = std::remove_reference_t<T>;
 			if constexpr (!std::is_reference_v<T> || std::is_const_v<U>)
 				return *a.as_cptr<U>();
-			else if (a.is_const()) [[unlikely]]
-				throw bad_any_type("Cannot bind const `any` to non-const reference argument");
 			else
-				return std::forward<T>(*a.as_ptr<U>());
+			{
+				assert_mutable_any(a);
+				return *a.as_ptr<U>();
+			}
 		}
 
 		template<typename T, typename... Args>
@@ -1141,7 +1240,7 @@ namespace sek
 			{
 				constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, std::span<any> & as)
 				{
-					return make_any<T>(unwrap_any_arg(type_selector<type_seq_element_t<Is, type_seq_t<Args...>>>, as[Is])...);
+					return make_any<T>(unwrap_any_arg(type_seq_selector<Is, type_seq_t<Args...>>, as[Is])...);
 				};
 				return unwrap(std::make_index_sequence<sizeof...(Args)>(), args);
 			},
@@ -1157,6 +1256,116 @@ namespace sek
 				auto &node = ctor_instance<T, Args...>::value;
 				if (!node.next) [[likely]]
 					constructors.insert(node);
+			}
+		}
+		template<typename T, auto F, typename R, typename... Args>
+		void type_data::add_func(type_seq_t<Args...>, std::string_view func_name) noexcept
+		{
+			constinit static func_instance<T, F, R, Args...> node{
+				type_handle{type_selector<std::decay_t<R>>},
+				{type_handle{type_selector<std::decay_t<Args>>}...},
+				+[](any instance, std::span<any> args) -> any
+				{
+					using func_type = std::remove_const_t<decltype(F)>;
+					using traits = func_traits<F>;
+
+					// clang-format off
+					constexpr bool ignore_return = std::is_void_v<R>;
+					constexpr bool is_member = requires { typename traits::instance_type; };
+					constexpr bool is_const_member = std::conditional_t<is_member, std::is_const<typename traits::instance_type>, std::false_type>::value;
+					constexpr bool is_member_like = !is_member && std::is_invocable_r_v<R, func_type, T *, Args...>;
+					constexpr bool is_const_member_like = !is_member && std::is_invocable_r_v<R, func_type, std::add_const_t<T> *, Args...>;
+					// clang-format on
+
+					if constexpr (is_const_member)
+					{
+						// clang-format off
+						constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, any_ref i, std::span<any> &a)
+						{
+							const auto *ptr = i.template as_ptr<std::add_const_t<T>>();
+							return forward_any((ptr->*F)(unwrap_any_arg(type_seq_selector<Is, type_seq_t<Args...>>, a[Is])...));
+						};
+						// clang-format on
+						if constexpr (ignore_return)
+						{
+							unwrap(std::make_index_sequence<sizeof...(Args)>(), {instance}, args);
+							return any{};
+						}
+						else
+							return unwrap(std::make_index_sequence<sizeof...(Args)>(), {instance}, args);
+					}
+					else if constexpr (is_member)
+					{
+						// clang-format off
+						constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, any_ref i, std::span<any> &a)
+						{
+							assert_mutable_any(i);
+							auto *ptr = i.template as_ptr<T>();
+							return forward_any((ptr->*F)(unwrap_any_arg(type_seq_selector<Is, type_seq_t<Args...>>, a[Is])...));
+						};
+						// clang-format on
+						if constexpr (ignore_return)
+						{
+							unwrap(std::make_index_sequence<sizeof...(Args)>(), {instance}, args);
+							return any{};
+						}
+						else
+							return unwrap(std::make_index_sequence<sizeof...(Args)>(), {instance}, args);
+					}
+					else if constexpr (is_const_member_like)
+					{
+						// clang-format off
+						constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, any_ref i, std::span<any> &a)
+						{
+							const auto *ptr = i.template as_ptr<std::add_const_t<T>>();
+							return forward_any(F(ptr, unwrap_any_arg(type_seq_selector<Is, type_seq_t<Args...>>, a[Is])...));
+						};
+						// clang-format on
+						if constexpr (ignore_return)
+						{
+							unwrap(std::make_index_sequence<sizeof...(Args)>(), {instance}, args);
+							return any{};
+						}
+						else
+							return unwrap(std::make_index_sequence<sizeof...(Args)>(), {instance}, args);
+					}
+					else if constexpr (is_member_like)
+					{
+						// clang-format off
+						constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, any_ref i, std::span<any> &a)
+						{
+							assert_mutable_any(i);
+							auto *ptr = i.template as_ptr<T>();
+							return forward_any(F(ptr, unwrap_any_arg(type_seq_selector<Is, type_seq_t<Args...>>, a[Is])...));
+						};
+						// clang-format on
+						if constexpr (ignore_return)
+						{
+							unwrap(std::make_index_sequence<sizeof...(Args)>(), {instance}, args);
+							return {};
+						}
+						else
+							return unwrap(std::make_index_sequence<sizeof...(Args)>(), {instance}, args);
+					}
+					else
+					{
+						constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, std::span<any> & as)
+						{
+							return forward_any(F(unwrap_any_arg(type_seq_selector<Is, type_seq_t<Args...>>, as[Is])...));
+						};
+						if constexpr (ignore_return)
+						{
+							unwrap(std::make_index_sequence<sizeof...(Args)>(), args);
+							return any{};
+						}
+						return unwrap(std::make_index_sequence<sizeof...(Args)>(), args);
+					}
+				},
+			};
+			if (!node.next) [[likely]]
+			{
+				node.name = func_name;
+				funcs.insert(node);
 			}
 		}
 		template<typename T, typename P>
@@ -1436,6 +1645,7 @@ namespace sek
 
 		/** Invokes the underlying constructor, producing an instance of `any`.
 		 * @param args Arguments passed to the constructor.
+		 * @return Instance created from the constructor.
 		 * @throw bad_any_type If the constructor cannot be invoked with the passed arguments. */
 		[[nodiscard]] any invoke(std::span<any> args) const
 		{
@@ -1449,7 +1659,6 @@ namespace sek
 	private:
 		const node_t *node = nullptr;
 	};
-
 	constexpr detail::type_data_view<type_info::constructor_iterator> type_info::constructors() const noexcept
 	{
 		return {constructor_iterator{constructor_info{data->constructors.front}}, {}};
@@ -1462,7 +1671,6 @@ namespace sek
 	{
 		return std::ranges::any_of(constructors(), [&args](auto c) { return c.signature().invocable_with(args); });
 	}
-
 	any type_info::construct(std::span<any> args) const
 	{
 		const auto ctors = constructors();
@@ -1478,6 +1686,70 @@ namespace sek
 	{
 		std::array<any, sizeof...(AnyArgs)> args_array = {std::move(args)...};
 		return construct({args_array});
+	}
+	// clang-format on
+
+	class function_info
+	{
+		friend class detail::type_node_iterator<function_info>;
+		friend class type_info;
+
+		using node_t = detail::type_data::func_node;
+
+		constexpr function_info() noexcept = default;
+		constexpr explicit function_info(const node_t *node) noexcept : node(node) {}
+
+	public:
+		constexpr function_info(const function_info &) noexcept = default;
+		constexpr function_info &operator=(const function_info &) noexcept = default;
+		constexpr function_info(function_info &&) noexcept = default;
+		constexpr function_info &operator=(function_info &&) noexcept = default;
+
+		/** Returns reflected name of the function. */
+		[[nodiscard]] constexpr std::string_view name() const noexcept { return node->name; }
+		/** Returns signature info of the function. */
+		[[nodiscard]] constexpr signature_info signature() const noexcept { return {{}, node->arg_types}; }
+
+		/** Invokes the underlying function.
+		 * @param instance Instance of the object this function is invoked on.
+		 * If `function_info` represents a static function who's first argument is not an instance pointer, instance is ignored.
+		 * @param args Arguments passed to the function.
+		 * @return Value returned by the function. If the underlying function's return type is void, returns an empty `any`.
+		 * @throw bad_any_type If the function cannot be invoked with the passed arguments.
+		 * @warning Invoking a non-const function on a const object (or incorrect instance type)
+		 * will result in undefined behavior. */
+		any invoke(any instance, std::span<any> args) const
+		{
+			if (signature().assert_args(args)) [[likely]]
+				return node->invoke(std::move(instance), args);
+			return {};
+		}
+
+		[[nodiscard]] constexpr bool operator==(const function_info &) const noexcept = default;
+
+	private:
+		const node_t *node = nullptr;
+	};
+	constexpr detail::type_data_view<type_info::function_iterator> type_info::functions() const noexcept
+	{
+		return {function_iterator{function_info{data->funcs.front}}, {}};
+	}
+	any type_info::invoke(std::string_view name, any instance, std::span<any> args) const
+	{
+		const auto funcs = functions();
+		const auto func = std::ranges::find_if(funcs, [&name](auto f) { return f.name() == name; });
+		if (func == funcs.end()) [[unlikely]]
+			throw bad_any_type("No matching function found");
+		else
+			return func->invoke(std::move(instance), args);
+	}
+	// clang-format off
+	template<typename... AnyArgs>
+	any type_info::invoke(std::string_view name, any instance, AnyArgs &&...args) const
+		requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>
+	{
+		std::array<any, sizeof...(AnyArgs)> args_array = {std::move(args)...};
+		return invoke(name, std::move(instance), {args_array});
 	}
 	// clang-format on
 
@@ -1511,6 +1783,11 @@ namespace sek
 	private:
 		const node_t *node = nullptr;
 	};
+	constexpr detail::type_data_view<type_info::parent_iterator> type_info::parents() const noexcept
+	{
+		return {parent_iterator{parent_info{data->parents.front}}, {}};
+	}
+
 	class conversion_info
 	{
 		friend class detail::type_node_iterator<conversion_info>;
@@ -1540,6 +1817,11 @@ namespace sek
 	private:
 		const node_t *node = nullptr;
 	};
+	constexpr detail::type_data_view<type_info::conversion_iterator> type_info::conversions() const noexcept
+	{
+		return {conversion_iterator{conversion_info{data->convs.front}}, {}};
+	}
+
 	class attribute_info
 	{
 		friend class detail::type_node_iterator<attribute_info>;
@@ -1572,15 +1854,6 @@ namespace sek
 	private:
 		const node_t *node = nullptr;
 	};
-
-	constexpr detail::type_data_view<type_info::parent_iterator> type_info::parents() const noexcept
-	{
-		return {parent_iterator{parent_info{data->parents.front}}, {}};
-	}
-	constexpr detail::type_data_view<type_info::conversion_iterator> type_info::conversions() const noexcept
-	{
-		return {conversion_iterator{conversion_info{data->convs.front}}, {}};
-	}
 	constexpr detail::type_data_view<type_info::attribute_iterator> type_info::attributes() const noexcept
 	{
 		return {attribute_iterator{attribute_info{data->attribs.front}}, {}};
@@ -1639,7 +1912,6 @@ namespace sek
 		}
 		return nullptr;
 	}
-
 	any any::convert(std::string_view n) noexcept
 	{
 		if (info.name() == n)
@@ -1701,6 +1973,22 @@ namespace sek
 		}
 	}
 	any any::convert(type_info to_type) const noexcept { return convert(to_type.name()); }
+	any any::invoke(std::string_view name, std::span<any> args) { return type().invoke(name, ref(), args); }
+	any any::invoke(std::string_view name, std::span<any> args) const { return type().invoke(name, ref(), args); }
+	// clang-format off
+	template<typename... AnyArgs>
+	any any::invoke(std::string_view name, AnyArgs &&...args)
+		requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>
+	{
+		return type().invoke(name, ref(), std::forward<AnyArgs>(args)...);
+	}
+	template<typename... AnyArgs>
+	any any::invoke(std::string_view name, AnyArgs &&...args) const
+		requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>
+	{
+		return type().invoke(name, ref(), std::forward<AnyArgs>(args)...);
+	}
+	// clang-format on
 
 	template<typename T>
 	T *any_ref::try_cast() noexcept
@@ -1726,6 +2014,22 @@ namespace sek
 	any any_ref::convert(type_info to_type) noexcept { return value().convert(to_type); }
 	any any_ref::convert(std::string_view n) const noexcept { return value().convert(n); }
 	any any_ref::convert(type_info to_type) const noexcept { return value().convert(to_type); }
+	any any_ref::invoke(std::string_view name, std::span<any> args) { return type().invoke(name, *this, args); }
+	any any_ref::invoke(std::string_view name, std::span<any> args) const { return type().invoke(name, *this, args); }
+	// clang-format off
+	template<typename... AnyArgs>
+	any any_ref::invoke(std::string_view name, AnyArgs &&...args)
+		requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>
+	{
+		return type().invoke(name, *this, std::forward<AnyArgs>(args)...);
+	}
+	template<typename... AnyArgs>
+	any any_ref::invoke(std::string_view name, AnyArgs &&...args) const
+		requires std::conjunction_v<std::is_same<std::remove_cvref_t<AnyArgs>, any>...>
+	{
+		return type().invoke(name, *this, std::forward<AnyArgs>(args)...);
+	}
+	// clang-format on
 
 	namespace literals
 	{

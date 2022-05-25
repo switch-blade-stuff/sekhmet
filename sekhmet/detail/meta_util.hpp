@@ -12,6 +12,14 @@
 
 namespace sek
 {
+	template<typename T>
+	struct type_selector_t
+	{
+		using type = T;
+	};
+	template<typename T>
+	constexpr type_selector_t<T> type_selector;
+
 	template<std::size_t I>
 	struct index_selector_t : index_selector_t<I - 1>
 	{
@@ -179,6 +187,10 @@ namespace sek
 	};
 	template<std::size_t I, typename Seq>
 	using type_seq_element_t = typename type_seq_element<I, Seq>::type;
+	template<std::size_t I, typename Seq>
+	using type_seq_selector_t = type_selector_t<typename type_seq_element<I, Seq>::type>;
+	template<std::size_t I, typename Seq>
+	constexpr auto type_seq_selector = type_seq_selector_t<I, Seq>{};
 
 	namespace detail
 	{
@@ -259,14 +271,6 @@ namespace sek
 		using impl_type = detail::get_type_seq_impl<type_seq_element_t<N, type_seq_t<Args...>>, N, 0, Args...>;
 		return impl_type::dispatch(std::forward<Args>(args)...);
 	}
-
-	template<typename T>
-	struct type_selector_t
-	{
-		using type = T;
-	};
-	template<typename T>
-	constexpr type_selector_t<T> type_selector;
 
 	namespace detail
 	{
