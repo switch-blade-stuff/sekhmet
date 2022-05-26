@@ -6,19 +6,34 @@
 
 #include "util.hpp"
 
-namespace sek::math::detail
+namespace sek::math
 {
-	template<typename, std::size_t>
-	struct simd_t;
+	enum class storage_policy : int
+	{
+		OPTIMAL,
+		PACKED
+	};
 
-	template<typename T, std::size_t N, typename = void>
-	struct simd_defined : std::false_type
+	/** @brief Values are stored with potential over-alignment to allow for SIMD optimizations. */
+	constexpr static storage_policy optimal = storage_policy::OPTIMAL;
+	/** @brief Values are tightly packed in memory.
+	 * @note Packed storage is not SIMD-optimized. */
+	constexpr static storage_policy packed = storage_policy::PACKED;
+
+	namespace detail
 	{
-	};
-	template<typename T, std::size_t N>
-	struct simd_defined<T, N, std::void_t<decltype(sizeof(simd_t<T, N>))>> : std::true_type
-	{
-	};
-	template<typename T, std::size_t N>
-	concept simd_exists = (simd_defined<T, N>::value && !std::is_empty_v<simd_t<T, N>>);
-}	 // namespace sek::math::detail
+		template<typename, std::size_t>
+		struct simd_t;
+
+		template<typename T, std::size_t N, typename = void>
+		struct simd_defined : std::false_type
+		{
+		};
+		template<typename T, std::size_t N>
+		struct simd_defined<T, N, std::void_t<decltype(sizeof(simd_t<T, N>))>> : std::true_type
+		{
+		};
+		template<typename T, std::size_t N>
+		concept simd_exists = (simd_defined<T, N>::value && !std::is_empty_v<simd_t<T, N>>);
+	}	 // namespace detail
+}	 // namespace sek::math

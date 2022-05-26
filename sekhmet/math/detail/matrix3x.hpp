@@ -8,55 +8,71 @@
 
 namespace sek::math
 {
-	template<arithmetic T>
-	struct basic_matrix<T, 3, 2>
+	template<arithmetic T, storage_policy P>
+	struct basic_matrix<T, 3, 2, P>
 	{
-		SEK_MATH_MATRIX_COMMON(T, 3, 2)
+		SEK_MATH_MATRIX_COMMON(T, 3, 2, P)
 
 	public:
 		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
+		{
+		}
+		template<storage_policy Sp>
+		constexpr basic_matrix(const basic_vector<T, 2, Sp> &c0,
+							   const basic_vector<T, 2, Sp> &c1,
+							   const basic_vector<T, 2, Sp> &c2) noexcept
+			: data{col_type{c0}, col_type{c1}, col_type{c2}}
 		{
 		}
 		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy) noexcept : basic_matrix({xx, xy}, {yx, yy}, {zx, zy})
 		{
 		}
 
-		constexpr explicit basic_matrix(const basic_matrix<T, 2, 2> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 2, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], {}}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 2, 3> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 3, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], {}}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 2, 4> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 4, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], {}}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 3, 3> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 3, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], other[2]}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 3, 4> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 4, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], other[2]}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 4, 2> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 2, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], other[2]}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 4, 3> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 3, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], other[2]}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 4, 4> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 4, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], other[2]}
 		{
 		}
 	};
 
-	template<typename T>
-	[[nodiscard]] constexpr basic_matrix<T, 2, 2> operator*(const basic_matrix<T, 3, 2> &l, const basic_matrix<T, 2, 3> &r) noexcept
+	template<typename T, storage_policy P>
+	[[nodiscard]] constexpr basic_matrix<T, 2, 2, P> operator*(const basic_matrix<T, 3, 2, P> &l,
+															   const basic_matrix<T, 2, 3, P> &r) noexcept
 	{
 		const auto r0 = l.row(0);
 		const auto r1 = l.row(1);
@@ -64,12 +80,13 @@ namespace sek::math
 		const auto &c1 = r.col(1);
 
 		// clang-format off
-		return basic_matrix<T, 2, 2>{{dot(r0, c0), dot(r1, c0)},
-									 {dot(r0, c1), dot(r1, c1)}};
+		return basic_matrix<T, 2, 2, P>{{dot(r0, c0), dot(r1, c0)},
+										{dot(r0, c1), dot(r1, c1)}};
 		// clang-format on
 	}
-	template<typename T>
-	[[nodiscard]] constexpr basic_matrix<T, 3, 2> operator*(const basic_matrix<T, 3, 2> &l, const basic_matrix<T, 3, 3> &r) noexcept
+	template<typename T, storage_policy P>
+	[[nodiscard]] constexpr basic_matrix<T, 3, 2, P> operator*(const basic_matrix<T, 3, 2, P> &l,
+															   const basic_matrix<T, 3, 3, P> &r) noexcept
 	{
 		const auto r0 = l.row(0);
 		const auto r1 = l.row(1);
@@ -78,13 +95,14 @@ namespace sek::math
 		const auto &c2 = r.col(2);
 
 		// clang-format off
-		return basic_matrix<T, 3, 2>{{dot(r0, c0), dot(r1, c0)},
-									 {dot(r0, c1), dot(r1, c1)},
-									 {dot(r0, c2), dot(r1, c2)}};
+		return basic_matrix<T, 3, 2, P>{{dot(r0, c0), dot(r1, c0)},
+										{dot(r0, c1), dot(r1, c1)},
+										{dot(r0, c2), dot(r1, c2)}};
 		// clang-format on
 	}
-	template<typename T>
-	[[nodiscard]] constexpr basic_matrix<T, 4, 2> operator*(const basic_matrix<T, 3, 2> &l, const basic_matrix<T, 4, 3> &r) noexcept
+	template<typename T, storage_policy P>
+	[[nodiscard]] constexpr basic_matrix<T, 4, 2, P> operator*(const basic_matrix<T, 3, 2, P> &l,
+															   const basic_matrix<T, 4, 3, P> &r) noexcept
 	{
 		const auto r0 = l.row(0);
 		const auto r1 = l.row(1);
@@ -94,31 +112,40 @@ namespace sek::math
 		const auto &c3 = r.col(3);
 
 		// clang-format off
-		return basic_matrix<T, 4, 2>{{dot(r0, c0), dot(r1, c0)},
-									 {dot(r0, c1), dot(r1, c1)},
-									 {dot(r0, c2), dot(r1, c2)},
-									 {dot(r0, c3), dot(r1, c3)}};
+		return basic_matrix<T, 4, 2, P>{{dot(r0, c0), dot(r1, c0)},
+										{dot(r0, c1), dot(r1, c1)},
+										{dot(r0, c2), dot(r1, c2)},
+										{dot(r0, c3), dot(r1, c3)}};
 		// clang-format on
 	}
 
-	template<typename T>
-	[[nodiscard]] constexpr basic_vector<T, 2> operator*(const basic_matrix<T, 3, 2> &m, const basic_vector<T, 3> &v) noexcept
+	template<typename T, storage_policy P>
+	[[nodiscard]] constexpr basic_vector<T, 2, P> operator*(const basic_matrix<T, 3, 2, P> &m,
+															const basic_vector<T, 3, P> &v) noexcept
 	{
 		return m[0] * v[0] + m[1] * v[1] + m[2] * v[2];
 	}
-	template<typename T>
-	[[nodiscard]] constexpr basic_vector<T, 3> operator*(const basic_vector<T, 2> &v, const basic_matrix<T, 3, 2> &m) noexcept
+	template<typename T, storage_policy P>
+	[[nodiscard]] constexpr basic_vector<T, 3, P> operator*(const basic_vector<T, 2, P> &v,
+															const basic_matrix<T, 3, 2, P> &m) noexcept
 	{
-		return basic_vector<T, 2>{dot(v, m[0]), dot(v, m[1]), dot(v, m[2])};
+		return basic_vector<T, 3, P>{dot(v, m[0]), dot(v, m[1]), dot(v, m[2])};
 	}
 
-	template<arithmetic T>
-	struct basic_matrix<T, 3, 3>
+	template<arithmetic T, storage_policy P>
+	struct basic_matrix<T, 3, 3, P>
 	{
-		SEK_MATH_MATRIX_COMMON(T, 3, 3)
+		SEK_MATH_MATRIX_COMMON(T, 3, 3, P)
 
 	public:
 		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
+		{
+		}
+		template<storage_policy Sp>
+		constexpr basic_matrix(const basic_vector<T, 3, Sp> &c0,
+							   const basic_vector<T, 3, Sp> &c1,
+							   const basic_vector<T, 3, Sp> &c2) noexcept
+			: data{col_type{c0}, col_type{c1}, col_type{c2}}
 		{
 		}
 		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy, T xz, T yz, T zz) noexcept
@@ -126,42 +153,51 @@ namespace sek::math
 		{
 		}
 
-		constexpr explicit basic_matrix(const basic_matrix<T, 2, 2> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 2, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], {0, 0, 1}}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 2, 3> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 3, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], {0, 0, 1}}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 2, 4> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 4, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], {0, 0, 1}}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 3, 2> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 2, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], {other[2][0], other[2][1], 1}}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 3, 4> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 4, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], other[2]}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 4, 2> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 2, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], {other[2][0], other[2][1], 1}}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 4, 3> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 3, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], other[2]}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 4, 4> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 4, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], other[2]}
 		{
 		}
 	};
 
-	template<typename T>
-	[[nodiscard]] constexpr basic_matrix<T, 2, 3> operator*(const basic_matrix<T, 3, 3> &l, const basic_matrix<T, 2, 3> &r) noexcept
+	template<typename T, storage_policy P>
+	[[nodiscard]] constexpr basic_matrix<T, 2, 3, P> operator*(const basic_matrix<T, 3, 3, P> &l,
+															   const basic_matrix<T, 2, 3, P> &r) noexcept
 	{
 		const auto r0 = l.row(0);
 		const auto r1 = l.row(1);
@@ -170,12 +206,13 @@ namespace sek::math
 		const auto &c1 = r.col(1);
 
 		// clang-format off
-		return basic_matrix<T, 2, 3>{{dot(r0, c0), dot(r1, c0), dot(r2, c0)},
-									 {dot(r0, c1), dot(r1, c1), dot(r2, c1)}};
+		return basic_matrix<T, 2, 3, P>{{dot(r0, c0), dot(r1, c0), dot(r2, c0)},
+										{dot(r0, c1), dot(r1, c1), dot(r2, c1)}};
 		// clang-format on
 	}
-	template<typename T>
-	[[nodiscard]] constexpr basic_matrix<T, 3, 3> operator*(const basic_matrix<T, 3, 3> &l, const basic_matrix<T, 3, 3> &r) noexcept
+	template<typename T, storage_policy P>
+	[[nodiscard]] constexpr basic_matrix<T, 3, 3, P> operator*(const basic_matrix<T, 3, 3, P> &l,
+															   const basic_matrix<T, 3, 3, P> &r) noexcept
 	{
 		const auto r0 = l.row(0);
 		const auto r1 = l.row(1);
@@ -185,13 +222,14 @@ namespace sek::math
 		const auto &c2 = r.col(2);
 
 		// clang-format off
-		return basic_matrix<T, 3, 3>{{dot(r0, c0), dot(r1, c0), dot(r2, c0)},
-									 {dot(r0, c1), dot(r1, c1), dot(r2, c1)},
-									 {dot(r0, c2), dot(r1, c2), dot(r2, c2)}};
+		return basic_matrix<T, 3, 3, P>{{dot(r0, c0), dot(r1, c0), dot(r2, c0)},
+										{dot(r0, c1), dot(r1, c1), dot(r2, c1)},
+										{dot(r0, c2), dot(r1, c2), dot(r2, c2)}};
 		// clang-format on
 	}
-	template<typename T>
-	[[nodiscard]] constexpr basic_matrix<T, 4, 3> operator*(const basic_matrix<T, 3, 3> &l, const basic_matrix<T, 4, 3> &r) noexcept
+	template<typename T, storage_policy P>
+	[[nodiscard]] constexpr basic_matrix<T, 4, 3, P> operator*(const basic_matrix<T, 3, 3, P> &l,
+															   const basic_matrix<T, 4, 3, P> &r) noexcept
 	{
 		const auto r0 = l.row(0);
 		const auto r1 = l.row(1);
@@ -202,31 +240,38 @@ namespace sek::math
 		const auto &c3 = r.col(3);
 
 		// clang-format off
-		return basic_matrix<T, 4, 3>{{dot(r0, c0), dot(r1, c0), dot(r2, c0)},
-									 {dot(r0, c1), dot(r1, c1), dot(r2, c1)},
-									 {dot(r0, c2), dot(r1, c2), dot(r2, c2)},
-									 {dot(r0, c3), dot(r1, c3), dot(r2, c3)}};
+		return basic_matrix<T, 4, 3, P>{{dot(r0, c0), dot(r1, c0), dot(r2, c0)},
+										{dot(r0, c1), dot(r1, c1), dot(r2, c1)},
+										{dot(r0, c2), dot(r1, c2), dot(r2, c2)},
+										{dot(r0, c3), dot(r1, c3), dot(r2, c3)}};
 		// clang-format on
 	}
 
-	template<typename T>
+	template<typename T, storage_policy P>
 	[[nodiscard]] constexpr basic_vector<T, 3> operator*(const basic_matrix<T, 3, 3> &m, const basic_vector<T, 3> &v) noexcept
 	{
 		return m[0] * v[0] + m[1] * v[1] + m[2] * v[2];
 	}
-	template<typename T>
+	template<typename T, storage_policy P>
 	[[nodiscard]] constexpr basic_vector<T, 3> operator*(const basic_vector<T, 3> &v, const basic_matrix<T, 3, 3> &m) noexcept
 	{
-		return basic_vector<T, 2>{dot(v, m[0]), dot(v, m[1]), dot(v, m[2])};
+		return basic_vector<T, 3, P>{dot(v, m[0]), dot(v, m[1]), dot(v, m[2])};
 	}
 
-	template<arithmetic T>
-	struct basic_matrix<T, 3, 4>
+	template<arithmetic T, storage_policy P>
+	struct basic_matrix<T, 3, 4, P>
 	{
-		SEK_MATH_MATRIX_COMMON(T, 3, 4)
+		SEK_MATH_MATRIX_COMMON(T, 3, 4, P)
 
 	public:
 		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
+		{
+		}
+		template<storage_policy Sp>
+		constexpr basic_matrix(const basic_vector<T, 4, Sp> &c0,
+							   const basic_vector<T, 4, Sp> &c1,
+							   const basic_vector<T, 4, Sp> &c2) noexcept
+			: data{col_type{c0}, col_type{c1}, col_type{c2}}
 		{
 		}
 		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy, T xz, T yz, T zz, T xw, T yw, T zw) noexcept
@@ -234,42 +279,51 @@ namespace sek::math
 		{
 		}
 
-		constexpr explicit basic_matrix(const basic_matrix<T, 2, 2> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 2, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], {0, 0, 1}}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 2, 3> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 3, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], {0, 0, 1}}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 2, 4> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 2, 4, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], {0, 0, 1}}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 3, 2> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 2, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], {other[2][0], other[2][1], 1}}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 3, 3> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 3, 3, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], other[2]}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 4, 2> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 2, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], {other[2][0], other[2][1], 1}}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 4, 3> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 3, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], other[2]}
 		{
 		}
-		constexpr explicit basic_matrix(const basic_matrix<T, 4, 4> &other) noexcept
+		template<storage_policy Sp>
+		constexpr explicit basic_matrix(const basic_matrix<T, 4, 4, Sp> &other) noexcept
 			: basic_matrix{other[0], other[1], other[2]}
 		{
 		}
 	};
 
-	template<typename T>
-	[[nodiscard]] constexpr basic_matrix<T, 2, 4> operator*(const basic_matrix<T, 3, 4> &l, const basic_matrix<T, 2, 3> &r) noexcept
+	template<typename T, storage_policy P>
+	[[nodiscard]] constexpr basic_matrix<T, 2, 4, P> operator*(const basic_matrix<T, 3, 4, P> &l,
+															   const basic_matrix<T, 2, 3, P> &r) noexcept
 	{
 		const auto r0 = l.row(0);
 		const auto r1 = l.row(1);
@@ -279,12 +333,13 @@ namespace sek::math
 		const auto &c1 = r.col(1);
 
 		// clang-format off
-		return basic_matrix<T, 2, 4>{{dot(r0, c0), dot(r1, c0), dot(r2, c0), dot(r3, c0)},
-									 {dot(r0, c1), dot(r1, c1), dot(r2, c1), dot(r3, c1)}};
+		return basic_matrix<T, 2, 4, P>{{dot(r0, c0), dot(r1, c0), dot(r2, c0), dot(r3, c0)},
+										{dot(r0, c1), dot(r1, c1), dot(r2, c1), dot(r3, c1)}};
 		// clang-format on
 	}
-	template<typename T>
-	[[nodiscard]] constexpr basic_matrix<T, 3, 4> operator*(const basic_matrix<T, 3, 4> &l, const basic_matrix<T, 3, 3> &r) noexcept
+	template<typename T, storage_policy P>
+	[[nodiscard]] constexpr basic_matrix<T, 3, 4, P> operator*(const basic_matrix<T, 3, 4, P> &l,
+															   const basic_matrix<T, 3, 3, P> &r) noexcept
 	{
 		const auto r0 = l.row(0);
 		const auto r1 = l.row(1);
@@ -295,13 +350,14 @@ namespace sek::math
 		const auto &c2 = r.col(2);
 
 		// clang-format off
-		return basic_matrix<T, 3, 4>{{dot(r0, c0), dot(r1, c0), dot(r2, c0), dot(r3, c0)},
-									 {dot(r0, c1), dot(r1, c1), dot(r2, c1), dot(r3, c1)},
-									 {dot(r0, c2), dot(r1, c2), dot(r2, c2), dot(r3, c2)}};
+		return basic_matrix<T, 3, 4, P>{{dot(r0, c0), dot(r1, c0), dot(r2, c0), dot(r3, c0)},
+										{dot(r0, c1), dot(r1, c1), dot(r2, c1), dot(r3, c1)},
+										{dot(r0, c2), dot(r1, c2), dot(r2, c2), dot(r3, c2)}};
 		// clang-format on
 	}
-	template<typename T>
-	[[nodiscard]] constexpr basic_matrix<T, 4, 4> operator*(const basic_matrix<T, 3, 4> &l, const basic_matrix<T, 4, 3> &r) noexcept
+	template<typename T, storage_policy P>
+	[[nodiscard]] constexpr basic_matrix<T, 4, 4, P> operator*(const basic_matrix<T, 3, 4, P> &l,
+															   const basic_matrix<T, 4, 3, P> &r) noexcept
 	{
 		const auto r0 = l.row(0);
 		const auto r1 = l.row(1);
@@ -313,21 +369,23 @@ namespace sek::math
 		const auto &c3 = r.col(3);
 
 		// clang-format off
-		return basic_matrix<T, 4, 4>{{dot(r0, c0), dot(r1, c0), dot(r2, c0), dot(r3, c0)},
-									 {dot(r0, c1), dot(r1, c1), dot(r2, c1), dot(r3, c1)},
-									 {dot(r0, c2), dot(r1, c2), dot(r2, c2), dot(r3, c2)},
-									 {dot(r0, c3), dot(r1, c3), dot(r2, c3), dot(r3, c3)}};
+		return basic_matrix<T, 4, 4, P>{{dot(r0, c0), dot(r1, c0), dot(r2, c0), dot(r3, c0)},
+										{dot(r0, c1), dot(r1, c1), dot(r2, c1), dot(r3, c1)},
+										{dot(r0, c2), dot(r1, c2), dot(r2, c2), dot(r3, c2)},
+										{dot(r0, c3), dot(r1, c3), dot(r2, c3), dot(r3, c3)}};
 		// clang-format on
 	}
 
-	template<typename T>
-	[[nodiscard]] constexpr basic_vector<T, 4> operator*(const basic_matrix<T, 3, 4> &m, const basic_vector<T, 3> &v) noexcept
+	template<typename T, storage_policy P>
+	[[nodiscard]] constexpr basic_vector<T, 4, P> operator*(const basic_matrix<T, 3, 4, P> &m,
+															const basic_vector<T, 3, P> &v) noexcept
 	{
 		return m[0] * v[0] + m[1] * v[1] + m[2] * v[2];
 	}
-	template<typename T>
-	[[nodiscard]] constexpr basic_vector<T, 3> operator*(const basic_vector<T, 4> &v, const basic_matrix<T, 3, 4> &m) noexcept
+	template<typename T, storage_policy P>
+	[[nodiscard]] constexpr basic_vector<T, 3, P> operator*(const basic_vector<T, 4, P> &v,
+															const basic_matrix<T, 3, 4, P> &m) noexcept
 	{
-		return basic_vector<T, 2>{dot(v, m[0]), dot(v, m[1]), dot(v, m[2])};
+		return basic_vector<T, 3, P>{dot(v, m[0]), dot(v, m[1]), dot(v, m[2])};
 	}
 }	 // namespace sek::math

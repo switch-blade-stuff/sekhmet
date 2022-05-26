@@ -9,20 +9,23 @@
 
 namespace sek::math::detail
 {
-	template<typename T, std::size_t N, bool = false>
+	template<typename T, std::size_t N, bool UseSimd = false>
 	struct vector_data
 	{
 		constexpr vector_data() noexcept = default;
 
+		// clang-format off
 		template<typename U, std::size_t M>
-		constexpr explicit vector_data(const vector_data<U, M> &other) noexcept
-			requires(std::convertible_to<U, T> && M != N)
+		constexpr explicit vector_data(const vector_data<U, M, false> &other) noexcept requires(std::convertible_to<U, T> && M != N)
 		{
 			if constexpr (M < N)
 				std::copy_n(other.data, M, data);
 			else
 				std::copy_n(other.data, N, data);
 		}
+		template<typename U, std::size_t M>
+		constexpr explicit vector_data(const vector_data<U, M, true> &other) noexcept requires(std::convertible_to<U, T>);
+		// clang-format on
 		constexpr explicit vector_data(const T (&vals)[N]) noexcept
 		{
 			std::copy(std::begin(vals), std::end(vals), data);
@@ -62,8 +65,13 @@ namespace sek::math::detail
 
 		// clang-format off
 		template<typename U, std::size_t M>
-		constexpr explicit vector_data(const vector_data<U, M> &other) noexcept
-			requires(std::convertible_to<U, T> && M != N) : values(other)
+		constexpr explicit vector_data(const vector_data<U, M, true> &other) noexcept requires(std::convertible_to<U, T> && M != N)
+			: vector_data(other.values)
+		{
+		}
+		template<typename U, std::size_t M>
+		constexpr explicit vector_data(const vector_data<U, M, false> &other) noexcept requires(std::convertible_to<U, T>)
+			: values(other)
 		{
 		}
 		// clang-format on
@@ -97,8 +105,21 @@ namespace sek::math::detail
 			simd_t<T, N> simd;
 		};
 	};
-	template<typename T, std::size_t N>
-	using vector_data_t = vector_data<T, N, simd_exists<T, N>>;
+
+	// clang-format off
+	template<typename T, std::size_t N, bool UseSimd>
+	template<typename U, std::size_t M>
+	constexpr vector_data<T, N, UseSimd>::vector_data(const vector_data<U, M, true> &other) noexcept requires(std::convertible_to<U, T>)
+		: vector_data(other.values)
+	{
+	}
+
+	template<typename T, std::size_t N, storage_policy Policy>
+	concept use_simd_data = simd_exists<T, N> && (Policy != packed || sizeof(vector_data<T, N, true>) == sizeof(vector_data<T, N>));
+	// clang-format on
+
+	template<typename T, std::size_t N, storage_policy Policy>
+	using vector_data_t = vector_data<T, N, use_simd_data<T, N, Policy>>;
 
 	template<typename T>
 	struct is_simd_data : std::false_type

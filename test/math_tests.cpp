@@ -68,6 +68,13 @@ TEST(math_tests, vector_test)
 		EXPECT_EQ((sek::math::shuffle<1, 0>(v2d)), (sek::math::vector2d{2, 1}));
 		EXPECT_EQ((sek::math::shuffle<1, 0, 0>(v2d)), (sek::math::vector3d{2, 1, 1}));
 	}
+	{
+		sek::math::vector2d_packed v2dp = {1, 2};
+		sek::math::vector2d v2d = {1, 2};
+
+		EXPECT_EQ(sek::math::vector2d{v2dp}, v2d);
+		EXPECT_EQ(sek::math::vector2d_packed{v2d}, v2dp);
+	}
 }
 
 TEST(math_tests, matrix_test)
