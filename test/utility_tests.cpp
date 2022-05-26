@@ -264,7 +264,7 @@ TEST(utility_tests, message_test)
 	using namespace sek::literals;
 	using namespace sek::attributes;
 
-	sek::type_info::reflect<test_message>().attribute(message_source<test_message>);
+	sek::type_info::reflect<test_message>().attribute(make_message_source<test_message>);
 
 	constexpr static auto msg_data = test_message{10};
 	constexpr auto filter = [](std::size_t &ctr, const test_message &msg)
@@ -308,7 +308,7 @@ TEST(utility_tests, message_test)
 	filter_ctr = 0;
 	receiver_ctr = 0;
 
-	auto attr = "test_message"_type.get_attribute<message_source_t>().cast<message_source_t>();
+	auto attr = "test_message"_type.get_attribute<message_source>().cast<message_source>();
 
 	attr.send(msg_data);
 	EXPECT_EQ(filter_ctr, 1);

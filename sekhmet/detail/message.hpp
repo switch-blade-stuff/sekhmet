@@ -88,12 +88,12 @@ namespace sek
 		/** Queues a message for later dispatch.
 		 * @param data Data of the message.
 		 * @note Message data is copied by the queue. */
-		static void queue(const T &data);
+		static void queue(const T &data = T{});
 		/** Dispatches all queued messages. */
 		static void dispatch();
 		/** Sends a message immediately, bypassing the queue.
 		 * @param data Data of the message. */
-		static void send(const T &data);
+		static void send(const T &data = T{});
 
 		/** @brief Returns proxy for the receive event.
 		 *
@@ -172,11 +172,11 @@ namespace sek
 
 	public:
 		/** @copydoc message_queue::queue */
-		static void queue(const T &data);
+		static void queue(const T &data = T{});
 		/** @copydoc message_queue::dispatch */
 		static void dispatch();
 		/** @copydoc message_queue::send */
-		static void send(const T &data);
+		static void send(const T &data = T{});
 
 		/** @brief Returns proxy for the receive event.
 		 *
@@ -233,8 +233,8 @@ namespace sek
 
 	namespace attributes
 	{
-		/** @brief Attribute used to allow sending messages of a specific type at runtime in a type-agnostic way. */
-		class message_source_t
+		/** @brief Attribute used to send messages of a specific type at runtime in a type-agnostic way. */
+		class message_source
 		{
 		private:
 			struct vtable_t
@@ -248,19 +248,19 @@ namespace sek
 			};
 
 		public:
-			message_source_t() = delete;
+			message_source() = delete;
 
 			template<typename T>
-			constexpr explicit message_source_t(type_selector_t<T>) noexcept
+			constexpr explicit message_source(type_selector_t<T>) noexcept
 				: global(&vtable_t::instance<T, message_scope::GLOBAL>),
 				  thread(&vtable_t::instance<T, message_scope::THREAD>)
 			{
 			}
 
-			constexpr message_source_t(const message_source_t &) noexcept = default;
-			constexpr message_source_t &operator=(const message_source_t &) noexcept = default;
-			constexpr message_source_t(message_source_t &&) noexcept = default;
-			constexpr message_source_t &operator=(message_source_t &&) noexcept = default;
+			constexpr message_source(const message_source &) noexcept = default;
+			constexpr message_source &operator=(const message_source &) noexcept = default;
+			constexpr message_source(message_source &&) noexcept = default;
+			constexpr message_source &operator=(message_source &&) noexcept = default;
 
 			/** Queues message using the bound message queue.
 			 * @tparam Scope Scope of the message queue to queue the message on.
@@ -301,13 +301,14 @@ namespace sek
 		};
 
 		template<typename T, message_scope S>
-		constinit const message_source_t::vtable_t message_source_t::vtable_t::instance = {
+		constinit const message_source::vtable_t message_source::vtable_t::instance = {
 			.queue = +[](any a) { message_queue<T, S>::queue(a.cast<const T &>()); },
 			.dispatch = +[]() { message_queue<T, S>::dispatch(); },
 			.send = +[](any a) { message_queue<T, S>::send(a.cast<const T &>()); },
 		};
 
+		/** Creates an instance of message source attribute for type `T`. */
 		template<typename T>
-		constexpr static message_source_t message_source{type_selector<T>};
+		constexpr static message_source make_message_source{type_selector<T>};
 	}	 // namespace attributes
 }	 // namespace sek
