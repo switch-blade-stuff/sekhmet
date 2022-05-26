@@ -10,15 +10,12 @@ namespace sek::math
 {
 	enum class storage_policy : int
 	{
+		/** @brief Values are stored with potential over-alignment to allow for SIMD optimizations. */
 		OPTIMAL,
+		/** @brief Values are tightly packed in memory.
+		 * @note Packed storage is not SIMD-optimized. */
 		PACKED
 	};
-
-	/** @brief Values are stored with potential over-alignment to allow for SIMD optimizations. */
-	constexpr static storage_policy optimal = storage_policy::OPTIMAL;
-	/** @brief Values are tightly packed in memory.
-	 * @note Packed storage is not SIMD-optimized. */
-	constexpr static storage_policy packed = storage_policy::PACKED;
 
 	namespace detail
 	{

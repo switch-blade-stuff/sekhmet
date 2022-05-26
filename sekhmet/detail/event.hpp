@@ -480,6 +480,12 @@ namespace sek
 			}
 			return *this;
 		}
+		/** @copydoc dispatch */
+		template<typename F>
+		constexpr const basic_event &operator()(F &&col, Args... args) const
+		{
+			return dispatch(std::forward<F>(col), std::forward<Args>(args)...);
+		}
 
 		constexpr void swap(basic_event &other) noexcept
 		{

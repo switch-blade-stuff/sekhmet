@@ -141,7 +141,7 @@ namespace sek::math
 	 * @tparam N Amount of values the vector holds.
 	 * @tparam Policy Policy used for storage & optimization.
 	 * @note Generic vector types are not guaranteed to be SIMD-optimized. */
-	template<arithmetic T, std::size_t N, storage_policy Policy = optimal>
+	template<arithmetic T, std::size_t N, storage_policy Policy = storage_policy::OPTIMAL>
 	union basic_vector
 	{
 		template<arithmetic U, std::size_t M, storage_policy P>

@@ -115,7 +115,7 @@ namespace sek::math::detail
 	}
 
 	template<typename T, std::size_t N, storage_policy Policy>
-	concept use_simd_data = simd_exists<T, N> && (Policy != packed || sizeof(vector_data<T, N, true>) == sizeof(vector_data<T, N>));
+	concept use_simd_data = simd_exists<T, N> && (Policy != storage_policy::PACKED || sizeof(vector_data<T, N, true>) == sizeof(vector_data<T, N>));
 	// clang-format on
 
 	template<typename T, std::size_t N, storage_policy Policy>

@@ -11,9 +11,8 @@
 
 namespace sek
 {
-	/** @brief Base class for service implementation.
-	 * @tparam T Type of service child.
-	 * @tparam Policy Service uniqueness & availability policy. */
+	/** @brief Structure used to implement global services.
+	 * @tparam T Type of service instance. */
 	template<typename T>
 	class SEK_API service
 	{

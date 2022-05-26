@@ -90,6 +90,8 @@ namespace sek
 		constexpr static bool free_func = std::is_function_v<decltype(F)> && compatible_func<F, Inject...>;
 		template<auto F>
 		constexpr static bool mem_func = std::is_member_function_pointer_v<decltype(F)> && compatible_func<F>;
+		template<typename T, typename... Inject>
+		constexpr static bool empty_ftor = std::is_object_v<T> && std::is_empty_v<T> && std::is_invocable_r_v<R, T, Inject..., Args...>;
 		// clang-format on
 
 		constexpr delegate(R (*proxy)(const void *, Args...), const void *data) noexcept : proxy(proxy), data_ptr(data)
@@ -114,6 +116,31 @@ namespace sek
 			assign(f, arg);
 		}
 
+		/** Initializes a delegate from an empty functor. */
+		template<typename F>
+		constexpr delegate(F ftor) noexcept requires empty_ftor<F>
+		{
+			assign(std::forward<F>(ftor));
+		}
+		/** Initializes a delegate from an empty functor and a bound argument. */
+		template<typename F, typename Arg>
+		constexpr delegate(F ftor, Arg *arg) noexcept requires empty_ftor<F, Arg *>
+		{
+			assign(std::forward<F>(ftor), arg);
+		}
+		/** @copydoc delegate */
+		template<typename F, typename Arg>
+		constexpr delegate(F ftor, Arg &arg) noexcept requires empty_ftor<F, Arg *>
+		{
+			assign(std::forward<F>(ftor), arg);
+		}
+		/** @copydoc delegate */
+		template<typename F, typename Arg>
+		constexpr delegate(F ftor, Arg &arg) noexcept requires empty_ftor<F, Arg &>
+		{
+			assign(std::forward<F>(ftor), arg);
+		}
+
 		/** Initializes a delegate from a free function. */
 		template<auto F>
 		constexpr delegate(func_t<F>) noexcept requires free_func<F>
@@ -127,14 +154,14 @@ namespace sek
 			assign<F>(arg);
 			data_ptr = static_cast<const void *>(arg);
 		}
-		/** Initializes a delegate from a free and a bound argument. */
+		/** @copydoc delegate */
 		template<auto F, typename Arg>
 		constexpr delegate(func_t<F>, Arg &arg) noexcept requires free_func<F, Arg *>
 		{
 			assign<F>(arg);
 			data_ptr = static_cast<const void *>(std::addressof(arg));
 		}
-		/** Initializes a delegate from a free and a bound argument. */
+		/** @copydoc delegate */
 		template<auto F, typename Arg>
 		constexpr delegate(func_t<F>, Arg &arg) noexcept requires free_func<F, Arg &>
 		{
@@ -168,12 +195,66 @@ namespace sek
 		{
 			return assign(f);
 		}
-		/** Binds a free function pointer to the delegate. */
+		/** Binds a free function pointer and an argument to the delegate. */
 		template<typename Arg>
 		constexpr delegate &assign(R (*f)(Arg *, Args...), Arg *arg)  noexcept
 		{
 			proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
 			data_ptr = static_cast<const void *>(arg);
+			return *this;
+		}
+
+		/** Binds an empty functor to the delegate. */
+		template<typename F>
+		constexpr delegate &assign(F) noexcept requires empty_ftor<F>
+		{
+			proxy = +[](const void *, Args...args) -> R
+			{
+				return F{}(std::forward<Args>(args)...);
+			};
+			data_ptr = nullptr;
+			return *this;
+		}
+		/** @copydoc assign */
+		template<typename F>
+		constexpr delegate &operator=(F f) noexcept requires empty_ftor<F>
+		{
+			return assign(std::forward<F>(f));
+		}
+		/** Binds an empty functor and an argument to the delegate. */
+		template<typename F, typename Arg>
+		constexpr delegate &assign(F, Arg *arg) noexcept requires empty_ftor<F, Arg *>
+		{
+			proxy = +[](const void *p, Args...args) -> R
+			{
+				using U = std::add_const_t<Arg>;
+				return F{}(const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
+			};
+			data_ptr = static_cast<const void *>(arg);
+			return *this;
+		}
+		/** @copydoc assign */
+		template<typename F, typename Arg>
+		constexpr delegate &assign(F, Arg &arg) noexcept requires empty_ftor<F, Arg *>
+		{
+			proxy = +[](const void *p, Args...args) -> R
+			{
+				using U = std::add_const_t<Arg>;
+				return F{}(const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
+			};
+			data_ptr = static_cast<const void *>(std::addressof(arg));
+			return *this;
+		}
+		/** @copydoc assign */
+		template<typename F, typename Arg>
+		constexpr delegate &assign(F, Arg &arg) noexcept requires empty_ftor<F, Arg &>
+		{
+			proxy = +[](const void *p, Args...args) -> R
+			{
+				using U = std::add_const_t<Arg>;
+				return F{}(*const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
+			};
+			data_ptr = static_cast<const void *>(std::addressof(arg));
 			return *this;
 		}
 
@@ -210,7 +291,7 @@ namespace sek
 			data_ptr = static_cast<const void *>(arg);
 			return *this;
 		}
-		/** Binds a free function and an argument to the delegate. */
+		/** @copydoc assign */
 		template<auto F, typename Arg>
 		constexpr delegate &assign(Arg &arg) noexcept requires free_func<F, Arg *>
 		{
@@ -222,7 +303,7 @@ namespace sek
 			data_ptr = static_cast<const void *>(std::addressof(arg));
 			return *this;
 		}
-		/** Binds a free function and an argument to the delegate. */
+		/** @copydoc assign */
 		template<auto F, typename Arg>
 		constexpr delegate &assign(Arg &arg) noexcept requires free_func<F, Arg &>
 		{
@@ -234,19 +315,19 @@ namespace sek
 			data_ptr = static_cast<const void *>(std::addressof(arg));
 			return *this;
 		}
-		/** Binds a free function and an argument to the delegate. */
+		/** @copydoc assign */
 		template<auto F, typename Arg>
 		constexpr delegate &assign(func_t<F>, Arg *arg) noexcept requires free_func<F, Arg *>
 		{
 			return assign<F>(arg);
 		}
-		/** Binds a free function and an argument to the delegate. */
+		/** @copydoc assign */
 		template<auto F, typename Arg>
 		constexpr delegate &assign(func_t<F>, Arg &arg) noexcept requires free_func<F, Arg *>
 		{
 			return assign<F>(arg);
 		}
-		/** Binds a free function and an argument to the delegate. */
+		/** @copydoc assign */
 		template<auto F, typename Arg>
 		constexpr delegate &assign(func_t<F>, Arg &arg) noexcept requires free_func<F, Arg &>
 		{

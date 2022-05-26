@@ -240,3 +240,85 @@ TEST(utility_tests, event_test)
 	event(i);
 	EXPECT_EQ(i, 2);
 }
+
+#include "sekhmet/message.hpp"
+
+namespace
+{
+	struct test_message
+	{
+		[[nodiscard]] constexpr bool operator==(const test_message &) const noexcept = default;
+
+		int i;
+	};
+}	 // namespace
+
+template<>
+[[nodiscard]] constexpr std::string_view sek::type_name<test_message>() noexcept
+{
+	return "test_message";
+}
+
+TEST(utility_tests, message_test)
+{
+	using namespace sek::literals;
+	using namespace sek::attributes;
+
+	sek::type_info::reflect<test_message>().attribute(message_source<test_message>);
+
+	constexpr static auto msg_data = test_message{10};
+	constexpr auto filter = [](std::size_t &ctr, const test_message &msg)
+	{
+		++ctr;
+		EXPECT_EQ(msg_data, msg);
+		return true;
+	};
+	constexpr auto receiver = [](std::size_t &ctr, const test_message &msg)
+	{
+		++ctr;
+		EXPECT_EQ(msg_data, msg);
+		return true;
+	};
+
+	std::size_t filter_ctr = 0, receiver_ctr = 0;
+
+	{
+		auto [l, proxy] = sek::message_queue<test_message>::on_send();
+		proxy += sek::delegate<bool(const test_message &)>{filter, filter_ctr};
+		EXPECT_EQ(proxy.size(), 1);
+	}
+	{
+		auto [l, proxy] = sek::message_queue<test_message>::on_receive();
+		proxy += sek::delegate<bool(const test_message &)>{receiver, receiver_ctr};
+		EXPECT_EQ(proxy.size(), 1);
+	}
+
+	sek::message_queue<test_message>::send(msg_data);
+	EXPECT_EQ(filter_ctr, 1);
+	EXPECT_EQ(receiver_ctr, 1);
+
+	sek::message_queue<test_message>::queue(msg_data);
+	EXPECT_EQ(filter_ctr, 2);
+	EXPECT_EQ(receiver_ctr, 1);
+
+	sek::message_queue<test_message>::dispatch();
+	EXPECT_EQ(filter_ctr, 2);
+	EXPECT_EQ(receiver_ctr, 2);
+
+	filter_ctr = 0;
+	receiver_ctr = 0;
+
+	auto attr = "test_message"_type.get_attribute<message_source_t>().cast<message_source_t>();
+
+	attr.send(msg_data);
+	EXPECT_EQ(filter_ctr, 1);
+	EXPECT_EQ(receiver_ctr, 1);
+
+	attr.queue(msg_data);
+	EXPECT_EQ(filter_ctr, 2);
+	EXPECT_EQ(receiver_ctr, 1);
+
+	attr.dispatch();
+	EXPECT_EQ(filter_ctr, 2);
+	EXPECT_EQ(receiver_ctr, 2);
+}

@@ -458,7 +458,12 @@ namespace sek
 				return *this;
 			}
 			/** Adds an attribute to `T`'s list of attributes.
-			 * @tparam A Type of the attribute. */
+			 * @param value Value of the attribute. */
+			template<typename A>
+			auto attribute(A &&value) { return attribute<std::decay_t<A>, A>(std::forward<A>(value)); }
+			/** Adds an attribute to `T`'s list of attributes.
+			 * @tparam A Type of the attribute.
+			 * @param args Arguments used to initialize the attribute. */
 			template<typename A, typename... Args>
 			type_factory<T, A, Attr...> attribute(Args &&...args)
 			{
@@ -571,7 +576,7 @@ namespace sek
 		 * @param args Arguments passed to the constructor.
 		 * @return `any` managing the constructed object.
 		 * @throw bad_any_type If no constructor accepting `args` was found. */
-		[[nodiscard]] any construct(std::span<any> args = {}) const;
+		[[nodiscard]] SEK_API any construct(std::span<any> args = {}) const;
 		// clang-format off
 		/** @copydoc construct */
 		template<typename... AnyArgs>
@@ -588,7 +593,7 @@ namespace sek
 		 * @return Value returned by the function. If the underlying function's return type is void, returns an empty `any`.
 		 * @throw bad_any_type If the function cannot be invoked with the passed arguments or such function does not exist.
 		 * @warning Invoking a non-const function on a const object will result in undefined behavior. */
-		any invoke(std::string_view name, any instance, std::span<any> args) const;
+		SEK_API any invoke(std::string_view name, any instance, std::span<any> args) const;
 		// clang-format off
 		/** @copydoc invoke */
 		template<typename... AnyArgs>
@@ -628,6 +633,16 @@ namespace sek
 		{
 			return has_attribute(type_name<T>());
 		}
+		/** Returns any reference to attribute of a type with the specified name.
+		 * @return `any` reference to type's data or an empty `any` if such attribute is not found. */
+		[[nodiscard]] SEK_API any get_attribute(std::string_view name) const noexcept;
+		/** Returns any reference to attribute of the specified type.
+		 * @return `any` reference to type's data or an empty `any` if such attribute is not found. */
+		[[nodiscard]] SEK_API any get_attribute(type_info info) const noexcept;
+		/** Returns any reference to attribute of type `T`.
+		 * @return `any` reference to type's data or an empty `any` if such attribute is not found. */
+		template<typename T>
+		[[nodiscard]] any get_attribute() const noexcept;
 
 		/** Returns a view containing conversions of this type. */
 		[[nodiscard]] constexpr detail::type_data_view<conversion_iterator> conversions() const noexcept;
@@ -949,13 +964,13 @@ namespace sek
 		 * @param to_type Type to convert the managed object to.
 		 * @return An instance of `any` containing the converted instance, or empty `any` if no such conversion is possible.
 		 * @note If no parent cast is found, explicit conversion will return a copy of the underlying object. */
-		[[nodiscard]] any convert(std::string_view to_type) noexcept;
+		[[nodiscard]] SEK_API any convert(std::string_view to_type) noexcept;
 		/** @copydoc convert */
-		[[nodiscard]] any convert(type_info to_type) noexcept;
+		[[nodiscard]] SEK_API any convert(type_info to_type) noexcept;
 		/** @copydoc convert */
-		[[nodiscard]] any convert(std::string_view to_type) const noexcept;
+		[[nodiscard]] SEK_API any convert(std::string_view to_type) const noexcept;
 		/** @copydoc convert */
-		[[nodiscard]] any convert(type_info to_type) const noexcept;
+		[[nodiscard]] SEK_API any convert(type_info to_type) const noexcept;
 
 		/** Invokes the specified function on the managed object.
 		 * @param name Name of the reflected function.
@@ -963,9 +978,9 @@ namespace sek
 		 * @return Value returned by the function. If the underlying function's return type is void, returns an empty `any`.
 		 * @throw bad_any_type If the function cannot be invoked with the passed arguments.
 		 * @warning Invoking a non-const function on a const object will result in undefined behavior. */
-		any invoke(std::string_view name, std::span<any> args);
+		SEK_API any invoke(std::string_view name, std::span<any> args);
 		/** @copydoc invoke */
-		any invoke(std::string_view name, std::span<any> args) const;
+		SEK_API any invoke(std::string_view name, std::span<any> args) const;
 		// clang-format off
 		/** @copydoc invoke */
 		template<typename... AnyArgs>
@@ -1201,18 +1216,18 @@ namespace sek
 		 * @param to_type Type to convert the managed object to.
 		 * @return An instance of `any` containing the converted instance, or empty `any` if no such conversion is possible.
 		 * @note If no parent cast is found, explicit conversion will return a copy of the underlying object. */
-		[[nodiscard]] any convert(std::string_view to_type) noexcept;
+		[[nodiscard]] SEK_API any convert(std::string_view to_type) noexcept;
 		/** @copydoc convert */
-		[[nodiscard]] any convert(type_info to_type) noexcept;
+		[[nodiscard]] SEK_API any convert(type_info to_type) noexcept;
 		/** @copydoc convert */
-		[[nodiscard]] any convert(std::string_view to_type) const noexcept;
+		[[nodiscard]] SEK_API any convert(std::string_view to_type) const noexcept;
 		/** @copydoc convert */
-		[[nodiscard]] any convert(type_info to_type) const noexcept;
+		[[nodiscard]] SEK_API any convert(type_info to_type) const noexcept;
 
 		/** @copydoc any::invoke */
-		any invoke(std::string_view name, std::span<any> args);
+		SEK_API any invoke(std::string_view name, std::span<any> args);
 		/** @copydoc any::invoke */
-		any invoke(std::string_view name, std::span<any> args) const;
+		SEK_API any invoke(std::string_view name, std::span<any> args) const;
 		// clang-format off
 		/** @copydoc any::invoke */
 		template<typename... AnyArgs>
@@ -1279,7 +1294,7 @@ namespace sek
 			}
 		};
 
-		void assert_mutable_any(const any &a [[maybe_unused]])
+		inline void assert_mutable_any(const any &a [[maybe_unused]])
 		{
 			SEK_ASSERT(!a.is_const(), "Cannot bind const `any` to non-const instance");
 		}
@@ -1521,16 +1536,22 @@ namespace sek
 				return type_selector<std::remove_cvref_t<T>>;
 		}
 		template<typename T>
+		constexpr type_data::node_list<type_data::ctor_node> make_type_ctor_list() noexcept
+		{
+			if constexpr (std::is_default_constructible_v<T>)
+				return {&type_data::ctor_instance<T>::value};
+			else
+				return {};
+		}
+		template<typename T>
 		constexpr type_data make_type_data() noexcept
 		{
-			using ct_list = type_data::node_list<type_data::ctor_node>;
-
 			return type_data{
 				.name = type_name<T>(),
 				.extent = std::is_bounded_array_v<T> ? std::extent_v<T> : 0,
 				.value_type = type_handle{select_value_type<T>()},
 				.flags = make_type_flags<T>(),
-				.constructors = std::is_default_constructible_v<T> ? ct_list{&type_data::ctor_instance<T>::value} : ct_list{},
+				.constructors = make_type_ctor_list<T>(),
 			};
 		}
 	}	 // namespace detail
@@ -1669,29 +1690,7 @@ namespace sek
 		}
 
 	private:
-		[[nodiscard]] std::string make_error_msg() const
-		{
-			const auto as = args();
-
-			std::string result = "Invalid argument types. Expected: [";
-			for (std::size_t i = 0, max = i < as.size();;)
-			{
-				result.append(1, '\"').append(as[i].name()).append(1, '\"');
-				if (++i != max) [[likely]]
-					result.append(", ");
-				else
-					break;
-			}
-			result.append("]");
-
-			return result;
-		}
-		[[nodiscard]] bool assert_args(std::span<any> values) const
-		{
-			if (!invocable_with(values)) [[unlikely]]
-				throw bad_any_type(make_error_msg());
-			return true;
-		}
+		[[nodiscard]] SEK_API bool assert_args(std::span<any> values) const;
 
 		type_info ret_type; /* Invalid if constructor signature. */
 		std::span<detail::type_handle> arg_types;
@@ -1733,6 +1732,7 @@ namespace sek
 	private:
 		const node_t *node = nullptr;
 	};
+
 	constexpr detail::type_data_view<type_info::constructor_iterator> type_info::constructors() const noexcept
 	{
 		return {constructor_iterator{constructor_info{data->constructors.front}}, {}};
@@ -1744,15 +1744,6 @@ namespace sek
 	constexpr bool type_info::constructable_with(std::span<any> args) const noexcept
 	{
 		return std::ranges::any_of(constructors(), [&args](auto c) { return c.signature().invocable_with(args); });
-	}
-	any type_info::construct(std::span<any> args) const
-	{
-		const auto ctors = constructors();
-		const auto ctor = std::ranges::find_if(ctors, [&args](auto c) { return c.signature().invocable_with(args); });
-		if (ctor == ctors.end()) [[unlikely]]
-			throw bad_any_type("No matching constructor found");
-		else
-			return ctor->node->invoke(args);
 	}
 	// clang-format off
 	template<typename... AnyArgs>
@@ -1804,18 +1795,10 @@ namespace sek
 	private:
 		const node_t *node = nullptr;
 	};
+
 	constexpr detail::type_data_view<type_info::function_iterator> type_info::functions() const noexcept
 	{
 		return {function_iterator{function_info{data->funcs.front}}, {}};
-	}
-	any type_info::invoke(std::string_view name, any instance, std::span<any> args) const
-	{
-		const auto funcs = functions();
-		const auto func = std::ranges::find_if(funcs, [&name](auto f) { return f.name() == name; });
-		if (func == funcs.end()) [[unlikely]]
-			throw bad_any_type("No matching function found");
-		else
-			return func->invoke(std::move(instance), args);
 	}
 	// clang-format off
 	template<typename... AnyArgs>
@@ -1856,6 +1839,7 @@ namespace sek
 	private:
 		const node_t *node = nullptr;
 	};
+
 	constexpr detail::type_data_view<type_info::parent_iterator> type_info::parents() const noexcept
 	{
 		return {parent_iterator{parent_info{data->parents.front}}, {}};
@@ -1890,6 +1874,7 @@ namespace sek
 	private:
 		const node_t *node = nullptr;
 	};
+
 	constexpr detail::type_data_view<type_info::conversion_iterator> type_info::conversions() const noexcept
 	{
 		return {conversion_iterator{conversion_info{data->convs.front}}, {}};
@@ -1927,9 +1912,15 @@ namespace sek
 	private:
 		const node_t *node = nullptr;
 	};
+
 	constexpr detail::type_data_view<type_info::attribute_iterator> type_info::attributes() const noexcept
 	{
 		return {attribute_iterator{attribute_info{data->attribs.front}}, {}};
+	}
+	template<typename T>
+	any type_info::get_attribute() const noexcept
+	{
+		return get_attribute(type_name<T>());
 	}
 
 	template<typename T>
@@ -1985,69 +1976,6 @@ namespace sek
 		}
 		return nullptr;
 	}
-	any any::convert(std::string_view n) noexcept
-	{
-		if (info.name() == n)
-			return ref();
-		else
-		{
-			/* Attempt to cast to an immediate parent. */
-			const auto parents = info.parents();
-			auto p_iter = std::find_if(parents.begin(), parents.end(), [n](auto p) { return p.type().name() == n; });
-			if (p_iter != parents.end()) [[likely]]
-				return p_iter->cast(*this);
-
-			/* Attempt to cast to an explicit conversion. */
-			const auto convs = info.conversions();
-			auto conv_iter = std::find_if(convs.begin(), convs.end(), [n](auto c) { return c.type().name() == n; });
-			if (conv_iter != convs.end()) [[likely]]
-				return conv_iter->convert(ref());
-
-			/* Search up the inheritance hierarchy. */
-			for (auto p : parents)
-			{
-				auto p_result = p.cast(*this).convert(n);
-				if (!p_result.empty()) [[likely]]
-					return p_result;
-			}
-
-			return {};
-		}
-	}
-	any any::convert(type_info to_type) noexcept { return convert(to_type.name()); }
-	any any::convert(std::string_view n) const noexcept
-	{
-		if (info.name() == n)
-			return ref();
-		else
-		{
-			/* Attempt to cast to an immediate parent. */
-			const auto parents = info.parents();
-			auto p_iter = std::find_if(parents.begin(), parents.end(), [n](auto p) { return p.type().name() == n; });
-			if (p_iter != parents.end()) [[likely]]
-				return p_iter->cast(*this);
-
-			/* Attempt to cast to an explicit conversion. */
-			const auto convs = info.conversions();
-			auto conv_iter = std::find_if(convs.begin(), convs.end(), [n](auto c) { return c.type().name() == n; });
-			if (conv_iter != convs.end()) [[likely]]
-				return conv_iter->convert(ref());
-
-			/* Search up the inheritance hierarchy. */
-			for (auto p : parents)
-			{
-				const auto p_cast = p.cast(*this);
-				auto p_result = p_cast.convert(n);
-				if (!p_result.empty()) [[likely]]
-					return p_result;
-			}
-
-			return {};
-		}
-	}
-	any any::convert(type_info to_type) const noexcept { return convert(to_type.name()); }
-	any any::invoke(std::string_view name, std::span<any> args) { return type().invoke(name, ref(), args); }
-	any any::invoke(std::string_view name, std::span<any> args) const { return type().invoke(name, ref(), args); }
 	// clang-format off
 	template<typename... AnyArgs>
 	any any::invoke(std::string_view name, AnyArgs &&...args) requires detail::any_args<AnyArgs...>
@@ -2081,12 +2009,6 @@ namespace sek
 	{
 		return value().template cast<T>();
 	}
-	any any_ref::convert(std::string_view n) noexcept { return value().convert(n); }
-	any any_ref::convert(type_info to_type) noexcept { return value().convert(to_type); }
-	any any_ref::convert(std::string_view n) const noexcept { return value().convert(n); }
-	any any_ref::convert(type_info to_type) const noexcept { return value().convert(to_type); }
-	any any_ref::invoke(std::string_view name, std::span<any> args) { return type().invoke(name, *this, args); }
-	any any_ref::invoke(std::string_view name, std::span<any> args) const { return type().invoke(name, *this, args); }
 	// clang-format off
 	template<typename... AnyArgs>
 	any any_ref::invoke(std::string_view name, AnyArgs &&...args) requires detail::any_args<AnyArgs...>
@@ -2103,7 +2025,10 @@ namespace sek
 	namespace literals
 	{
 		/** Retrieves a reflected type from the runtime database. */
-		[[nodiscard]] type_info operator""_type(const char *str, std::size_t n) { return type_info::get({str, n}); }
+		[[nodiscard]] inline type_info operator""_type(const char *str, std::size_t n)
+		{
+			return type_info::get({str, n});
+		}
 	}	 // namespace literals
 }	 // namespace sek
 
