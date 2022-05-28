@@ -56,6 +56,7 @@ namespace sek
 		};
 		struct thread_task : buffer_t
 		{
+			/* Tasks are not RAII-enabled, as they must be trivially copyable. */
 			constexpr thread_task() noexcept = default;
 			constexpr thread_task(raii_buffer_t &&buff, std::size_t frame) noexcept : frame_idx(frame)
 			{
@@ -236,6 +237,9 @@ namespace sek
 		std::size_t out_frame; /* Index of the next frame to be submitted. */
 
 		dynarray<thread_task> task_queue;
+
+		/* To avoid erasing & inserting tasks, committed tasks are swapped to the start of the queue.
+		 * Queue base then points to the first non-empty task. */
 		std::size_t queue_base;
 
 		/* Empty task buffers are cached for reuse. */
