@@ -8,11 +8,14 @@
 
 #include "sekhmet/utility.hpp"
 
-struct empty_t
+namespace
 {
-};
-static_assert(sizeof(sek::packed_pair<empty_t, int>) == sizeof(int));
-static_assert(sizeof(sek::packed_pair<int, int>) == sizeof(int) * 2);
+	struct empty_t
+	{
+	};
+	static_assert(sizeof(sek::packed_pair<empty_t, int>) == sizeof(int));
+	static_assert(sizeof(sek::packed_pair<int, int>) == sizeof(int) * 2);
+}	 // namespace
 
 TEST(utility_tests, version_test)
 {

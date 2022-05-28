@@ -22,16 +22,16 @@ namespace sek::serialization::json
 		using base_archive = json_archive_base<char>;
 		using rj_encoding = rapidjson::UTF8<>;
 
-		struct rj_allocator : detail::basic_pool_resource<rj_allocator_page_size>
+		struct rj_allocator : detail::dynamic_buffer_resource<rj_allocator_page_size>
 		{
-			using base_pool = detail::basic_pool_resource<rj_allocator_page_size>;
+			using base_pool = detail::dynamic_buffer_resource<rj_allocator_page_size>;
 
 			SEK_FORCE_INLINE constexpr static void Free(void *) {}
 
 			constexpr static bool kNeedFree = false;
 
 			constexpr rj_allocator() noexcept = default;
-			constexpr explicit rj_allocator(std::pmr::memory_resource *res) noexcept : basic_pool_resource(res) {}
+			constexpr explicit rj_allocator(std::pmr::memory_resource *res) noexcept : dynamic_buffer_resource(res) {}
 
 			SEK_FORCE_INLINE void *Malloc(std::size_t n) { return base_pool::allocate(n); }
 			SEK_FORCE_INLINE void *Realloc(void *old, std::size_t old_n, std::size_t n) noexcept

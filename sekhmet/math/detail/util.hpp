@@ -164,7 +164,7 @@ namespace sek::math
 	template<std::integral T>
 	[[nodiscard]] constexpr T align(T num, T mult) noexcept
 	{
-		auto rem = num % mult;
+		const auto rem = num % mult;
 		return num - rem + (rem ? mult : 0);
 	}
 

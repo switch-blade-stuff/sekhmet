@@ -10,12 +10,12 @@
 
 #include "assert.hpp"
 #include "asset_stream.hpp"
+#include "basic_pool.hpp"
 #include "dense_map.hpp"
 #include "filemap.hpp"
 #include "intern.hpp"
 #include "service.hpp"
 #include "uuid.hpp"
-#include <memory_resource>
 
 namespace sek
 {
@@ -60,8 +60,8 @@ namespace sek
 			archive_asset_info(const archive_asset_info &) = default;
 			archive_asset_info(archive_asset_info &&) noexcept = default;
 
-			/* Position & size of the asset within an archive. */
-			std::pair<std::ptrdiff_t, std::size_t> slice = {};
+			/* Position & size of the asset within an archive (compressed size if any compression is used). */
+			std::pair<std::uint64_t, std::uint64_t> slice = {};
 		};
 
 		constexpr loose_asset_info *asset_info_base::as_loose() noexcept
@@ -72,72 +72,6 @@ namespace sek
 		{
 			return static_cast<archive_asset_info *>(this);
 		}
-
-		struct asset_info_pool
-		{
-			struct empty_node
-			{
-				empty_node *next;
-			};
-			struct node_page
-			{
-				node_page *next;
-				std::size_t capacity;
-				/* Nodes follow the page. */
-			};
-
-			constexpr static std::size_t initial_capacity = 128;
-			template<typename T>
-			constexpr static auto node_size = sizeof(T) > sizeof(empty_node) ? sizeof(T) : sizeof(empty_node);
-
-			constexpr static std::size_t next_capacity(std::size_t cap) noexcept { return cap * 2 - cap / 2; }
-
-			~asset_info_pool()
-			{
-				// clang-format off
-				for (auto page = last_page; page != nullptr; page = page->next)
-					::operator delete(static_cast<void *>(page));
-				// clang-format on
-			}
-
-			template<typename T>
-			T *allocate()
-			{
-				if (!next_node) [[unlikely]]
-					make_page<T>(last_page ? next_capacity(last_page->capacity) : initial_capacity);
-				return std::bit_cast<T *>(std::exchange(next_node, next_node->next));
-			}
-			void deallocate(void *ptr)
-			{
-				auto node = static_cast<empty_node *>(ptr);
-				node->next = next_node;
-				next_node = node;
-			}
-
-			template<typename T>
-			void make_page(std::size_t cap)
-			{
-				auto *ptr = ::operator new(cap *node_size<T> + sizeof(node_page));
-				auto *nodes = std::bit_cast<empty_node *>(static_cast<std::byte *>(ptr) + sizeof(node_page));
-				for (std::size_t i = 0; i < cap;)
-					if (auto node = nodes + i; ++i != cap) [[likely]]
-						node->next = std::bit_cast<empty_node *>(std::bit_cast<std::byte *>(node) + node_size<T>);
-					else
-					{
-						node->next = nullptr;
-						break;
-					}
-				next_node = nodes;
-
-				auto *page = static_cast<node_page *>(ptr);
-				page->capacity = cap;
-				page->next = last_page;
-				last_page = page;
-			}
-
-			node_page *last_page = nullptr;
-			empty_node *next_node = nullptr;
-		};
 
 		struct asset_database
 		{

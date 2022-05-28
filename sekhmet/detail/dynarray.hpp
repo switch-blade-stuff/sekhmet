@@ -10,6 +10,7 @@
 #include <limits>
 #include <stdexcept>
 
+#include "assert.hpp"
 #include "contiguous_iterator.hpp"
 #include <initializer_list>
 
@@ -107,9 +108,7 @@ namespace sek
 		constexpr dynarray(const R &r) : dynarray(std::ranges::begin(r), std::ranges::end(r))
 		{
 		}
-		constexpr dynarray(std::initializer_list<value_type> il) : dynarray(il.begin(), il.end())
-		{
-		}
+		constexpr dynarray(std::initializer_list<value_type> il) : dynarray(il.begin(), il.end()) {}
 
 		constexpr dynarray(const dynarray &other)
 		{
@@ -221,6 +220,7 @@ namespace sek
 			}
 		}
 
+		constexpr void pop_back() { --data_size; }
 		constexpr void push_back(const value_type &value) { insert(end(), value); }
 		constexpr void push_back(value_type &&value) { insert(end(), std::forward<value_type>(value)); }
 		constexpr void push_front(const value_type &value) { insert(begin(), value); }

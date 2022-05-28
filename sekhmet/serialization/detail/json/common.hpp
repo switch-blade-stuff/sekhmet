@@ -10,7 +10,7 @@
 #include "../util.hpp"
 #include "sekhmet/detail/assert.hpp"
 #include "sekhmet/detail/define.h"
-#include "sekhmet/detail/pool_resource.hpp"
+#include "sekhmet/detail/dynamic_buffer_resource.hpp"
 
 namespace sek::serialization::detail
 {
@@ -1465,8 +1465,8 @@ namespace sek::serialization::detail
 			std::basic_string_view<CharType> next_key = {};
 		};
 
-		using entry_pool_t = basic_pool_resource<sizeof(entry_t) * 64>;
-		using string_pool_t = basic_pool_resource<SEK_KB(1)>;
+		using entry_pool_t = dynamic_buffer_resource<sizeof(entry_t) * 64>;
+		using string_pool_t = dynamic_buffer_resource<SEK_KB(1)>;
 
 		json_archive_base() = delete;
 		json_archive_base(const json_archive_base &) = delete;

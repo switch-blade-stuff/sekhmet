@@ -13,7 +13,7 @@ namespace sek::detail
 {
 	/** @brief Memory resource used to allocate chunks of bytes from a pool, then release all memory at once. */
 	template<std::size_t PageSize>
-	class basic_pool_resource : public std::pmr::memory_resource
+	class dynamic_buffer_resource : public std::pmr::memory_resource
 	{
 		struct page_header
 		{
@@ -33,19 +33,19 @@ namespace sek::detail
 		}
 
 	public:
-		basic_pool_resource(const basic_pool_resource &) = delete;
-		basic_pool_resource &operator=(const basic_pool_resource &) = delete;
+		dynamic_buffer_resource(const dynamic_buffer_resource &) = delete;
+		dynamic_buffer_resource &operator=(const dynamic_buffer_resource &) = delete;
 
-		constexpr basic_pool_resource() noexcept = default;
-		constexpr explicit basic_pool_resource(std::pmr::memory_resource *upstream) noexcept : upstream(upstream) {}
-		constexpr basic_pool_resource(basic_pool_resource &&other) noexcept { swap(other); }
-		constexpr basic_pool_resource &operator=(basic_pool_resource &&other) noexcept
+		constexpr dynamic_buffer_resource() noexcept = default;
+		constexpr explicit dynamic_buffer_resource(std::pmr::memory_resource *upstream) noexcept : upstream(upstream) {}
+		constexpr dynamic_buffer_resource(dynamic_buffer_resource &&other) noexcept { swap(other); }
+		constexpr dynamic_buffer_resource &operator=(dynamic_buffer_resource &&other) noexcept
 		{
 			swap(other);
 			return *this;
 		}
 
-		~basic_pool_resource() override { release(); }
+		~dynamic_buffer_resource() override { release(); }
 
 		void release()
 		{
@@ -74,7 +74,7 @@ namespace sek::detail
 			return std::memcpy(do_allocate(n, align), old, old_n);
 		}
 
-		constexpr void swap(basic_pool_resource &other) noexcept { std::swap(main_page, other.main_page); }
+		constexpr void swap(dynamic_buffer_resource &other) noexcept { std::swap(main_page, other.main_page); }
 
 	protected:
 		void *do_allocate(std::size_t n, std::size_t align) override
