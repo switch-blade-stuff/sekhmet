@@ -79,10 +79,20 @@ namespace sek::detail
 			void *data = nullptr;
 			std::size_t size = 0;
 		};
+		struct raii_buffer_t : buffer_t
+		{
+			constexpr raii_buffer_t() noexcept = default;
+			constexpr raii_buffer_t(buffer_t buff) noexcept : buffer_t(buff) {}
+			~raii_buffer_t() { reset(); }
+		};
 		struct thread_task : buffer_t
 		{
 			constexpr thread_task() noexcept = default;
-			constexpr thread_task(buffer_t buff) noexcept : buffer_t(buff) {}
+			constexpr thread_task(raii_buffer_t &&buff, std::size_t frame) noexcept : frame_idx(frame)
+			{
+				data = std::exchange(buff.data, nullptr);
+				size = std::exchange(buff.size, 0);
+			}
 
 			std::size_t frame_idx = 0;
 		};
@@ -177,15 +187,15 @@ namespace sek::detail
 			write = w;
 		}
 
-		buffer_t reuse_task_buffer()
+		void init_task_buffer(buffer_t &buff)
 		{
-			buffer_t result;
 			if (!reuse_list.empty())
 			{
-				result = reuse_list.back();
+				buff = reuse_list.back();
 				reuse_list.pop_back();
 			}
-			return result;
+			else
+				buff = buffer_t{};
 		}
 		void clear_tasks()
 		{
