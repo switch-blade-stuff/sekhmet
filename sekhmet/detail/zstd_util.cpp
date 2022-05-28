@@ -147,13 +147,25 @@ namespace sek
 				throw zstd_error("Failed to write decompression result");
 		}
 	}
-	void zstd_thread_ctx::decompress(thread_pool &pool, zstd_thread_ctx::read_t r, zstd_thread_ctx::write_t w)
+	void zstd_thread_ctx::decompress(thread_pool &pool, read_t r, write_t w, std::size_t in_size)
 	{
-		init(r, w);
+		init(r, w, in_size);
 		/* If there is only 1 worker available, do single-threaded decompression. */
 		if (const auto workers = math::min(pool.size(), max_workers); workers == 1) [[unlikely]]
 			decompress_single();
 		else
 			spawn_workers(pool, workers, [this]() { decompress_threaded(); });
+	}
+
+	void zstd_thread_ctx::compress_threaded(int) {}
+	void zstd_thread_ctx::compress_single(int) {}
+	void zstd_thread_ctx::compress(thread_pool &pool, read_t r, write_t w, int level, std::size_t in_size)
+	{
+		init(r, w, in_size);
+		/* If there is only 1 worker available, do single-threaded compression. */
+		if (const auto workers = math::min(pool.size(), max_workers); workers == 1) [[unlikely]]
+			compress_single(level);
+		else
+			spawn_workers(pool, workers, [this, level]() { compress_threaded(level); });
 	}
 }	 // namespace sek

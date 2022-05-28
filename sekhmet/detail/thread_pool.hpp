@@ -69,14 +69,14 @@ namespace sek
 
 			union
 			{
-				type_storage<void *> local_data;
+				aligned_storage<sizeof(std::uintptr_t) * 2, alignof(std::uintptr_t)> local_data;
 				void *heap_data;
 			};
 		};
 		template<typename T, typename F, typename U = std::decay_t<F>>
 		struct task_t : task_base
 		{
-			constexpr static bool in_place = sizeof(U) <= sizeof(void *);
+			constexpr static bool in_place = sizeof(U) <= sizeof(task_base::local_data);
 
 			task_t(std::pmr::unsynchronized_pool_resource *pool, std::promise<T> &&promise, F &&f)
 				: promise(std::forward<std::promise<T>>(promise))
