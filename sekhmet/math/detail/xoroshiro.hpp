@@ -17,7 +17,7 @@ namespace sek::math
 	template<typename T, typename I>
 	concept seed_generator = requires(const I (&state)[4], T &gen) {
 								 typename T::result_type;
-								 std::same_as<typename T::result_type, I>;
+								 requires std::same_as<typename T::result_type, I>;
 								 gen.generate(std::begin(state), std::end(state));
 							 };
 

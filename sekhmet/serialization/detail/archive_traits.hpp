@@ -79,8 +79,8 @@ namespace sek::serialization
 
 		typename A::size_type;
 		typename A::difference_type;
-		std::same_as<typename A::difference_type, typename std::iterator_traits<typename A::iterator>::difference_type>;
-		std::same_as<typename A::difference_type, typename std::iterator_traits<typename A::const_iterator>::difference_type>;
+		requires std::same_as<typename A::difference_type, typename std::iterator_traits<typename A::iterator>::difference_type>;
+		requires std::same_as<typename A::difference_type, typename std::iterator_traits<typename A::const_iterator>::difference_type>;
 
 		{ ca.size() } -> std::same_as<typename A::size_type>;
 		{ ca.max_size() } -> std::same_as<typename A::size_type>;

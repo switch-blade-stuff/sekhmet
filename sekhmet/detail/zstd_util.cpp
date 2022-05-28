@@ -127,9 +127,21 @@ namespace sek
 			}
 		}
 	}
-	void zstd_thread_ctx::decompress_single()
+	void zstd_thread_ctx::decompress(thread_pool &pool, read_t r, write_t w, std::size_t frames)
+	{
+		/* If there is only 1 worker or frame available, do single-threaded decompression. */
+		if (const auto tasks = math::min(pool.size(), max_workers, frames); tasks == 1) [[unlikely]]
+			decompress_st(r, w);
+		else
+		{
+			init(r, w);
+			spawn_workers(pool, tasks, [this]() { decompress_threaded(); });
+		}
+	}
+	void zstd_thread_ctx::decompress_st(read_t r, write_t w)
 	{
 		auto &stream = zstd_dstream::instance();
+		init(r, w);
 
 		raii_buffer_t comp_buff;
 		raii_buffer_t decomp_buff;
@@ -147,25 +159,27 @@ namespace sek
 				throw zstd_error("Failed to write decompression result");
 		}
 	}
-	void zstd_thread_ctx::decompress(thread_pool &pool, read_t r, write_t w, std::size_t in_size)
-	{
-		init(r, w, in_size);
-		/* If there is only 1 worker available, do single-threaded decompression. */
-		if (const auto workers = math::min(pool.size(), max_workers); workers == 1) [[unlikely]]
-			decompress_single();
-		else
-			spawn_workers(pool, workers, [this]() { decompress_threaded(); });
-	}
 
-	void zstd_thread_ctx::compress_threaded(int) {}
-	void zstd_thread_ctx::compress_single(int) {}
-	void zstd_thread_ctx::compress(thread_pool &pool, read_t r, write_t w, int level, std::size_t in_size)
+	void zstd_thread_ctx::compress_threaded(std::int32_t, std::int32_t) {}
+	void zstd_thread_ctx::compress_single(std::int32_t, std::int32_t) {}
+	void zstd_thread_ctx::compress(thread_pool &pool, read_t r, write_t w, int l, std::size_t in_size)
 	{
-		init(r, w, in_size);
+		init(r, w);
+
+		/* Clamp compression level & calculate frame size log. */
+		std::int32_t level = math::min(l, 20);
+		std::int32_t frame_log;
+		if (in_size == 0) [[unlikely]]
+		{ /* TODO: Select a pre-defined frame size. */
+		}
+		else
+		{ /* TODO: Select a frame size based on the hint. */
+		}
+
 		/* If there is only 1 worker available, do single-threaded compression. */
 		if (const auto workers = math::min(pool.size(), max_workers); workers == 1) [[unlikely]]
-			compress_single(level);
+			compress_single(level, frame_log);
 		else
-			spawn_workers(pool, workers, [this, level]() { compress_threaded(level); });
+			spawn_workers(pool, workers, [this, level, frame_log]() { compress_threaded(level, frame_log); });
 	}
 }	 // namespace sek

@@ -121,9 +121,9 @@ namespace sek
 		template<typename P>
 		concept pair_like_hash = requires(const P &p) {
 									 p.first;
-									 has_hash<std::decay_t<decltype(p.first)>>;
 									 p.second;
-									 has_hash<std::decay_t<decltype(p.second)>>;
+									 requires has_hash<std::decay_t<decltype(p.first)>>;
+									 requires has_hash<std::decay_t<decltype(p.second)>>;
 								 };
 	}	 // namespace detail
 

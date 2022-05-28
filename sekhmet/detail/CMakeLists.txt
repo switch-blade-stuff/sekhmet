@@ -19,18 +19,18 @@ if(NOT zstd_POPULATED)
     # Set up & include zstd static library project
     set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "Disable zstd CLI")
     set(ZSTD_BUILD_TESTS OFF CACHE BOOL "Disable zstd tests")
-    set(ZSTD_BUILD_STATIC OFF CACHE BOOL "Disable zstd static target")
+    set(ZSTD_BUILD_SHARED OFF CACHE BOOL "Disable zstd shared target")
     set(ZSTD_MULTITHREAD_SUPPORT ON CACHE BOOL "Enable zstd multithreading")
     set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "Disable zstd CLI")
 
     add_subdirectory(${zstd_SOURCE_DIR}/build/cmake)
-    target_compile_definitions(libzstd_shared PRIVATE DYNAMIC_BMI2=1)
-    target_compile_definitions(libzstd_shared PRIVATE ZSTD_NO_UNUSED_FUNCTIONS)
-    target_compile_definitions(libzstd_shared PRIVATE ZSTD_MULTITHREAD)
+    target_compile_definitions(libzstd_static PRIVATE DYNAMIC_BMI2=1)
+    target_compile_definitions(libzstd_static PRIVATE ZSTD_NO_UNUSED_FUNCTIONS)
+    target_compile_definitions(libzstd_static PRIVATE ZSTD_MULTITHREAD)
 
     include_directories(${zstd_SOURCE_DIR}/lib)
 endif()
-set(zstd libzstd_shared)
+set(zstd libzstd_static)
 
 target_sources(${PROJECT_NAME} PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/uuid.cpp

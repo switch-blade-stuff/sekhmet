@@ -19,7 +19,7 @@ namespace sek::serialization
 		concept tuple_like = !std::is_reference_v<T> && requires(T t)
 		{
 			typename std::tuple_size<T>::type;
-			std::derived_from<std::tuple_size<T>, std::integral_constant<std::size_t, std::tuple_size_v<T>>>;
+			requires std::derived_from<std::tuple_size<T>, std::integral_constant<std::size_t, std::tuple_size_v<T>>>;
 		};
 		template<typename T>
 		concept pair_like = requires(T &p)

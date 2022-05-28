@@ -410,7 +410,7 @@ namespace sek
 			template<auto F>
 			constexpr static bool member_func = requires {
 													typename func_traits<F>::instance_type;
-													std::same_as<std::remove_cv_t<typename func_traits<F>::instance_type>, T>;
+													requires std::same_as<std::remove_cv_t<typename func_traits<F>::instance_type>, T>;
 												};
 			template<auto F>
 			constexpr static bool free_func = std::is_function_v<decltype(F)>;

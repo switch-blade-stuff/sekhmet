@@ -32,7 +32,7 @@ namespace sek::serialization
 		template<typename R>
 		concept map_like =
 			requires(R &r) {
-				std::ranges::forward_range<R>;
+				requires std::ranges::forward_range<R>;
 				typename R::key_type;
 				typename R::mapped_type;
 				typename R::value_type;
@@ -41,9 +41,9 @@ namespace sek::serialization
 				requires requires(typename R::value_type &v)
 				{
 					v.first;
-					std::same_as<std::decay_t<decltype(v.first)>, std::decay_t<typename R::key_type>>;
 					v.second;
-					std::same_as<std::decay_t<decltype(v.second)>, std::decay_t<typename R::mapped_type>>;
+					requires std::same_as<std::decay_t<decltype(v.first)>, std::decay_t<typename R::key_type>>;
+					requires std::same_as<std::decay_t<decltype(v.second)>, std::decay_t<typename R::mapped_type>>;
 				};
 				requires requires(typename R::key_type &&k, typename R::mapped_type &&m)
 				{
@@ -54,7 +54,7 @@ namespace sek::serialization
 		template<typename R>
 		concept object_like = requires {
 								  // clang-format off
-								  map_like<R>;
+								  requires map_like<R>;
 								  requires requires(const typename R::value_type &v) { sek::serialization::keyed_entry(v.first, v.second); };
 								  // clang-format on
 							  };

@@ -35,6 +35,10 @@ namespace sek
 		/** @brief Returns a per-thread context instance. */
 		SEK_API static zstd_thread_ctx &instance();
 
+		/** Minimum per-thread frame size. Input data smaller than ` min_thread_frame`
+		 * will be part of the same ZSTD frame (and will be handled by the same thread). */
+		constexpr static std::size_t min_thread_frame = SEK_KB(512);
+
 	private:
 		struct buffer_t
 		{
@@ -76,9 +80,28 @@ namespace sek
 			std::uint32_t comp_size; /* Size of the compressed data. */
 			std::uint32_t src_size;	 /* Size of the source data. */
 		};
+		struct skip_frame
+		{
+			std::uint32_t magic;
+			std::uint32_t size;
+			frame_header header;
+		};
 
 		constexpr static std::uint32_t skip_magic = 0x184d2a50;
 		constexpr static std::size_t max_workers = 32;
+
+		static void write_skip_frame(const frame_header &header, void *dest)
+		{
+			*static_cast<skip_frame *>(dest) = {
+				.magic = BSWAP_LE_32(skip_magic),
+				.size = BSWAP_LE_32(sizeof(frame_header)),
+				.header =
+					{
+						.comp_size = BSWAP_LE_32(header.comp_size),
+						.src_size = BSWAP_LE_32(header.src_size),
+					},
+			};
+		}
 
 		typedef delegate<std::size_t(void *, std::size_t)> read_t;
 		typedef delegate<std::size_t(const void *, std::size_t)> write_t;
@@ -88,20 +111,29 @@ namespace sek
 		 * @param pool Thread pool used for decompression.
 		 * @param r Delegate used to read compressed data.
 		 * @param w Delegate used to write decompressed data.
-		 * @param in_size Optional size of the input data. If set to 0, will consume all available input.
-		 * @note Decompression stops once no more input can be read or `in_size` limit is reached.
+		 * @param frames Number of ZSTD frames within the input. Will be used as a hint to determine the amount
+		 * of tasks to schedule. If set to 0, will spawn up to `pool.size()` or 32 tasks (whichever is smaller).
+		 * @note Decompression stops once no more input can be read.
 		 * @note If thread pool's size is 1, decompresses on the main thread, ignoring the thread pool.
 		 * @throw zstd_error When ZSTD encounters an error or when the write delegate cannot fully consume decompressed data. */
-		SEK_API void decompress(thread_pool &pool, read_t r, write_t w, std::size_t in_size = 0);
+		SEK_API void decompress(thread_pool &pool, read_t r, write_t w, std::size_t frames = 0);
+		/** Decompresses input data single-threaded.
+		 * @param r Delegate used to read compressed data.
+		 * @param w Delegate used to write decompressed data.
+		 * @note Decompression stops once no more input can be read.
+		 * @throw zstd_error When ZSTD encounters an error or when the write delegate cannot fully consume decompressed data. */
+		SEK_API void decompress_st(read_t r, write_t w);
 
 		/** Compresses input data at the specific compression level using the passed thread pool.
 		 * @param pool Thread pool used for compression.
 		 * @param r Delegate used to read source (decompressed) data.
 		 * @param w Delegate used to write compressed data.
 		 * @param level Compression level.
-		 * @param in_size Optional size of the input data. If set to 0, will consume all available input.
-		 * @note Compression stops once no more input can be read (on EOF) or `in_size` limit is reached.
-		 * @note If thread pool's size is 1, decompresses on the main thread, ignoring the thread pool.
+		 * @param in_size Optional size of the input data. Used as a hint for deciding compression frame size.
+		 * @note Compression stops once no more input can be read (read delegate returns 0).
+		 * @note Maximum compression level is 20.
+		 * @note If thread pool's size is 1, or `in_size` is less than a per-thread minimum,
+		 * decompresses on the main thread, ignoring the thread pool.
 		 * @throw zstd_error When ZSTD encounters an error or when the write delegate cannot fully consume compressed data. */
 		SEK_API void compress(thread_pool &pool, read_t r, write_t w, int level, std::size_t in_size = 0);
 
@@ -109,42 +141,25 @@ namespace sek
 		[[nodiscard]] auto guard_read() { return std::lock_guard<std::mutex>{in_mtx}; }
 		[[nodiscard]] auto guard_write() { return std::lock_guard<std::mutex>{out_mtx}; }
 
-		[[nodiscard]] bool read_checked(void *dst, std::size_t n)
-		{
-			if (n > in_left) [[unlikely]]
-				return false;
-			else if (in_left != std::numeric_limits<std::size_t>::max()) [[likely]]
-				in_left -= n;
-			return read(dst, n) == n;
-		}
+		[[nodiscard]] bool read_checked(void *dst, std::size_t n) { return read(dst, n) == n; }
 		[[nodiscard]] bool write_checked(const void *src, std::size_t n) { return write(src, n) == n; }
 		[[nodiscard]] bool read_frame_header(frame_header &header)
 		{
-			std::uint32_t buff[4];
+			skip_frame frame;
 
 			/* Magic & data size must match. */
-			if (read_checked(buff, sizeof(buff)) && buff[0] == BSWAP_LE_32(skip_magic) &&
-				buff[1] == BSWAP_LE_32(sizeof(frame_header))) [[likely]]
+			if (read_checked(&frame, sizeof(frame)) && frame.magic == BSWAP_LE_32(skip_magic) &&
+				frame.size == BSWAP_LE_32(sizeof(frame_header))) [[likely]]
 			{
-				header.comp_size = BSWAP_LE_32(buff[2]);
-				header.src_size = BSWAP_LE_32(buff[3]);
+				header.comp_size = BSWAP_LE_32(frame.header.comp_size);
+				header.src_size = BSWAP_LE_32(frame.header.src_size);
 				return true;
 			}
 			return false;
 		}
-		[[nodiscard]] bool write_frame_header(const frame_header &header)
-		{
-			std::uint32_t buff[4];
-			buff[0] = BSWAP_LE_32(skip_magic);
-			buff[1] = BSWAP_LE_32(sizeof(frame_header));
-			buff[2] = BSWAP_LE_32(header.comp_size);
-			buff[3] = BSWAP_LE_32(header.src_size);
-			return write_checked(buff, sizeof(buff));
-		}
 
-		void init(read_t r, write_t w, std::size_t in_size) noexcept
+		void init(read_t r, write_t w) noexcept
 		{
-			in_left = in_size != 0 ? in_size : std::numeric_limits<std::size_t>::max();
 			in_frame = out_frame = queue_base = 0;
 			task_queue.clear();
 			reuse_list.clear();
@@ -208,10 +223,9 @@ namespace sek
 
 		bool fill_decomp_frame(buffer_t &comp_buff, buffer_t &decomp_buff);
 		void decompress_threaded();
-		void decompress_single();
 
-		void compress_threaded(int level);
-		void compress_single(int level);
+		void compress_threaded(std::int32_t level, std::int32_t frame_log);
+		void compress_single(std::int32_t level, std::int32_t frame_log);
 
 		template<typename F>
 		void spawn_workers(thread_pool &pool, std::size_t n, F &&f)
@@ -256,7 +270,6 @@ namespace sek
 		std::mutex in_mtx;	/* Read synchronization. */
 		std::mutex out_mtx; /* Write synchronization. */
 
-		std::size_t in_left;   /* Amount of bytes left to read. */
 		std::size_t in_frame;  /* Index of the next frame to be read. */
 		std::size_t out_frame; /* Index of the next frame to be submitted. */
 
