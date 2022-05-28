@@ -99,7 +99,7 @@ namespace sek::detail
 
 		struct zstd_dstream
 		{
-			/* Each worker thread receives it's own ZSTD_DStream. This also allows us to re-use worker state. */
+			/* Each worker thread receives it's own ZSTD_DStream. This allows us to re-use worker state. */
 			[[nodiscard]] static zstd_dstream &instance()
 			{
 				thread_local zstd_dstream stream;
@@ -137,7 +137,7 @@ namespace sek::detail
 		};
 
 		constexpr static std::uint32_t skip_magic = 0x184d2a50;
-		constexpr static std::size_t max_tasks = 32;
+		constexpr static std::size_t max_workers = 32;
 
 		static zstd_thread_ctx &get_ctx()
 		{

@@ -98,14 +98,14 @@ namespace sek::detail
 	void zstd_thread_ctx::decompress(thread_pool &pool, zstd_thread_ctx::read_t r, zstd_thread_ctx::write_t w)
 	{
 		init(r, w);
-		/* If there is only 1 task available, do single-threaded decompression. */
-		if (const auto tasks = math::min(pool.size(), max_tasks); tasks == 1) [[unlikely]]
+		/* If there is only 1 worker available, do single-threaded decompression. */
+		if (const auto workers = math::min(pool.size(), max_workers); workers == 1) [[unlikely]]
 			decompress_single();
 		else
 		{
 #ifdef ALLOCA
 			/* Stack allocation here is fine, since std::future is not a large structure. */
-			auto *fut_buf = static_cast<std::future<void> *>(ALLOCA(sizeof(std::future<void>) * tasks));
+			auto *fut_buf = static_cast<std::future<void> *>(ALLOCA(sizeof(std::future<void>) * workers));
 #else
 			auto *fut_buf = static_cast<std::future<void> *>(::operator new(sizeof(std::future<void>) * total_threads));
 #endif
@@ -113,13 +113,13 @@ namespace sek::detail
 			std::exception_ptr eptr;
 			try
 			{
-				/* Schedule pool.size() tasks. Some of these tasks will terminate without doing anything.
+				/* Schedule pool.size() workers. Some of these workers will terminate without doing anything.
 				 * This is not ideal, but we can not know the amount of frames beforehand. */
-				for (std::size_t i = 0; i < tasks; ++i)
+				for (std::size_t i = 0; i < workers; ++i)
 					std::construct_at(fut_buf + i, pool.schedule([this]() { decompress_threaded(); }));
 
 				/* Wait for threads to terminate. Any exceptions will be re-thrown by the worker's future. */
-				for (std::size_t i = 0; i < tasks; ++i) fut_buf[i].get();
+				for (std::size_t i = 0; i < workers; ++i) fut_buf[i].get();
 			}
 			catch (std::bad_alloc &)
 			{
@@ -133,7 +133,7 @@ namespace sek::detail
 			}
 
 			clear_tasks();
-			for (std::size_t i = 0; i < tasks; ++i) std::destroy_at(fut_buf + i);
+			for (std::size_t i = 0; i < workers; ++i) std::destroy_at(fut_buf + i);
 #ifndef ALLOCA
 			::operator delete(fut_buf);
 #endif
