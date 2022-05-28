@@ -4,30 +4,84 @@
 
 #include "zstd_util.hpp"
 
-namespace sek::detail
+#include <zstd.h>
+
+#include "../math/detail/util.hpp"
+
+namespace sek
 {
-	void zstd_thread_ctx::zstd_dstream::decompress_frame(buffer_t &comp_buff, buffer_t &decomp_buff)
+	class zstd_error : public std::runtime_error
 	{
-		ZSTD_inBuffer in_buff = comp_buff;
-		ZSTD_outBuffer out_buff = decomp_buff;
+	public:
+		zstd_error() : std::runtime_error("Unknown ZSTD error") {}
+		explicit zstd_error(const char *msg) : std::runtime_error(msg) {}
+		explicit zstd_error(std::size_t code) : zstd_error(ZSTD_getErrorName(code)) {}
+		~zstd_error() override = default;
+	};
 
-		for (;;)
+	static std::size_t assert_zstd_error(std::size_t code)
+	{
+		if (ZSTD_isError(code)) [[unlikely]]
+			throw zstd_error(code);
+		return code;
+	}
+
+	zstd_thread_ctx &zstd_thread_ctx::instance()
+	{
+		thread_local zstd_thread_ctx ctx;
+		return ctx;
+	}
+
+	struct zstd_thread_ctx::zstd_dstream
+	{
+		/* Each worker thread receives it's own ZSTD_DStream. This allows us to re-use worker state. */
+		[[nodiscard]] static zstd_dstream &instance()
 		{
-			const auto res = assert_zstd_error(ZSTD_decompressStream(*this, &out_buff, &in_buff));
-			if (res == 0) [[likely]]
-				break;
-			else if (out_buff.pos < out_buff.size) [[unlikely]] /* Incomplete input frame. */
-				throw zstd_error("Incomplete or invalid ZSTD frame");
-
-			/* Not enough space in the output buffer, allocate more. */
-			decomp_buff.expand(decomp_buff.size + res);
-			out_buff.dst = decomp_buff.data;
-			out_buff.size = decomp_buff.size;
+			thread_local zstd_dstream stream;
+			return stream.init(); /* ZSTD stream must be initialized before each decompression operation. */
 		}
 
-		/* Need to reset the stream after decompression, since frames are compressed independently. */
-		reset();
-	}
+		zstd_dstream() : ptr(ZSTD_createDStream())
+		{
+			if (ptr == nullptr) [[unlikely]]
+				throw std::bad_alloc();
+		}
+		~zstd_dstream() { ZSTD_freeDStream(ptr); }
+
+		zstd_dstream &init()
+		{
+			assert_zstd_error(ZSTD_initDStream(ptr));
+			return *this;
+		}
+		void reset() { assert_zstd_error(ZSTD_DCtx_reset(ptr, ZSTD_reset_session_only)); }
+		void decompress_frame(buffer_t &comp_buff, buffer_t &decomp_buff)
+		{
+			ZSTD_inBuffer in_buff = {.src = comp_buff.data, .size = comp_buff.size, .pos = 0};
+			ZSTD_outBuffer out_buff = {.dst = decomp_buff.data, .size = decomp_buff.size, .pos = 0};
+
+			for (;;)
+			{
+				const auto res = assert_zstd_error(ZSTD_decompressStream(*this, &out_buff, &in_buff));
+				if (res == 0) [[likely]]
+					break;
+				else if (out_buff.pos < out_buff.size) [[unlikely]] /* Incomplete input frame. */
+					throw zstd_error("Incomplete or invalid ZSTD frame");
+
+				/* Not enough space in the output buffer, allocate more. */
+				decomp_buff.expand(decomp_buff.size + res);
+				out_buff.dst = decomp_buff.data;
+				out_buff.size = decomp_buff.size;
+			}
+
+			/* Need to reset the stream after decompression, since frames are compressed independently. */
+			reset();
+		}
+
+		constexpr operator ZSTD_DStream *() noexcept { return ptr; }
+
+		ZSTD_DStream *ptr;
+	};
+
 	bool zstd_thread_ctx::fill_decomp_frame(buffer_t &comp_buff, buffer_t &decomp_buff)
 	{
 		frame_header header;
@@ -44,7 +98,6 @@ namespace sek::detail
 	void zstd_thread_ctx::decompress_threaded()
 	{
 		auto &stream = zstd_dstream::instance();
-		stream.init();
 
 		raii_buffer_t comp_buff;
 		raii_buffer_t decomp_buff;
@@ -77,7 +130,6 @@ namespace sek::detail
 	void zstd_thread_ctx::decompress_single()
 	{
 		auto &stream = zstd_dstream::instance();
-		stream.reset();
 
 		raii_buffer_t comp_buff;
 		raii_buffer_t decomp_buff;
@@ -102,44 +154,6 @@ namespace sek::detail
 		if (const auto workers = math::min(pool.size(), max_workers); workers == 1) [[unlikely]]
 			decompress_single();
 		else
-		{
-#ifdef ALLOCA
-			/* Stack allocation here is fine, since std::future is not a large structure. */
-			auto *fut_buf = static_cast<std::future<void> *>(ALLOCA(sizeof(std::future<void>) * workers));
-#else
-			auto *fut_buf = static_cast<std::future<void> *>(::operator new(sizeof(std::future<void>) * total_threads));
-#endif
-
-			std::exception_ptr eptr;
-			try
-			{
-				/* Schedule pool.size() workers. Some of these workers will terminate without doing anything.
-				 * This is not ideal, but we can not know the amount of frames beforehand. */
-				for (std::size_t i = 0; i < workers; ++i)
-					std::construct_at(fut_buf + i, pool.schedule([this]() { decompress_threaded(); }));
-
-				/* Wait for threads to terminate. Any exceptions will be re-thrown by the worker's future. */
-				for (std::size_t i = 0; i < workers; ++i) fut_buf[i].get();
-			}
-			catch (std::bad_alloc &)
-			{
-				/* No cleanup is needed on `bad_alloc`. */
-				throw;
-			}
-			catch (...)
-			{
-				/* Store thrown exception, since we still need to clean up allocated buffers. */
-				eptr = std::current_exception();
-			}
-
-			clear_tasks();
-			for (std::size_t i = 0; i < workers; ++i) std::destroy_at(fut_buf + i);
-#ifndef ALLOCA
-			::operator delete(fut_buf);
-#endif
-
-			if (eptr) [[unlikely]]
-				std::rethrow_exception(eptr);
-		}
+			spawn_workers(pool, workers, [this]() { decompress_threaded(); });
 	}
-}	 // namespace sek::detail
+}	 // namespace sek

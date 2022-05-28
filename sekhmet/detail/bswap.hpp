@@ -63,3 +63,19 @@ constexpr static auto bswap_16(auto value) noexcept
 }
 #endif
 #endif
+
+#ifdef SEK_ARCH_LITTLE_ENDIAN
+#define BSWAP_LE_16(x) static_cast<std::uint16_t>(x)
+#define BSWAP_LE_32(x) static_cast<std::uint32_t>(x)
+#define BSWAP_LE_64(x) static_cast<std::uint64_t>(x)
+#define BSWAP_BE_16(x) bswap_16(static_cast<std::uint16_t>(x))
+#define BSWAP_BE_32(x) bswap_32(static_cast<std::uint32_t>(x))
+#define BSWAP_BE_64(x) bswap_64(static_cast<std::uint64_t>(x))
+#else
+#define BSWAP_LE_16(x) bswap_16(static_cast<std::uint16_t>(x))
+#define BSWAP_LE_32(x) bswap_32(static_cast<std::uint32_t>(x))
+#define BSWAP_LE_64(x) bswap_64(static_cast<std::uint64_t>(x))
+#define BSWAP_BE_16(x) static_cast<std::uint16_t>(x)
+#define BSWAP_BE_32(x) static_cast<std::uint32_t>(x)
+#define BSWAP_BE_64(x) static_cast<std::uint64_t>(x)
+#endif
