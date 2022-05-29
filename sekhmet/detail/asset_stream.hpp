@@ -97,10 +97,6 @@ namespace sek
 		ARCHIVE_NOCOMP,
 		/** Asset is stored in an archive compressed via zstd. */
 		ARCHIVE_ZSTD,
-
-		/** Asset is stored in an archive compressed via zstd using a dictionary.
-		 * @warning NOT IMPLEMENTED YET. */
-		ARCHIVE_ZSTD_DICT,
 	};
 
 	namespace detail

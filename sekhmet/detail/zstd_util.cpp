@@ -7,6 +7,8 @@
 #include <zstd.h>
 
 #include "../math/detail/util.hpp"
+#include "logger.hpp"
+#include <zstd_errors.h>
 
 namespace sek
 {
@@ -19,10 +21,25 @@ namespace sek
 		~zstd_error() override = default;
 	};
 
+	[[noreturn]] static void bad_zstd_version() noexcept
+	{
+		/* If ZSTD version is invalid, there is no way we can recover at any stage.
+		 * The only way this could happen is if the engine was compiled with invalid version of ZSTD. */
+		sek::logger::fatal() << SEK_LOG_FORMAT_NS::format("Invalid ZSTD version ({}). This should never happen "
+														  "and can only be caused by incorrectly compiled engine",
+														  ZSTD_versionString());
+		std::abort();
+	}
 	static std::size_t assert_zstd_error(std::size_t code)
 	{
 		if (ZSTD_isError(code)) [[unlikely]]
+		{
+			if (const auto err = ZSTD_getErrorCode(code); err == ZSTD_error_memory_allocation) [[unlikely]]
+				throw std::bad_alloc();
+			else if (err == ZSTD_error_version_unsupported) [[unlikely]]
+				bad_zstd_version();
 			throw zstd_error(code);
+		}
 		return code;
 	}
 
@@ -30,6 +47,13 @@ namespace sek
 	{
 		thread_local zstd_thread_ctx ctx;
 		return ctx;
+	}
+	zstd_thread_ctx::zstd_thread_ctx()
+	{
+		/* Make sure ZSTD is at least at version 1.4.0 */
+		constexpr auto zstd_required_ver = (1 * 10000 + 4 * 100 + 0);
+		if (ZSTD_versionNumber() < zstd_required_ver) [[unlikely]]
+			bad_zstd_version();
 	}
 
 	struct zstd_thread_ctx::zstd_dstream

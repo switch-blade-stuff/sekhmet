@@ -24,7 +24,7 @@
 
 namespace sek
 {
-	/** @brief Exception thrown by worker threads when they encounter an error. */
+	/** @brief Exception thrown by when ZSTD (de)compression worker threads encounter an error. */
 	class SEK_API zstd_error;
 
 	/** @brief Context used to synchronize multi-threaded ZSTD (de)compression.
@@ -107,7 +107,15 @@ namespace sek
 		typedef delegate<std::size_t(void *, std::size_t)> read_t;
 		typedef delegate<std::size_t(const void *, std::size_t)> write_t;
 
+		zstd_thread_ctx();
+		~zstd_thread_ctx() = default;
+
 	public:
+		zstd_thread_ctx(const zstd_thread_ctx &) = delete;
+		zstd_thread_ctx &operator=(const zstd_thread_ctx &) = delete;
+		zstd_thread_ctx(zstd_thread_ctx &&) = delete;
+		zstd_thread_ctx &operator=(zstd_thread_ctx &&) = delete;
+
 		/** Decompresses input data using the passed thread pool.
 		 * @param pool Thread pool used for decompression.
 		 * @param r Delegate used to read compressed data.
@@ -236,8 +244,8 @@ namespace sek
 		void decompress_threaded();
 
 		bool init_comp_frame(std::uint32_t frame_size, buffer_t &dst_buff, buffer_t &src_buff);
-		void compress_threaded(std::uint32_t level, std::uint32_t frame_log);
-		void compress_single(std::uint32_t level, std::uint32_t frame_log);
+		void compress_threaded(std::uint32_t level, std::uint32_t frame_size);
+		void compress_single(std::uint32_t level, std::uint32_t frame_size);
 
 		template<typename F>
 		void spawn_workers(thread_pool &pool, std::size_t n, F &&f)
