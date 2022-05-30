@@ -421,30 +421,65 @@ TEST(utility_tests, zstd_test)
 	sek::dynarray<std::byte> compressed;
 	sek::dynarray<char> decompressed;
 
-	{
-		auto reader = sek::zstd_thread_ctx::buffer_reader{static_cast<const void *>(src_data), src_size};
-		auto writer = sek::delegate{+[](sek::dynarray<std::byte> &dst, const void *src, std::size_t n) -> std::size_t
-									{
-										auto bytes = static_cast<const std::byte *>(src);
-										dst.insert(dst.end(), bytes, bytes + n);
-										return n;
-									},
-									compressed};
-		EXPECT_NO_THROW(ctx.compress(zstd_pool, reader, writer));
-		EXPECT_LE(compressed.size(), src_size);
-	}
+	auto c_writer = sek::delegate{+[](sek::dynarray<std::byte> &dst, const void *src, std::size_t n) -> std::size_t
+								  {
+									  auto bytes = static_cast<const std::byte *>(src);
+									  dst.insert(dst.end(), bytes, bytes + n);
+									  return n;
+								  },
+								  compressed};
+	auto d_writer = sek::delegate{+[](sek::dynarray<char> &dst, const void *src, std::size_t n) -> std::size_t
+								  {
+									  auto bytes = static_cast<const char *>(src);
+									  dst.insert(dst.end(), bytes, bytes + n);
+									  return n;
+								  },
+								  decompressed};
 
 	{
-		auto reader = sek::zstd_thread_ctx::buffer_reader{static_cast<const void *>(compressed.data()), compressed.size()};
-		auto writer = sek::delegate{+[](sek::dynarray<char> &dst, const void *src, std::size_t n) -> std::size_t
-									{
-										auto bytes = static_cast<const char *>(src);
-										dst.insert(dst.end(), bytes, bytes + n);
-										return n;
-									},
-									decompressed};
-		EXPECT_NO_THROW(ctx.decompress(zstd_pool, reader, writer));
-		EXPECT_FALSE(decompressed.empty());
+		auto c_reader = sek::zstd_thread_ctx::buffer_reader{static_cast<const void *>(src_data), src_size};
+
+		EXPECT_NO_THROW(ctx.compress(zstd_pool, c_reader, c_writer, 0));
+		EXPECT_LE(compressed.size(), src_size);
+
+		auto d_reader = sek::zstd_thread_ctx::buffer_reader{static_cast<const void *>(compressed.data()), compressed.size()};
+
+		EXPECT_NO_THROW(ctx.decompress(zstd_pool, d_reader, d_writer));
+		EXPECT_TRUE(std::ranges::equal(decompressed, src_data));
+	}
+
+	const auto l0_size = compressed.size();
+	compressed.clear();
+	decompressed.clear();
+
+	{
+		auto c_reader = sek::zstd_thread_ctx::buffer_reader{static_cast<const void *>(src_data), src_size};
+
+		EXPECT_NO_THROW(ctx.compress(zstd_pool, c_reader, c_writer, 10));
+		EXPECT_LE(compressed.size(), src_size);
+		EXPECT_LE(compressed.size(), l0_size);
+
+		auto d_reader = sek::zstd_thread_ctx::buffer_reader{static_cast<const void *>(compressed.data()), compressed.size()};
+
+		EXPECT_NO_THROW(ctx.decompress(zstd_pool, d_reader, d_writer));
+		EXPECT_TRUE(std::ranges::equal(decompressed, src_data));
+	}
+
+	const auto l10_size = compressed.size();
+	compressed.clear();
+	decompressed.clear();
+
+	{
+		auto c_reader = sek::zstd_thread_ctx::buffer_reader{static_cast<const void *>(src_data), src_size};
+
+		EXPECT_NO_THROW(ctx.compress(zstd_pool, c_reader, c_writer, 20));
+		EXPECT_LE(compressed.size(), src_size);
+		EXPECT_LE(compressed.size(), l10_size);
+		EXPECT_LE(compressed.size(), l0_size);
+
+		auto d_reader = sek::zstd_thread_ctx::buffer_reader{static_cast<const void *>(compressed.data()), compressed.size()};
+
+		EXPECT_NO_THROW(ctx.decompress(zstd_pool, d_reader, d_writer));
 		EXPECT_TRUE(std::ranges::equal(decompressed, src_data));
 	}
 }
