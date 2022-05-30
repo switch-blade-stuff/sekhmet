@@ -32,6 +32,84 @@ namespace sek
 	class zstd_thread_ctx
 	{
 	public:
+		typedef delegate<std::size_t(void *, std::size_t)> read_t;
+		typedef delegate<std::size_t(const void *, std::size_t)> write_t;
+
+		/** @brief Helper structure used to create a read delegate for reading a portion of a file. */
+		class file_reader
+		{
+			static std::size_t read_impl(file_reader *r, void *dst, std::size_t n)
+			{
+				if (r->bytes_left < n) [[unlikely]]
+					n = r->bytes_left;
+
+				const auto total_read = fread(dst, 1, n, r->src_file);
+				r->bytes_left -= total_read;
+				return total_read;
+			}
+
+		public:
+			file_reader() = delete;
+
+			constexpr explicit file_reader(FILE *file, std::size_t size = std::numeric_limits<std::size_t>::max()) noexcept
+				: src_file(file), bytes_left(size)
+			{
+			}
+
+			[[nodiscard]] constexpr operator read_t() noexcept { return read_t{read_impl, this}; }
+
+		private:
+			FILE *src_file;
+			std::size_t bytes_left;
+		};
+		/** @brief Helper structure used to create a write delegate for writing data to a file. */
+		class file_writer
+		{
+			static std::size_t write_impl(file_writer *r, const void *src, std::size_t n)
+			{
+				return fwrite(src, 1, n, r->dst_file);
+			}
+
+		public:
+			file_writer() = delete;
+
+			constexpr explicit file_writer(FILE *file) noexcept : dst_file(file) {}
+
+			[[nodiscard]] constexpr operator write_t() noexcept { return write_t{write_impl, this}; }
+
+		private:
+			FILE *dst_file;
+		};
+		/** @brief Helper structure used to create a read delegate for reading a portion of a buffer. */
+		class buffer_reader
+		{
+			static std::size_t read_impl(buffer_reader *r, void *dst, std::size_t n)
+			{
+				if (const auto left = static_cast<std::size_t>(r->src_end - r->src_pos); left < n) [[unlikely]]
+					n = left;
+				if (n) [[likely]]
+				{
+					std::copy_n(r->src_pos, n, static_cast<std::byte *>(dst));
+					r->src_pos += n;
+				}
+				return n;
+			}
+
+		public:
+			buffer_reader() = delete;
+
+			constexpr buffer_reader(const void *src, std::size_t size) noexcept
+				: src_pos(static_cast<const std::byte *>(src)), src_end(static_cast<const std::byte *>(src) + size)
+			{
+			}
+
+			[[nodiscard]] constexpr operator read_t() noexcept { return read_t{read_impl, this}; }
+
+		private:
+			const std::byte *src_pos;
+			const std::byte *src_end;
+		};
+
 		/** @brief Returns a per-thread context instance. */
 		SEK_API static zstd_thread_ctx &instance();
 
@@ -39,8 +117,9 @@ namespace sek
 		constexpr static std::size_t min_frame_log = 19;
 
 	public:
-		/** Minimum per-thread frame size. Input data smaller than `min_thread_frame`
-		 * will be part of the same ZSTD frame (and will be handled by the same thread). */
+		/** Minimum per-thread compression frame size. Input data smaller than `min_thread_frame`
+		 * will be part of the same ZSTD frame (and will be handled by the same thread).
+		 * @note This minimum is only used when no frame size is specified on call to `compress`. */
 		constexpr static std::size_t min_thread_frame = 1 << min_frame_log;
 
 	private:
@@ -49,13 +128,15 @@ namespace sek
 			bool resize(std::size_t new_size)
 			{
 				size = new_size;
-				if (void *new_data; new_size > capacity && (new_data = realloc(data, new_size)) != nullptr)
+				if (new_size > capacity)
 				{
+					auto new_data = realloc(data, new_size);
+					if (new_data == nullptr) [[unlikely]]
+						return false;
 					capacity = new_size;
 					data = new_data;
-					return true;
 				}
-				return false;
+				return true;
 			}
 			void reset() { free(data); }
 
@@ -104,9 +185,6 @@ namespace sek
 
 		static std::uint32_t get_frame_size(std::uint32_t level, std::uint32_t size_hint);
 
-		typedef delegate<std::size_t(void *, std::size_t)> read_t;
-		typedef delegate<std::size_t(const void *, std::size_t)> write_t;
-
 		zstd_thread_ctx();
 		~zstd_thread_ctx() = default;
 
@@ -137,24 +215,24 @@ namespace sek
 		 * @param pool Thread pool used for compression.
 		 * @param r Delegate used to read source (decompressed) data.
 		 * @param w Delegate used to write compressed data.
-		 * @param level Compression level.
+		 * @param level Compression level. If set to 0, will use the implementation-defined default compression level.
 		 * @param frame_size Optional size of compression frames. If set to 0, will deduce compression frame size
 		 * based on the compression level.
 		 * @note Compression stops once no more input can be read (read delegate returns 0).
 		 * @note Maximum compression level is 20.
 		 * @note If thread pool's size is 1, decompresses on the main thread, ignoring the thread pool.
 		 * @throw zstd_error When ZSTD encounters an error or when the write delegate cannot fully consume compressed data. */
-		SEK_API void compress(thread_pool &pool, read_t r, write_t w, std::uint32_t level, std::uint32_t frame_size = 0);
+		SEK_API void compress(thread_pool &pool, read_t r, write_t w, std::uint32_t level = 0, std::uint32_t frame_size = 0);
 		/** Compresses input data single-threaded.
 		 * @param r Delegate used to read source (decompressed) data.
 		 * @param w Delegate used to write compressed data.
-		 * @param level Compression level.
+		 * @param level Compression level. If set to 0, will use the implementation-defined default compression level.
 		 * @param frame_size Optional size of compression frames. If set to 0, will deduce compression frame size
 		 * based on the compression level.
 		 * @note Compression stops once no more input can be read (read delegate returns 0).
 		 * @note Maximum compression level is 20.
 		 * @throw zstd_error When ZSTD encounters an error or when the write delegate cannot fully consume compressed data. */
-		SEK_API void compress_st(read_t r, write_t w, std::uint32_t level, std::uint32_t frame_size = 0);
+		SEK_API void compress_st(read_t r, write_t w, std::uint32_t level = 0, std::uint32_t frame_size = 0);
 
 	private:
 		[[nodiscard]] auto guard_read() { return std::lock_guard<std::mutex>{in_mtx}; }
@@ -189,6 +267,8 @@ namespace sek
 
 		void init_task_buffer(buffer_t &buff)
 		{
+			/* If there are any buffers in the reuse list from previously submitted tasks, reuse an existing buffer.
+			 * Otherwise, default-initialize the buffer, it will be allocated later. */
 			if (!reuse_list.empty())
 			{
 				buff = reuse_list.back();

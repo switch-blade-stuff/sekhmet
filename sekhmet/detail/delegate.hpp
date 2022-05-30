@@ -115,6 +115,18 @@ namespace sek
 		{
 			assign(f, arg);
 		}
+		/** @copydoc delegate */
+		template<typename Arg>
+		constexpr delegate(R (*f)(Arg *, Args...), Arg &arg) noexcept
+		{
+			assign(f, arg);
+		}
+		/** @copydoc delegate */
+		template<typename Arg>
+		constexpr delegate(R (*f)(Arg &, Args...), Arg &arg) noexcept
+		{
+			assign(f, arg);
+		}
 
 		/** Initializes a delegate from an empty functor. */
 		template<typename F>
@@ -201,6 +213,22 @@ namespace sek
 		{
 			proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
 			data_ptr = static_cast<const void *>(arg);
+			return *this;
+		}
+		/** @copydoc assign */
+		template<typename Arg>
+		constexpr delegate &assign(R (*f)(Arg *, Args...), Arg &arg)  noexcept
+		{
+			proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
+			data_ptr = static_cast<const void *>(std::addressof(arg));
+			return *this;
+		}
+		/** @copydoc assign */
+		template<typename Arg>
+		constexpr delegate &assign(R (*f)(Arg &, Args...), Arg &arg)  noexcept
+		{
+			proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
+			data_ptr = static_cast<const void *>(std::addressof(arg));
 			return *this;
 		}
 
@@ -411,6 +439,10 @@ namespace sek
 	delegate(R (*)(Args...)) -> delegate<R(Args...)>;
 	template<typename R, typename Arg, typename... Args>
 	delegate(R (*)(Arg *, Args...), Arg *) -> delegate<R(Args...)>;
+	template<typename R, typename Arg, typename... Args>
+	delegate(R (*)(Arg *, Args...), Arg &) -> delegate<R(Args...)>;
+	template<typename R, typename Arg, typename... Args>
+	delegate(R (*)(Arg &, Args...), Arg &) -> delegate<R(Args...)>;
 
 	template<typename R, typename... Args, R (*F)(Args...)>
 	delegate(func_t<F>) -> delegate<R(Args...)>;

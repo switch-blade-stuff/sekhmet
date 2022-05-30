@@ -211,7 +211,7 @@ namespace sek
 				make_space(insert_pos, static_cast<size_type>(std::distance(first, last)));
 
 				auto aligned = data();
-				for (auto elem = aligned + insert_pos; first != last; ++elem, ++first) ::new (elem) value_type(*first);
+				std::copy(first, last, aligned + insert_pos);
 				return iterator{aligned + insert_pos};
 			}
 			else
@@ -309,7 +309,7 @@ namespace sek
 		template<typename... Args>
 		constexpr iterator emplace_impl(const_iterator where, size_type amount, Args &&...args)
 		{
-			SEK_ASSERT(where < end() && where >= begin());
+			SEK_ASSERT(where <= end() && where >= begin());
 
 			auto insert_pos = where.get() - data();
 			make_space(insert_pos, amount);

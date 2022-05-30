@@ -10,49 +10,6 @@ namespace sek
 {
 	namespace detail
 	{
-		struct zstd_compress_ctx
-		{
-			zstd_compress_ctx() : ctx(ZSTD_createCCtx())
-			{
-				if (ctx == nullptr) [[unlikely]]
-					throw std::bad_alloc();
-			}
-			~zstd_compress_ctx() { ZSTD_freeCCtx(ctx); }
-
-			[[nodiscard]] constexpr ZSTD_CCtx *operator->() const noexcept { return ctx; }
-			[[nodiscard]] constexpr ZSTD_CCtx &operator*() const noexcept { return *ctx; }
-			[[nodiscard]] constexpr operator ZSTD_CCtx *() const noexcept { return ctx; }
-
-			ZSTD_CCtx *ctx;
-		};
-		struct zstd_decompress_ctx
-		{
-			zstd_decompress_ctx() : ctx(ZSTD_createDStream())
-			{
-				if (ctx == nullptr) [[unlikely]]
-					throw std::bad_alloc();
-			}
-			~zstd_decompress_ctx() { ZSTD_freeDStream(ctx); }
-
-			[[nodiscard]] constexpr ZSTD_DStream *operator->() const noexcept { return ctx; }
-			[[nodiscard]] constexpr ZSTD_DStream &operator*() const noexcept { return *ctx; }
-			[[nodiscard]] constexpr operator ZSTD_DStream *() const noexcept { return ctx; }
-
-			ZSTD_DStream *ctx;
-		};
-
-		/* Zstd context is thread-local and is created on request. */
-		[[maybe_unused]] static zstd_compress_ctx &compress_ctx()
-		{
-			thread_local zstd_compress_ctx ctx;
-			return ctx;
-		}
-		[[maybe_unused]] static zstd_decompress_ctx &decompress_ctx()
-		{
-			thread_local zstd_decompress_ctx ctx;
-			return ctx;
-		}
-
 		FILE *open_asset_file(const std::filesystem::path &path, std::ios::openmode mode) noexcept
 		{
 			/* Init mode string. */

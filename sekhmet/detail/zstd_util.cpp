@@ -78,7 +78,7 @@ namespace sek
 			return *this;
 		}
 		void reset_session() { assert_zstd_error(ZSTD_DCtx_reset(ptr, ZSTD_reset_session_only)); }
-		void decompress_frame(const buffer_t &src_buff, buffer_t &dst_buff)
+		void decompress_frame(buffer_t &src_buff, buffer_t &dst_buff)
 		{
 			ZSTD_inBuffer in_buff = {.src = src_buff.data, .size = src_buff.size, .pos = 0};
 			ZSTD_outBuffer out_buff = {.dst = dst_buff.data, .size = dst_buff.size, .pos = 0};
@@ -91,10 +91,10 @@ namespace sek
 				else if (out_buff.pos < out_buff.size) [[unlikely]] /* Incomplete input frame. */
 					throw zstd_error("Incomplete or invalid ZSTD frame");
 
-				/* Not enough space in the output buffer, allocate more. */
-				dst_buff.resize(dst_buff.size + res);
-				out_buff.dst = dst_buff.data;
-				out_buff.size = dst_buff.size;
+					/* Not enough space in the output buffer, allocate more. */
+					dst_buff.resize(dst_buff.size + res);
+					out_buff.dst = dst_buff.data;
+					out_buff.size = dst_buff.size;
 			}
 			reset_session();
 		}
@@ -113,7 +113,7 @@ namespace sek
 			return false;
 
 		/* Allocate input & output buffers. */
-		if (src_buff.resize(header.comp_size) || dst_buff.resize(header.src_size)) [[unlikely]]
+		if (!src_buff.resize(header.comp_size) || !dst_buff.resize(header.src_size)) [[unlikely]]
 			throw std::bad_alloc();
 		return read_checked(src_buff.data, src_buff.size);
 	}
@@ -215,7 +215,7 @@ namespace sek
 
 			for (;;)
 			{
-				const auto res = assert_zstd_error(ZSTD_compressStream2(*this, &out_buff, &in_buff, ZSTD_e_flush));
+				const auto res = assert_zstd_error(ZSTD_compressStream2(*this, &out_buff, &in_buff, ZSTD_e_end));
 				if (res == 0) [[likely]]
 				{
 					SEK_ASSERT(in_buff.pos == in_buff.size, "Must consume all input");
@@ -230,13 +230,16 @@ namespace sek
 								.src_size = BSWAP_LE_32(in_buff.pos),
 							},
 					};
+
+					/* Make sure destination buffer's size is correct. */
+					dst_buff.size = out_buff.pos + sizeof(skip_frame);
 					break;
 				}
 
 				/* Not enough space in the output buffer, allocate more. */
 				dst_buff.resize(dst_buff.size + res);
-				out_buff.dst = dst_buff.data;
-				out_buff.size = dst_buff.size;
+				out_buff.dst = static_cast<std::byte *>(dst_buff.data) + sizeof(skip_frame);
+				out_buff.size = dst_buff.size - sizeof(skip_frame);
 			}
 			reset_session();
 		}
@@ -266,7 +269,7 @@ namespace sek
 	bool zstd_thread_ctx::init_comp_frame(std::uint32_t frame_size, buffer_t &src_buff, buffer_t &dst_buff)
 	{
 		/* Allocate input & output buffers and read source data. */
-		if (dst_buff.resize(ZSTD_compressBound(frame_size)) || src_buff.resize(frame_size)) [[unlikely]]
+		if (!dst_buff.resize(ZSTD_compressBound(frame_size)) || !src_buff.resize(frame_size)) [[unlikely]]
 			throw std::bad_alloc();
 		return (src_buff.size = read(src_buff.data, frame_size)) != 0;
 	}

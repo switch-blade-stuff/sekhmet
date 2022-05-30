@@ -325,3 +325,126 @@ TEST(utility_tests, message_test)
 	EXPECT_EQ(filter_ctr, 2);
 	EXPECT_EQ(receiver_ctr, 2);
 }
+
+#include "sekhmet/detail/zstd_util.hpp"
+
+TEST(utility_tests, zstd_test)
+{
+	constexpr char src_data[] =
+		"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum sodales lobortis ante, sollicitudin "
+		"fringilla neque mollis et. Donec hendrerit dolor quam, consequat tincidunt tellus ultrices a. Integer "
+		"interdum eros sed sollicitudin bibendum. Cras at nulla ac neque aliquet viverra. Cras mollis non justo ut "
+		"vehicula. Sed id metus sagittis, tincidunt nisl a, condimentum enim. Pellentesque pulvinar nunc eget elit "
+		"feugiat mollis in in lectus. Ut vel enim varius, sollicitudin orci rutrum, ultrices enim. Nunc in posuere "
+		"quam, a tempus lorem. Ut tincidunt tempus pulvinar. Sed vitae quam magna. In rhoncus tempor imperdiet. Nulla "
+		"non ipsum sit amet metus congue egestas a vel risus. Suspendisse cursus erat vel est venenatis sodales.\n"
+		"Curabitur mauris nisl, dictum rutrum justo eget, congue auctor nisi. Phasellus quis arcu lobortis, laoreet "
+		"erat sed, laoreet lacus. Maecenas quis ex turpis. Quisque diam lorem, ultricies eget placerat eu, suscipit "
+		"non lacus. Suspendisse potenti. Cras ac arcu rutrum, bibendum nibh a, blandit felis. Integer interdum a sem "
+		"eu maximus. Nunc porttitor faucibus nibh quis sodales.\n"
+		"Maecenas malesuada mollis odio ac venenatis. Nulla tincidunt suscipit quam at efficitur. Etiam faucibus, "
+		"sapien sed accumsan vulputate, magna mi viverra lorem, nec aliquet ante justo et justo. Vivamus euismod ipsum "
+		"vitae risus egestas, quis vestibulum turpis tristique. In vitae ex nibh. Maecenas tincidunt nunc nec semper "
+		"semper. Aliquam erat volutpat. Praesent quis dolor vehicula, bibendum lorem ut, tempus diam. Nunc in commodo "
+		"felis.\n"
+		"Suspendisse malesuada, velit sit amet tempor semper, nulla sapien pharetra eros, nec blandit ex lorem non "
+		"ante. Sed tempor aliquet neque at ultricies. Vestibulum tellus leo, porta non lacus a, eleifend iaculis "
+		"felis. Nam lobortis lacinia vulputate. Vivamus eu ultricies augue. Nullam ut urna erat. Maecenas dictum "
+		"lobortis velit, at vulputate turpis porttitor at. Aenean auctor ante ac sapien scelerisque sagittis. Cras "
+		"mollis ullamcorper lectus nec tempus.\n"
+		"Nullam aliquam augue leo. Vestibulum eu ligula vitae elit varius varius. Curabitur orci mauris, semper vel "
+		"orci eu, malesuada auctor arcu. Mauris gravida scelerisque lacus, non condimentum nulla molestie non. Nullam "
+		"pretium turpis orci, mollis pellentesque purus dignissim vel. Pellentesque iaculis consectetur nunc, non "
+		"lacinia diam luctus eget. Nulla lacinia nisl tortor, ac tempus ex aliquet quis.\n"
+		"Vivamus pellentesque ligula vitae sollicitudin aliquet. Ut ultrices sapien sed felis rhoncus, vitae consequat "
+		"eros volutpat. Nunc sollicitudin vel ex vel porttitor. Nunc ullamcorper, leo non maximus pellentesque, dolor "
+		"metus dictum quam, at vulputate nibh felis non ex. Ut sollicitudin fermentum turpis, at fringilla nulla "
+		"lacinia sit amet. Etiam rhoncus ante sem. Pellentesque molestie lacus sem, vel pharetra lorem pellentesque "
+		"quis. Fusce semper commodo elit sed rutrum. Vestibulum vestibulum tellus a risus consectetur ultricies.\n"
+		"Mauris dictum at nibh et pellentesque. Proin suscipit odio lacus, at consectetur tortor blandit a. Cras odio "
+		"diam, bibendum ac volutpat non, feugiat eu urna. Aenean sed interdum metus, ut dapibus lectus. Maecenas "
+		"pharetra sit amet tellus a pretium. Etiam iaculis posuere est, mollis hendrerit ligula ullamcorper ut. Nullam "
+		"nec dui nec sapien posuere lobortis. Praesent fringilla ligula vitae neque iaculis porttitor. Nunc maximus "
+		"blandit magna et luctus. Aliquam turpis ligula, posuere quis maximus sed, ornare ac sapien. Vivamus tempus "
+		"velit lectus, sit amet tincidunt velit vulputate a.\n"
+		"Sed rhoncus pellentesque gravida. Mauris nec dolor est. Praesent lobortis consequat dolor sed hendrerit. "
+		"Donec diam risus, condimentum sit amet mollis a, ullamcorper nec odio. Nulla sit amet finibus mi. Integer "
+		"dictum ac felis eget ultrices. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse non quam "
+		"eros. In hac habitasse platea dictumst. Proin ut elementum eros, vitae pretium tellus.\n"
+		"Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Vivamus hendrerit, "
+		"lorem in dapibus sodales, elit augue ullamcorper enim, eget consequat libero dui iaculis tellus. Cras varius "
+		"metus ullamcorper quam ullamcorper cursus. Nulla pretium tempor ultricies. Nam ultrices volutpat justo, sit "
+		"amet consectetur ante dictum id. Vestibulum quis est sed lorem posuere condimentum quis vitae dolor. Aliquam "
+		"erat volutpat. Aliquam ultricies eu sem a dignissim. Nunc aliquam, sapien vel imperdiet tempor, dui leo "
+		"pulvinar neque, id mollis tellus quam quis justo. Morbi feugiat nisi at lacus sodales pellentesque. Integer "
+		"dui nulla, viverra ultricies vulputate nec, semper et arcu. Aenean nibh nibh, sodales eget ultrices eget, "
+		"mattis sed elit.\n"
+		"Nam cursus dictum lacus. Mauris non dui eros. Curabitur cursus sed tellus id condimentum. Suspendisse at nibh "
+		"felis. Etiam vitae lectus aliquet, placerat sem eget, scelerisque elit. Morbi iaculis nulla eleifend risus "
+		"vulputate sodales. Curabitur et orci erat. Curabitur tristique ante non mi tempor ullamcorper.\n"
+		"Sed vel eros suscipit, maximus augue non, imperdiet massa. Phasellus ut efficitur nunc, quis elementum nisl. "
+		"Nulla facilisi. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis efficitur, ex id luctus mollis, "
+		"augue tortor aliquet quam, convallis convallis libero urna nec orci. Etiam finibus scelerisque ullamcorper. "
+		"Sed facilisis orci et metus rhoncus, in condimentum nisi rhoncus. Proin eu euismod ex.\n"
+		"Donec efficitur felis ipsum, ac hendrerit diam laoreet eu. Morbi quis augue eu nibh mollis tincidunt. Donec "
+		"ullamcorper augue id gravida sodales. Sed sed sollicitudin elit. Donec a blandit felis. Integer quis "
+		"condimentum libero. Suspendisse lobortis diam sed velit porttitor, at imperdiet eros vulputate. Curabitur "
+		"venenatis laoreet leo, et feugiat turpis hendrerit eu. Proin egestas pellentesque purus sed tempor. Mauris "
+		"pellentesque sem nibh, ut fermentum felis congue sit amet. Curabitur eget ultricies lacus. Etiam consequat "
+		"auctor ante sit amet mollis. Ut tristique interdum urna et euismod. Pellentesque vitae neque vitae lacus "
+		"volutpat egestas. Nullam laoreet, mauris ac eleifend mollis, eros ante pharetra orci, vel laoreet odio sapien "
+		"ut velit. Sed nec arcu dapibus, vehicula ante a, maximus sapien.\n"
+		"Donec euismod vitae enim sit amet imperdiet. Duis nec tempus justo. Morbi ultricies dolor mauris. Suspendisse "
+		"condimentum vestibulum ex. Aliquam sit amet turpis odio. Ut nisi nibh, pulvinar ut orci a, mollis mattis "
+		"nibh. Phasellus vel auctor sem. Proin quis placerat est, sed pretium tellus. Nulla cursus turpis elementum "
+		"semper finibus. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; "
+		"Pellentesque consectetur massa urna, sed consequat risus blandit sed. Donec varius ante et turpis hendrerit "
+		"mattis. Ut laoreet, ante non volutpat dapibus, nulla turpis congue mauris, at auctor nunc velit ut erat. "
+		"Proin dolor felis, porttitor eu lectus et, sagittis lobortis enim.\n"
+		"Proin fermentum erat ut erat aliquet euismod. Cras blandit magna in pulvinar ullamcorper. Phasellus congue "
+		"tincidunt arcu quis mattis. Nunc maximus facilisis vestibulum. Quisque bibendum diam a erat blandit mollis. "
+		"Morbi luctus magna convallis, fringilla turpis vel, laoreet risus. Donec ut tincidunt est, sit amet blandit "
+		"turpis. Etiam gravida tincidunt tempor. Quisque ultricies euismod rutrum.\n"
+		"Cras et felis egestas, volutpat quam sed, aliquet justo. Proin rhoncus sem at velit sollicitudin, sed "
+		"venenatis libero pellentesque. Ut ac hendrerit ante. Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
+		"Curabitur malesuada luctus ultricies. Vestibulum dapibus nunc nec arcu lobortis scelerisque. Pellentesque "
+		"vestibulum ultrices dui, non viverra orci tincidunt nec. Vestibulum ac orci ullamcorper, finibus felis et, "
+		"ultrices diam. Sed vestibulum est eu ex fringilla, fermentum rhoncus nibh facilisis. Suspendisse in elit ac "
+		"libero accumsan tincidunt. Quisque iaculis enim non metus volutpat, et gravida ligula pharetra. Sed "
+		"condimentum lacus id purus suscipit iaculis. Vestibulum a lorem id magna tempus molestie.\n"
+		"Duis cursus mollis velit, ac pretium felis euismod eget. Proin luctus nisl quis purus efficitur ultricies. "
+		"Suspendisse placerat quam sit.";
+	constexpr auto src_size = SEK_ARRAY_SIZE(src_data);
+
+	auto &ctx = sek::zstd_thread_ctx::instance();
+	auto zstd_pool = sek::thread_pool{2};
+	sek::dynarray<std::byte> compressed;
+	sek::dynarray<char> decompressed;
+
+	{
+		auto reader = sek::zstd_thread_ctx::buffer_reader{static_cast<const void *>(src_data), src_size};
+		auto writer = sek::delegate{+[](sek::dynarray<std::byte> &dst, const void *src, std::size_t n) -> std::size_t
+									{
+										auto bytes = static_cast<const std::byte *>(src);
+										dst.insert(dst.end(), bytes, bytes + n);
+										return n;
+									},
+									compressed};
+		EXPECT_NO_THROW(ctx.compress(zstd_pool, reader, writer));
+		EXPECT_LE(compressed.size(), src_size);
+	}
+
+	{
+		auto reader = sek::zstd_thread_ctx::buffer_reader{static_cast<const void *>(compressed.data()), compressed.size()};
+		auto writer = sek::delegate{+[](sek::dynarray<char> &dst, const void *src, std::size_t n) -> std::size_t
+									{
+										auto bytes = static_cast<const char *>(src);
+										dst.insert(dst.end(), bytes, bytes + n);
+										return n;
+									},
+									decompressed};
+		EXPECT_NO_THROW(ctx.decompress(zstd_pool, reader, writer));
+		EXPECT_FALSE(decompressed.empty());
+		EXPECT_TRUE(std::ranges::equal(decompressed, src_data));
+	}
+}
