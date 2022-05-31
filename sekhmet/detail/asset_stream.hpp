@@ -82,7 +82,11 @@ namespace sek
 		}
 
 		char *data = nullptr; /* Start of the buffer. */
-		std::size_t size = 0; /* Size of the buffer. */
+		union
+		{
+			std::size_t pos = 0; /* Next position within the buffer (used for output buffers). */
+			std::size_t size;	 /* Size of the buffer (used for input buffers). */
+		};
 		std::size_t curr = 0; /* Current position within the buffer. */
 	};
 
@@ -159,14 +163,12 @@ namespace sek
 
 		/** Checks if the asset buffer is backed by an open file. */
 		[[nodiscard]] constexpr bool is_open() const noexcept { return source_file.is_open(); }
-		/** Checks if the asset buffer is backed by an open file or if the internal memory buffer is not empty. */
-		[[nodiscard]] constexpr bool is_valid() const noexcept { return is_open() || ext_buff.size != 0; }
 
 	protected:
 		int_type overflow(int_type c = traits_type::eof()) override
 		{
 			int_type result = traits_type::eof();
-			if (io_mode & std::ios::out) [[likely]] {  }
+			if (io_mode & std::ios::out) [[likely]] {}
 			return result;
 		}
 
@@ -185,19 +187,34 @@ namespace sek
 					success = traits_type::not_eof(overflow(traits_type::eof()));
 
 				if (is_open()) [[likely]]
-					success = source_file.sync();
+					success = source_file.sync() && success;
 			}
 			else if (status & READING)
 			{
 				/* If buffer is not backed by a file, no sync is needed.
 				 * Otherwise, un-read external buffer contents if any and sync the file. */
 				if (!(success = !is_open())) [[likely]]
-					success = source_file.seek(-static_cast<ssize_t>(ext_buff.curr), 0) >= 0 && source_file.sync();
+					success = source_file.seek(unwind_read_chars(conv_state_base), 0) >= 0 && source_file.sync();
 			}
 			return success ? 0 : -1;
 		}
 
 	private:
+		[[nodiscard]] ssize_t unwind_read_chars(state_type &conv_state)
+		{
+			/* Calculate negative offset from the current file position used to "unwind" the read buffer. */
+			if (conv->always_noconv()) /* If no conversion is needed */
+				return static_cast<ssize_t>(ext_buff.pos) - static_cast<ssize_t>(ext_buff.curr);
+			else
+			{
+				/* Get the amount of external characters (from the external buffer)
+				 * used to produce the current get area buffer. */
+				const auto ext_data = ext_buff.data, ext_end = ext_buff.data + ext_buff.curr;
+				const auto ext_count = conv->length(conv_state, ext_data, ext_end, base_t::gptr() - base_t::eback());
+				return ext_count - static_cast<ssize_t>(ext_buff.pos);
+			}
+		}
+
 		void cache_codecvt(const std::locale &loc)
 		{
 			if (std::has_facet<codecvt_t>(loc)) [[likely]]
@@ -254,20 +271,6 @@ namespace sek
 			destroy_int_buff();
 			int_buff = nullptr;
 			int_size = 0;
-		}
-
-		ssize_t ext_buff_off(state_type &conv_state)
-		{
-			if (conv->always_noconv()) /* If no conversion is needed */
-				return static_cast<ssize_t>(ext_buff.curr) - static_cast<ssize_t>(ext_buff.size);
-			else
-			{
-				/* Get the amount of external characters (from the external buffer) used to produce the
-				 * current get are buffer. */
-				const auto ext_data = ext_buff.data, ext_end = ext_buff.data + ext_buff.curr;
-				const auto ext_count = conv->length(conv_state, ext_data, ext_end, base_t::gptr() - base_t::eback());
-				return ext_count - static_cast<ssize_t>(ext_buff.size);
-			}
 		}
 
 		state_type conv_state_init = {};

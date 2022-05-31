@@ -12,14 +12,7 @@
 
 namespace sek
 {
-	class zstd_error : public std::runtime_error
-	{
-	public:
-		zstd_error() : std::runtime_error("Unknown ZSTD error") {}
-		explicit zstd_error(const char *msg) : std::runtime_error(msg) {}
-		explicit zstd_error(std::size_t code) : zstd_error(ZSTD_getErrorName(code)) {}
-		~zstd_error() override = default;
-	};
+	zstd_error::zstd_error(std::size_t code) : zstd_error(ZSTD_getErrorName(code)) {}
 
 	[[noreturn]] static void bad_zstd_version() noexcept
 	{
@@ -91,10 +84,10 @@ namespace sek
 				else if (out_buff.pos < out_buff.size) [[unlikely]] /* Incomplete input frame. */
 					throw zstd_error("Incomplete or invalid ZSTD frame");
 
-					/* Not enough space in the output buffer, allocate more. */
-					dst_buff.resize(dst_buff.size + res);
-					out_buff.dst = dst_buff.data;
-					out_buff.size = dst_buff.size;
+				/* Not enough space in the output buffer, allocate more. */
+				dst_buff.resize(dst_buff.size + res);
+				out_buff.dst = dst_buff.data;
+				out_buff.size = dst_buff.size;
 			}
 			reset_session();
 		}

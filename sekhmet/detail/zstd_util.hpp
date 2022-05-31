@@ -4,9 +4,11 @@
 
 #pragma once
 
+#include <memory>
 #include <mutex>
 
 #include "bswap.hpp"
+#include "compound_exception.hpp"
 #include "define.h"
 #include "delegate.hpp"
 #include "dynarray.hpp"
@@ -24,8 +26,23 @@
 
 namespace sek
 {
-	/** @brief Exception thrown by when ZSTD (de)compression worker threads encounter an error. */
-	class SEK_API zstd_error;
+	/** @brief Exception thrown when ZSTD (de)compression worker threads encounter an error. */
+	class zstd_error : public std::runtime_error
+	{
+	public:
+		zstd_error() : std::runtime_error("Unknown ZSTD error") {}
+		explicit zstd_error(const char *msg) : std::runtime_error(msg) {}
+		SEK_API explicit zstd_error(std::size_t code);
+		~zstd_error() override = default;
+	};
+
+	/** @brief Compound exception used to retrieve exceptions from ZSTD worker threads. */
+	class zstd_thread_error : public std::runtime_error, public compound_exception
+	{
+	public:
+		zstd_thread_error() : std::runtime_error("ZSTD worker thread error") {}
+		~zstd_thread_error() override = default;
+	};
 
 	/** @brief Context used to synchronize multi-threaded ZSTD (de)compression.
 	 * @note Each master thread receives it's own context, since (de)compression is blocking. */
@@ -207,7 +224,7 @@ namespace sek
 		 * of tasks to schedule. If set to 0, will spawn up to `pool.size()` or 32 tasks (whichever is smaller).
 		 * @note Decompression stops once no more input can be read.
 		 * @note If thread pool's size is 1, decompresses on the main thread, ignoring the thread pool.
-		 * @throw zstd_error When ZSTD encounters an error or when the write delegate cannot fully consume decompressed data. */
+		 * @throw zstd_thread_error Containing any exceptions thrown by worker threads (most likely to be `zstd_error`). */
 		SEK_API void decompress(thread_pool &pool, read_t r, write_t w, std::size_t frames = 0);
 		/** Decompresses input data single-threaded.
 		 * @param r Delegate used to read compressed data.
@@ -227,7 +244,7 @@ namespace sek
 		 * @note Maximum compression level is 20.
 		 * @note Specifying explicit frame size may reduce memory usage.
 		 * @note If thread pool's size is 1, decompresses on the main thread, ignoring the thread pool.
-		 * @throw zstd_error When ZSTD encounters an error or when the write delegate cannot fully consume compressed data. */
+		 * @throw zstd_thread_error Containing any exceptions thrown by worker threads (most likely to be `zstd_error`). */
 		SEK_API void compress(thread_pool &pool, read_t r, write_t w, std::uint32_t level = 0, std::uint32_t frame_size = 0);
 		/** Compresses input data single-threaded.
 		 * @param r Delegate used to read source (decompressed) data.
@@ -341,7 +358,13 @@ namespace sek
 			/* Stack allocation here is fine, since std::future is not a large structure. */
 			auto *wait_buf = static_cast<std::future<void> *>(ALLOCA(sizeof(std::future<void>) * n));
 #else
-			auto *wait_buf = static_cast<std::future<void> *>(::operator new(sizeof(std::future<void>) * total_threads));
+			struct deleter
+			{
+				constexpr void operator()(std::future<void> *ptr) const { ::operator delete[](ptr); }
+			};
+			auto wait_buf_ptr = std::unique_ptr<std::future<void>, deleter>(
+				static_cast<std::future<void> *>(::operator new[](sizeof(std::future<void>) * n)));
+			auto wait_buf = std::to_address(wait_buf_ptr);
 #endif
 
 			std::exception_ptr eptr = {};
@@ -350,25 +373,35 @@ namespace sek
 				/* Schedule pool.size() workers. Some of these workers will terminate without doing anything.
 				 * This is not ideal, but we can not know the amount of frames beforehand. */
 				for (std::size_t i = 0; i < n; ++i) std::construct_at(wait_buf + i, pool.schedule(std::forward<F>(f)));
-				/* Wait for threads to terminate. Any exceptions will be re-thrown by the worker's future. */
-				for (std::size_t i = 0; i < n; ++i) wait_buf[i].get();
-			}
-			catch (std::bad_alloc &)
-			{
-				/* No cleanup is needed on `bad_alloc`. */
-				throw;
 			}
 			catch (...)
 			{
 				/* Store thrown exception, since we still need to clean up allocated buffers. */
 				eptr = std::current_exception();
+				goto cleanup;
 			}
 
+			/* Wait for threads to terminate. Store any exceptions to thread_error. */
+			{
+				zstd_thread_error thread_error;
+				for (std::size_t i = 0; i < n; ++i)
+				{
+					try
+					{
+						wait_buf[i].get();
+					}
+					catch (...)
+					{
+						thread_error.push_current();
+					}
+				}
+				if (!thread_error.nested().empty()) [[unlikely]]
+					eptr = std::make_exception_ptr(thread_error);
+			}
+
+		cleanup:
 			clear_tasks();
 			for (std::size_t i = 0; i < n; ++i) std::destroy_at(wait_buf + i);
-#ifndef ALLOCA
-			::operator delete(wait_buf);
-#endif
 
 			if (eptr) [[unlikely]]
 				std::rethrow_exception(eptr);
