@@ -345,31 +345,40 @@ namespace sek
 		// clang-format on
 	}	 // namespace detail
 
-	/** @brief Exception thrown when the type of `any` is not as expected. */
-	class any_type_error : public std::runtime_error
+	/** @brief Base type for all reflection-related exceptions. */
+	class type_info_error : public std::runtime_error
 	{
 	public:
-		any_type_error() : std::runtime_error("Invalid type of `any` object") {}
-		explicit any_type_error(const std::string &msg) : std::runtime_error(msg) {}
-		explicit any_type_error(const char *msg) : std::runtime_error(msg) {}
+		type_info_error() : std::runtime_error("Unknown reflection error") {}
+		explicit type_info_error(const std::string &msg) : std::runtime_error(msg) {}
+		explicit type_info_error(const char *msg) : std::runtime_error(msg) {}
+		~type_info_error() override = default;
+	};
+	/** @brief Exception thrown when the type of `any` is not as expected. */
+	class any_type_error : public type_info_error
+	{
+	public:
+		any_type_error() : type_info_error("Invalid type of `any` object") {}
+		explicit any_type_error(const std::string &msg) : type_info_error(msg) {}
+		explicit any_type_error(const char *msg) : type_info_error(msg) {}
 		~any_type_error() override = default;
 	};
 	/** @brief Exception thrown when the const-ness of `any` is invalid (expected non-const but got const object). */
-	class any_const_error : public std::runtime_error
+	class any_const_error : public type_info_error
 	{
 	public:
-		any_const_error() : std::runtime_error("Invalid const-ness of `any` object") {}
-		explicit any_const_error(const std::string &msg) : std::runtime_error(msg) {}
-		explicit any_const_error(const char *msg) : std::runtime_error(msg) {}
+		any_const_error() : type_info_error("Invalid const-ness of `any` object") {}
+		explicit any_const_error(const std::string &msg) : type_info_error(msg) {}
+		explicit any_const_error(const char *msg) : type_info_error(msg) {}
 		~any_const_error() override = default;
 	};
 	/** @brief Exception thrown when a reflected type does not have the specified member function/constructor or field. */
-	class invalid_member_error : public std::runtime_error
+	class invalid_member_error : public type_info_error
 	{
 	public:
-		invalid_member_error() : std::runtime_error("Unknown type member") {}
-		explicit invalid_member_error(const std::string &msg) : std::runtime_error(msg) {}
-		explicit invalid_member_error(const char *msg) : std::runtime_error(msg) {}
+		invalid_member_error() : type_info_error("Unknown type member") {}
+		explicit invalid_member_error(const std::string &msg) : type_info_error(msg) {}
+		explicit invalid_member_error(const char *msg) : type_info_error(msg) {}
 		~invalid_member_error() override = default;
 	};
 
