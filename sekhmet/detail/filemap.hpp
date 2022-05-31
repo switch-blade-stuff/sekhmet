@@ -11,6 +11,7 @@
 
 #include "assert.hpp"
 #include "define.h"
+#include "native_util.hpp"
 
 namespace sek
 {
@@ -25,12 +26,6 @@ namespace sek
 
 	namespace detail
 	{
-		typedef int filemap_openmode;
-
-		constexpr auto filemap_in = static_cast<filemap_openmode>(1);
-		constexpr auto filemap_out = static_cast<filemap_openmode>(2);
-		constexpr auto filemap_copy = static_cast<filemap_openmode>(4);
-
 		class filemap_handle;
 	}	 // namespace detail
 }	 // namespace sek
@@ -50,14 +45,14 @@ namespace sek
 		typedef typename detail::filemap_handle::native_file_type native_file_type;
 		typedef typename detail::filemap_handle::native_handle_type native_handle_type;
 
-		typedef detail::filemap_openmode openmode;
+		typedef detail::native_openmode openmode;
 
 		/** Enables read mode for the filemap. */
-		constexpr static openmode in = detail::filemap_in;
+		constexpr static openmode in = detail::native_in;
 		/** Enables write mode for the filemap. */
-		constexpr static openmode out = detail::filemap_out;
+		constexpr static openmode out = detail::native_out;
 		/** Enables copy-on-write mode for the filemap. Implies `out`. */
-		constexpr static openmode copy = detail::filemap_copy | out;
+		constexpr static openmode copy = detail::native_copy | out;
 
 	public:
 		filemap() = delete;

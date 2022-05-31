@@ -345,14 +345,32 @@ namespace sek
 		// clang-format on
 	}	 // namespace detail
 
-	/** Exception thrown when the type of `any` is not as expected. */
-	class bad_any_type : public std::runtime_error
+	/** @brief Exception thrown when the type of `any` is not as expected. */
+	class any_type_error : public std::runtime_error
 	{
 	public:
-		bad_any_type() : std::runtime_error("Invalid type of `any` object") {}
-		explicit bad_any_type(const std::string &msg) : std::runtime_error(msg) {}
-		explicit bad_any_type(const char *msg) : std::runtime_error(msg) {}
-		~bad_any_type() override = default;
+		any_type_error() : std::runtime_error("Invalid type of `any` object") {}
+		explicit any_type_error(const std::string &msg) : std::runtime_error(msg) {}
+		explicit any_type_error(const char *msg) : std::runtime_error(msg) {}
+		~any_type_error() override = default;
+	};
+	/** @brief Exception thrown when the const-ness of `any` is invalid (expected non-const but got const object). */
+	class any_const_error : public std::runtime_error
+	{
+	public:
+		any_const_error() : std::runtime_error("Invalid const-ness of `any` object") {}
+		explicit any_const_error(const std::string &msg) : std::runtime_error(msg) {}
+		explicit any_const_error(const char *msg) : std::runtime_error(msg) {}
+		~any_const_error() override = default;
+	};
+	/** @brief Exception thrown when a reflected type does not have the specified member function/constructor or field. */
+	class invalid_member_error : public std::runtime_error
+	{
+	public:
+		invalid_member_error() : std::runtime_error("Unknown type member") {}
+		explicit invalid_member_error(const std::string &msg) : std::runtime_error(msg) {}
+		explicit invalid_member_error(const char *msg) : std::runtime_error(msg) {}
+		~invalid_member_error() override = default;
 	};
 
 	/** @brief Structure used to represent a signature of a constructor or a function. */
@@ -575,7 +593,8 @@ namespace sek
 		/** Constructs the underlying type with the passed arguments & returns an `any` managing the constructed object.
 		 * @param args Arguments passed to the constructor.
 		 * @return `any` managing the constructed object.
-		 * @throw bad_any_type If no constructor accepting `args` was found. */
+		 * @throw invalid_member_error If no constructor accepting `args` was found.
+		 * @throw any_const_error If const-ness of the passed arguments is invalid (expected non-const but got const). */
 		[[nodiscard]] SEK_API any construct(std::span<any> args = {}) const;
 		// clang-format off
 		/** @copydoc construct */
@@ -591,7 +610,9 @@ namespace sek
 		 * If `function_info` represents a static function who's first argument is not an instance pointer, instance is ignored.
 		 * @param args Arguments passed to the function.
 		 * @return Value returned by the function. If the underlying function's return type is void, returns an empty `any`.
-		 * @throw bad_any_type If the function cannot be invoked with the passed arguments or such function does not exist.
+		 * @throw invalid_member_error If such function was not found.
+		 * @throw any_type_error If the function cannot be invoked with the passed arguments.
+		 * @throw any_const_error If const-ness of the passed arguments is invalid (expected non-const but got const).
 		 * @warning Invoking a non-const function on a const object will result in undefined behavior. */
 		SEK_API any invoke(std::string_view name, any instance, std::span<any> args) const;
 		// clang-format off
@@ -614,7 +635,7 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] constexpr bool inherits() const noexcept
 		{
-			return inherits(type_name<T>());
+			return inherits(type_name<std::remove_cvref_t<T>>());
 		}
 
 		/** Returns a view containing attributes of this type. */
@@ -631,7 +652,7 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] constexpr bool has_attribute() const noexcept
 		{
-			return has_attribute(type_name<T>());
+			return has_attribute(type_name<std::remove_cvref_t<T>>());
 		}
 		/** Returns any reference to attribute of a type with the specified name.
 		 * @return `any` reference to type's data or an empty `any` if such attribute is not found. */
@@ -661,7 +682,7 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] constexpr bool convertible_to() const noexcept
 		{
-			return convertible_to(type_name<T>());
+			return convertible_to(type_name<std::remove_cvref_t<T>>());
 		}
 
 		[[nodiscard]] constexpr bool operator==(const type_info &other) const noexcept
@@ -931,17 +952,24 @@ namespace sek
 		 * the underlying object using one of it's reflected parents.
 		 *
 		 * @return The underlying underlying object, cast to type `T`.
-		 * @throw bad_any_type If no such cast is possible. */
+		 *
+		 * @throw any_type_error If no such cast is possible. */
 		template<typename T>
 		[[nodiscard]] T cast()
 		{
-			if constexpr (std::same_as<std::remove_reference_t<T>, T>) /* Always treat by-value casts as const. */
+			using U = std::remove_reference_t<T>;
+			if constexpr (std::same_as<U, T>) /* Always treat by-value casts as const. */
 				return static_cast<const any *>(this)->template cast<T>();
 			else
 			{
-				auto ptr = try_cast<std::remove_reference_t<T>>();
+				auto ptr = try_cast<U>();
 				if (!ptr) [[unlikely]]
-					throw bad_any_type("Invalid any cast");
+				{
+					std::string msg = "Invalid any cast to type \"";
+					msg.append(type_name<std::remove_cvref_t<T>>());
+					msg.append(1, '\"');
+					throw any_type_error(msg);
+				}
 				return static_cast<T>(*ptr);
 			}
 		}
@@ -951,7 +979,12 @@ namespace sek
 		{
 			auto ptr = try_cast<std::remove_reference_t<T>>();
 			if (!ptr) [[unlikely]]
-				throw bad_any_type("Invalid any cast");
+			{
+				std::string msg = "Invalid any cast to type \"";
+				msg.append(type_name<std::remove_cvref_t<T>>());
+				msg.append(1, '\"');
+				throw any_type_error(msg);
+			}
 			return static_cast<T>(*ptr);
 		}
 
@@ -976,7 +1009,9 @@ namespace sek
 		 * @param name Name of the reflected function.
 		 * @param args Arguments passed to the function.
 		 * @return Value returned by the function. If the underlying function's return type is void, returns an empty `any`.
-		 * @throw bad_any_type If the function cannot be invoked with the passed arguments.
+		 * @throw invalid_member_error If such function was not found.
+		 * @throw any_type_error If the function cannot be invoked with the passed arguments.
+		 * @throw any_const_error If const-ness of the passed arguments is invalid (expected non-const but got const).
 		 * @warning Invoking a non-const function on a const object will result in undefined behavior. */
 		SEK_API any invoke(std::string_view name, std::span<any> args);
 		/** @copydoc invoke */
@@ -1294,10 +1329,7 @@ namespace sek
 			}
 		};
 
-		inline void assert_mutable_any(const any &a [[maybe_unused]])
-		{
-			SEK_ASSERT(!a.is_const(), "Cannot bind const `any` to non-const instance");
-		}
+		SEK_API void assert_mutable_any(const any &a, std::string_view name);
 		template<typename T>
 		constexpr decltype(auto) unwrap_any_args(type_selector_t<T>, any &a)
 		{
@@ -1306,7 +1338,7 @@ namespace sek
 				return *a.as_cptr<U>();
 			else
 			{
-				assert_mutable_any(a);
+				assert_mutable_any(a, type_name<std::remove_cvref_t<T>>());
 				return *a.as_ptr<U>();
 			}
 		}
@@ -1377,7 +1409,7 @@ namespace sek
 						// clang-format off
 						constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, any_ref i, std::span<any> &a) -> decltype(auto)
 						{
-							assert_mutable_any(i);
+							assert_mutable_any(i, type_name<std::remove_cvref_t<T>>());
 							auto *ptr = i.template as_ptr<T>();
 							return (ptr->*F)(unwrap_any_args(type_seq_selector<Is, type_seq_t<Args...>>, a[Is])...);
 						};
@@ -1412,7 +1444,7 @@ namespace sek
 						// clang-format off
 						constexpr auto unwrap = []<std::size_t... Is>(std::index_sequence<Is...>, any_ref i, std::span<any> &a) -> decltype(auto)
 						{
-							assert_mutable_any(i);
+							assert_mutable_any(i, type_name<std::remove_cvref_t<T>>());
 							auto *ptr = i.template as_ptr<T>();
 							return F(ptr, unwrap_any_args(type_seq_selector<Is, type_seq_t<Args...>>, a[Is])...);
 						};
@@ -1719,7 +1751,8 @@ namespace sek
 		/** Invokes the underlying constructor, producing an instance of `any`.
 		 * @param args Arguments passed to the constructor.
 		 * @return Instance created from the constructor.
-		 * @throw bad_any_type If the constructor cannot be invoked with the passed arguments. */
+		 * @throw any_type_error If the constructor cannot be invoked with the passed arguments.
+		 * @throw any_const_error If const-ness of the passed arguments is invalid (expected non-const but got const). */
 		[[nodiscard]] any invoke(std::span<any> args) const
 		{
 			if (signature().assert_args(args)) [[likely]]
@@ -1780,7 +1813,8 @@ namespace sek
 		 * If `function_info` represents a static function who's first argument is not an instance pointer, instance is ignored.
 		 * @param args Arguments passed to the function.
 		 * @return Value returned by the function. If the underlying function's return type is void, returns an empty `any`.
-		 * @throw bad_any_type If the function cannot be invoked with the passed arguments.
+		 * @throw any_type_error If the function cannot be invoked with the passed arguments.
+		 * @throw any_const_error If const-ness of the passed arguments is invalid (expected non-const but got const).
 		 * @warning Invoking a non-const function on a const object (or incorrect instance type)
 		 * will result in undefined behavior. */
 		any invoke(any instance, std::span<any> args) const
@@ -1920,7 +1954,7 @@ namespace sek
 	template<typename T>
 	any type_info::get_attribute() const noexcept
 	{
-		return get_attribute(type_name<T>());
+		return get_attribute(type_name<std::remove_cvref_t<T>>());
 	}
 
 	template<typename T>

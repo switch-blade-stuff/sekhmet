@@ -18,12 +18,12 @@ namespace sek::detail
 		return !fstat(fd, &st) ? static_cast<std::size_t>(st.st_size) : 0;
 	}
 
-	void filemap_handle::init(int fd, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *)
+	void filemap_handle::init(int fd, std::ptrdiff_t offset, std::size_t size, native_openmode mode, const char *)
 	{
 		page_size = sysconf(_SC_PAGE_SIZE);
 
-		int prot = (mode & filemap_in ? PROT_READ : 0) | (mode & filemap_out ? PROT_WRITE : 0);
-		int flags = mode & filemap_copy ? MAP_PRIVATE : MAP_SHARED;
+		int prot = (mode & native_in ? PROT_READ : 0) | (mode & native_out ? PROT_WRITE : 0);
+		int flags = mode & native_copy ? MAP_PRIVATE : MAP_SHARED;
 
 		/* Adjust offset to be a multiple of page size. */
 		auto offset_diff = offset % page_size;
@@ -48,7 +48,7 @@ namespace sek::detail
 		view_ptr = std::bit_cast<void *>(std::bit_cast<std::intptr_t>(view_ptr) + offset_diff);
 		map_size = size;
 	}
-	filemap_handle::filemap_handle(const char *path, std::ptrdiff_t offset, std::size_t size, filemap_openmode mode, const char *name)
+	filemap_handle::filemap_handle(const char *path, std::ptrdiff_t offset, std::size_t size, native_openmode mode, const char *name)
 	{
 		struct raii_fd
 		{
@@ -59,9 +59,9 @@ namespace sek::detail
 		};
 
 		int flags = O_RDONLY;
-		if ((mode & filemap_in) && (mode & filemap_out))
+		if ((mode & native_in) && (mode & native_out))
 			flags = O_RDWR;
-		else if (mode & filemap_in)
+		else if (mode & native_in)
 			flags = O_WRONLY;
 		auto file = raii_fd{open(path, flags | O_CLOEXEC)};
 		if (file.fd < 0) [[unlikely]]

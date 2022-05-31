@@ -313,9 +313,10 @@ TEST(utility_tests, any_test)
 		const auto funcs = info.functions();
 		EXPECT_FALSE(funcs.empty());
 
-#ifndef NDEBUG
-		EXPECT_DEATH(a2 = a1.invoke("get_i"), ".*");
-#endif
+		EXPECT_THROW(a1.invoke("get_i", sek::make_any<int>()), sek::any_type_error);
+		EXPECT_THROW(a1.invoke("get_i"), sek::any_const_error);
+		EXPECT_THROW(a1.invoke(""), sek::invalid_member_error);
+
 		a1 = a3.invoke("get_i");
 		EXPECT_TRUE(a1.is_ref());
 		EXPECT_FALSE(a1.is_const());
@@ -325,5 +326,6 @@ TEST(utility_tests, any_test)
 		EXPECT_TRUE(a2.is_const());
 		EXPECT_EQ(a2.cast<int>(), data.i);
 		EXPECT_EQ(a1.cdata(), a2.cdata());
+
 	}
 }

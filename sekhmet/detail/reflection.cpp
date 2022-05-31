@@ -10,6 +10,15 @@
 
 namespace sek
 {
+	namespace detail
+	{
+		void assert_mutable_any(const any &a, std::string_view name)
+		{
+			if (a.is_const()) [[unlikely]]
+				throw any_const_error(SEK_LOG_FORMAT_NS::format("Cannot bind const `any` to a non-const type \"{}\"", name));
+		}
+	}	 // namespace detail
+
 	struct type_db
 	{
 		static type_db &instance()
@@ -45,12 +54,33 @@ namespace sek
 		db.types.erase(name);
 	}
 
+	static std::string args_type_msg(auto begin, auto end, auto &&name_get)
+	{
+		std::string result = "[";
+		std::size_t i = 0;
+		std::for_each(begin,
+					  end,
+					  [&i, &result, &name_get](auto &&v)
+					  {
+						  if (i++ != 0) [[likely]]
+							  result.append(", ");
+						  result.append(1, '\"').append(name_get(v)).append(1, '\"');
+					  });
+		result.append("]");
+		return result;
+	}
+
 	any type_info::construct(std::span<any> args) const
 	{
 		const auto ctors = constructors();
 		const auto ctor = std::ranges::find_if(ctors, [&args](auto c) { return c.signature().invocable_with(args); });
 		if (ctor == ctors.end()) [[unlikely]]
-			throw bad_any_type("No matching constructor found");
+		{
+			throw invalid_member_error(SEK_LOG_FORMAT_NS::format(
+				"No matching constructor taking {} found for type \"{}\"",
+				args_type_msg(args.begin(), args.end(), [](auto &&a) { return a.type().name(); }),
+				name()));
+		}
 		else
 			return ctor->node->invoke(args);
 	}
@@ -59,7 +89,12 @@ namespace sek
 		const auto funcs = functions();
 		const auto func = std::ranges::find_if(funcs, [&name](auto f) { return f.name() == name; });
 		if (func == funcs.end()) [[unlikely]]
-			throw bad_any_type("No matching function found");
+		{
+			throw invalid_member_error(SEK_LOG_FORMAT_NS::format("No matching function with name \"{}\" "
+																 "found for type \"{}\"",
+																 name,
+																 data->name));
+		}
 		else
 			return func->invoke(std::move(instance), args);
 	}
@@ -149,17 +184,10 @@ namespace sek
 		if (!invocable_with(values)) [[unlikely]]
 		{
 			const auto as = args();
-			std::string result = "Invalid argument types. Expected: [";
-			for (std::size_t i = 0, max = i < as.size();;)
-			{
-				result.append(1, '\"').append(as[i].name()).append(1, '\"');
-				if (++i != max) [[likely]]
-					result.append(", ");
-				else
-					break;
-			}
-			result.append("]");
-			throw bad_any_type(result);
+			throw any_type_error(SEK_LOG_FORMAT_NS::format(
+				"Invalid argument types. Expected: {}, got {}",
+				args_type_msg(as.begin(), as.end(), [](auto &&t) { return t.name(); }),
+				args_type_msg(values.begin(), values.end(), [](auto &&a) { return a.type().name(); })));
 		}
 		return true;
 	}

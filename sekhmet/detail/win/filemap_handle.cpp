@@ -61,10 +61,10 @@ namespace sek::detail
 		if (!mapping.ptr) [[unlikely]]
 			throw filemap_error("Failed to create file mapping object");
 
-		DWORD access = mode & filemap_in ? FILE_MAP_READ : 0;
-		if (mode & filemap_copy)
+		DWORD access = mode & native_in ? FILE_MAP_READ : 0;
+		if (mode & native_copy)
 			access |= FILE_MAP_COPY;
-		else if (mode & filemap_out)
+		else if (mode & native_out)
 			access |= FILE_MAP_WRITE;
 
 		view_ptr = MapViewOfFile(
@@ -87,7 +87,7 @@ namespace sek::detail
 		};
 
 		DWORD access = GENERIC_READ, share = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
-		if (mode & filemap_out) access |= GENERIC_WRITE;
+		if (mode & native_out) access |= GENERIC_WRITE;
 
 		auto file = raii_file{CreateFileW(
 			path, access, share, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_POSIX_SEMANTICS | FILE_FLAG_NO_BUFFERING, nullptr)};

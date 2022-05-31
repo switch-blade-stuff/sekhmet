@@ -85,13 +85,12 @@ namespace sek
 		{
 			static std::size_t read_impl(buffer_reader *r, void *dst, std::size_t n)
 			{
-				if (const auto left = static_cast<std::size_t>(r->src_end - r->src_pos); left < n) [[unlikely]]
+				if (r->src_pos == r->src_end) [[unlikely]]
+					return 0;
+				else if (const auto left = static_cast<std::size_t>(r->src_end - r->src_pos); left < n) [[unlikely]]
 					n = left;
-				if (n) [[likely]]
-				{
-					std::copy_n(r->src_pos, n, static_cast<std::byte *>(dst));
-					r->src_pos += n;
-				}
+				std::copy_n(r->src_pos, n, static_cast<std::byte *>(dst));
+				r->src_pos += n;
 				return n;
 			}
 
@@ -138,7 +137,13 @@ namespace sek
 				}
 				return true;
 			}
-			void reset() { free(data); }
+			void reset()
+			{
+				free(data);
+				data = nullptr;
+				capacity = 0;
+				size = 0;
+			}
 
 			void *data = nullptr;
 			std::size_t capacity = 0;
@@ -216,10 +221,11 @@ namespace sek
 		 * @param r Delegate used to read source (decompressed) data.
 		 * @param w Delegate used to write compressed data.
 		 * @param level Compression level. If set to 0, will use the implementation-defined default compression level.
-		 * @param frame_size Optional size of compression frames. If set to 0, will deduce compression frame size
+		 * @param frame_size Optional size of compression frames. If set to 0, compression frame size will be deduced
 		 * based on the compression level.
 		 * @note Compression stops once no more input can be read (read delegate returns 0).
 		 * @note Maximum compression level is 20.
+		 * @note Specifying explicit frame size may reduce memory usage.
 		 * @note If thread pool's size is 1, decompresses on the main thread, ignoring the thread pool.
 		 * @throw zstd_error When ZSTD encounters an error or when the write delegate cannot fully consume compressed data. */
 		SEK_API void compress(thread_pool &pool, read_t r, write_t w, std::uint32_t level = 0, std::uint32_t frame_size = 0);
@@ -227,10 +233,11 @@ namespace sek
 		 * @param r Delegate used to read source (decompressed) data.
 		 * @param w Delegate used to write compressed data.
 		 * @param level Compression level. If set to 0, will use the implementation-defined default compression level.
-		 * @param frame_size Optional size of compression frames. If set to 0, will deduce compression frame size
+		 * @param frame_size Optional size of compression frames. If set to 0, compression frame size will be deduced
 		 * based on the compression level.
 		 * @note Compression stops once no more input can be read (read delegate returns 0).
 		 * @note Maximum compression level is 20.
+		 * @note Specifying explicit frame size may reduce memory usage.
 		 * @throw zstd_error When ZSTD encounters an error or when the write delegate cannot fully consume compressed data. */
 		SEK_API void compress_st(read_t r, write_t w, std::uint32_t level = 0, std::uint32_t frame_size = 0);
 

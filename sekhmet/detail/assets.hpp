@@ -12,6 +12,7 @@
 #include "asset_stream.hpp"
 #include "basic_pool.hpp"
 #include "dense_map.hpp"
+#include "dense_set.hpp"
 #include "filemap.hpp"
 #include "intern.hpp"
 #include "service.hpp"
@@ -38,10 +39,9 @@ namespace sek
 			[[nodiscard]] constexpr loose_asset_info *as_loose() noexcept;
 			[[nodiscard]] constexpr archive_asset_info *as_archive() noexcept;
 
-			/* Parent fragment of the asset. */
-			package_base *parent = nullptr;
-			/* Optional name of the asset. */
-			interned_string name;
+			package_base *parent = nullptr;	 /* Parent fragment of the asset. */
+			interned_string name;			 /* Optional name of the asset. */
+			dense_set<interned_string> tags; /* Optional tags of the asset. */
 		};
 		struct loose_asset_info : asset_info_base
 		{
@@ -306,6 +306,8 @@ namespace sek
 		/** Returns the name of the asset.
 		 * @note If an asset does not have a name, it will be empty. */
 		[[nodiscard]] constexpr const interned_string &name() const noexcept { return handle.info->name; }
+		/** Returns reference to the set of asset's tags. */
+		[[nodiscard]] constexpr const dense_set<interned_string> &tags() const noexcept { return handle.info->tags; }
 
 		/** Opens an asset stream for this asset.
 		 * @param mode Mode in which to open the asset stream.
