@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include <memory>
 #include <mutex>
 
 #include "bswap.hpp"
@@ -358,13 +357,7 @@ namespace sek
 			/* Stack allocation here is fine, since std::future is not a large structure. */
 			auto *wait_buf = static_cast<std::future<void> *>(ALLOCA(sizeof(std::future<void>) * n));
 #else
-			struct deleter
-			{
-				constexpr void operator()(std::future<void> *ptr) const { ::operator delete[](ptr); }
-			};
-			auto wait_buf_ptr = std::unique_ptr<std::future<void>, deleter>(
-				static_cast<std::future<void> *>(::operator new[](sizeof(std::future<void>) * n)));
-			auto wait_buf = std::to_address(wait_buf_ptr);
+			auto *wait_buf = static_cast<std::future<void> *>(::operator new[](sizeof(std::future<void>) * n));
 #endif
 
 			std::exception_ptr eptr = {};
@@ -376,7 +369,8 @@ namespace sek
 			}
 			catch (...)
 			{
-				/* Store thrown exception, since we still need to clean up allocated buffers. */
+				/* Store thrown exception, since we still need to clean up any buffers allocated by the worker threads.
+				 * Some worker threads might have had a chance to execute. */
 				eptr = std::current_exception();
 				goto cleanup;
 			}
@@ -402,6 +396,10 @@ namespace sek
 		cleanup:
 			clear_tasks();
 			for (std::size_t i = 0; i < n; ++i) std::destroy_at(wait_buf + i);
+
+#ifndef ALLOCA
+			::operator delete[](wait_buf);
+#endif
 
 			if (eptr) [[unlikely]]
 				std::rethrow_exception(eptr);

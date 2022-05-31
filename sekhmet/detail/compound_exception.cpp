@@ -18,11 +18,11 @@ namespace sek
 			}
 			catch (std::exception &e)
 			{
-				result.append(e.what()).append(1, '\n');
+				result.append("what(): \"").append(e.what()).append("\"\n");
 			}
 			catch (...)
 			{
-				result.append("Unknown exception type\n");
+				result.append("Non `std::exception`-derived exception\n");
 			}
 		}
 		return result;
