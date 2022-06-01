@@ -98,6 +98,7 @@ namespace sek::detail
 		[[nodiscard]] bool sync() { return handle.sync(); }
 
 		constexpr void swap(native_file &other) noexcept { handle.swap(other.handle); }
+		friend constexpr void swap(native_file &a, native_file &b) noexcept { a.swap(b); }
 
 	private:
 		handle_t handle;

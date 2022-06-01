@@ -75,7 +75,9 @@ namespace sek::serialization::json
 	 * which represent a Json object or array. These frames are then passed to deserialization functions
 	 * of serializable types.
 	 *
-	 * @tparam Config Configuration flags used for the archive. */
+	 * @tparam Config Configuration flags used for the archive.
+	 * @note Json input archives can outlive the source they were initialized from, and can thus be used
+	 * to cache json data to be deserialized later. */
 	template<config_flags Config>
 	class basic_input_archive : detail::base_archive
 	{
@@ -298,7 +300,8 @@ namespace sek::serialization::json
 	 *
 	 * @tparam Config Configuration flags used for the archive.
 	 * @tparam IndentC Indentation character used if `pretty_print` flag is present.
-	 * @tparam IndentN Amount of indentation characters used if `pretty_print` flag is present. */
+	 * @tparam IndentN Amount of indentation characters used if `pretty_print` flag is present.
+	 * @note Json output archives may not outlive the destination stream, buffer, file or archive writer they were initialized from. */
 	template<config_flags Config, char IndentC = ' ', std::size_t IndentN = 4>
 	class basic_output_archive : detail::base_archive
 	{

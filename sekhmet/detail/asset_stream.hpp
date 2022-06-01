@@ -98,6 +98,7 @@ namespace sek
 			std::swap(size, other.size);
 			std::swap(curr, other.curr);
 		}
+		friend constexpr void swap(asset_membuf &a, asset_membuf &b) noexcept { a.swap(b); }
 
 		char *data = nullptr; /* Start of the buffer. */
 		union
@@ -181,6 +182,21 @@ namespace sek
 
 		/** Checks if the asset buffer is backed by an open file. */
 		[[nodiscard]] constexpr bool is_open() const noexcept { return source_file.is_open(); }
+
+		constexpr void swap(basic_asset_buff &other) noexcept
+		{
+			using std::swap;
+			swap(conv_state_init, other.conv_state_init);
+			swap(conv_state_curr, other.conv_state_curr);
+			swap(conv_state_base, other.conv_state_base);
+			swap(conv, other.conv);
+			swap(int_buff, other.int_buff);
+			swap(int_size, other.int_size);
+			swap(ext_buff, other.ext_buff);
+			swap(source_file, other.source_file);
+			swap(io_mode, other.io_mode);
+			swap(status, other.status);
+		}
 
 	protected:
 		int_type overflow(int_type c = traits_type::eof()) override

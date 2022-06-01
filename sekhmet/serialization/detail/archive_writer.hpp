@@ -180,7 +180,8 @@ namespace sek::serialization
 		};
 
 	public:
-		archive_writer() = delete;
+		/** Initializes an empty writer. */
+		constexpr archive_writer() noexcept = default;
 
 		constexpr archive_writer(const callback_info *callbacks, void *data) noexcept
 			: vtable(&generic_vtable), data(generic_data_t{callbacks, data})
@@ -205,13 +206,16 @@ namespace sek::serialization
 		constexpr archive_writer(sbuf_type *sbuf) noexcept : vtable(&sbuf_vtable), data(sbuf) {}
 		constexpr archive_writer(FILE *file) noexcept : vtable(&file_vtable), data(file) {}
 
+		/** Checks if the writer was fully initialized. */
+		[[nodiscard]] constexpr bool empty() { return vtable == nullptr; }
+
 		std::size_t putn(const char_type *src, std::size_t n) { return vtable->putn(&data, src, n); }
 		std::size_t tell() { return vtable->tell(&data); }
 		void put(char_type c) { vtable->put(&data, c); }
 		void flush() { vtable->flush(&data); }
 
 	private:
-		const vtable_t *vtable;
+		const vtable_t *vtable = nullptr;
 		data_t data;
 	};
 }	 // namespace sek::serialization

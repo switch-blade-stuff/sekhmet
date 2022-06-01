@@ -89,7 +89,9 @@ namespace sek::serialization::ubj
 	 * which represent a Json object or array. These frames are then passed to deserialization functions
 	 * of serializable types.
 	 *
-	 * @tparam Config Configuration flags used for the archive. */
+	 * @tparam Config Configuration flags used for the archive.
+	 * @note UBJson input archives can outlive the source they were initialized from, and can thus be used
+	 * to cache json data to be deserialized later. */
 	template<config_flags Config>
 	class basic_input_archive : detail::base_archive
 	{
@@ -464,7 +466,8 @@ namespace sek::serialization::ubj
 	 * which represent a Json object or array. These frames are then passed to serialization functions
 	 * of serializable types.
 	 *
-	 * @tparam Config Configuration flags used for the archive. */
+	 * @tparam Config Configuration flags used for the archive.
+	 * @note UBJson output archives may not outlive the destination stream, buffer, file or archive writer they were initialized from. */
 	template<config_flags Config>
 	class basic_output_archive : detail::base_archive
 	{

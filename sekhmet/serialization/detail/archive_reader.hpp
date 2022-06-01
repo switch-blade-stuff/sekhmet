@@ -236,7 +236,8 @@ namespace sek::serialization
 		};
 
 	public:
-		archive_reader() = delete;
+		/** Initializes an empty reader. */
+		constexpr archive_reader() noexcept = default;
 
 		constexpr archive_reader(const callback_info *callbacks, void *data) noexcept
 			: vtable(&generic_vtable), data(generic_data_t{callbacks, data})
@@ -261,6 +262,9 @@ namespace sek::serialization
 		constexpr archive_reader(sbuf_type *sbuf) noexcept : vtable(&sbuf_vtable), data(sbuf) {}
 		constexpr archive_reader(FILE *file) noexcept : vtable(&file_vtable), data(file) {}
 
+		/** Checks if the reader was fully initialized. */
+		[[nodiscard]] constexpr bool empty() { return vtable == nullptr; }
+
 		std::size_t getn(char_type *dst, std::size_t n) { return vtable->getn(&data, dst, n); }
 		std::size_t bump(std::size_t n) { return vtable->bump(&data, n); }
 		std::size_t tell() { return vtable->tell(&data); }
@@ -268,7 +272,7 @@ namespace sek::serialization
 		int_type take() { return vtable->take(&data); }
 
 	private:
-		const vtable_t *vtable;
+		const vtable_t *vtable = nullptr;
 		data_t data;
 	};
 }	 // namespace sek::serialization
