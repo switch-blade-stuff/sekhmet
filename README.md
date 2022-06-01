@@ -5,7 +5,7 @@ room for skill ceiling.
 
 ### Goals
 
-* Open-source and free to use (full license is WIP).
+* Open-source and free to use (LGPL license).
 * Low on external dependencies. No frameworks, but independent libraries are allowed.
 * Expose as much functionality to the user as possible. Allow the user to make light customizations of the engine
   without forking the project.
