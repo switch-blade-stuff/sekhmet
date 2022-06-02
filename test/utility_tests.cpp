@@ -10,11 +10,11 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  * ============================================================================
  *
  * Created by switchblade on 2022-03-03
@@ -260,6 +260,20 @@ TEST(utility_tests, event_test)
 	i = 0;
 	event(i);
 	EXPECT_EQ(i, 2);
+
+	event.clear();
+	EXPECT_TRUE(event.empty());
+
+	{
+		sek::subscriber_handle<sek::event<void(int &)>> handle;
+		EXPECT_TRUE(handle.empty());
+
+		handle.manage(event += +[](int) {}, event);
+		EXPECT_FALSE(handle.empty());
+		EXPECT_FALSE(event.empty());
+	}
+
+	EXPECT_TRUE(event.empty());
 }
 
 #include "sekhmet/message.hpp"

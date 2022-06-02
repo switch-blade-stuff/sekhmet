@@ -10,11 +10,11 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  * ============================================================================
  *
  * Created by switchblade on 2022-03-13
@@ -25,8 +25,8 @@
 #include <chrono>
 #include <random>
 
-#include "sekhmet/math/detail/sysrandom.hpp"
-#include "sekhmet/math/detail/xoroshiro.hpp"
+#include "../math/detail/sysrandom.hpp"
+#include "../math/detail/xoroshiro.hpp"
 
 namespace sek
 {
