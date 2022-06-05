@@ -144,6 +144,14 @@ namespace sek::math
 		return basic_vector<T, 2, P>{dot(v, m[0]), dot(v, m[1])};
 	}
 
+	template<typename T, std::size_t N, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_matrix<T, 2, 2, Sp> transpose(const basic_matrix<T, 2, 2, Sp> &m) noexcept
+	{
+		const auto r0 = m.row(0);
+		const auto r1 = m.row(1);
+		return basic_matrix<T, 2, 2, Sp>{r0, r1};
+	}
+
 	template<arithmetic T, storage_policy P>
 	struct basic_matrix<T, 2, 3, P>
 	{
@@ -265,6 +273,15 @@ namespace sek::math
 															const basic_matrix<T, 2, 3, P> &m) noexcept
 	{
 		return basic_vector<T, 2, P>{dot(v, m[0]), dot(v, m[1])};
+	}
+
+	template<typename T, std::size_t N, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_matrix<T, 3, 2, Sp> transpose(const basic_matrix<T, 2, 3, Sp> &m) noexcept
+	{
+		const auto r0 = m.row(0);
+		const auto r1 = m.row(1);
+		const auto r2 = m.row(2);
+		return basic_matrix<T, 3, 2, Sp>{r0, r1, r2};
 	}
 
 	template<arithmetic T, storage_policy P>
@@ -392,5 +409,15 @@ namespace sek::math
 															const basic_matrix<T, 2, 4, P> &m) noexcept
 	{
 		return basic_vector<T, 2, P>{dot(v, m[0]), dot(v, m[1])};
+	}
+
+	template<typename T, std::size_t N, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_matrix<T, 4, 2, Sp> transpose(const basic_matrix<T, 2, 4, Sp> &m) noexcept
+	{
+		const auto r0 = m.row(0);
+		const auto r1 = m.row(1);
+		const auto r2 = m.row(2);
+		const auto r3 = m.row(3);
+		return basic_matrix<T, 4, 2, Sp>{r0, r1, r2, r3};
 	}
 }	 // namespace sek::math

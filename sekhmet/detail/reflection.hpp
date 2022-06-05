@@ -242,7 +242,6 @@ namespace sek
 			const type_handle value_type; /* Underlying value type of either a pointer or a range. */
 			const flags_t flags;
 
-			void (*destructor)(any) = nullptr; /* Placement destructor. */
 			node_list<ctor_node> constructors = {};
 			node_list<func_node> funcs = {};
 
@@ -390,7 +389,7 @@ namespace sek
 		explicit any_const_error(const char *msg) : type_info_error(msg) {}
 		~any_const_error() override = default;
 	};
-	/** @brief Exception thrown when a reflected type does not have the specified member function/constructor or field. */
+	/** @brief Exception thrown when a reflected type does not have the specified member function/constructor. */
 	class invalid_member_error : public type_info_error
 	{
 	public:

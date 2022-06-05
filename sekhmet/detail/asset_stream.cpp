@@ -24,7 +24,6 @@
 
 namespace sek
 {
-	namespace detail
-	{
-	}	 // namespace detail
+	template class SEK_API_EXPORT basic_asset_stream<char>;
+	template class SEK_API_EXPORT basic_asset_stream<wchar_t>;
 }	 // namespace sek

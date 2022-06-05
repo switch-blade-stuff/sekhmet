@@ -440,20 +440,17 @@ namespace sek::detail
 		{
 			return static_cast<size_type>(std::distance(begin(bucket), end(bucket)));
 		}
-		[[nodiscard]] constexpr size_type bucket(const key_type &key) const noexcept
-		{
-			return *get_chain(key_hash(key));
-		}
+		[[nodiscard]] constexpr size_type bucket(const auto &key) const noexcept { return *get_chain(key_hash(key)); }
 		[[nodiscard]] constexpr size_type bucket(const_iterator iter) const noexcept
 		{
 			return *get_chain(iter.ptr->hash);
 		}
 
-		[[nodiscard]] constexpr iterator find(const key_type &key) noexcept
+		[[nodiscard]] constexpr iterator find(const auto &key) noexcept
 		{
 			return begin() + static_cast<difference_type>(find_impl(key_hash(key), key));
 		}
-		[[nodiscard]] constexpr const_iterator find(const key_type &key) const noexcept
+		[[nodiscard]] constexpr const_iterator find(const auto &key) const noexcept
 		{
 			return cbegin() + static_cast<difference_type>(find_impl(key_hash(key), key));
 		}
@@ -511,7 +508,7 @@ namespace sek::detail
 			return {begin() + static_cast<difference_type>(pos), true};
 		}
 		template<typename... Args>
-		constexpr std::pair<iterator, bool> try_emplace(const key_type &key, Args &&...args)
+		constexpr std::pair<iterator, bool> try_emplace(const auto &key, Args &&...args)
 		{
 			// clang-format off
 			return try_insert_impl(key, std::piecewise_construct,
@@ -569,7 +566,15 @@ namespace sek::detail
 			return result;
 		}
 		constexpr iterator erase(const_iterator where) { return erase_impl(where.ptr->hash, get_key(*where.get())); }
-		constexpr iterator erase(const key_type &key) { return erase_impl(key_hash(key), key); }
+
+		// clang-format off
+		template<typename T>
+		constexpr iterator erase(const T &key) requires(!std::same_as<std::decay_t<const_iterator>, T> &&
+		                                                !std::same_as<std::decay_t<iterator>, T>)
+		{
+			return erase_impl(key_hash(key), key);
+		}
+		// clang-format on
 
 		[[nodiscard]] constexpr auto value_allocator() const noexcept { return value_vector().get_allocator(); }
 		[[nodiscard]] constexpr auto bucket_allocator() const noexcept { return bucket_vector().get_allocator(); }
@@ -590,11 +595,8 @@ namespace sek::detail
 		[[nodiscard]] constexpr auto &bucket_vector() noexcept { return sparse_data.first(); }
 		[[nodiscard]] constexpr const auto &bucket_vector() const noexcept { return sparse_data.first(); }
 
-		[[nodiscard]] constexpr auto key_hash(const key_type &k) const { return sparse_data.second()(k); }
-		[[nodiscard]] constexpr auto key_comp(const key_type &a, const key_type &b) const
-		{
-			return dense_data.second()(a, b);
-		}
+		[[nodiscard]] constexpr auto key_hash(const auto &k) const { return sparse_data.second()(k); }
+		[[nodiscard]] constexpr auto key_comp(const auto &a, const auto &b) const { return dense_data.second()(a, b); }
 		[[nodiscard]] constexpr auto *get_chain(hash_t h) noexcept
 		{
 			auto idx = h % bucket_vector().size();
@@ -606,7 +608,7 @@ namespace sek::detail
 			return bucket_vector().data() + idx;
 		}
 
-		[[nodiscard]] constexpr size_type find_impl(hash_t h, const key_type &key) const noexcept
+		[[nodiscard]] constexpr size_type find_impl(hash_t h, const auto &key) const noexcept
 		{
 			for (auto *idx = get_chain(h); *idx != npos;)
 				if (auto &entry = value_vector()[*idx]; entry.hash == h && key_comp(key, entry.key()))
@@ -617,7 +619,7 @@ namespace sek::detail
 		}
 
 		template<typename T>
-		[[nodiscard]] constexpr std::pair<iterator, bool> insert_impl(const key_type &key, T &&value) noexcept
+		[[nodiscard]] constexpr std::pair<iterator, bool> insert_impl(const auto &key, T &&value) noexcept
 		{
 			/* See if we can replace any entry. */
 			const auto h = key_hash(key);
@@ -646,7 +648,7 @@ namespace sek::detail
 			return {begin() + static_cast<difference_type>(pos), true};
 		}
 		template<typename... Args>
-		[[nodiscard]] constexpr std::pair<iterator, bool> try_insert_impl(const key_type &key, Args &&...args) noexcept
+		[[nodiscard]] constexpr std::pair<iterator, bool> try_insert_impl(const auto &key, Args &&...args) noexcept
 		{
 			/* See if an entry already exists. */
 			const auto h = key_hash(key);
@@ -671,7 +673,7 @@ namespace sek::detail
 		}
 		constexpr void rehash_impl(size_type new_cap)
 		{
-			/* Clear & resize the vector filled with npos. */
+			/* Clear & reserve the vector filled with npos. */
 			bucket_vector().clear();
 			bucket_vector().resize(new_cap, npos);
 
@@ -687,7 +689,7 @@ namespace sek::detail
 			}
 		}
 
-		constexpr iterator erase_impl(hash_t h, const key_type &key)
+		constexpr iterator erase_impl(hash_t h, const auto &key)
 		{
 			/* Remove the entry from it's chain. */
 			for (auto *chain_idx = get_chain(h); *chain_idx != npos;)

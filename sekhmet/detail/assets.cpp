@@ -26,6 +26,7 @@
 
 #include "sekhmet/serialization/json.hpp"
 #include "sekhmet/serialization/ubjson.hpp"
+#include "zstd_util.hpp"
 
 #ifdef SEK_OS_WIN
 #define MANIFEST_FILE_NAME L".manifest"
@@ -100,43 +101,104 @@ namespace sek
 				archive << serialization::keyed_entry("name", info.name);
 		}
 
+		std::filesystem::path loose_asset_info::full_path() const { return parent->path / file; }
+
+		void package_base::acquire() { master()->acquire_impl(); }
+		void package_base::release() { master()->release_impl(); }
 		void master_package::acquire_impl() { ref_count++; }
 		void master_package::release_impl()
 		{
 			if (ref_count.fetch_sub(1) == 1) [[unlikely]]
 				delete this;
 		}
-		void package_base::acquire() { master()->acquire_impl(); }
-		void package_base::release() { master()->release_impl(); }
 
-		std::filesystem::path loose_asset_info::full_path() const { return parent->path / file; }
-		filemap asset_handle::to_filemap(filemap::openmode mode) const
+		archive_master_package::~archive_master_package()
 		{
-			/* Reset "out" mode if the parent is an archive. */
-			if (parent()->is_archive() && (mode & filemap::out)) [[unlikely]]
-				mode ^= filemap::out;
-
-			const auto slice = info->as_archive()->slice;
-			const auto &path = parent()->path;
-			if (!std::filesystem::exists(path)) [[unlikely]]
-				throw std::runtime_error("Invalid asset package archive path");
-			return filemap{parent()->path, slice.first, slice.second, mode};
+			for (auto entry : database.assets) destroy_asset_info(entry.second);
+		}
+		void archive_master_package::destroy_asset_info(asset_info_base *info)
+		{
+			std::destroy_at(static_cast<archive_asset_info *>(info));
+		}
+		loose_master_package::~loose_master_package()
+		{
+			for (auto entry : database.assets) destroy_asset_info(entry.second);
+		}
+		void loose_master_package::destroy_asset_info(asset_info_base *info)
+		{
+			std::destroy_at(static_cast<loose_asset_info *>(info));
 		}
 
-		void asset_database::merge(const asset_database &other)
+		static auto &asset_thread_pool()
 		{
-			for (auto entry : other.assets)
+			static thread_pool instance;
+			return instance;
+		}
+
+		std::string asset_handle::read_archive() const
+		{
+			constexpr auto writer = +[](std::string *s, const void *src, std::size_t n)
 			{
-				const auto id = entry.first;
-				const auto ptr = entry.second;
+				auto chars = static_cast<const char *>(src);
+				s->insert(s->size(), chars, n);
+				return n;
+			};
 
-				assets.insert({id, ptr});
-				if (auto &name = ptr->name; !name.empty()) [[likely]]
-					name_table.insert({name.sv(), id});
+			auto &ctx = zstd_thread_ctx::instance();
+			auto &pool = asset_thread_pool();
+
+			auto archive_info = info->as_archive();
+			auto path = archive_info->parent->path;
+			auto slice = archive_info->slice;
+			std::string result;
+
+			FILE *archive_file = fopen(path.c_str(), "rb");
+			{
+				if (archive_file == nullptr) [[unlikely]]
+				{
+					std::string msg = "Failed to open asset archive at path \"";
+					throw std::runtime_error(msg.append(path.native()).append(1, '\"'));
+				}
+
+#if defined(_POSIX_C_SOURCE)
+#if _FILE_OFFSET_BITS < 64
+				auto err = fseeko64(archive_file, static_cast<off64_t>(slice.first), SEEK_SET);
+#else
+				auto err = fseeko(archive_file, static_cast<off_t>(slice.first), SEEK_SET);
+#endif
+#elif defined(SEK_OS_WIN)
+				auto err = _fseeki64(archive_file, static_cast<__int64>(slice.first), SEEK_SET);
+#else
+				auto err = fseek(archive_file, static_cast<long>(slice.first), SEEK_SET);
+#endif
+				if (err != 0) [[unlikely]]
+				{
+					std::string msg = "Failed to seek asset archive at path \"";
+					msg.append(path.native()).append("\" to position [").append(std::to_string(slice.first)).append(1, ']');
+					throw std::runtime_error(msg);
+				}
 			}
+
+			try
+			{
+				ctx.decompress(pool, zstd_thread_ctx::file_reader{archive_file, slice.second}, sek::delegate{writer, result});
+				fclose(archive_file);
+			}
+			catch (...)
+			{
+				fclose(archive_file);
+				throw;
+			}
+
+			return result;
 		}
+
+		template SEK_API_EXPORT basic_asset_stream<char, std::char_traits<char>>
+			asset_handle::stream(std::ios::openmode, const std::locale &) const;
+		template SEK_API_EXPORT basic_asset_stream<wchar_t, std::char_traits<wchar_t>>
+			asset_handle::stream(std::ios::openmode, const std::locale &) const;
 	}	 // namespace detail
 
-//	asset asset::load(uuid id) { return asset(); }
-//	asset asset::load(std::string_view name) { return asset(); }
+	//	asset asset::load(uuid id) { return asset(); }
+	//	asset asset::load(std::string_view name) { return asset(); }
 }	 // namespace sek

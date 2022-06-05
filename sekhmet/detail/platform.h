@@ -118,3 +118,13 @@ typedef int32_t ssize_t;
 #define SSIZE_MAX INT32_MAX
 #endif
 #endif
+
+#ifndef SEK_ALLOCA
+#if defined(SEK_OS_WIN)
+#include <malloc.h>
+#define SEK_ALLOCA(n) _alloca(n)
+#elif defined(__GNUC__)
+#include <alloca.h>
+#define SEK_ALLOCA(n) alloca(n)
+#endif
+#endif

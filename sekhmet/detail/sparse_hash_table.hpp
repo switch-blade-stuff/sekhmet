@@ -304,7 +304,7 @@ namespace sek::detail
 
 		template<bool RequireOccupied>
 		[[nodiscard]] constexpr static bucket_type *
-			find_bucket_impl(bucket_type *data, size_type capacity, const key_type &key, auto hash, const key_equal &compare) noexcept
+			find_bucket_impl(bucket_type *data, size_type capacity, const auto &key, auto hash, const key_equal &compare) noexcept
 		{
 			if (capacity != 0) [[likely]] /* Initially, capacity is 0, so need to check. */
 			{
@@ -455,11 +455,11 @@ namespace sek::detail
 		}
 		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return buckets_capacity; }
 
-		[[nodiscard]] constexpr iterator find(const key_type &key) noexcept
+		[[nodiscard]] constexpr iterator find(const auto &key) noexcept
 		{
 			return iterator_from_bucket(find_bucket<true>(key));
 		}
-		[[nodiscard]] constexpr const_iterator find(const key_type &key) const noexcept
+		[[nodiscard]] constexpr const_iterator find(const auto &key) const noexcept
 		{
 			return iterator_from_bucket(find_bucket<true>(key));
 		}
@@ -495,7 +495,7 @@ namespace sek::detail
 			return {iterator_from_bucket(dest), inserted};
 		}
 		template<typename... Args>
-		constexpr std::pair<iterator, bool> try_emplace(const key_type &key, Args &&...args)
+		constexpr std::pair<iterator, bool> try_emplace(const auto &key, Args &&...args)
 		{
 			maybe_rehash();
 
@@ -751,12 +751,12 @@ namespace sek::detail
 		}
 
 		template<bool RequireOccupied = true>
-		[[nodiscard]] constexpr bucket_type *find_bucket(const key_type &key) const noexcept
+		[[nodiscard]] constexpr bucket_type *find_bucket(const auto &key) const noexcept
 		{
 			return find_bucket<RequireOccupied>(key, get_hash()(key));
 		}
 		template<bool RequireOccupied = true>
-		[[nodiscard]] constexpr bucket_type *find_bucket(const key_type &key, auto hash) const noexcept
+		[[nodiscard]] constexpr bucket_type *find_bucket(const auto &key, auto hash) const noexcept
 		{
 			return find_bucket_impl<RequireOccupied>(buckets_data, buckets_capacity, key, hash, get_comp());
 		}

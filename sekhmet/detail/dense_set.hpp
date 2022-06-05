@@ -67,6 +67,14 @@ namespace sek
 
 		using table_type = detail::dense_hash_table<T, T, value_traits, KeyHash, KeyComp, forward_identity, Alloc>;
 
+		// clang-format off
+		constexpr static bool transparent_key = requires
+		{
+			typename KeyHash::is_transparent;
+			typename KeyComp::is_transparent;
+		};
+		// clang-format on
+
 	public:
 		typedef typename table_type::const_pointer pointer;
 		typedef typename table_type::const_pointer const_pointer;
@@ -282,9 +290,31 @@ namespace sek
 		constexpr iterator find(const key_type &key) noexcept { return data_table.find(key); }
 		/** @copydoc find */
 		constexpr const_iterator find(const key_type &key) const noexcept { return data_table.find(key); }
+		/** @copydoc find
+		 * @note This overload participates in overload resolution only
+		 * if both key hasher and key comparator are transparent. */
+		constexpr const_iterator find(const auto &key) noexcept
+			requires transparent_key
+		{
+			return data_table.find(key);
+		}
+		/** @copydoc find */
+		constexpr const_iterator find(const auto &key) const noexcept
+			requires transparent_key
+		{
+			return data_table.find(key);
+		}
 		/** Checks if the set contains a specific element.
 		 * @param key Key to search for. */
 		constexpr bool contains(const key_type &key) const noexcept { return find(key) != end(); }
+		/** @copydoc contains
+		 * @note This overload participates in overload resolution only
+		 * if both key hasher and key comparator are transparent. */
+		constexpr bool contains(const auto &key) const noexcept
+			requires transparent_key
+		{
+			return find(key) != end();
+		}
 
 		/** Empties the set's contents. */
 		constexpr void clear() { data_table.clear(); }
@@ -388,10 +418,7 @@ namespace sek
 		 * If same values are already present within the set, replaces them.
 		 * @param il Initializer list containing the values.
 		 * @return Amount of new elements inserted. */
-		constexpr size_type insert(std::initializer_list<value_type> il)
-		{
-			return insert(il.begin(), il.end());
-		}
+		constexpr size_type insert(std::initializer_list<value_type> il) { return insert(il.begin(), il.end()); }
 
 		/** Removes the specified element from the set.
 		 * @param where Iterator to the target element.
@@ -406,6 +433,20 @@ namespace sek
 		 * @param value Value of the target element.
 		 * @return `true` if the element was removed, `false` otherwise. */
 		constexpr bool erase(const key_type &value)
+		{
+			if (auto target = data_table.find(value); target != data_table.end())
+			{
+				data_table.erase(target);
+				return true;
+			}
+			else
+				return false;
+		}
+		/** @copydoc erase
+		 * @note This overload participates in overload resolution only
+		 * if both key hasher and key comparator are transparent. */
+		constexpr bool erase(const auto &value)
+			requires transparent_key
 		{
 			if (auto target = data_table.find(value); target != data_table.end())
 			{
@@ -455,6 +496,14 @@ namespace sek
 		}
 		/** Returns the index of the bucket associated with a key. */
 		[[nodiscard]] constexpr size_type bucket(const key_type &key) const noexcept { return data_table.bucket(key); }
+		/** @copydoc bucket
+		 * @note This overload participates in overload resolution only
+		 * if both key hasher and key comparator are transparent. */
+		[[nodiscard]] constexpr size_type bucket(const auto &key) const noexcept
+			requires transparent_key
+		{
+			return data_table.bucket(key);
+		}
 		/** Returns the index of the bucket containing the pointed-to element. */
 		[[nodiscard]] constexpr size_type bucket(const_iterator iter) const noexcept { return data_table.bucket(iter); }
 

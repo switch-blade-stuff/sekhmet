@@ -121,7 +121,7 @@ namespace sek
 
 		static basic_intern_pool &global()
 		{
-			static basic_intern_pool instance;
+			thread_local basic_intern_pool instance;
 			return instance;
 		}
 
@@ -283,7 +283,8 @@ namespace sek
 		}
 		// clang-format on
 
-		/** Interns the passed string using the global pool. */
+		/** Interns the passed string using the global (per-thread) pool.
+		 * @note Global pools are thread-specific to avoid the need for synchronization. */
 		constexpr basic_interned_string(std::basic_string_view<C, Traits> sv)
 			: basic_interned_string(pool_type::global(), sv)
 		{
@@ -724,8 +725,35 @@ namespace sek
 template<typename C, typename T>
 struct std::hash<sek::basic_interned_string<C, T>>
 {
+	typedef std::true_type is_transparent;
+
 	[[nodiscard]] constexpr sek::hash_t operator()(const sek::basic_interned_string<C, T> &s) const noexcept
 	{
-		return sek::hash(s);
+		return sek::fnv1a(s.data(), s.size());
+	}
+	[[nodiscard]] constexpr sek::hash_t operator()(std::basic_string_view<C, T> sv) const noexcept
+	{
+		return sek::fnv1a(sv.data(), sv.size());
+	}
+};
+template<typename C, typename T>
+struct std::equal_to<sek::basic_interned_string<C, T>>
+{
+	typedef std::true_type is_transparent;
+
+	[[nodiscard]] constexpr bool operator()(const sek::basic_interned_string<C, T> &a,
+											const sek::basic_interned_string<C, T> &b) const noexcept
+	{
+		return a == b;
+	}
+	template<typename K>
+	[[nodiscard]] constexpr bool operator()(const sek::basic_interned_string<C, T> &a, K &&b) const noexcept
+	{
+		return a == b;
+	}
+	template<typename K>
+	[[nodiscard]] constexpr bool operator()(K &&a, const sek::basic_interned_string<C, T> &b) const noexcept
+	{
+		return b == a;
 	}
 };

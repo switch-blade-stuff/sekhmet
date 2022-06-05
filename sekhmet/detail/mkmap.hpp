@@ -1238,7 +1238,7 @@ namespace sek
 			}
 			constexpr void rehash_impl(size_type new_cap)
 			{
-				/* Clear & resize the bucket vector filled with npos. */
+				/* Clear & reserve the bucket vector filled with npos. */
 				buckets.clear();
 				buckets.resize(new_cap);
 

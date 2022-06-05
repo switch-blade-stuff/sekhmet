@@ -220,7 +220,7 @@ namespace sek
 			const auto pos = std::distance(begin(), where);
 			if (where < end()) ++(id_data.begin()[sub_data.begin()[pos].id]);
 
-			/* Insert the subscriber & resize the id list if needed. */
+			/* Insert the subscriber & reserve the id list if needed. */
 			sub_data.emplace(sub_data.begin() + pos, subscriber);
 			if (sub_data.size() > id_data.size()) [[unlikely]]
 				id_data.resize(sub_data.size() * 2, detail::event_placeholder);

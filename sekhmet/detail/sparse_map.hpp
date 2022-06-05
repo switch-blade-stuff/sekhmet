@@ -57,6 +57,13 @@ namespace sek
 
 	private:
 		using table_type = detail::sparse_hash_table<K, value_type, KeyHash, KeyComp, pair_first, Alloc>;
+		// clang-format off
+		constexpr static bool transparent_key = requires
+		{
+			typename KeyHash::is_transparent;
+			typename KeyComp::is_transparent;
+		};
+		// clang-format on
 
 	public:
 		typedef typename table_type::pointer pointer;
@@ -257,10 +264,32 @@ namespace sek
 		constexpr iterator find(const key_type &key) noexcept { return data_table.find(key); }
 		/** @copydoc find */
 		constexpr const_iterator find(const key_type &key) const noexcept { return data_table.find(key); }
+		/** @copydoc find
+		 * @note This overload participates in overload resolution only
+		 * if both key hasher and key comparator are transparent. */
+		constexpr const_iterator find(const auto &key) noexcept
+			requires transparent_key
+		{
+			return data_table.find(key);
+		}
+		/** @copydoc find */
+		constexpr const_iterator find(const auto &key) const noexcept
+			requires transparent_key
+		{
+			return data_table.find(key);
+		}
 
 		/** Checks if the map contains an element with specific key.
 		 * @param key Key to search for. */
 		constexpr bool contains(const key_type &key) const noexcept { return find(key) != end(); }
+		/** @copydoc contains
+		 * @note This overload participates in overload resolution only
+		 * if both key hasher and key comparator are transparent. */
+		constexpr bool contains(const auto &key) noexcept
+			requires transparent_key
+		{
+			return find(key) != end();
+		}
 
 		/** Returns reference to object mapped to the specific key.
 		 * @param key Key to search for.
@@ -284,6 +313,26 @@ namespace sek
 			else
 				throw std::out_of_range("Specified key is not present within the map");
 		}
+		/** @copydoc at
+		 * @note This overload participates in overload resolution only
+		 * if both key hasher and key comparator are transparent. */
+		constexpr mapped_type &at(const auto &key)
+			requires transparent_key
+		{
+			if (auto iter = find(key); iter != end()) [[likely]]
+				return iter->second;
+			else
+				throw std::out_of_range("Specified key is not present within the map");
+		}
+		/** @copydoc at */
+		constexpr const mapped_type &at(const auto &key) const
+			requires transparent_key
+		{
+			if (auto iter = find(key); iter != end()) [[likely]]
+				return iter->second;
+			else
+				throw std::out_of_range("Specified key is not present within the map");
+		}
 
 		/** Returns reference to object at the specific key or inserts a new value if it does not exist.
 		 * @param key Key to search for.
@@ -298,6 +347,14 @@ namespace sek
 		constexpr mapped_type &operator[](key_type &&key) noexcept
 		{
 			return try_emplace(std::forward<key_type>(key), mapped_type{}).first->second;
+		}
+		/** @copydoc operator[]
+		 * @note This overload participates in overload resolution only
+		 * if both key hasher and key comparator are transparent. */
+		constexpr mapped_type &operator[](const auto &key)
+			requires transparent_key
+		{
+			return try_emplace(key, mapped_type{}).first->second;
 		}
 
 		/** Empties the map's contents. */
@@ -322,6 +379,15 @@ namespace sek
 		/** @copydoc try_emplace */
 		template<typename... Args>
 		constexpr std::pair<iterator, bool> try_emplace(const key_type &key, Args &&...args)
+		{
+			return data_table.try_emplace(key, std::forward<Args>(args)...);
+		}
+		/** @copydoc try_emplace
+		 * @note This overload participates in overload resolution only
+		 * if both key hasher and key comparator are transparent. */
+		template<typename... Args>
+		constexpr std::pair<iterator, bool> try_emplace(const auto &key, Args &&...args)
+			requires transparent_key
 		{
 			return data_table.try_emplace(key, std::forward<Args>(args)...);
 		}
@@ -419,10 +485,7 @@ namespace sek
 		 * If values with the same key are already present within the map, replaces them.
 		 * @param il Initializer list containing the values.
 		 * @return Amount of new elements inserted. */
-		constexpr size_type insert(std::initializer_list<value_type> il)
-		{
-			return insert(il.begin(), il.end());
-		}
+		constexpr size_type insert(std::initializer_list<value_type> il) { return insert(il.begin(), il.end()); }
 
 		/** Removes the specified element from the map.
 		 * @param where Iterator to the target element.
@@ -446,6 +509,21 @@ namespace sek
 			else
 				return false;
 		}
+		/** @copydoc erase
+		 * @note This overload participates in overload resolution only
+		 * if both key hasher and key comparator are transparent. */
+		template<typename... Args>
+		constexpr bool erase(const auto &key)
+			requires transparent_key
+		{
+			if (auto target = data_table.find(key); target != data_table.end())
+			{
+				data_table.erase(target);
+				return true;
+			}
+			else
+				return false;
+		}
 
 		/** Extracts the specified node from the map.
 		 * @param where Iterator to the target node.
@@ -455,6 +533,17 @@ namespace sek
 		 * @param key Key of the target node.
 		 * @return Node handle to the extracted node or, if the key is not present, an empty node handle. */
 		constexpr node_handle extract(const key_type &key)
+		{
+			if (auto target = data_table.find(key); target != data_table.end())
+				return data_table.extract_node(target);
+			else
+				return {};
+		}
+		/** @copydoc extract
+		 * @note This overload participates in overload resolution only
+		 * if both key hasher and key comparator are transparent. */
+		constexpr node_handle extract(const auto &key)
+			requires transparent_key
 		{
 			if (auto target = data_table.find(key); target != data_table.end())
 				return data_table.extract_node(target);

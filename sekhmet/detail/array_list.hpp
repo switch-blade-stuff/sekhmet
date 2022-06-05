@@ -438,7 +438,7 @@ namespace sek
 		/** @copydoc back */
 		[[nodiscard]] constexpr const_reference back() const noexcept { return at(size() - 1); }
 
-		/** Removes all elements from the list. Does not resize the internal array. */
+		/** Removes all elements from the list. Does not reserve the internal array. */
 		constexpr void clear()
 		{
 			for (auto node = data_begin; node != data_end; ++node)

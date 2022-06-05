@@ -40,7 +40,7 @@
 namespace sek
 {
 	/** @brief Internal utility structure used to wrap malloc/free/realloc to manage dynamic arrays of trivially copyable types.
-	 * This *may* be preferable over `std::vector` since vector always does copy on resize,
+	 * This *may* be preferable over `std::vector` since vector always does copy on reserve,
 	 * while `realloc` may simply expand the used heap chunk or mmap more memory. */
 	template<typename T>
 		requires std::is_trivially_copyable_v<T>

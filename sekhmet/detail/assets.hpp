@@ -105,7 +105,7 @@ namespace sek
 			 * Multi-key maps are not used since asset names are optional, UUIDs are used as primary keys
 			 * and should be preferred instead. */
 			dense_map<uuid, asset_info_base *> assets;
-			dense_map<std::string_view, uuid> name_table;
+			dense_map<std::string_view, std::pair<uuid, asset_info_base *>> name_table;
 		};
 
 		struct master_package;
@@ -141,14 +141,33 @@ namespace sek
 		};
 		struct master_package : package_base
 		{
+			virtual ~master_package() = default;
+
+			virtual void destroy_asset_info(asset_info_base *) = 0;
+
 			SEK_API void acquire_impl();
 			SEK_API void release_impl();
 
 			std::atomic<std::size_t> ref_count;
 			std::vector<fragment_package> fragments;
 
-			asset_info_pool info_pool;
 			asset_database database;
+		};
+		struct archive_master_package final : master_package
+		{
+			SEK_API ~archive_master_package() final;
+
+			SEK_API void destroy_asset_info(asset_info_base *) final;
+
+			basic_pool<archive_asset_info> pool;
+		};
+		struct loose_master_package final : master_package
+		{
+			SEK_API ~loose_master_package() final;
+
+			SEK_API void destroy_asset_info(asset_info_base *) final;
+
+			basic_pool<loose_asset_info> pool;
 		};
 
 		constexpr master_package *package_base::as_master() noexcept { return static_cast<master_package *>(this); }
@@ -177,22 +196,9 @@ namespace sek
 				return *this;
 			}
 
-			template<typename C, typename T>
-			basic_asset_stream<C, T> to_stream(std::ios::openmode mode) const
-			{
-				if (parent()->is_archive())
-					return basic_asset_stream<C, T>{to_filemap(filemap::in)};
-				else
-				{
-					std::basic_filebuf<C, T> fb;
-					if (const auto path = info->as_loose()->full_path(); !std::filesystem::exists(path)) [[unlikely]]
-						throw std::runtime_error("Asset file does not exist");
-					else if (!fb.open(path, mode)) [[unlikely]]
-						throw std::runtime_error("Failed to open asset file");
-					return basic_asset_stream<C, T>{std::move(fb)};
-				}
-			}
-			SEK_API filemap to_filemap(filemap::openmode mode) const;
+			template<typename C, typename T, typename A>
+			[[nodiscard]] basic_asset_stream<C, T, A> stream(std::ios::openmode, const std::locale &) const;
+			[[nodiscard]] std::string read_archive() const;
 
 			[[nodiscard]] constexpr bool empty() const noexcept { return info == nullptr; }
 			[[nodiscard]] constexpr package_base *parent() const noexcept { return info->parent; }
@@ -226,6 +232,75 @@ namespace sek
 			asset_info_base *info = nullptr;
 			uuid id;
 		};
+
+		template<typename C, typename T, typename A>
+		basic_asset_stream<C, T, A> asset_handle::stream(std::ios::openmode mode, const std::locale &loc) const
+		{
+			if (parent()->is_archive())
+			{
+				if constexpr (std::same_as<std::basic_string<C, T, A>, std::string>)
+					return basic_asset_stream<C, T, A>{read_archive()};
+				else
+				{
+					using codecvt_t = std::codecvt<C, char, T>;
+
+					const auto str = read_archive();
+					auto &codecvt = use_facet<codecvt_t>(loc);
+
+					std::basic_string<C, T, A> res;
+					res.resize(str.size(), '\0');
+
+					if (codecvt.always_noconv())
+					{
+					copy_noconv:
+						std::copy_n(str.data(), str.size(), std::bit_cast<char *>(res.data()));
+					}
+					else
+					{
+						typename codecvt_t::state_type state = {};
+						auto src_pos = str.data(), src_end = str.data() + str.size();
+						for (;;)
+						{
+							auto dst_pos = res.data(), dst_end = res.data() + res.size();
+							auto status = codecvt.in(state, src_pos, src_end, src_pos, dst_pos, dst_end, dst_pos);
+
+							if (status == std::codecvt_base::ok) [[likely]]
+								break;
+							else if (status == std::codecvt_base::noconv)
+								goto copy_noconv;
+							else if (status == std::codecvt_base::partial)
+							{
+								if (src_pos != src_end)
+									res.insert(res.size(), res.size(), '\0');
+								else
+									goto conv_fail;
+							}
+							else
+							{
+							conv_fail:
+								throw std::runtime_error("Failed to convert asset characters to target locale");
+							}
+						}
+					}
+
+					return basic_asset_stream<C, T>{res};
+				}
+			}
+			else
+			{
+				const auto path = info->as_loose()->full_path();
+				std::basic_filebuf<C, T> fb;
+				if (!fb.open(path, mode)) [[unlikely]]
+					throw std::runtime_error(std::string{"Failed to open asset file \""}.append(path.native()).append(1, '\"'));
+				return basic_asset_stream<C, T, A>{std::move(fb)};
+			}
+		}
+
+		extern template SEK_API_IMPORT basic_asset_stream<char, std::char_traits<char>>
+			asset_handle::stream(std::ios::openmode, const std::locale &) const;
+		extern template SEK_API_IMPORT basic_asset_stream<wchar_t, std::char_traits<wchar_t>>
+			asset_handle::stream(std::ios::openmode, const std::locale &) const;
+
 		struct package_handle
 		{
 			constexpr package_handle() noexcept = default;
@@ -325,21 +400,21 @@ namespace sek
 		 * @note If an asset does not have a name, it will be empty. */
 		[[nodiscard]] constexpr const interned_string &name() const noexcept { return handle.info->name; }
 		/** Returns reference to the set of asset's tags. */
-		[[nodiscard]] constexpr const dense_set<interned_string> &tags() const noexcept { return handle.info->tags; }
+		[[nodiscard]] constexpr const dense_set<interned_string> &tags() const noexcept
+		{
+			return handle.info->tags;
+		}
 
 		/** Opens an asset stream for this asset.
 		 * @param mode Mode in which to open the asset stream.
-		 * @note If the asset is part of an archive, mode will be ignored and the mode is equivalent to
-		 * `std::ios::in | std::ios::binary`. */
-		template<typename C, typename T = std::char_traits<C>>
-		[[nodiscard]] basic_asset_stream<C, T> to_stream(std::ios::openmode mode = std::ios::in | std::ios::binary) const
+		 * @param loc If the asset is archived, locale used to convert it to the desired character set.
+		 * @note Locale is only used if `C` is other than `char`. */
+		template<typename C, typename T = std::char_traits<C>, typename A = std::allocator<C>>
+		[[nodiscard]] basic_asset_stream<C, T, A> stream(std::ios::openmode mode = std::ios::in | std::ios::binary,
+														 const std::locale &loc = std::locale{}) const
 		{
-			return handle.template to_stream<C, T>(mode);
+			return handle.template stream<C, T, A>(mode, loc);
 		}
-		/** Maps asset file into memory.
-		 * @param mode Mode in which to map the file.
-		 * @note If the asset is part of an archive, `filemap::out` mode will be ignored. */
-		[[nodiscard]] filemap to_filemap(filemap::openmode mode = filemap::in) const { return handle.to_filemap(mode); }
 
 		[[nodiscard]] constexpr bool operator==(const asset &) const noexcept = default;
 

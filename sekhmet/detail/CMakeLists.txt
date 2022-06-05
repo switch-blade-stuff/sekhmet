@@ -36,7 +36,6 @@ target_sources(${PROJECT_NAME} PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/uuid.cpp
         ${CMAKE_CURRENT_LIST_DIR}/compound_exception.cpp
         ${CMAKE_CURRENT_LIST_DIR}/filemap.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/native_file.cpp
         ${CMAKE_CURRENT_LIST_DIR}/thread_pool.cpp
         ${CMAKE_CURRENT_LIST_DIR}/intern.cpp
         ${CMAKE_CURRENT_LIST_DIR}/logger.cpp
@@ -44,6 +43,5 @@ target_sources(${PROJECT_NAME} PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/reflection.cpp
         ${CMAKE_CURRENT_LIST_DIR}/zstd_util.cpp
         ${CMAKE_CURRENT_LIST_DIR}/asset_stream.cpp
-        #${CMAKE_CURRENT_LIST_DIR}/assets.cpp
-        )
+        ${CMAKE_CURRENT_LIST_DIR}/assets.cpp)
 target_link_libraries(${PROJECT_NAME} PUBLIC fmt zstd)

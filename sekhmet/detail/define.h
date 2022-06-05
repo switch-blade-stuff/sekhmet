@@ -37,13 +37,6 @@
 #include "arch.h"
 #include "platform.h"
 
-#ifdef __STDC_NO_ATOMICS__
-#define SEK_NO_ATOMICS
-#endif
-
-#define SEK_THREAD_OPTIONAL(content) content
-#define SEK_THREAD_LOCAL thread_local
-
 #define SEK_ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
 #define SEK_CONCAT(a, b) a##b
 

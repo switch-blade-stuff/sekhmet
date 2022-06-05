@@ -31,16 +31,6 @@
 #include "dynarray.hpp"
 #include "thread_pool.hpp"
 
-#ifndef ALLOCA
-#if defined(SEK_OS_WIN)
-#include <malloc.h>
-#define ALLOCA(n) _alloca(n)
-#elif defined(__GNUC__)
-#include <alloca.h>
-#define ALLOCA(n) alloca(n)
-#endif
-#endif
-
 namespace sek
 {
 	/** @brief Exception thrown when ZSTD (de)compression worker threads encounter an error. */
@@ -371,9 +361,9 @@ namespace sek
 		template<typename F>
 		void spawn_workers(thread_pool &pool, std::size_t n, F &&f)
 		{
-#ifdef ALLOCA
+#ifdef SEK_ALLOCA
 			/* Stack allocation here is fine, since std::future is not a large structure. */
-			auto *wait_buf = static_cast<std::future<void> *>(ALLOCA(sizeof(std::future<void>) * n));
+			auto *wait_buf = static_cast<std::future<void> *>(SEK_ALLOCA(sizeof(std::future<void>) * n));
 #else
 			auto *wait_buf = static_cast<std::future<void> *>(::operator new[](sizeof(std::future<void>) * n));
 #endif
@@ -415,7 +405,7 @@ namespace sek
 			clear_tasks();
 			for (std::size_t i = 0; i < n; ++i) std::destroy_at(wait_buf + i);
 
-#ifndef ALLOCA
+#ifndef SEK_ALLOCA
 			::operator delete[](wait_buf);
 #endif
 

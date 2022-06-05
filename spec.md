@@ -199,7 +199,7 @@ Asset entries of in-editor projects consist of the asset's UUID and string name,
 
 Each iteration of the main game loop preforms the following operations:
 
- 1. Check
+ ![](main_loop_diagram.png)
 
 ## Addendum
 

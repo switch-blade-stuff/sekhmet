@@ -71,7 +71,7 @@ namespace sek::detail
 		T *allocate()
 		{
 			if (!next_free) [[unlikely]]
-				make_page<T>(total_cap ? total_cap : initial_capacity);
+				make_page(total_cap ? total_cap : initial_capacity);
 			return &std::exchange(next_free, next_free->next)->value;
 		}
 		void deallocate(void *ptr) { deallocate(static_cast<T *>(ptr)); }
