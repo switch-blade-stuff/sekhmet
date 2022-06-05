@@ -965,10 +965,7 @@ namespace sek
 			 * If a value for any of the the keys is already present within the map, replaces that value.
 			 * @param il Initializer list containing the values.
 			 * @return Amount of new elements inserted. */
-			constexpr size_type insert(std::initializer_list<value_type> il)
-			{
-				return insert(il.begin(), il.end());
-			}
+			constexpr size_type insert(std::initializer_list<value_type> il) { return insert(il.begin(), il.end()); }
 
 			/** Removes the specified element from the map.
 			 * @param where Iterator to the target element.
@@ -1296,7 +1293,7 @@ namespace sek
 				}
 
 				entries.pop_back();
-				return begin() + pos;
+				return begin() + static_cast<difference_type>(pos);
 			}
 
 			dense_data_t entries;

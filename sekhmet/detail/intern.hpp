@@ -229,8 +229,8 @@ namespace sek
 
 		using header_t = detail::intern_str_header<C, Traits>;
 
-		constexpr basic_interned_string(std::in_place_t, header_t *h) : header(h) {}
-		constexpr explicit basic_interned_string(header_t *h) : header(h) { acquire(); }
+		constexpr basic_interned_string(std::in_place_t, header_t *h) : header(h), str_len(h->length) {}
+		constexpr explicit basic_interned_string(header_t *h) : header(h), str_len(h->length) { acquire(); }
 
 	public:
 		/** Initializes an empty string. */
@@ -247,7 +247,7 @@ namespace sek
 			return *this;
 		}
 		constexpr basic_interned_string(basic_interned_string &&other) noexcept
-			: header(std::exchange(other.header, nullptr))
+			: header(std::exchange(other.header, nullptr)), str_len(header->length)
 		{
 		}
 		constexpr basic_interned_string &operator=(basic_interned_string &&other) noexcept
@@ -344,13 +344,7 @@ namespace sek
 		[[nodiscard]] constexpr const_reference back() const noexcept { return data()[size() - 1]; }
 
 		/** Returns size of the string. */
-		[[nodiscard]] constexpr size_type size() const noexcept
-		{
-			if (header) [[likely]]
-				return header->length;
-			else
-				return 0;
-		}
+		[[nodiscard]] constexpr size_type size() const noexcept { return str_len; }
 		/** @copydoc size */
 		[[nodiscard]] constexpr size_type length() const noexcept { return size(); }
 		/** Returns maximum value for size. */
@@ -643,7 +637,11 @@ namespace sek
 			return a.sv() == b.sv();
 		}
 
-		constexpr void swap(basic_interned_string &other) noexcept { std::swap(header, other.header); }
+		constexpr void swap(basic_interned_string &other) noexcept
+		{
+			std::swap(header, other.header);
+			std::swap(str_len, other.str_len);
+		}
 		friend constexpr void swap(basic_interned_string &a, basic_interned_string &b) noexcept { a.swap(b); }
 
 	private:
@@ -661,9 +659,11 @@ namespace sek
 		{
 			release();
 			header = new_header;
+			str_len = new_header->length;
 		}
 
 		header_t *header = nullptr;
+		std::size_t str_len = 0;
 	};
 
 	template<typename C, typename T>

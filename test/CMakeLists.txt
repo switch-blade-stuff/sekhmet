@@ -22,6 +22,7 @@ if (NOT GTEST_MISSING)
     add_executable(${PROJECT_NAME}
             main.cpp
             utility_tests.cpp
+            zstd_test.cpp
             container_tests.cpp
             math_tests.cpp
             serialization_tests.cpp

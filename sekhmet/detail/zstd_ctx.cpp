@@ -20,12 +20,11 @@
  * Created by switchblade on 28/05/22
  */
 
-#include "zstd_util.hpp"
-
 #include <zstd.h>
 
 #include "../math/detail/util.hpp"
 #include "logger.hpp"
+#include "zstd_ctx.hpp"
 #include <zstd_errors.h>
 
 namespace sek

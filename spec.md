@@ -104,24 +104,24 @@ does not have any aliases whose property dependencies are satisfied, such asset 
 ## Asset import/generation
 
 Whenever a new file within an asset package directory is detcted (or on manual re-import), the editor imports said
-package. Unless a custom asset importer is registered, imported files are simply assigned a UUID and an asset name (
-generated using their file name) and are added to the package project manifest. If, however, a custom importer is
-registered (for the extension of the imported file), the custom importer can then preform custom operations on the asset
-file. Such operations may include generating additional assets, converting the imported file into internal
-representation, compiling shaders, etc. In case an importer needs to create additional files, it can register them as
-assets directly, or create them within the `.import-cache` directory and add one or multiple asset aliases for that
-asset. Any additional import artifacts are also placed within the `.import-cache` directory and added to the package's
-asset entry. Asset importers are also responsible for generating asset names. By default, asset names are generated from
-their relative file path, with the extension omitted.
+package. Unless a custom asset importer is registered, imported files are simply assigned a UUID and an asset name and
+are added to the package project manifest. If, however, a custom importer is registered (for the extension of the
+imported file), the custom importer can then preform implementation-defined operations on the asset. Such operations may
+include generating additional assets, converting the imported file into internal representation, compiling shaders, etc.
+In case an importer needs to create additional files, it can either create new assets, or create asset artifacts (within
+the `.import-cache` directory) and add one or multiple asset aliases for the imported asset. Asset importers are also
+responsible for generating asset names. By default, asset names are generated from their relative file path, with the
+extension omitted. If no name is generated, the asset will only be accessible by its UUID (and will not be visible
+in the editor's package view).
 
-Asset aliases are internal editor-only dependencies between an asset and the imported files for that asset. For
-assets that were not imported using a custom importer, the alias would simply point to the imported file, while
-aliases for custom-imported assets may point to the generated files, such as compiled shader blobs. Multiple
-aliases can exist for the same asset, given different properties. Asset aliases can also be created manually from the
-editor, in which case an asset can be made to alias shadow files of other assets. This can be useful for providing
-both a generic version of the asset that depends on the project's locale, while also providing explicit localization
-assets (ex. `player-dialog` asset being a locale-dependant alias of `player-dialog-en.txt`, while `player-dialog-en`
-asset being locale-independent).
+Asset aliases are internal editor-only dependencies between an asset and the files that contain the asset's data. For
+assets that were not imported using a custom importer, the alias would simply point to the source file, while
+aliases for custom-imported assets may point to the generated (artifact) files. Multiple aliases can exist for the
+same asset, given different property dependencies. Asset aliases can also be created manually from the editor UI.
+This can be useful for creating a "pure alias" assets, that do not have any source or artifact files of their own,
+such as providing both a generic version of the asset that depends on the project's locale, while also having explicit
+localization assets (ex. `player-dialog` asset being a locale-dependant alias of `player-dialog-en.txt`,
+`player-dialog-fr.txt`, etc. while `player-dialog-en` asset being locale-independent).
 
 Asset aliases can depend on editor properties, in which case an alias would only be considered if the property
 dependencies are satisfied. If multiple aliases exist for the same asset (that satisfy property dependencies), the
@@ -134,33 +134,43 @@ A property dependency may only consist of the property key, in which case it is 
 it may take form of `$KEY:$VALUE`, in which case it is satisfied when the property is both active and has the specific
 value.
 
-In addition, every asset entry has an optional "shadow" file. Shadows are the source files an asset was
-imported from. When the shadow file is modified in any way, the corresponding asset is re-imported (which may cause it
-to be deleted, in case the shadow file was deleted). External modifications of asset shadow files are also tracked,
-however if an asset shadow is moved while the editor is not tracking the file, the asset may get deleted, since the
-shadow will be missing. If an asset does not have a shadow it is considered to be a pure alias asset.
+In addition, every asset entry has an optional source file an asset was imported from.
+When the source file is modified in any way, the corresponding asset is re-imported (which may cause it
+to be deleted, in case the source file was deleted). External modifications of asset source files are also tracked,
+however if an asset source is moved while the editor is not tracking the file, the asset may get deleted, since the
+source will be missing. If an asset does not have a source it is considered to be a pure alias asset.
 
-When an asset is re-imported for whatever reason, all information about that asset is erased, and any artifacts related
-to that asset are cleaned up, and the asset is removed from the project database (and the global asset repository).
-After that, the asset's shadow file is imported again, as if it was a new asset.
+Assets may also indirectly depend on other assets, in which case an asset will be re-imported if any of its dependencies
+are re-imported. Dependant assets are always imported after their dependencies. Note that if an asset importer creates
+a circular asset dependency, an exception is generated and the dependency is not added.
+
+Every asset entry keeps track of the version of the asset importer it was imported with. In case the importer version
+differs, the asset is re-imported.
+
+When an asset is re-imported for whatever reason, any artifacts related to that asset are cleaned up, and the asset
+is removed from the project database (and the global asset repository). After that, the asset's source file is
+imported again, as if it was a new asset.
 
 Note that when an asset is re-imported, only the global asset repository is updated. Because of this, any custom asset
-repositories that exist in editor (via plugins) may contain references to invalid memory. To avoid this, any user code
-that manages its own repository must listen to the asset import message, and reset the repository after it receives
-said message. In general, it is not recommended for editor code to manage its own asset repositories (in-game, however,
-it is safe, since assets are not re-loaded while the play mode is active).
+repositories that exist in editor may contain references to invalid memory. To avoid this, any user code that manages
+its own repository must listen to the asset import message, and reset the repository after it receives said message.
+In general, it is not recommended for editor code to manage its own asset repositories (in-game, however, it is safe,
+since assets are not re-loaded while the play mode is active).
 
-If an asset's shadow or alias was modified while the play mode is active, re-import of said assets will be queued,
-and assets will be re-imported once the play mode exits. Due to such modification, an asset may fail to load during play
-mode, in the best case scenario an exception will be raised due to missing asset and play mode could potentially be
-terminated. However, if an asset is modified in such a way that it can be loaded, but is loaded incorrectly, corruption
-may happen.
+If an asset's source, alias or dependency was modified while the play mode is active, re-import of said assets will be
+queued, and assets will be re-imported once the play mode exits. Due to such modification, an asset may fail to load
+during play mode, in the best case scenario an exception will be raised due to missing asset and play mode could
+potentially be terminated. However, if an asset is modified in such a way that it can be loaded, but is loaded
+incorrectly, corruption may happen.
 
-In addition to properties and shadows, every asset has an optional set of tags, which are key-value pairs of strings.
+In addition to properties and sources, every asset has an optional set of tags, which are key-value pairs of strings.
 These tags may be used to query and categorize assets at runtime, for example, assets representing resources have
 the `"resource": "$FORMAT"` tag, which is used to look up resource assets and their storage formats at runtime, as well
 as to determine whether the currently selected asset is a resource (and thus whether an inspector for the resource
 should be opened).
+
+Every in-editor asset entry contains its UUID, name, importer version, source file, list of aliases,
+list of artifacts, and a list of dependencies.
 
 ## Resources
 
@@ -185,21 +195,11 @@ they are either copied from the cache (if a valid cache entry exists), or are de
 cache. Anonymous resources may also be used to avoid overhead of `shared_ptr` when an explicit copy of the resource is
 needed.
 
-## Package project manifest
-
-`.manifest` file of package projects is an extended version of the regular manifest file used by asset packages.
-It contains the information about the package itself such as whether it is a master package, it's list of fragments if
-it is, and the string id used to uniquely identify the package. Asset entries, however, follow a slightly different
-format from their non-editor counterparts.
-
-Asset entries of in-editor projects consist of the asset's UUID and string name, a table of tags, path to the asset's
-"shadow" file, list of its aliases and a list of all `.import-cache` artifacts related to this asset.
-
 ## Main loop
 
 Each iteration of the main game loop preforms the following operations:
 
- ![](main_loop_diagram.png)
+![](main_loop_diagram.png)
 
 ## Addendum
 

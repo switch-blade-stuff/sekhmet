@@ -26,7 +26,7 @@
 
 #include "sekhmet/serialization/json.hpp"
 #include "sekhmet/serialization/ubjson.hpp"
-#include "zstd_util.hpp"
+#include "zstd_ctx.hpp"
 
 #ifdef SEK_OS_WIN
 #define MANIFEST_FILE_NAME L".manifest"
