@@ -20,11 +20,12 @@
  * Created by switchblade on 28/05/22
  */
 
+#include "zstd_ctx.hpp"
+
 #include <zstd.h>
 
 #include "../math/detail/util.hpp"
 #include "logger.hpp"
-#include "zstd_ctx.hpp"
 #include <zstd_errors.h>
 
 namespace sek
@@ -158,14 +159,14 @@ namespace sek
 			}
 		}
 	}
-	void zstd_thread_ctx::decompress_st(read_t r, write_t w)
+	std::size_t zstd_thread_ctx::decompress_st(read_t r, write_t w)
 	{
 		auto &stream = zstd_dstream::instance();
 		init(r, w);
 
 		raii_buffer_t src_buff;
 		raii_buffer_t dst_buff;
-		for (;;)
+		for (;; ++out_frame)
 		{
 			/* Read next frame into the compressed buffer and initialize the decompressed buffer.
 			 * Failure to fill next frame means we are at the end of compressed data. */
@@ -178,16 +179,18 @@ namespace sek
 			if (!write_checked(dst_buff.data, dst_buff.size)) [[unlikely]]
 				throw zstd_error("Failed to write decompression result");
 		}
+		return out_frame;
 	}
-	void zstd_thread_ctx::decompress(thread_pool &pool, read_t r, write_t w, std::size_t frames)
+	std::size_t zstd_thread_ctx::decompress(thread_pool &pool, read_t r, write_t w, std::size_t frames)
 	{
 		/* If there is only 1 worker or frame available, do single-threaded decompression. */
 		if (const auto tasks = math::min(pool.size(), max_workers, frames); tasks == 1) [[unlikely]]
-			decompress_st(r, w);
+			return decompress_st(r, w);
 		else
 		{
 			init(r, w);
 			spawn_workers(pool, tasks, [this]() { decompress_threaded(); });
+			return out_frame;
 		}
 	}
 
@@ -321,7 +324,7 @@ namespace sek
 
 		raii_buffer_t src_buff;
 		raii_buffer_t dst_buff;
-		for (;;)
+		for (;; ++out_frame)
 		{
 			/* Initialize both buffers & read source data up to the frame size. Actual source size may be less than the
 			 * frame size. If the source size is 0 (no bytes read), we are at the end of input. */
@@ -335,7 +338,7 @@ namespace sek
 				throw zstd_error("Failed to write compression result");
 		}
 	}
-	void zstd_thread_ctx::compress(thread_pool &pool, read_t r, write_t w, std::uint32_t level, std::uint32_t frame_size)
+	std::size_t zstd_thread_ctx::compress(thread_pool &pool, read_t r, write_t w, std::uint32_t level, std::uint32_t frame_size)
 	{
 		level = level == 0 ? static_cast<std::uint32_t>(ZSTD_defaultCLevel()) : math::min(level, 20u);
 		frame_size = get_frame_size(level, frame_size);
@@ -346,12 +349,14 @@ namespace sek
 			compress_single(level, frame_size);
 		else
 			spawn_workers(pool, workers, [this, level, frame_size]() { compress_threaded(level, frame_size); });
+		return out_frame;
 	}
-	void zstd_thread_ctx::compress_st(read_t r, write_t w, std::uint32_t level, std::uint32_t frame_size)
+	std::size_t zstd_thread_ctx::compress_st(read_t r, write_t w, std::uint32_t level, std::uint32_t frame_size)
 	{
 		level = level == 0 ? static_cast<std::uint32_t>(ZSTD_defaultCLevel()) : math::min(level, 20u);
 		frame_size = get_frame_size(level, frame_size);
 		init(r, w);
 		compress_single(level, frame_size);
+		return out_frame;
 	}
 }	 // namespace sek

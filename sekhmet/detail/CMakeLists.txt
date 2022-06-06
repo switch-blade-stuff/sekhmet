@@ -34,7 +34,6 @@ set(zstd libzstd_static)
 
 target_sources(${PROJECT_NAME} PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/uuid.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/compound_exception.cpp
         ${CMAKE_CURRENT_LIST_DIR}/filemap.cpp
         ${CMAKE_CURRENT_LIST_DIR}/thread_pool.cpp
         ${CMAKE_CURRENT_LIST_DIR}/intern.cpp

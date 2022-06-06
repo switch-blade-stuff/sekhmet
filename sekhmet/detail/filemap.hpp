@@ -38,6 +38,8 @@ namespace sek
 	{
 	public:
 		filemap_error() : std::runtime_error("Unknown filemap error") {}
+		explicit filemap_error(std::string &&msg) : std::runtime_error(std::move(msg)) {}
+		explicit filemap_error(const std::string &msg) : std::runtime_error(msg) {}
 		explicit filemap_error(const char *msg) : std::runtime_error(msg) {}
 		~filemap_error() override = default;
 	};

@@ -367,6 +367,7 @@ namespace sek
 	{
 	public:
 		type_info_error() : std::runtime_error("Unknown reflection error") {}
+		explicit type_info_error(std::string &&msg) : std::runtime_error(std::move(msg)) {}
 		explicit type_info_error(const std::string &msg) : std::runtime_error(msg) {}
 		explicit type_info_error(const char *msg) : std::runtime_error(msg) {}
 		~type_info_error() override = default;
@@ -376,6 +377,7 @@ namespace sek
 	{
 	public:
 		any_type_error() : type_info_error("Invalid type of `any` object") {}
+		explicit any_type_error(std::string &&msg) : type_info_error(std::move(msg)) {}
 		explicit any_type_error(const std::string &msg) : type_info_error(msg) {}
 		explicit any_type_error(const char *msg) : type_info_error(msg) {}
 		~any_type_error() override = default;
@@ -385,6 +387,7 @@ namespace sek
 	{
 	public:
 		any_const_error() : type_info_error("Invalid const-ness of `any` object") {}
+		explicit any_const_error(std::string &&msg) : type_info_error(std::move(msg)) {}
 		explicit any_const_error(const std::string &msg) : type_info_error(msg) {}
 		explicit any_const_error(const char *msg) : type_info_error(msg) {}
 		~any_const_error() override = default;
@@ -394,6 +397,7 @@ namespace sek
 	{
 	public:
 		invalid_member_error() : type_info_error("Unknown type member") {}
+		explicit invalid_member_error(std::string &&msg) : type_info_error(std::move(msg)) {}
 		explicit invalid_member_error(const std::string &msg) : type_info_error(msg) {}
 		explicit invalid_member_error(const char *msg) : type_info_error(msg) {}
 		~invalid_member_error() override = default;
@@ -994,7 +998,7 @@ namespace sek
 					std::string msg = "Invalid any cast to type \"";
 					msg.append(type_name<std::remove_cvref_t<T>>());
 					msg.append(1, '\"');
-					throw any_type_error(msg);
+					throw any_type_error(std::move(msg));
 				}
 				return static_cast<T>(*ptr);
 			}
@@ -1009,7 +1013,7 @@ namespace sek
 				std::string msg = "Invalid any cast to type \"";
 				msg.append(type_name<std::remove_cvref_t<T>>());
 				msg.append(1, '\"');
-				throw any_type_error(msg);
+				throw any_type_error(std::move(msg));
 			}
 			return static_cast<T>(*ptr);
 		}

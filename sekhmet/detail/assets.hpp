@@ -45,50 +45,35 @@ namespace sek
 	{
 		struct package_base;
 
-		struct loose_asset_info;
-		struct archive_asset_info;
-		struct asset_info_base
+		struct asset_info
 		{
-			asset_info_base() noexcept = default;
-			asset_info_base(const asset_info_base &) noexcept = default;
-			asset_info_base(asset_info_base &&) noexcept = default;
+			struct loose_info
+			{
+				/* Path of the asset file within a loose package. */
+				std::string file_path;
+			};
+			struct archive_info
+			{
+				std::uint64_t offset;	/* Offset of the asset within the archive. */
+				std::uint64_t size;		/* Size of the asset within the archive. */
+				std::uint64_t src_size; /* Size of the actual asset data (same as size if no compression is used). */
+				std::uint64_t frames;	/* Amount of compressed frames that make up the asset (0 if not compressed). */
+			};
 
-			[[nodiscard]] constexpr loose_asset_info *as_loose() noexcept;
-			[[nodiscard]] constexpr archive_asset_info *as_archive() noexcept;
+			asset_info() noexcept = default;
+
+			[[nodiscard]] SEK_API std::filesystem::path loose_path() const;
 
 			package_base *parent = nullptr;					  /* Parent fragment of the asset. */
 			interned_string name;							  /* Optional name of the asset. */
 			dense_map<interned_string, interned_string> tags; /* Optional tags of the asset. */
+
+			union
+			{
+				loose_info loose = {};
+				archive_info archive;
+			};
 		};
-		struct loose_asset_info : asset_info_base
-		{
-			loose_asset_info() noexcept = default;
-			loose_asset_info(const loose_asset_info &) = default;
-			loose_asset_info(loose_asset_info &&) noexcept = default;
-
-			[[nodiscard]] SEK_API std::filesystem::path full_path() const;
-
-			/* Path of the asset file within a loose package. */
-			std::filesystem::path file;
-		};
-		struct archive_asset_info : asset_info_base
-		{
-			archive_asset_info() noexcept = default;
-			archive_asset_info(const archive_asset_info &) = default;
-			archive_asset_info(archive_asset_info &&) noexcept = default;
-
-			/* Position & size of the asset within an archive (compressed size if any compression is used). */
-			std::pair<std::uint64_t, std::uint64_t> slice = {};
-		};
-
-		constexpr loose_asset_info *asset_info_base::as_loose() noexcept
-		{
-			return static_cast<loose_asset_info *>(this);
-		}
-		constexpr archive_asset_info *asset_info_base::as_archive() noexcept
-		{
-			return static_cast<archive_asset_info *>(this);
-		}
 
 		struct asset_database
 		{
@@ -103,8 +88,8 @@ namespace sek
 			/* Asset infos are stored by-reference to allow for pool allocation & keep pointers stable.
 			 * Multi-key maps are not used since asset names are optional, UUIDs are used as primary keys
 			 * and should be preferred instead. */
-			dense_map<uuid, asset_info_base *> assets;
-			dense_map<std::string_view, std::pair<uuid, asset_info_base *>> name_table;
+			dense_map<uuid, asset_info *> assets;
+			dense_map<std::string_view, std::pair<uuid, asset_info *>> name_table;
 		};
 
 		struct master_package;
@@ -125,7 +110,7 @@ namespace sek
 			[[nodiscard]] constexpr bool is_master() const noexcept { return flags & IS_MASTER; }
 			[[nodiscard]] constexpr master_package *master() noexcept;
 
-			SEK_API void acquire();
+			SEK_API void acquire() noexcept;
 			SEK_API void release();
 
 			std::filesystem::path path;
@@ -142,33 +127,17 @@ namespace sek
 		{
 			virtual ~master_package() = default;
 
-			virtual void destroy_asset_info(asset_info_base *) = 0;
+			virtual void destroy_asset_info(asset_info *) = 0;
 
-			SEK_API void acquire_impl();
+			SEK_API void acquire_impl() noexcept;
 			SEK_API void release_impl();
 
 			std::atomic<std::size_t> ref_count;
 			std::vector<fragment_package> fragments;
 
+			basic_pool<asset_info> asset_pool;
 			asset_database database;
 		};
-		struct archive_master_package final : master_package
-		{
-			SEK_API ~archive_master_package() final;
-
-			SEK_API void destroy_asset_info(asset_info_base *) final;
-
-			basic_pool<archive_asset_info> pool;
-		};
-		struct loose_master_package final : master_package
-		{
-			SEK_API ~loose_master_package() final;
-
-			SEK_API void destroy_asset_info(asset_info_base *) final;
-
-			basic_pool<loose_asset_info> pool;
-		};
-
 		constexpr master_package *package_base::as_master() noexcept { return static_cast<master_package *>(this); }
 		constexpr fragment_package *package_base::as_fragment() noexcept
 		{
@@ -184,7 +153,7 @@ namespace sek
 		{
 			constexpr asset_handle() noexcept = default;
 
-			asset_handle(asset_info_base *info, uuid id) noexcept : info(info), id(id) { acquire(); }
+			asset_handle(asset_info *info, uuid id) noexcept : info(info), id(id) { acquire(); }
 			~asset_handle() { release(); }
 
 			asset_handle(const asset_handle &other) noexcept { copy_from(other); }
@@ -228,7 +197,7 @@ namespace sek
 				info = nullptr;
 			}
 
-			asset_info_base *info = nullptr;
+			asset_info *info = nullptr;
 			uuid id;
 		};
 
@@ -287,7 +256,7 @@ namespace sek
 			}
 			else
 			{
-				const auto path = info->as_loose()->full_path();
+				const auto path = info->loose_path();
 				std::basic_filebuf<C, T> fb;
 				if (!fb.open(path, mode)) [[unlikely]]
 					throw std::runtime_error(std::string{"Failed to open asset file \""}.append(path.native()).append(1, '\"'));
@@ -372,7 +341,7 @@ namespace sek
 		static SEK_API asset load(std::string_view name);
 
 	private:
-		asset(detail::asset_info_base *info, uuid id) noexcept : handle(info, id) {}
+		asset(detail::asset_info *info, uuid id) noexcept : handle(info, id) {}
 
 	public:
 		/** Initializes an empty asset. */

@@ -22,4 +22,4 @@
 
 #pragma once
 
-#include "delegate.hpp"
+#include "detail/delegate.hpp"

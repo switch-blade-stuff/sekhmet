@@ -252,7 +252,7 @@ TEST(utility_tests, event_test)
 
 	// clang-format off
 	sub2 = proxy.subscribe_before(sub2, +[](int &i) { EXPECT_EQ(i++, 1); });
-	proxy.subscribe_before(sub2, +[](int i) { EXPECT_EQ(i, 1); });
+	proxy.subscribe_before(sub2, sek::delegate{+[](int j, int &i) { EXPECT_EQ(i, j); }, 1});
 	proxy.subscribe_after(sub2, +[](int &i) { EXPECT_EQ(i--, 2); });
 	EXPECT_EQ(proxy.size(), 5);
 	// clang-format on

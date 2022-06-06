@@ -110,6 +110,10 @@ namespace sek
 		constexpr static bool mem_func = std::is_member_function_pointer_v<decltype(F)> && compatible_func<F>;
 		template<typename T, typename... Inject>
 		constexpr static bool empty_ftor = std::is_object_v<T> && std::is_empty_v<T> && std::is_invocable_r_v<R, T, Inject..., Args...>;
+		template<typename U>
+		constexpr static bool candidate_arg = sizeof(std::decay_t<U>) <= sizeof(void *) && std::is_trivially_copyable_v<std::decay_t<U>>;
+		template<typename T, typename U>
+		constexpr static bool compatible_arg = candidate_arg<U> && std::is_convertible_v<U, T>;
 		// clang-format on
 
 		constexpr delegate(R (*proxy)(const void *, Args...), const void *data) noexcept : proxy(proxy), data_ptr(data)
@@ -145,6 +149,12 @@ namespace sek
 		{
 			assign(f, arg);
 		}
+		/** @copydoc delegate */
+		template<typename T, typename U>
+		constexpr delegate(R (*f)(T, Args...), U &&arg) noexcept requires compatible_arg<T, U>
+		{
+			assign(f, std::forward<U>(arg));
+		}
 
 		/** Initializes a delegate from an empty functor. */
 		template<typename F>
@@ -170,6 +180,12 @@ namespace sek
 		{
 			assign(std::forward<F>(ftor), arg);
 		}
+		/** @copydoc delegate */
+		template<typename F, typename T>
+		constexpr delegate(F ftor, T &&arg) noexcept requires empty_ftor<F, T> && candidate_arg<T>
+		{
+			assign(std::forward<F>(ftor), std::forward<T>(arg));
+		}
 
 		/** Initializes a delegate from a free function. */
 		template<auto F>
@@ -182,22 +198,26 @@ namespace sek
 		constexpr delegate(func_t<F>, Arg *arg) noexcept requires free_func<F, Arg *>
 		{
 			assign<F>(arg);
-			data_ptr = static_cast<const void *>(arg);
 		}
 		/** @copydoc delegate */
 		template<auto F, typename Arg>
 		constexpr delegate(func_t<F>, Arg &arg) noexcept requires free_func<F, Arg *>
 		{
 			assign<F>(arg);
-			data_ptr = static_cast<const void *>(std::addressof(arg));
 		}
 		/** @copydoc delegate */
 		template<auto F, typename Arg>
 		constexpr delegate(func_t<F>, Arg &arg) noexcept requires free_func<F, Arg &>
 		{
 			assign<F>(arg);
-			data_ptr = static_cast<const void *>(std::addressof(arg));
 		}
+		/** @copydoc delegate */
+		template<auto F, typename T>
+		constexpr delegate(func_t<F>, T &&arg) noexcept requires free_func<F, T> && candidate_arg<T>
+		{
+			assign<F>(std::forward<T>(arg));
+		}
+
 		/** Initializes a delegate from a member function and an instance pointer. */
 		template<auto F, typename I>
 		constexpr delegate(func_t<F>, I *instance) noexcept requires mem_func<F>
@@ -247,6 +267,14 @@ namespace sek
 		{
 			proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
 			data_ptr = static_cast<const void *>(std::addressof(arg));
+			return *this;
+		}
+		/** @copydoc assign */
+		template<typename T, typename U>
+		constexpr delegate &assign(R (*f)(T, Args...), U &&arg) noexcept requires compatible_arg<T, U>
+		{
+			proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
+			std::construct_at(bytes_ptr<U>(), std::forward<U>(arg));
 			return *this;
 		}
 
@@ -301,6 +329,19 @@ namespace sek
 				return F{}(*const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
 			};
 			data_ptr = static_cast<const void *>(std::addressof(arg));
+			return *this;
+		}
+		/** @copydoc assign */
+		template<typename F, typename T>
+		constexpr delegate &assign(F, T &&arg) noexcept requires empty_ftor<F, T> && candidate_arg<T>
+		{
+			using U = std::decay_t<T>;
+
+			proxy = +[](const void *p, Args...args) -> R
+			{
+				return F{}(ptr_bytes<U>(p), std::forward<Args>(args)...);
+			};
+			std::construct_at(bytes_ptr<U>(), std::forward<T>(arg));
 			return *this;
 		}
 
@@ -362,6 +403,19 @@ namespace sek
 			return *this;
 		}
 		/** @copydoc assign */
+		template<auto F, typename T>
+		constexpr delegate &assign(T &&arg) noexcept requires free_func<F, T> && candidate_arg<T>
+		{
+			using U = std::decay_t<T>;
+
+			proxy = +[](const void *p, Args...args) -> R
+			{
+				return F(ptr_bytes<U>(p), std::forward<Args>(args)...);
+			};
+			std::construct_at(bytes_ptr<U>(), std::forward<T>(arg));
+			return *this;
+		}
+		/** @copydoc assign */
 		template<auto F, typename Arg>
 		constexpr delegate &assign(func_t<F>, Arg *arg) noexcept requires free_func<F, Arg *>
 		{
@@ -378,6 +432,12 @@ namespace sek
 		constexpr delegate &assign(func_t<F>, Arg &arg) noexcept requires free_func<F, Arg &>
 		{
 			return assign<F>(arg);
+		}
+		/** @copydoc assign */
+		template<auto F, typename T>
+		constexpr delegate &assign(func_t<F>, T &&arg) noexcept requires free_func<F, T> && candidate_arg<T>
+		{
+			return assign<F>(std::forward<T>(arg));
 		}
 
 		/** Binds a member function to the delegate. */
@@ -437,7 +497,10 @@ namespace sek
 		/** @copydoc invoke */
 		constexpr R operator()(Args... args) const { return invoke(std::forward<Args>(args)...); }
 
-		[[nodiscard]] constexpr bool operator==(const delegate &) const noexcept = default;
+		[[nodiscard]] constexpr bool operator==(const delegate &other) const noexcept
+		{
+			return proxy == other.proxy && data_ptr == other.data_ptr;
+		}
 
 		constexpr void swap(delegate &other) noexcept
 		{
@@ -448,9 +511,23 @@ namespace sek
 		friend constexpr void swap(delegate &a, delegate &b) noexcept { a.swap(b); }
 
 	private:
+		template<typename T>
+		[[nodiscard]] constexpr static T ptr_bytes(const void *p) noexcept
+		{
+			return std::bit_cast<T>(std::bit_cast<std::intptr_t>(p));
+		}
+		template<typename T>
+		[[nodiscard]] constexpr T *bytes_ptr() noexcept
+		{
+			return std::bit_cast<T *>(&data_bytes);
+		}
+
 		R (*proxy)(const void *, Args...) = nullptr;
-		/* Optional. No mutable version, const_cast is used instead. */
-		const void *data_ptr = nullptr;
+		union
+		{
+			std::intptr_t data_bytes = {};
+			const void *data_ptr;
+		};
 	};
 
 	template<typename R, typename... Args>
@@ -461,6 +538,8 @@ namespace sek
 	delegate(R (*)(Arg *, Args...), Arg &) -> delegate<R(Args...)>;
 	template<typename R, typename Arg, typename... Args>
 	delegate(R (*)(Arg &, Args...), Arg &) -> delegate<R(Args...)>;
+	template<typename R, typename Arg, typename... Args>
+	delegate(R (*)(Arg, Args...), Arg) -> delegate<R(Args...)>;
 
 	template<typename R, typename... Args, R (*F)(Args...)>
 	delegate(func_t<F>) -> delegate<R(Args...)>;
@@ -479,6 +558,8 @@ namespace sek
 	delegate(func_t<F>, Arg &) -> delegate<R(Args...)>;
 	template<typename R, typename Arg, typename... Args, R (&F)(Arg &, Args...)>
 	delegate(func_t<F>, Arg &) -> delegate<R(Args...)>;
+	template<typename R, typename Arg, typename... Args, R (&F)(Arg, Args...)>
+	delegate(func_t<F>, Arg) -> delegate<R(Args...)>;
 
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...)>
 	delegate(func_t<F>, I *) -> delegate<R(Args...)>;
