@@ -24,10 +24,10 @@
 
 #include <iterator>
 
+#include "../math/utility.hpp"
 #include "alloc_util.hpp"
 #include "assert.hpp"
 #include "ebo_base_helper.hpp"
-#include "sekhmet/math/detail/util.hpp"
 
 namespace sek
 {

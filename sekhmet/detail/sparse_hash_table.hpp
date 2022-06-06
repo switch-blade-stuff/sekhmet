@@ -25,12 +25,12 @@
 #include <algorithm>
 #include <bit>
 
+#include "../math/utility.hpp"
 #include "alloc_util.hpp"
 #include "assert.hpp"
 #include "ebo_base_helper.hpp"
 #include "flagged_ptr.hpp"
 #include "hash.hpp"
-#include "sekhmet/math/detail/util.hpp"
 #include "table_util.hpp"
 
 namespace sek::detail

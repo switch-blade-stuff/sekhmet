@@ -30,4 +30,4 @@
 #include "detail/packed_pair.hpp"
 #include "detail/uuid.hpp"
 #include "detail/version.hpp"
-#include "math/detail/util.hpp"
+#include "math/utility.hpp"

@@ -24,7 +24,7 @@
 
 #include <zstd.h>
 
-#include "../math/detail/util.hpp"
+#include "../math/utility.hpp"
 #include "logger.hpp"
 #include <zstd_errors.h>
 
@@ -358,5 +358,67 @@ namespace sek
 		init(r, w);
 		compress_single(level, frame_size);
 		return out_frame;
+	}
+
+	template<typename F>
+	void zstd_thread_ctx::spawn_workers(thread_pool &pool, std::size_t n, F &&f)
+	{
+#ifdef SEK_ALLOCA
+		/* Stack allocation here is fine, since std::future is not a large structure. */
+		auto *wait_buf = static_cast<std::future<void> *>(SEK_ALLOCA(sizeof(std::future<void>) * n));
+#else
+		auto *wait_buf = static_cast<std::future<void> *>(::operator new[](sizeof(std::future<void>) * n));
+#endif
+
+		std::exception_ptr eptr = {};
+		try
+		{
+			/* Schedule pool.size() workers. Some of these workers will terminate without doing anything.
+			 * This is not ideal, but we can not know the amount of frames beforehand. */
+			for (std::size_t i = 0; i < n; ++i) std::construct_at(wait_buf + i, pool.schedule(std::forward<F>(f)));
+		}
+		catch (...)
+		{
+			/* Store thrown exception, since we still need to clean up any buffers allocated by the worker threads.
+			 * Some worker threads might have had a chance to execute. */
+			eptr = std::current_exception();
+			goto cleanup;
+		}
+
+		/* Wait for threads to terminate. Store any exceptions to thread_error. */
+		{
+			std::string error_msg;
+			for (std::size_t i = 0; i < n; ++i)
+			{
+				try
+				{
+					wait_buf[i].get();
+				}
+				catch (std::exception &e)
+				{
+					error_msg.append("\n\t> what(): ").append(e.what());
+				}
+				catch (...)
+				{
+					error_msg.append("\n\t> Unknown exception");
+				}
+			}
+			if (!error_msg.empty()) [[unlikely]]
+			{
+				error_msg.insert(0, std::string_view{"ZSTD thread failure. Received errors:"});
+				eptr = std::make_exception_ptr(zstd_error(std::move(error_msg)));
+			}
+		}
+
+	cleanup:
+		clear_tasks();
+		for (std::size_t i = 0; i < n; ++i) std::destroy_at(wait_buf + i);
+
+#ifndef SEK_ALLOCA
+		::operator delete[](wait_buf);
+#endif
+
+		if (eptr) [[unlikely]]
+			std::rethrow_exception(eptr);
 	}
 }	 // namespace sek

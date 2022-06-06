@@ -22,12 +22,12 @@
 
 #pragma once
 
+#include <bit>
 #include <cstddef>
 #include <cstdint>
-#include <bit>
 
+#include "../math/utility.hpp"
 #include "meta_util.hpp"
-#include "sekhmet/math/detail/util.hpp"
 
 namespace sek
 {
