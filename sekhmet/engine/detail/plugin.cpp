@@ -22,14 +22,14 @@
 
 #include "plugin.hpp"
 
-#include "dense_map.hpp"
 #include "logger.hpp"
+#include "sekhmet/detail/dense_map.hpp"
 #include <shared_mutex>
 
 #define ENABLE_FAIL_MSG "Failed to enable plugin - "
 #define DISABLE_FAIL_MSG "Failed to disable plugin - "
 
-namespace sek
+namespace sek::engine
 {
 	namespace detail
 	{
@@ -64,11 +64,11 @@ namespace sek
 			}
 			catch (std::exception &e)
 			{
-				logger::error() << SEK_LOG_FORMAT_NS::format(ENABLE_FAIL_MSG "got exception: \"{}\"", e.what());
+				logger::error() << fmt::format(ENABLE_FAIL_MSG "got exception: \"{}\"", e.what());
 			}
 			catch (...)
 			{
-				logger::error() << SEK_LOG_FORMAT_NS::format(ENABLE_FAIL_MSG "unknown exception");
+				logger::error() << fmt::format(ENABLE_FAIL_MSG "unknown exception");
 			}
 			return false;
 		}
@@ -80,12 +80,12 @@ namespace sek
 			}
 			catch (std::exception &e)
 			{
-				logger::error() << SEK_LOG_FORMAT_NS::format(DISABLE_FAIL_MSG "got exception: \"{}\"", e.what());
+				logger::error() << fmt::format(DISABLE_FAIL_MSG "got exception: \"{}\"", e.what());
 				return;
 			}
 			catch (...)
 			{
-				logger::error() << SEK_LOG_FORMAT_NS::format(DISABLE_FAIL_MSG "unknown exception");
+				logger::error() << fmt::format(DISABLE_FAIL_MSG "unknown exception");
 				return;
 			}
 		}
@@ -96,17 +96,17 @@ namespace sek
 			std::lock_guard<std::shared_mutex> l(db.mtx);
 
 			if (!check_version(data->info.engine_ver)) [[unlikely]]
-				logger::error() << SEK_LOG_FORMAT_NS::format("Ignoring incompatible plugin \"{}\". "
+				logger::error() << fmt::format("Ignoring incompatible plugin \"{}\". "
 															 "Plugin engine version: \"{}\", "
 															 "actual engine version: \"{}\"",
 															 data->info.id,
 															 data->info.engine_ver.to_string(),
 															 SEK_ENGINE_VERSION);
 			else if (data->status != plugin_data::INITIAL) [[unlikely]]
-				logger::error() << SEK_LOG_FORMAT_NS::format("Ignoring duplicate plugin \"{}\"", data->info.id);
+				logger::error() << fmt::format("Ignoring duplicate plugin \"{}\"", data->info.id);
 			else if (auto res = db.plugins.try_emplace(data->info.id, data); res.second) [[likely]]
 			{
-				logger::info() << SEK_LOG_FORMAT_NS::format("Loading plugin \"{}\"", data->info.id);
+				logger::info() << fmt::format("Loading plugin \"{}\"", data->info.id);
 
 				try
 				{
@@ -116,16 +116,16 @@ namespace sek
 				}
 				catch (std::exception &e)
 				{
-					logger::error() << SEK_LOG_FORMAT_NS::format("Failed to load plugin - init exception: \"{}\"", e.what());
+					logger::error() << fmt::format("Failed to load plugin - init exception: \"{}\"", e.what());
 				}
 				catch (...)
 				{
-					logger::error() << SEK_LOG_FORMAT_NS::format("Failed to load plugin - unknown init exception");
+					logger::error() << fmt::format("Failed to load plugin - unknown init exception");
 				}
 				db.plugins.erase(res.first);
 			}
 			else
-				logger::warn() << SEK_LOG_FORMAT_NS::format("Ignoring duplicate plugin \"{}\"", data->info.id);
+				logger::warn() << fmt::format("Ignoring duplicate plugin \"{}\"", data->info.id);
 		}
 		void plugin_data::unload(plugin_data *data)
 		{
@@ -136,10 +136,10 @@ namespace sek
 			if (old_status == plugin_data::INITIAL) [[unlikely]]
 				return;
 
-			logger::info() << SEK_LOG_FORMAT_NS::format("Unloading plugin \"{}\"", data->info.id);
+			logger::info() << fmt::format("Unloading plugin \"{}\"", data->info.id);
 			if (old_status == plugin_data::ENABLED) [[unlikely]]
 			{
-				logger::warn() << SEK_LOG_FORMAT_NS::format("Disabling plugin \"{}\" on unload. "
+				logger::warn() << fmt::format("Disabling plugin \"{}\" on unload. "
 															"This may lead to unexpected errors",
 															data->info.id);
 				disable_guarded(data);
@@ -184,9 +184,9 @@ namespace sek
 	{
 		std::lock_guard<std::shared_mutex> l(detail::plugin_db::instance().mtx);
 
-		logger::info() << SEK_LOG_FORMAT_NS::format("Enabling plugin \"{}\"", id());
+		logger::info() << fmt::format("Enabling plugin \"{}\"", id());
 		if (data->status != detail::plugin_data::DISABLED) [[unlikely]]
-			logger::error() << SEK_LOG_FORMAT_NS::format(ENABLE_FAIL_MSG "already enabled or not loaded");
+			logger::error() << fmt::format(ENABLE_FAIL_MSG "already enabled or not loaded");
 		else if (detail::enable_guarded(data)) [[likely]]
 		{
 			data->status = detail::plugin_data::ENABLED;
@@ -198,9 +198,9 @@ namespace sek
 	{
 		std::lock_guard<std::shared_mutex> l(detail::plugin_db::instance().mtx);
 
-		logger::info() << SEK_LOG_FORMAT_NS::format("Disabling plugin \"{}\"", id());
+		logger::info() << fmt::format("Disabling plugin \"{}\"", id());
 		if (data->status != detail::plugin_data::ENABLED) [[unlikely]]
-			logger::error() << SEK_LOG_FORMAT_NS::format(DISABLE_FAIL_MSG "already disabled or not loaded");
+			logger::error() << fmt::format(DISABLE_FAIL_MSG "already disabled or not loaded");
 		else
 		{
 			detail::disable_guarded(data);

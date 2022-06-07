@@ -110,12 +110,9 @@ TEST(serialization_tests, json_test)
 
 	std::string json_string;
 	{
-		std::stringstream ss;
-		json::output_archive archive{ss};
+		json::output_archive archive{json_string};
 		archive << data;
-
 		archive.flush();
-		json_string = ss.str();
 	}
 	json_string = "// Test comment\n" + json_string;
 	serializable_t deserialized = {};

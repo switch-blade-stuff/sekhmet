@@ -1,4 +1,0 @@
-
-foreach (TARGET ${BUILDSYSTEM_TARGETS})
-    target_include_directories(${TARGET} PRIVATE ${SEK_SOURCE_DIR})
-endforeach ()

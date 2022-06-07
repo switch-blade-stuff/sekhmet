@@ -24,12 +24,12 @@
 
 #include <vector>
 
-#include "define.h"
-#include "event.hpp"
-#include "static_string.hpp"
-#include "version.hpp"
+#include "sekhmet/detail/define.h"
+#include "sekhmet/detail/event.hpp"
+#include "sekhmet/detail/static_string.hpp"
+#include "sekhmet/detail/version.hpp"
 
-namespace sek
+namespace sek::engine
 {
 	namespace detail
 	{
@@ -137,7 +137,7 @@ namespace sek
 	private:
 		detail::plugin_data *data = nullptr;
 	};
-}	 // namespace sek
+}	 // namespace sek::engine
 
 /** @brief Macro used to define a plugin.
  * @param id Unique id for the plugin used to reference the plugin at runtime. */
@@ -149,7 +149,7 @@ namespace sek
 		template<sek::basic_static_string>                                                                             \
 		struct plugin_instance;                                                                                        \
 		template<>                                                                                                     \
-		struct plugin_instance<(id)> : sek::detail::basic_plugin<plugin_instance<(id)>>                                \
+		struct plugin_instance<(id)> : sek::engine::detail::basic_plugin<plugin_instance<(id)>>                        \
 		{                                                                                                              \
 			plugin_instance() : basic_plugin({sek::version{SEK_ENGINE_VERSION}, (id)})                                 \
 			{                                                                                                          \
@@ -158,5 +158,5 @@ namespace sek
 		};                                                                                                             \
 	}                                                                                                                  \
 	template<>                                                                                                         \
-	plugin_instance<(id)> sek::detail::basic_plugin<plugin_instance<(id)>>::instance = {};                             \
+	plugin_instance<(id)> sek::engine::detail::basic_plugin<plugin_instance<(id)>>::instance = {};                     \
 	void plugin_instance<(id)>::init()

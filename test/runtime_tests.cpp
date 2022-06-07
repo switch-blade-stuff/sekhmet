@@ -54,14 +54,14 @@ constexpr std::string_view sek::type_name<test_child>() noexcept
 SEK_EXTERN_TYPE(test_child)
 SEK_EXPORT_TYPE(test_child)
 
-#include "sekhmet/logger.hpp"
-#include "sekhmet/plugin.hpp"
+#include "sekhmet/engine/logger.hpp"
+#include "sekhmet/engine/plugin.hpp"
 
 static bool plugin_enabled = false;
 
 SEK_PLUGIN("test_plugin")
 {
-	sek::logger::info() << fmt::format("Initializing plugin \"{}\"", info.id);
+	sek::engine::logger::info() << fmt::format("Initializing plugin \"{}\"", info.id);
 
 	on_enable += +[]()
 	{
@@ -78,7 +78,7 @@ SEK_PLUGIN("test_plugin")
 
 TEST(utility_tests, plugin_test)
 {
-	auto p = sek::plugin::get("test_plugin");
+	auto p = sek::engine::plugin::get("test_plugin");
 	EXPECT_FALSE(p.enabled());
 	EXPECT_FALSE(plugin_enabled);
 

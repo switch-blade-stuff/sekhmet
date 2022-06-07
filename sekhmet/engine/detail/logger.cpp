@@ -24,7 +24,7 @@
 
 #include <cstdio>
 
-namespace sek
+namespace sek::engine
 {
 	static logger make_logger(log_level level)
 	{

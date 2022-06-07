@@ -26,7 +26,7 @@
 
 #include "sekhmet/detail/hash.hpp"
 
-namespace sek::ecs
+namespace sek::engine
 {
 	/** @brief An entity is an internal ID used to refer to a group of components.
 	 *
@@ -148,7 +148,7 @@ namespace sek::ecs
 	};
 
 	[[nodiscard]] constexpr hash_t hash(entity e) noexcept { return e.value(); }
-}	 // namespace sek::ecs
+}	 // namespace sek::engine
 
 template<>
 struct std::hash<sek::ecs::entity>

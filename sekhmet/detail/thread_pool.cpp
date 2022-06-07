@@ -23,7 +23,7 @@
 #include "thread_pool.hpp"
 
 #include "assert.hpp"
-#include "logger.hpp"
+#include "../engine/logger.hpp"
 
 namespace sek
 {
@@ -96,7 +96,7 @@ namespace sek
 			}
 			catch (std::system_error &e) /* Mutex error. */
 			{
-				logger::error() << "Mutex error in worker thread: " << e.what();
+				engine::logger::error() << "Mutex error in worker thread: " << e.what();
 			}
 
 			/* Execute & delete the task. */

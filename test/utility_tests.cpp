@@ -175,7 +175,7 @@ TEST(utility_tests, thread_pool_test)
 	EXPECT_GE(std::chrono::duration_cast<ms_t>(std::chrono::steady_clock::now() - wait_start), ms_t{200});
 }
 
-#include "sekhmet/logger.hpp"
+#include "sekhmet/engine/logger.hpp"
 
 TEST(utility_tests, logger_test)
 {
@@ -184,36 +184,36 @@ TEST(utility_tests, logger_test)
 
 	{
 		constexpr auto log_msg = "Test log info";
-		sek::logger::info().on_log() += listener;
-		sek::logger::info() << log_msg;
+		sek::engine::logger::info().on_log() += listener;
+		sek::engine::logger::info() << log_msg;
 
 		auto output = ss.str();
 		EXPECT_NE(output.find(log_msg), std::string::npos);
 		EXPECT_NE(output.find("Info"), std::string::npos);
 
-		EXPECT_TRUE(sek::logger::info().on_log() -= listener);
+		EXPECT_TRUE(sek::engine::logger::info().on_log() -= listener);
 	}
 	{
 		constexpr auto log_msg = "Test log warning";
-		sek::logger::warn().on_log() += listener;
-		sek::logger::warn() << log_msg;
+		sek::engine::logger::warn().on_log() += listener;
+		sek::engine::logger::warn() << log_msg;
 
 		auto output = ss.str();
 		EXPECT_NE(output.find(log_msg), std::string::npos);
 		EXPECT_NE(output.find("Warn"), std::string::npos);
 
-		EXPECT_TRUE(sek::logger::warn().on_log() -= listener);
+		EXPECT_TRUE(sek::engine::logger::warn().on_log() -= listener);
 	}
 	{
 		constexpr auto log_msg = "Test log error";
-		sek::logger::error().on_log() += listener;
-		sek::logger::error() << log_msg;
+		sek::engine::logger::error().on_log() += listener;
+		sek::engine::logger::error() << log_msg;
 
 		auto output = ss.str();
 		EXPECT_NE(output.find(log_msg), std::string::npos);
 		EXPECT_NE(output.find("Error"), std::string::npos);
 
-		EXPECT_TRUE(sek::logger::error().on_log() -= listener);
+		EXPECT_TRUE(sek::engine::logger::error().on_log() -= listener);
 	}
 }
 

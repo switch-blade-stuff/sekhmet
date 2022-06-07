@@ -27,20 +27,13 @@
 #include <iostream>
 #include <vector>
 
-#include "define.h"
-#include "event.hpp"
-
-#ifdef __cpp_lib_format
-#include <format>
-#define SEK_LOG_FORMAT_NS std
-#else
+#include "sekhmet/detail/define.h"
+#include "sekhmet/detail/event.hpp"
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <fmt/xchar.h>
-#define SEK_LOG_FORMAT_NS fmt
-#endif
 
-namespace sek
+namespace sek::engine
 {
 	/** @vrief Log levels of `basic_logger`. */
 	enum class log_level : int
@@ -116,13 +109,13 @@ namespace sek
 			std::string_view lvl_str;
 			switch (lvl)
 			{
-				default: return SEK_LOG_FORMAT_NS::format(format_str_generic, SEK_LOG_FORMAT_NS::localtime(now), msg);
+				default: return fmt::format(format_str_generic, fmt::localtime(now), msg);
 				case log_level::info: lvl_str = "Info"; break;
 				case log_level::warn: lvl_str = "Warn"; break;
 				case log_level::error: lvl_str = "Error"; break;
 				case log_level::fatal: lvl_str = "Fatal"; break;
 			}
-			return SEK_LOG_FORMAT_NS::format(format_str, SEK_LOG_FORMAT_NS::localtime(now), lvl_str, msg);
+			return fmt::format(format_str, fmt::localtime(now), lvl_str, msg);
 		}
 
 	public:

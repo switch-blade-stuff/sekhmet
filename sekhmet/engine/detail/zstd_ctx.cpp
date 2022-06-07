@@ -24,11 +24,11 @@
 
 #include <zstd.h>
 
-#include "../math/utility.hpp"
 #include "logger.hpp"
+#include "sekhmet/math/utility.hpp"
 #include <zstd_errors.h>
 
-namespace sek
+namespace sek::engine
 {
 	zstd_error::zstd_error(std::size_t code) : zstd_error(ZSTD_getErrorName(code)) {}
 
@@ -36,9 +36,9 @@ namespace sek
 	{
 		/* If ZSTD version is invalid, there is no way we can recover at any stage.
 		 * The only way this could happen is if the engine was compiled with invalid version of ZSTD. */
-		sek::logger::fatal() << SEK_LOG_FORMAT_NS::format("Invalid ZSTD version ({}). This should never happen "
-														  "and can only be caused by incorrectly compiled engine",
-														  ZSTD_versionString());
+		logger::fatal() << fmt::format("Invalid ZSTD version ({}). This should never happen "
+									   "and can only be caused by incorrectly compiled engine",
+									   ZSTD_versionString());
 		std::abort();
 	}
 	static std::size_t assert_zstd_error(std::size_t code)
@@ -421,4 +421,4 @@ namespace sek
 		if (eptr) [[unlikely]]
 			std::rethrow_exception(eptr);
 	}
-}	 // namespace sek
+}	 // namespace sek::engine

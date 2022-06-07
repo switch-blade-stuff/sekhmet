@@ -38,7 +38,7 @@ namespace sek::serialization
 		using traits_type = Traits;
 		using int_type = typename traits_type::int_type;
 
-		struct callback_info
+		struct vtable_t
 		{
 			std::size_t (*getn)(void *, char_type *, std::size_t);
 			std::size_t (*bump)(void *, std::size_t);
@@ -50,137 +50,38 @@ namespace sek::serialization
 	private:
 		using sbuf_type = std::basic_streambuf<char_type, traits_type>;
 
-		struct generic_data_t
-		{
-			const callback_info *callbacks;
-			void *data_ptr;
-		};
-		struct buffer_data_t
-		{
-			const char_type *begin;
-			const char_type *curr;
-			const char_type *end;
-		};
-		union data_t
-		{
-			constexpr data_t(generic_data_t *generic) noexcept : generic(generic) {}
-			constexpr data_t(buffer_data_t membuf) noexcept : membuf(membuf) {}
-			constexpr data_t(sbuf_type *sbuf) noexcept : sbuf(sbuf) {}
-			constexpr data_t(FILE *file) noexcept : file(file) {}
-
-			generic_data_t generic;
-			buffer_data_t membuf;
-			sbuf_type *sbuf;
-			FILE *file;
-		};
-
-		struct vtable_t
-		{
-			std::size_t (*getn)(data_t *, char_type *, std::size_t);
-			std::size_t (*bump)(data_t *, std::size_t);
-			std::size_t (*tell)(data_t *);
-			int_type (*peek)(data_t *);
-			int_type (*take)(data_t *);
-		};
-
-		constexpr static vtable_t generic_vtable = {
-			.getn = +[](data_t *data, char_type *dst, std::size_t n) -> std::size_t
-			{
-				const auto callbacks = data->generic.callbacks;
-				const auto data_ptr = data->generic.data_ptr;
-				return callbacks.getn(data_ptr, dst, n);
-			},
-			.bump = +[](data_t *data, std::size_t n) -> std::size_t
-			{
-				const auto callbacks = data->generic.callbacks;
-				const auto data_ptr = data->generic.data_ptr;
-				return callbacks.bump(data_ptr, n);
-			},
-			.tell = +[](data_t *data) -> std::size_t
-			{
-				const auto callbacks = data->generic.callbacks;
-				const auto data_ptr = data->generic.data_ptr;
-				return callbacks.tell(data_ptr);
-			},
-			.peek = +[](data_t *data) -> int_type
-			{
-				const auto callbacks = data->generic.callbacks;
-				const auto data_ptr = data->generic.data_ptr;
-				return callbacks.peek(data_ptr);
-			},
-			.take = +[](data_t *data) -> int_type
-			{
-				const auto callbacks = data->generic.callbacks;
-				const auto data_ptr = data->generic.data_ptr;
-				return callbacks.take(data_ptr);
-			},
-		};
-		constexpr static vtable_t membuf_vtable = {
-			.getn = +[](data_t *data, char_type *dst, std::size_t n) -> std::size_t
-			{
-				auto &membuf = data->membuf;
-				auto new_curr = membuf.curr + n;
-				if (new_curr >= membuf.end) [[unlikely]]
-					new_curr = membuf.end;
-				std::copy(membuf.curr, new_curr, dst);
-				return static_cast<std::size_t>(new_curr - std::exchange(membuf.curr, new_curr));
-			},
-			.bump = +[](data_t *data, std::size_t n) -> std::size_t
-			{
-				auto &membuf = data->membuf;
-				auto new_curr = membuf.curr + n;
-				if (new_curr >= membuf.end) [[unlikely]]
-					new_curr = membuf.end;
-				return static_cast<std::size_t>(new_curr - std::exchange(membuf.curr, new_curr));
-			},
-			.tell = +[](data_t *data) -> std::size_t
-			{
-				auto &membuf = data->membuf;
-				return static_cast<std::size_t>(membuf.curr - membuf.begin);
-			},
-			.peek = +[](data_t *data) -> int_type
-			{
-				auto &membuf = data->membuf;
-				return membuf.end > membuf.curr ? traits_type::to_int_type(*membuf.curr) : traits_type::eof();
-			},
-			.take = +[](data_t *data) -> int_type
-			{
-				auto &membuf = data->membuf;
-				return membuf.end > membuf.curr ? traits_type::to_int_type(*membuf.curr++) : traits_type::eof();
-			},
-		};
 		constexpr static vtable_t sbuf_vtable = {
-			.getn = +[](data_t *data, char_type *dst, std::size_t n) -> std::size_t
+			.getn = +[](void *data, char_type *dst, std::size_t n) -> std::size_t
 			{
-				const auto sbuf = data->sbuf;
+				auto *sbuf = static_cast<sbuf_type *>(data);
 				return static_cast<std::size_t>(sbuf->sgetn(dst, static_cast<std::streamsize>(n)));
 			},
-			.bump = +[](data_t *data, std::size_t n) -> std::size_t
+			.bump = +[](void *data, std::size_t n) -> std::size_t
 			{
-				const auto sbuf = data->sbuf;
+				auto *sbuf = static_cast<sbuf_type *>(data);
 				const auto off = static_cast<std::streamoff>(n);
 				if (sbuf->pubseekoff(off, std::ios::cur, std::ios::in) == typename sbuf_type::pos_type{off}) [[likely]]
 					return n;
 				else
 					return 0;
 			},
-			.tell = +[](data_t *data) -> std::size_t
+			.tell = +[](void *data) -> std::size_t
 			{
-				const auto sbuf = data->sbuf;
+				auto *sbuf = static_cast<sbuf_type *>(data);
 				return static_cast<std::size_t>(sbuf->pubseekoff(0, std::ios::cur, std::ios::in));
 			},
-			.peek = +[](data_t *data) -> int_type { return data->sbuf->sgetc(); },
-			.take = +[](data_t *data) -> int_type { return data->sbuf->sbumpc(); },
+			.peek = +[](void *data) -> int_type { return static_cast<sbuf_type *>(data)->sgetc(); },
+			.take = +[](void *data) -> int_type { return static_cast<sbuf_type *>(data)->sbumpc(); },
 		};
 		constexpr static vtable_t file_vtable = {
-			.getn = +[](data_t *data, char_type *dst, std::size_t n) -> std::size_t
+			.getn = +[](void *data, char_type *dst, std::size_t n) -> std::size_t
 			{
-				const auto file = data->file;
+				auto *file = static_cast<FILE *>(data);
 				return fread(dst, sizeof(char_type), n, file);
 			},
-			.bump = +[](data_t *data, std::size_t n) -> std::size_t
+			.bump = +[](void *data, std::size_t n) -> std::size_t
 			{
-				const auto file = data->file;
+				auto *file = static_cast<FILE *>(data);
 				const auto off = sizeof(char_type) * n;
 #if defined(_POSIX_C_SOURCE)
 #if _FILE_OFFSET_BITS < 64
@@ -198,9 +99,9 @@ namespace sek::serialization
 				else
 					return 0;
 			},
-			.tell = +[](data_t *data) -> std::size_t
+			.tell = +[](void *data) -> std::size_t
 			{
-				const auto file = data->file;
+				auto *file = static_cast<FILE *>(data);
 #if defined(_POSIX_C_SOURCE)
 #if _FILE_OFFSET_BITS < 64
 				auto pos = ftello64(file);
@@ -217,17 +118,17 @@ namespace sek::serialization
 				else
 					return static_cast<std::size_t>(EOF);
 			},
-			.peek = +[](data_t *data) -> int_type
+			.peek = +[](void *data) -> int_type
 			{
-				const auto file = data->file;
+				auto *file = static_cast<FILE *>(data);
 				if constexpr (sizeof(char_type) == sizeof(wchar_t))
 					return static_cast<int_type>(ungetwc(getwc(file), file));
 				else
 					return static_cast<int_type>(ungetc(getc(file), file));
 			},
-			.take = +[](data_t *data) -> int_type
+			.take = +[](void *data) -> int_type
 			{
-				const auto file = data->file;
+				auto *file = static_cast<FILE *>(data);
 				if constexpr (sizeof(char_type) == sizeof(wchar_t))
 					return static_cast<int_type>(getwc(file));
 				else
@@ -239,40 +140,27 @@ namespace sek::serialization
 		/** Initializes an empty reader. */
 		constexpr archive_reader() noexcept = default;
 
-		constexpr archive_reader(const callback_info *callbacks, void *data) noexcept
-			: vtable(&generic_vtable), data(generic_data_t{callbacks, data})
+		/** Initializes a reader using a callback vtable and a data pointer. */
+		constexpr archive_reader(const vtable_t *callback_vtable, void *data) noexcept
+			: vtable(callback_vtable), data(data)
 		{
 		}
-		constexpr archive_reader(const char_type *first, const char_type *last) noexcept
-			: vtable(&membuf_vtable), data(buffer_data_t{first, first, last})
-		{
-		}
-		constexpr archive_reader(const char_type *first, std::size_t n) noexcept : archive_reader(first, first + n) {}
-		constexpr archive_reader(std::basic_string_view<C, Traits> sv) noexcept : archive_reader(sv.data(), sv.size())
-		{
-		}
-		template<std::size_t N>
-		constexpr archive_reader(const std::array<C, N> &data) noexcept : archive_reader(data.data(), N)
-		{
-		}
-		template<std::size_t N>
-		constexpr archive_reader(const C (&chars)[N]) noexcept : archive_reader(chars, N)
-		{
-		}
-		constexpr archive_reader(sbuf_type *sbuf) noexcept : vtable(&sbuf_vtable), data(sbuf) {}
-		constexpr archive_reader(FILE *file) noexcept : vtable(&file_vtable), data(file) {}
+		/** Initializes a reader from a stream buffer. */
+		constexpr archive_reader(sbuf_type *sbuf) noexcept : archive_reader(&sbuf_vtable, sbuf) {}
+		/** Initializes a reader from a C file. */
+		constexpr archive_reader(FILE *file) noexcept : archive_reader(&file_vtable, file) {}
 
 		/** Checks if the reader was fully initialized. */
 		[[nodiscard]] constexpr bool empty() { return vtable == nullptr; }
 
-		std::size_t getn(char_type *dst, std::size_t n) { return vtable->getn(&data, dst, n); }
-		std::size_t bump(std::size_t n) { return vtable->bump(&data, n); }
-		std::size_t tell() { return vtable->tell(&data); }
-		int_type peek() { return vtable->peek(&data); }
-		int_type take() { return vtable->take(&data); }
+		std::size_t getn(char_type *dst, std::size_t n) { return vtable->getn(data, dst, n); }
+		std::size_t bump(std::size_t n) { return vtable->bump(data, n); }
+		std::size_t tell() { return vtable->tell(data); }
+		int_type peek() { return vtable->peek(data); }
+		int_type take() { return vtable->take(data); }
 
 	private:
 		const vtable_t *vtable = nullptr;
-		data_t data;
+		void *data;
 	};
 }	 // namespace sek::serialization

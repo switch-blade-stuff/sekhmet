@@ -23,7 +23,7 @@
 #include "reflection.hpp"
 
 #include "dense_map.hpp"
-#include "logger.hpp"
+#include <fmt/format.h>
 #include <shared_mutex>
 
 namespace sek
@@ -33,7 +33,7 @@ namespace sek
 		void assert_mutable_any(const any &a, std::string_view name)
 		{
 			if (a.is_const()) [[unlikely]]
-				throw any_const_error(SEK_LOG_FORMAT_NS::format("Cannot bind const `any` to a non-const type \"{}\"", name));
+				throw any_const_error(fmt::format("Cannot bind const `any` to a non-const type \"{}\"", name));
 		}
 	}	 // namespace detail
 
@@ -94,10 +94,10 @@ namespace sek
 		const auto ctor = std::ranges::find_if(ctors, [&args](auto c) { return c.signature().invocable_with(args); });
 		if (ctor == ctors.end()) [[unlikely]]
 		{
-			throw invalid_member_error(SEK_LOG_FORMAT_NS::format(
-				"No matching constructor taking {} found for type \"{}\"",
-				args_type_msg(args.begin(), args.end(), [](auto &&a) { return a.type().name(); }),
-				name()));
+			throw invalid_member_error(
+				fmt::format("No matching constructor taking {} found for type \"{}\"",
+							args_type_msg(args.begin(), args.end(), [](auto &&a) { return a.type().name(); }),
+							name()));
 		}
 		else
 			return ctor->node->invoke(args);
@@ -108,10 +108,10 @@ namespace sek
 		const auto func = std::ranges::find_if(funcs, [&name](auto f) { return f.name() == name; });
 		if (func == funcs.end()) [[unlikely]]
 		{
-			throw invalid_member_error(SEK_LOG_FORMAT_NS::format("No matching function with name \"{}\" "
-																 "found for type \"{}\"",
-																 name,
-																 data->name));
+			throw invalid_member_error(fmt::format("No matching function with name \"{}\" "
+												   "found for type \"{}\"",
+												   name,
+												   data->name));
 		}
 		else
 			return func->invoke(std::move(instance), args);
@@ -202,10 +202,10 @@ namespace sek
 		if (!invocable_with(values)) [[unlikely]]
 		{
 			const auto as = args();
-			throw any_type_error(SEK_LOG_FORMAT_NS::format(
-				"Invalid argument types. Expected: {}, got {}",
-				args_type_msg(as.begin(), as.end(), [](auto &&t) { return t.name(); }),
-				args_type_msg(values.begin(), values.end(), [](auto &&a) { return a.type().name(); })));
+			throw any_type_error(
+				fmt::format("Invalid argument types. Expected: {}, got {}",
+							args_type_msg(as.begin(), as.end(), [](auto &&t) { return t.name(); }),
+							args_type_msg(values.begin(), values.end(), [](auto &&a) { return a.type().name(); })));
 		}
 		return true;
 	}

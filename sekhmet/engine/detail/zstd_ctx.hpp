@@ -24,13 +24,13 @@
 
 #include <mutex>
 
-#include "bswap.hpp"
-#include "define.h"
-#include "delegate.hpp"
-#include "dynarray.hpp"
-#include "thread_pool.hpp"
+#include "sekhmet/detail/bswap.hpp"
+#include "sekhmet/detail/define.h"
+#include "sekhmet/detail/delegate.hpp"
+#include "sekhmet/detail/dynarray.hpp"
+#include "sekhmet/detail/thread_pool.hpp"
 
-namespace sek
+namespace sek::engine
 {
 	/** @brief Exception thrown when ZSTD (de)compression worker threads encounter an error. */
 	class zstd_error : public std::runtime_error
@@ -376,4 +376,4 @@ namespace sek
 		read_t read;   /* Delegate used to read source data. */
 		write_t write; /* Delegate used to write result. */
 	};
-}	 // namespace sek
+}	 // namespace sek::engine

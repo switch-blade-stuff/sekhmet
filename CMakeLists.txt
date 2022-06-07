@@ -44,14 +44,22 @@ else ()
     set(CMAKE_CXX_STANDARD 20)
 endif ()
 
-include(${CMAKE_CURRENT_LIST_DIR}/CMakeLists.options.txt)
+# Project build options
+option(SEK_BUILD_EDITOR "Build editor project" OFF)
+option(SEK_BUILD_MODULES "Build module projects" ON)
+option(SEK_EXPORT_BUILD "Project is built for export" OFF)
+option(SEK_ENABLE_TESTS "Build unit tests" OFF)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    set(SEK_ENABLE_TESTS ON CACHE BOOL "Build unit tests" FORCE)
+endif ()
 
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib CACHE STRING "")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin CACHE STRING "")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin CACHE STRING "")
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 
 if (SEK_TOP_LEVEL OR SEK_EXPORT_BUILD)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib CACHE STRING "")
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin CACHE STRING "")
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin CACHE STRING "")
+
     add_library(${PROJECT_NAME} SHARED)
     sek_init_target_options(${PROJECT_NAME})
 
@@ -77,9 +85,8 @@ if (SEK_TOP_LEVEL OR SEK_EXPORT_BUILD)
 
     # Include project source subdirectory
     include(${SEK_SOURCE_DIR}/CMakeLists.txt)
-
-    # Set project include file for all subsequent projects
-    set(CMAKE_PROJECT_INCLUDE ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.include.txt)
+    # Include third-party projects
+    include(${CMAKE_CURRENT_LIST_DIR}/third-party/CMakeLists.txt)
 
     # Include editor project
     if (SEK_BUILD_EDITOR AND NOT SEK_EXPORT_BUILD AND EXISTS ${SEK_SOURCE_DIR}/editor/CMakeLists.txt)

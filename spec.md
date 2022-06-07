@@ -13,9 +13,15 @@
             -> .manifest            (Json config file containing information about the package. If the package is a sub-project, will contain extra info about said sub-project)
             -> .editor              (Directory containing editor-specific assets)
                 -> assets...
-            -> .import-cache        (Directory containing asset import cache, mainly consisting of asset aliases and other import artifacts)
-                -> artifacts...
-            -> assets...
+            -> .import           (Directory containing asset import cache, used to store asset format handler settings)
+                -> my_resource.ubj.imp
+                -> my_image.png.imp
+            -> .artifacts           (Directory containing asset artifacts)
+                -> my_image.png.tex
+            -> .metadata            (Directory containing asset metadata)
+                -> my_resource.ubj.meta
+            -> my_resource.ubj
+            -> my_image.png
     -> plugins                      (Directory containing plugin sub-projects)
         -> my_plugin                (Each plugin receives it's own sub-directory)
             -> CMakeLists.txt       (CMake project file of the plugin's sub-project)
@@ -26,17 +32,6 @@
         -> debug                    (Export binaries with debug information)
         -> release                  (Export binaries with no debug information)
 ```
-
-### Notes
-
-* Per-build-type subdirectories of `bin` are further separated into target-specific subdirectories,
-  ex. `bin/release/win-x64`, `bin/release/linux-x64`, etc.
-* Engine initiates automatic hot-reload of plugins once any of the binary directories is modified. This can happen due
-  to re-compile of plugin projects from within the editor, as well as external modification.
-  Once hot-reload is initiated, the engine closes any open resources (including the render pipeline resource, this
-  involves a temporary pause in any viewprt rendering), unloads all currently loaded plugins and effectively
-  soft-restarts. This is needed to make sure no plugin-dependant code or memory is left referenced by the engine to
-  avoid corruptions and/or crashes.
 
 ## Build
 
@@ -103,97 +98,7 @@ does not have any aliases whose property dependencies are satisfied, such asset 
 
 ## Asset import/generation
 
-Whenever a new file within an asset package directory is detcted (or on manual re-import), the editor imports said
-package. Unless a custom asset importer is registered, imported files are simply assigned a UUID and an asset name and
-are added to the package project manifest. If, however, a custom importer is registered (for the extension of the
-imported file), the custom importer can then preform implementation-defined operations on the asset. Such operations may
-include generating additional assets, converting the imported file into internal representation, compiling shaders, etc.
-In case an importer needs to create additional files, it can either create new assets, or create asset artifacts (within
-the `.import-cache` directory) and add one or multiple asset aliases for the imported asset. Asset importers are also
-responsible for generating asset names. By default, asset names are generated from their relative file path, with the
-extension omitted. If no name is generated, the asset will only be accessible by its UUID (and will not be visible
-in the editor's package view).
-
-Asset aliases are internal editor-only dependencies between an asset and the files that contain the asset's data. For
-assets that were not imported using a custom importer, the alias would simply point to the source file, while
-aliases for custom-imported assets may point to the generated (artifact) files. Multiple aliases can exist for the
-same asset, given different property dependencies. Asset aliases can also be created manually from the editor UI.
-This can be useful for creating a "pure alias" assets, that do not have any source or artifact files of their own,
-such as providing both a generic version of the asset that depends on the project's locale, while also having explicit
-localization assets (ex. `player-dialog` asset being a locale-dependant alias of `player-dialog-en.txt`,
-`player-dialog-fr.txt`, etc. while `player-dialog-en` asset being locale-independent).
-
-Asset aliases can depend on editor properties, in which case an alias would only be considered if the property
-dependencies are satisfied. If multiple aliases exist for the same asset (that satisfy property dependencies), the
-best-fitting one will be used. Alias is considered to fit better than others, if it's dependency set is a superset
-of other aliases. If multiple conflicting aliases have different sets of property dependencies, the first
-alias with the largest number of properties is used. If an alias file is missing, the asset will be
-re-imported.
-
-A property dependency may only consist of the property key, in which case it is satisfied when a property is active, or
-it may take form of `$KEY:$VALUE`, in which case it is satisfied when the property is both active and has the specific
-value.
-
-In addition, every asset entry has an optional source file an asset was imported from.
-When the source file is modified in any way, the corresponding asset is re-imported (which may cause it
-to be deleted, in case the source file was deleted). External modifications of asset source files are also tracked,
-however if an asset source is moved while the editor is not tracking the file, the asset may get deleted, since the
-source will be missing. If an asset does not have a source it is considered to be a pure alias asset.
-
-Assets may also indirectly depend on other assets, in which case an asset will be re-imported if any of its dependencies
-are re-imported. Dependant assets are always imported after their dependencies. Note that if an asset importer creates
-a circular asset dependency, an exception is generated and the dependency is not added.
-
-Every asset entry keeps track of the version of the asset importer it was imported with. In case the importer version
-differs, the asset is re-imported.
-
-When an asset is re-imported for whatever reason, any artifacts related to that asset are cleaned up, and the asset
-is removed from the project database (and the global asset repository). After that, the asset's source file is
-imported again, as if it was a new asset.
-
-Note that when an asset is re-imported, only the global asset repository is updated. Because of this, any custom asset
-repositories that exist in editor may contain references to invalid memory. To avoid this, any user code that manages
-its own repository must listen to the asset import message, and reset the repository after it receives said message.
-In general, it is not recommended for editor code to manage its own asset repositories (in-game, however, it is safe,
-since assets are not re-loaded while the play mode is active).
-
-If an asset's source, alias or dependency was modified while the play mode is active, re-import of said assets will be
-queued, and assets will be re-imported once the play mode exits. Due to such modification, an asset may fail to load
-during play mode, in the best case scenario an exception will be raised due to missing asset and play mode could
-potentially be terminated. However, if an asset is modified in such a way that it can be loaded, but is loaded
-incorrectly, corruption may happen.
-
-In addition to properties and sources, every asset has an optional set of tags, which are key-value pairs of strings.
-These tags may be used to query and categorize assets at runtime, for example, assets representing resources have
-the `"resource": "$FORMAT"` tag, which is used to look up resource assets and their storage formats at runtime, as well
-as to determine whether the currently selected asset is a resource (and thus whether an inspector for the resource
-should be opened).
-
-Every in-editor asset entry contains its UUID, name, importer version, source file, list of aliases,
-list of artifacts, and a list of dependencies.
-
 ## Resources
-
-Resources are containers for serialized data with support for runtime polymorphism. Every resource is backed by an
-asset. Resources are stored as files with `.res.$FORMAT_EXT` extension, where `$FORMAT_EXT` is the extension of the
-format used to store serialized data. Currently, all resources are stored in UBJson format (with `.ubj` extension),
-however support for custom storage formats may be added in the future (ex, via an overload-able NTTP template
-of `resource_loader`, that can be specialized for custom storage format names, the `resource_factory` attribute then may
-optionally specify all supported formats).
-
-Resources are loaded through the global resource cache. They can either be loaded from assets directly, or via an asset
-UUID or name. When a resource is loaded, a `weak_ptr` to it is stored within the cache, and a `shared_ptr` is returned
-to the caller. Resources suport runtime polymorphism through the use of the reflection system. Resource types must have
-the `resource_factory` attribute, which is used to generate a type-agnostic factory for said resource, bind it's
-serialization functions and type-casts. Internally, resources are referenced via a weak pointer to `void`, and are then
-cast to the target type. If a resource is not present within the cache, or if the `weak_ptr` of the cache entry does not
-point to a valid object, the resource is loaded and deserialized from its asset.
-
-Note that any modifications to cached resources will be reflected across the entire application, since they all point to
-the same object. To avoid this, resource can be copied or loaded anonymously. When resources are loaded anonymously,
-they are either copied from the cache (if a valid cache entry exists), or are deserialized from assets bypassing the
-cache. Anonymous resources may also be used to avoid overhead of `shared_ptr` when an explicit copy of the resource is
-needed.
 
 ## Main loop
 
