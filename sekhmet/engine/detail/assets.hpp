@@ -25,16 +25,27 @@
 #include <atomic>
 #include <filesystem>
 
+#include "sekhmet/detail/basic_pool.hpp"
 #include "sekhmet/detail/dense_map.hpp"
 #include "sekhmet/detail/dense_set.hpp"
 #include "sekhmet/detail/intern.hpp"
-#include "sekhmet/detail/basic_pool.hpp"
 #include "sekhmet/detail/service.hpp"
 #include "sekhmet/detail/uuid.hpp"
 
 namespace sek::engine
 {
 	class asset_source;
+
+	/** @brief Exception thrown when operation on an asset package fails. */
+	class asset_package_error : public std::runtime_error
+	{
+	public:
+		asset_package_error() : std::runtime_error("Unknown asset package error") {}
+		explicit asset_package_error(std::string &&msg) : std::runtime_error(std::move(msg)) {}
+		explicit asset_package_error(const std::string &msg) : std::runtime_error(msg) {}
+		explicit asset_package_error(const char *msg) : std::runtime_error(msg) {}
+		~asset_package_error() override = default;
+	};
 
 	namespace detail
 	{
@@ -119,7 +130,6 @@ namespace sek::engine
 
 			asset_source open_asset(const asset_info *) const;
 			std::vector<std::byte> load_meta(const asset_info *) const;
-			void construct_asset(asset_info *) const;
 			void destroy_asset(asset_info *) const;
 
 			union
@@ -144,7 +154,7 @@ namespace sek::engine
 	/** @brief Structure used to represent a data source of an asset.
 	 *
 	 * Since assets may be either loose or compressed and archived, a special structure is needed to read asset data.
-	 * In addition, to allow for implementation of optimization techniques (such as DirectStorage),
+	 * In addition, to allow for implementation of storage optimization techniques (such as DirectStorage),
 	 * streams cannot be used directly either, as access to the underlying file or data buffer is needed. */
 	class asset_source
 	{

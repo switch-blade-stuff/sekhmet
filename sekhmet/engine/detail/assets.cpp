@@ -41,9 +41,34 @@ namespace sek::engine
 {
 	namespace detail
 	{
-		constexpr static std::array<char, 8> signature = {'\3', 'S', 'E', 'K', 'P', 'A', 'K', '\0'};
-		constexpr static std::size_t version_pos = 7;
+		/*
+		 * Archive header format:
+		 * ============================================================================
+		 * =                                    V1                                    =
+		 * ============================================================================
+		 *    File offsets                  Description
+		 * 0x0000  -  0x0007                Signature ("\3SEKPAK" + 8-bit header version [1])
+		 * 0x0008  -  0x000b                Header flags (master, compression type, etc.)
+		 * 0x000c  -  0x000f                Total header size
+		 * 0x0010  -  0x0013                CRC32 of the header
+		 * ============================ Common header data ============================
+		 * 0x0014  -  0x0017                Number of assets of the package (n_assets)
+		 * 0x0018  -  end_assets            Asset info for every asset
+		 * ======================== Master package header data ========================
+		 * end_assets - end_assets + 4      Number of fragments (if any) of the package
+		 * end_assets + 5 - header_end      File names of fragments
+		 * =============================== Header flags ===============================
+		 * Description           Bit(s)      Values
+		 * Master flag             0         0 - Fragment
+		 *                                   1 - Master
+		 * Compression format     1-3        0 - No compression
+		 *                                   1 - ZSTD
+		 * Reserved               4-31
+		 * ============================================================================
+		 * */
 
+		constexpr std::array<char, 8> signature = {'\3', 'S', 'E', 'K', 'P', 'A', 'K', '\0'};
+		constexpr std::size_t version_pos = 7;
 		constexpr std::array<char, 8> make_signature(std::uint8_t ver) noexcept
 		{
 			auto result = signature;
@@ -57,6 +82,13 @@ namespace sek::engine
 			else
 				return 0;
 		}
+
+		enum header_flags : std::int32_t
+		{
+			MASTER = 1,
+			FORMAT_ZSTD = 0b0010,
+			FORMAT_MASK = 0b1110,
+		};
 
 		void package_fragment::acquire() { pack_vtable->acquire_func(this); }
 		void package_fragment::release() { pack_vtable->release_func(this); }
@@ -77,7 +109,6 @@ namespace sek::engine
 			if (ptr->ref_count.fetch_sub(1) == 1) [[unlikely]]
 				delete ptr;
 		}
-
 		constinit const typename package_fragment::pack_vtable_t master_vtable = {
 			.acquire_func = +[](package_fragment *ptr) -> void { acquire_master(static_cast<master_package *>(ptr)); },
 			.release_func = +[](package_fragment *ptr) -> void { release_master(static_cast<master_package *>(ptr)); },
