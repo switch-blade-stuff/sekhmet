@@ -38,6 +38,11 @@
 
 namespace sek::engine
 {
+	inline static std::string format_asset_name(const detail::asset_info *info, uuid id)
+	{
+		return fmt::format("\"{}\" [{}]", info->name.sv(), id.to_string());
+	}
+
 	namespace detail
 	{
 		/*
@@ -236,18 +241,24 @@ namespace sek::engine
 				std::size_t pos;
 			} writer = {asset_buffer_t{src_size}, static_cast<std::size_t>(src_size), 0};
 
-			auto result = ctx.decompress(asset_zstd_pool(),
-										 delegate{func_t<&reader_t::read>{}, reader},
-										 delegate{func_t<&writer_t::write>{}, writer},
-										 frames);
-			if (result != frames) [[unlikely]]
+			try
 			{
-				/* Mismatched frame count does not necessarily mean an error (data might be corrupted but that is up to the consumer to decide). */
-				logger::warn() << fmt::format("Mismatched frame count during decompression of \"{}\"."
-											  " Expected [{}] but got [{}]",
-											  info->name,
-											  frames,
-											  result);
+				auto result = ctx.decompress(asset_zstd_pool(),
+											 delegate{func_t<&reader_t::read>{}, reader},
+											 delegate{func_t<&writer_t::write>{}, writer},
+											 frames);
+				if (result != frames) [[unlikely]]
+				{
+					/* Mismatched frame count does not necessarily mean an error (data might be corrupted but that is up to the consumer to decide). */
+					logger::warn() << fmt::format(
+						"Mismatched asset frame count - expected [{}] but got [{}]. This might be a sign of corruption",
+						frames,
+						result);
+				}
+			}
+			catch (zstd_error &e)
+			{
+				throw asset_package_error(fmt::format(R"(Exception in "zstd_thread_ctx::decompress": "{}")", e.what()));
 			}
 
 			return make_asset_source(std::move(writer.buffer), src_size, 0);
