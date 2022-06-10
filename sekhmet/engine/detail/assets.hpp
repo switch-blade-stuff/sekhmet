@@ -55,7 +55,7 @@ namespace sek::engine
 			constexpr asset_buffer_t() noexcept = default;
 			constexpr asset_buffer_t(asset_buffer_t &&other) noexcept { swap(other); }
 
-			explicit asset_buffer_t(std::int64_t size) : data(new std::byte[static_cast<std::uint64_t>(size)]) {}
+			explicit asset_buffer_t(std::int64_t size) : data(new std::byte[static_cast<std::uint64_t>(size)]{}) {}
 			~asset_buffer_t() { delete[] data; }
 
 			constexpr void swap(asset_buffer_t &other) noexcept { std::swap(data, other.data); }
@@ -193,6 +193,9 @@ namespace sek::engine
 		friend inline asset_source detail::make_asset_source(system::native_file &&, std::int64_t, std::int64_t);
 
 	public:
+		asset_source(const asset_source &) = delete;
+		asset_source &operator=(const asset_source &) = delete;
+
 		/** Initializes an empty asset source. */
 		constexpr asset_source() noexcept : padding{} {}
 		constexpr asset_source(asset_source &&other) noexcept : asset_source() { swap(other); }
@@ -210,6 +213,52 @@ namespace sek::engine
 				std::destroy_at(&asset_buffer);
 		}
 
+		/** Reads asset data from the underlying file or buffer.
+		 * @param dst Destination buffer.
+		 * @param n Amount of bytes to read.
+		 * @return Total amount of bytes read. */
+		std::size_t read(void *dst, std::size_t n)
+		{
+			auto new_pos = read_pos + static_cast<std::int64_t>(n);
+			if (new_pos > data_size || new_pos < 0) [[unlikely]]
+			{
+				n = static_cast<std::size_t>(data_size - read_pos);
+				new_pos = data_size;
+			}
+
+			if (has_file())
+			{
+				read_pos = new_pos;
+				return file().read(dst, n);
+			}
+			else
+			{
+				std::copy_n(asset_buffer.data + std::exchange(read_pos, new_pos), n, static_cast<std::byte *>(dst));
+				return n;
+			}
+		}
+		/** Seeks the asset source to the specific offset within the asset.
+		 * @param off Offset to seek to.
+		 * @param dir Direction in which to seek.
+		 * @return Current position within the asset or a negative integer on error. */
+		std::int64_t seek(std::int64_t off, system::native_file::seek_dir dir)
+		{
+			if (empty()) [[unlikely]]
+				return off == 0 ? 0 : -1;
+			else
+			{
+				if (dir == system::native_file::beg)
+					return seek_pos(base_offset() + off);
+				else if (dir == system::native_file::cur)
+					return seek_pos(read_pos + off);
+				else if (dir == system::native_file::end)
+					return seek_pos(size() + off);
+			}
+			return -1;
+		}
+
+		/** Returns the current read position. */
+		[[nodiscard]] constexpr std::int64_t tell() const noexcept { return read_pos; }
 		/** Returns the size of the asset. */
 		[[nodiscard]] constexpr std::int64_t size() const noexcept { return data_size; }
 		/** Checks if the asset source is empty. */
@@ -222,6 +271,8 @@ namespace sek::engine
 		[[nodiscard]] constexpr bool has_file() const noexcept { return base_offset() >= 0; }
 		/** Returns reference to the underlying native file.
 		 * @warning Undefined behavior if the asset is not backed by a file. */
+		[[nodiscard]] constexpr system::native_file &file() noexcept { return asset_file; }
+		/** @copydoc file */
 		[[nodiscard]] constexpr const system::native_file &file() const noexcept { return asset_file; }
 
 		constexpr void swap(asset_source &other) noexcept
@@ -235,6 +286,21 @@ namespace sek::engine
 		friend constexpr void swap(asset_source &a, asset_source &b) noexcept { a.swap(b); }
 
 	private:
+		std::int64_t seek_pos(std::int64_t new_pos)
+		{
+			if (new_pos > data_size || new_pos < 0) [[unlikely]]
+				return -1;
+			else if (has_file())
+			{
+				const auto file_pos = file().seek(new_pos, system::native_file::beg);
+				if (file_pos < 0) [[unlikely]]
+					return -1;
+				return (read_pos = file_pos - base_offset());
+			}
+			else
+				return read_pos = new_pos;
+		}
+
 		std::int64_t data_size = 0;	  /* Total size of the asset. */
 		std::int64_t file_offset = 0; /* Base offset within the file, -1 if not backed by a file. */
 		std::int64_t read_pos = 0;	  /* Current read position with the base offset applied. */

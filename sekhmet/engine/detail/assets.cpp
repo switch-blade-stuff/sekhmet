@@ -95,12 +95,6 @@ namespace sek::engine
 			*std::bit_cast<std::uint32_t *>(data) = BSWAP_LE_32(flags);
 		}
 
-		static thread_pool &package_pool()
-		{
-			static thread_pool instance;
-			return instance;
-		}
-
 		void package_fragment::acquire() { pack_vtable->acquire_func(this); }
 		void package_fragment::release() { pack_vtable->release_func(this); }
 
@@ -161,6 +155,12 @@ namespace sek::engine
 			},
 		};
 
+		static thread_pool &asset_zstd_pool()
+		{
+			static thread_pool instance;
+			return instance;
+		}
+
 		static system::native_file open_fragment(const std::filesystem::path &path, std::int64_t offset)
 		{
 			auto file = system::native_file{path, system::native_file::in};
@@ -191,7 +191,6 @@ namespace sek::engine
 		static asset_source load_zstd_asset(const package_fragment *frag, const asset_info *info)
 		{
 			auto &ctx = zstd_thread_ctx::instance();
-			auto &pool = package_pool();
 
 			const auto src_size = info->archive.asset_src_size;
 			const auto frames = info->archive.asset_frames;
@@ -237,8 +236,10 @@ namespace sek::engine
 				std::size_t pos;
 			} writer = {asset_buffer_t{src_size}, static_cast<std::size_t>(src_size), 0};
 
-			auto result = ctx.decompress(
-				pool, delegate{func_t<&reader_t::read>{}, reader}, delegate{func_t<&writer_t::write>{}, writer}, frames);
+			auto result = ctx.decompress(asset_zstd_pool(),
+										 delegate{func_t<&reader_t::read>{}, reader},
+										 delegate{func_t<&writer_t::write>{}, writer},
+										 frames);
 			if (result != frames) [[unlikely]]
 			{
 				/* Mismatched frame count does not necessarily mean an error (data might be corrupted but that is up to the consumer to decide). */
@@ -255,12 +256,12 @@ namespace sek::engine
 		constinit const typename package_fragment::asset_vtable_t archive_vtable = {
 			.meta_load_func = load_archive_metadata,
 			.asset_open_func = load_archive_asset,
-			.asset_dtor_func = +[](asset_info *ptr) -> void { std::destroy_at(ptr); },
+			.asset_dtor_func = std::destroy_at<asset_info>,
 		};
 		constinit const typename package_fragment::asset_vtable_t zstd_vtable = {
 			.meta_load_func = load_archive_metadata,
 			.asset_open_func = load_zstd_asset,
-			.asset_dtor_func = +[](asset_info *ptr) -> void { std::destroy_at(ptr); },
+			.asset_dtor_func = std::destroy_at<asset_info>,
 		};
 	}	 // namespace detail
 }	 // namespace sek::engine

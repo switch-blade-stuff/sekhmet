@@ -37,10 +37,10 @@ namespace sek::system::detail
 		SEK_API bool open(const char *path, openmode mode) noexcept;
 		SEK_API bool close() noexcept;
 
-		SEK_API ::ssize_t read(void *dst, std::size_t n) const noexcept;
-		SEK_API ::ssize_t write(const void *src, std::size_t n) const noexcept;
-		SEK_API ::ssize_t seek(ssize_t off, seek_dir way) const noexcept;
-		inline ::ssize_t tell() const noexcept { return this->seek(0, cur); }
+		SEK_API std::int64_t read(void *dst, std::size_t n) const noexcept;
+		SEK_API std::int64_t write(const void *src, std::size_t n) const noexcept;
+		SEK_API std::int64_t seek(std::int64_t off, seek_dir way) const noexcept;
+		inline std::int64_t tell() const noexcept { return this->seek(0, cur); }
 		SEK_API bool sync() const noexcept;
 
 		[[nodiscard]] constexpr bool is_open() const noexcept { return descriptor >= 0; }

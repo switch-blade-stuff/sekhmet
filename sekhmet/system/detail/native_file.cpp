@@ -66,13 +66,13 @@ namespace sek::system
 			return handle.write(buffer, static_cast<std::size_t>(buffer_pos)) == std::exchange(buffer_pos, 0);
 		return true;
 	}
-	ssize_t native_file::seek(ssize_t off, native_file::seek_dir dir)
+	std::int64_t native_file::seek(std::int64_t off, native_file::seek_dir dir)
 	{
 		if (off == 0 && dir != cur && !flush()) [[unlikely]]
 			return -1;
 		return handle.seek(off, dir);
 	}
-	ssize_t native_file::tell() const { return handle.tell(); }
+	std::int64_t native_file::tell() const { return handle.tell(); }
 
 	std::size_t native_file::write(const void *src, std::size_t n)
 	{
@@ -103,7 +103,7 @@ namespace sek::system
 				memcpy(buffer + buffer_pos, src, write_n);
 
 				/* Flush to the file if needed. */
-				if ((buffer_pos += static_cast<ssize_t>(write_n)) == buffer_size)
+				if ((buffer_pos += static_cast<std::int64_t>(write_n)) == buffer_size)
 				{
 					auto flush_n = handle.write(buffer, static_cast<std::size_t>(write_n));
 					if (flush_n != buffer_size) [[unlikely]]
@@ -152,7 +152,7 @@ namespace sek::system
 
 				read_n = math::min(n, static_cast<std::size_t>(input_size - buffer_pos));
 				memcpy(dst, buffer + buffer_pos, read_n);
-				buffer_pos += static_cast<ssize_t>(read_n);
+				buffer_pos += static_cast<std::int64_t>(read_n);
 			}
 			return n;
 		}

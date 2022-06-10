@@ -64,12 +64,15 @@ namespace sek::system::detail
 	}
 	bool native_file_handle::close() noexcept { return ::close(std::exchange(descriptor, -1)) == 0; }
 
-	ssize_t native_file_handle::read(void *dst, std::size_t n) const noexcept { return ::read(descriptor, dst, n); }
-	ssize_t native_file_handle::write(const void *src, std::size_t n) const noexcept
+	std::int64_t native_file_handle::read(void *dst, std::size_t n) const noexcept
+	{
+		return ::read(descriptor, dst, n);
+	}
+	std::int64_t native_file_handle::write(const void *src, std::size_t n) const noexcept
 	{
 		return ::write(descriptor, src, n);
 	}
-	ssize_t native_file_handle::seek(ssize_t off, int way) const noexcept
+	std::int64_t native_file_handle::seek(std::int64_t off, int way) const noexcept
 	{
 		return LSEEK(descriptor, off, way < 0 ? SEEK_SET : way > 0 ? SEEK_END : SEEK_CUR);
 	}

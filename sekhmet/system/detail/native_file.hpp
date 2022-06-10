@@ -124,7 +124,7 @@ namespace sek::system
 		 * @param dir Direction to seek in (`beg`, `curr` or `end`).
 		 * @return Resulting within the file or a negative integer on error.
 		 * @note If the wile is open in read mode, flushes the output buffer before seeking. */
-		SEK_API ::ssize_t seek(::ssize_t off, seek_dir dir);
+		SEK_API std::int64_t seek(std::int64_t off, seek_dir dir);
 
 		/** Writes data buffer to the file.
 		 * @param src Memory buffer containing source data.
@@ -138,7 +138,7 @@ namespace sek::system
 		SEK_API std::size_t read(void *dst, std::size_t n);
 
 		/** Returns the current position within the file or a negative integer on error. */
-		[[nodiscard]] SEK_API ::ssize_t tell() const;
+		[[nodiscard]] SEK_API std::int64_t tell() const;
 		/** Returns the file open mode. */
 		[[nodiscard]] constexpr openmode mode() const noexcept { return file_mode; }
 		/** Checks if the file is open. */
@@ -160,13 +160,13 @@ namespace sek::system
 	private:
 		detail::native_file_handle handle;
 
-		std::byte *buffer = nullptr; /* Buffer used fore read & write operations. */
-		::ssize_t buffer_size = 0;	 /* Total size of the buffer. */
-		::ssize_t buffer_pos = 0;	 /* Current read or write position within the buffer. */
+		std::byte *buffer = nullptr;  /* Buffer used fore read & write operations. */
+		std::int64_t buffer_size = 0; /* Total size of the buffer. */
+		std::int64_t buffer_pos = 0;  /* Current read or write position within the buffer. */
 
 		/* Size of the input buffer, used only for reading. Might be less than buffer_size in case the file
 		 * size is less than size of the buffer. */
-		::ssize_t input_size = 0;
+		std::int64_t input_size = 0;
 
 		openmode file_mode = 0;
 	};
