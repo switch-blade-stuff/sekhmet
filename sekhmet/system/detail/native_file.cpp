@@ -66,9 +66,16 @@ namespace sek::system
 			return handle.write(buffer, static_cast<std::size_t>(buffer_pos)) == std::exchange(buffer_pos, 0);
 		return true;
 	}
-	std::int64_t native_file::seek(std::int64_t off, native_file::seek_dir dir)
+	std::int64_t native_file::seek(std::int64_t off, seek_dir dir)
 	{
-		if (off == 0 && dir != cur && !flush()) [[unlikely]]
+		if (dir == cur)
+		{
+			/* If the new offset is within the current buffer, update the buffer position. */
+			const auto new_pos = buffer_pos + off;
+			if (((input_size && new_pos <= input_size) || new_pos <= buffer_size) && new_pos >= 0)
+				return handle.tell() + (buffer_pos = new_pos);
+		}
+		if (!flush()) [[unlikely]]
 			return -1;
 		return handle.seek(off, dir);
 	}
