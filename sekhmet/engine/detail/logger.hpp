@@ -50,8 +50,8 @@ namespace sek::engine
 	 * There are several builtin log levels:
 	 * 1. Info level - Used to log generic info messages.
 	 * 2. Warning level - Used to log important non-error messages (ex. runtime deprecation warnings).
-	 * 3. Error level - Used to log non-critical error messages (ex. from recoverable exceptions).
-	 * 4. Critical level - Used to log critical (potentially fatal) messages (ex. graphics initialization failure). */
+	 * 3. Error level - Used to log non-fatal error messages (ex. from recoverable exceptions).
+	 * 4. Fatal level - Used to log fatal error messages (ex. graphics initialization failure). */
 	template<typename C, typename T = std::char_traits<C>>
 	class basic_logger
 	{
