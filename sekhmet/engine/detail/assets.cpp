@@ -23,10 +23,8 @@
 #ifdef SEK_OS_WIN
 #define _CRT_SECURE_NO_WARNINGS	   // NOLINT
 #define MANIFEST_FILE_NAME L".manifest"
-#define FILE_OPEN _wfopen
 #else
 #define MANIFEST_FILE_NAME ".manifest"
-#define FILE_OPEN fopen
 #endif
 
 #include "assets.hpp"
@@ -40,7 +38,7 @@ namespace sek::engine
 {
 	inline static std::string format_asset_name(const detail::asset_info *info, uuid id)
 	{
-		return fmt::format("\"{}\" [{}]", info->name.sv(), id.to_string());
+		return fmt::format(R"("{}" {{{}}})", info->name.sv(), id.to_string());
 	}
 
 	namespace detail
