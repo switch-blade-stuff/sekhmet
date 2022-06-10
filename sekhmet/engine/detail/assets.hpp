@@ -168,13 +168,21 @@ namespace sek::engine
 		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size, std::int64_t offset);
 	}	 // namespace detail
 
-	/** @brief Structure used to represent a data source of an asset.
+	/** @brief Structure providing a read-only access to data of an asset.
 	 *
 	 * Since assets may be either loose or compressed and archived, a special structure is needed to read asset data.
 	 * In addition, to allow for implementation of storage optimization techniques (such as DirectStorage),
 	 * streams cannot be used directly either, as access to the underlying file or data buffer is needed. */
 	class asset_source
 	{
+	public:
+		typedef typename system::native_file::seek_dir seek_dir;
+
+		constexpr static seek_dir beg = system::native_file::beg;
+		constexpr static seek_dir cur = system::native_file::cur;
+		constexpr static seek_dir end = system::native_file::end;
+
+	private:
 		constexpr asset_source(std::int64_t size, std::int64_t offset) noexcept : data_size(size), file_offset(offset)
 		{
 		}
@@ -241,17 +249,17 @@ namespace sek::engine
 		 * @param off Offset to seek to.
 		 * @param dir Direction in which to seek.
 		 * @return Current position within the asset or a negative integer on error. */
-		std::int64_t seek(std::int64_t off, system::native_file::seek_dir dir)
+		std::int64_t seek(std::int64_t off, seek_dir dir)
 		{
 			if (empty()) [[unlikely]]
 				return off == 0 ? 0 : -1;
 			else
 			{
-				if (dir == system::native_file::beg)
+				if (dir == beg)
 					return seek_pos(base_offset() + off);
-				else if (dir == system::native_file::cur)
+				else if (dir == cur)
 					return seek_pos(read_pos + off);
-				else if (dir == system::native_file::end)
+				else if (dir == end)
 					return seek_pos(size() + off);
 			}
 			return -1;
@@ -274,6 +282,9 @@ namespace sek::engine
 		[[nodiscard]] constexpr system::native_file &file() noexcept { return asset_file; }
 		/** @copydoc file */
 		[[nodiscard]] constexpr const system::native_file &file() const noexcept { return asset_file; }
+		/** Returns pointer to the underlying memory buffer.
+		 * @warning Undefined behavior if the asset is not backed by a buffer. */
+		[[nodiscard]] constexpr const std::byte *buffer() const noexcept { return asset_buffer.data; }
 
 		constexpr void swap(asset_source &other) noexcept
 		{
@@ -292,7 +303,7 @@ namespace sek::engine
 				return -1;
 			else if (has_file())
 			{
-				const auto file_pos = file().seek(new_pos, system::native_file::beg);
+				const auto file_pos = file().seek(new_pos, beg);
 				if (file_pos < 0) [[unlikely]]
 					return -1;
 				return (read_pos = file_pos - base_offset());
