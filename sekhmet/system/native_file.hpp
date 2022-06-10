@@ -1,12 +1,7 @@
-#if ($HEADER_COMMENTS)
 /*
  * ============================================================================
  * Sekhmet - C++20 game engine & editor
-#if ($YEAR != "2022")
- * Copyright (C) 2022-$YEAR switchblade
-#else
- * Copyright (C) $YEAR switchblade
-#end
+ * Copyright (C) 2022 switchblade
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -21,8 +16,10 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  * ============================================================================
- * 
- * Created by $USER_NAME on ${DATE}
+ *
+ * Created by switchblade on 09/06/22
  */
 
-#end
+#pragma once
+
+#include "detail/native_file.hpp"

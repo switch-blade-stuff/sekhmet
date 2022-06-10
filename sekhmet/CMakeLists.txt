@@ -22,6 +22,7 @@ target_sources(${PROJECT_NAME} INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/filemap.hpp
         ${CMAKE_CURRENT_LIST_DIR}/math.hpp)
 include(${CMAKE_CURRENT_LIST_DIR}/detail/CMakeLists.txt)
+include(${CMAKE_CURRENT_LIST_DIR}/system/CMakeLists.txt)
 include(${CMAKE_CURRENT_LIST_DIR}/math/CMakeLists.txt)
 include(${CMAKE_CURRENT_LIST_DIR}/serialization/CMakeLists.txt)
 include(${CMAKE_CURRENT_LIST_DIR}/engine/CMakeLists.txt)

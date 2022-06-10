@@ -228,7 +228,7 @@ size_t ZSTD_loadDEntropy(ZSTD_entropyDTables_t* entropy,
 /*! ZSTD_checkContinuity() :
  *  check if next `dst` follows previous position, where decompression ended.
  *  If yes, do nothing (continue on current segment).
- *  If not, classify previous segment as "external dictionary", and start a new segment.
+ * If not, classify previous segment as "external dictionary", and start a new segment.
  *  This function cannot fail. */
 void ZSTD_checkContinuity(ZSTD_DCtx* dctx, const void* dst, size_t dstSize);
 

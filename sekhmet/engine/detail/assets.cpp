@@ -20,7 +20,14 @@
  * Created by switchblade on 2022-04-04
  */
 
-#define _CRT_SECURE_NO_WARNINGS
+#ifdef SEK_OS_WIN
+#define _CRT_SECURE_NO_WARNINGS	   // NOLINT
+#define MANIFEST_FILE_NAME L".manifest"
+#define FILE_OPEN _wfopen
+#else
+#define MANIFEST_FILE_NAME ".manifest"
+#define FILE_OPEN fopen
+#endif
 
 #include "assets.hpp"
 
@@ -28,14 +35,6 @@
 #include "sekhmet/serialization/json.hpp"
 #include "sekhmet/serialization/ubjson.hpp"
 #include "zstd_ctx.hpp"
-
-#ifdef SEK_OS_WIN
-#define MANIFEST_FILE_NAME L".manifest"
-#define FILE_OPEN _wfopen
-#else
-#define MANIFEST_FILE_NAME ".manifest"
-#define FILE_OPEN fopen
-#endif
 
 namespace sek::engine
 {
@@ -47,12 +46,11 @@ namespace sek::engine
 		 * =                                    V1                                    =
 		 * ============================================================================
 		 *    File offsets                  Description
-		 * 0x0000  -  0x0007                Signature ("\3SEKPAK" + 8-bit header version [1])
+		 * 0x0000  -  0x0007                Signature ("\3SEKPAK" + version byte)
 		 * 0x0008  -  0x000b                Header flags (master, compression type, etc.)
 		 * 0x000c  -  0x000f                Total header size
 		 * 0x0010  -  0x0013                CRC32 of the header
-		 * ============================ Common header data ============================
-		 * 0x0014  -  0x0017                Number of assets of the package (n_assets)
+		 * 0x0014  -  0x0017                Number of assets of the package
 		 * 0x0018  -  end_assets            Asset info for every asset
 		 * ======================== Master package header data ========================
 		 * end_assets - end_assets + 4      Number of fragments (if any) of the package
@@ -67,28 +65,41 @@ namespace sek::engine
 		 * ============================================================================
 		 * */
 
-		constexpr std::array<char, 8> signature = {'\3', 'S', 'E', 'K', 'P', 'A', 'K', '\0'};
-		constexpr std::size_t version_pos = 7;
-		constexpr std::array<char, 8> make_signature(std::uint8_t ver) noexcept
-		{
-			auto result = signature;
-			result[version_pos] = static_cast<char>(ver);
-			return result;
-		}
-		constexpr std::uint8_t check_signature(std::array<char, 8> data) noexcept
-		{
-			if (std::equal(signature.begin(), signature.begin() + version_pos, data.begin())) [[likely]]
-				return static_cast<std::uint8_t>(data[version_pos]);
-			else
-				return 0;
-		}
-
 		enum header_flags : std::int32_t
 		{
 			MASTER = 1,
 			FORMAT_ZSTD = 0b0010,
 			FORMAT_MASK = 0b1110,
 		};
+
+		constexpr std::array<char, 7> signature_str = {'\3', 'S', 'E', 'K', 'P', 'A', 'K'};
+		constexpr std::size_t signature_size_min = signature_str.size() + 1;
+
+		[[nodiscard]] constexpr std::uint8_t read_signature(const std::uint8_t *data)
+		{
+			if (!std::equal(data, data + signature_str.size(), signature_str.data())) [[unlikely]]
+				return 0;
+			return data[signature_str.size()];
+		}
+		constexpr void write_signature(std::uint8_t *data, std::uint8_t ver)
+		{
+			std::copy_n(signature_str.data(), signature_str.size(), data);
+			data[signature_str.size()] = ver;
+		}
+		[[nodiscard]] constexpr header_flags read_flags(const std::uint8_t *data)
+		{
+			return static_cast<header_flags>(BSWAP_LE_32(*std::bit_cast<const std::uint32_t *>(data)));
+		}
+		constexpr void write_flags(std::uint8_t *data, header_flags flags)
+		{
+			*std::bit_cast<std::uint32_t *>(data) = BSWAP_LE_32(flags);
+		}
+
+		static thread_pool &package_pool()
+		{
+			static thread_pool instance;
+			return instance;
+		}
 
 		void package_fragment::acquire() { pack_vtable->acquire_func(this); }
 		void package_fragment::release() { pack_vtable->release_func(this); }
@@ -103,8 +114,8 @@ namespace sek::engine
 		}
 		void package_fragment::destroy_asset(asset_info *info) const { asset_vtable->asset_dtor_func(info); }
 
-		inline static void acquire_master(master_package *ptr) noexcept { ++ptr->ref_count; }
-		inline static void release_master(master_package *ptr)
+		static void acquire_master(master_package *ptr) noexcept { ++ptr->ref_count; }
+		static void release_master(master_package *ptr)
 		{
 			if (ptr->ref_count.fetch_sub(1) == 1) [[unlikely]]
 				delete ptr;
@@ -122,41 +133,26 @@ namespace sek::engine
 			.meta_load_func = +[](const package_fragment *frag, const asset_info *info) -> std::vector<std::byte>
 			{
 				auto full_path = frag->path / info->loose.meta_path;
-				if (FILE * file; exists(full_path) && (file = FILE_OPEN(full_path.c_str(), "rb")) != nullptr) [[likely]]
-				{
-					std::vector<std::byte> result;
+				auto file = system::native_file{full_path, system::native_file::in | system::native_file::atend};
+				if (!file.is_open()) [[unlikely]]
+					throw asset_package_error(fmt::format("Failed to open asset metadata at path \"{}\"", full_path.string()));
 
-					try
-					{
-						fseek(file, 0, SEEK_END);
-						result.resize(static_cast<std::size_t>(ftell(file)));
-						fseek(file, 0, SEEK_SET);
-
-						fread(result.data(), 1, result.size(), file);
-						fclose(file);
-					}
-					catch (...)
-					{
-						fclose(file);
-						throw;
-					}
-
-					return result;
-				}
-
-				logger::error() << fmt::format("Failed to open asset metadata at path \"{}\"", full_path.c_str());
-				/* TODO: Throw asset error. */
-				return {};
+				std::vector<std::byte> result;
+				result.resize(static_cast<std::size_t>(file.tell()));
+				file.seek(0, system::native_file::beg);
+				file.read(result.data(), result.size());
+				return result;
 			},
 			.asset_open_func = +[](const package_fragment *frag, const asset_info *info) -> asset_source
 			{
 				auto full_path = frag->path / info->loose.asset_path;
-				if (FILE * file; exists(full_path) && (file = fopen(full_path.c_str(), "rb")) != nullptr) [[likely]]
-					return {/*file*/};
+				auto file = system::native_file{full_path, system::native_file::in | system::native_file::atend};
+				if (!file.is_open()) [[unlikely]]
+					throw asset_package_error(fmt::format("Failed to open asset at path \"{}\"", full_path.string()));
 
-				logger::error() << fmt::format("Failed to open asset at path \"{}\"", full_path.c_str());
-				/* TODO: Throw asset error. */
-				return {};
+				const auto size = file.tell();
+				file.seek(0, system::native_file::beg);
+				return make_asset_source(std::move(file), size, 0);
 			},
 			.asset_dtor_func = +[](asset_info *ptr) -> void
 			{
@@ -164,30 +160,106 @@ namespace sek::engine
 				std::destroy_at(ptr);
 			},
 		};
+
+		static system::native_file open_fragment(const std::filesystem::path &path, std::int64_t offset)
+		{
+			auto file = system::native_file{path, system::native_file::in};
+			if (!file.is_open()) [[unlikely]]
+				throw asset_package_error(fmt::format("Failed to open asset package \"{}\"", path.string()));
+			else if (file.seek(offset, system::native_file::beg) < 0) [[unlikely]]
+			{
+				throw asset_package_error(
+					fmt::format("Failed to seek asset package \"{}\" to position [{}]", path.string(), offset));
+			}
+			return file;
+		}
+		static std::vector<std::byte> load_archive_metadata(const package_fragment *frag, const asset_info *info)
+		{
+			std::vector<std::byte> result;
+
+			auto file = open_fragment(frag->path, info->archive.meta_offset);
+			result.resize(static_cast<std::size_t>(info->archive.meta_size));
+			file.read(result.data(), result.size());
+			return result;
+		}
+		static asset_source load_archive_asset(const package_fragment *frag, const asset_info *info)
+		{
+			const auto offset = info->archive.asset_offset;
+			const auto size = info->archive.asset_size;
+			return make_asset_source(open_fragment(frag->path, offset), size, offset);
+		}
+		static asset_source load_zstd_asset(const package_fragment *frag, const asset_info *info)
+		{
+			auto &ctx = zstd_thread_ctx::instance();
+			auto &pool = package_pool();
+
+			const auto src_size = info->archive.asset_src_size;
+			const auto frames = info->archive.asset_frames;
+			const auto offset = info->archive.asset_offset;
+			const auto size = info->archive.asset_size;
+
+			struct reader_t
+			{
+				std::size_t read(void *dst, std::size_t n)
+				{
+					auto new_pos = pos + n;
+					if (new_pos > size) [[unlikely]]
+					{
+						new_pos = size;
+						n = size - pos;
+					}
+
+					pos = new_pos;
+					return file.read(dst, n);
+				}
+
+				system::native_file file;
+				std::size_t size;
+				std::size_t pos;
+			} reader = {open_fragment(frag->path, offset), static_cast<std::size_t>(size), 0};
+			struct writer_t
+			{
+				std::size_t write(const void *src, std::size_t n)
+				{
+					auto new_pos = pos + n;
+					if (new_pos > size) [[unlikely]]
+					{
+						new_pos = size;
+						n = size - pos;
+					}
+
+					memcpy(buffer.data + std::exchange(pos, new_pos), src, n);
+					return n;
+				}
+
+				asset_buffer_t buffer;
+				std::size_t size;
+				std::size_t pos;
+			} writer = {asset_buffer_t{src_size}, static_cast<std::size_t>(src_size), 0};
+
+			auto result = ctx.decompress(
+				pool, delegate{func_t<&reader_t::read>{}, reader}, delegate{func_t<&writer_t::write>{}, writer}, frames);
+			if (result != frames) [[unlikely]]
+			{
+				/* Mismatched frame count does not necessarily mean an error (data might be corrupted but that is up to the consumer to decide). */
+				logger::warn() << fmt::format("Mismatched frame count during decompression of \"{}\"."
+											  " Expected [{}] but got [{}]",
+											  info->name,
+											  frames,
+											  result);
+			}
+
+			return make_asset_source(std::move(writer.buffer), src_size, 0);
+		}
+
 		constinit const typename package_fragment::asset_vtable_t archive_vtable = {
-			.meta_load_func = +[](const package_fragment *, const asset_info *) -> std::vector<std::byte>
-			{
-				/* TODO: Implement this. */
-				return {};
-			},
-			.asset_open_func = +[](const package_fragment *, const asset_info *) -> asset_source
-			{
-				/* TODO: Implement this. */
-				return {};
-			},
+			.meta_load_func = load_archive_metadata,
+			.asset_open_func = load_archive_asset,
 			.asset_dtor_func = +[](asset_info *ptr) -> void { std::destroy_at(ptr); },
 		};
 		constinit const typename package_fragment::asset_vtable_t zstd_vtable = {
-			.meta_load_func = +[](const package_fragment *, const asset_info *) -> std::vector<std::byte>
-			{
-				/* TODO: Implement this. */
-				return {};
-			},
-			.asset_open_func = +[](const package_fragment *, const asset_info *) -> asset_source
-			{
-				/* TODO: Implement this. */
-				return {};
-			},
+			.meta_load_func = load_archive_metadata,
+			.asset_open_func = load_zstd_asset,
 			.asset_dtor_func = +[](asset_info *ptr) -> void { std::destroy_at(ptr); },
 		};
 	}	 // namespace detail

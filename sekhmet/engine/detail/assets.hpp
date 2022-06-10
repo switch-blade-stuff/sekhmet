@@ -31,6 +31,7 @@
 #include "sekhmet/detail/intern.hpp"
 #include "sekhmet/detail/service.hpp"
 #include "sekhmet/detail/uuid.hpp"
+#include "sekhmet/system/native_file.hpp"
 
 namespace sek::engine
 {
@@ -49,6 +50,19 @@ namespace sek::engine
 
 	namespace detail
 	{
+		struct asset_buffer_t
+		{
+			constexpr asset_buffer_t() noexcept = default;
+			constexpr asset_buffer_t(asset_buffer_t &&other) noexcept { swap(other); }
+
+			explicit asset_buffer_t(std::int64_t size) : data(new std::byte[static_cast<std::uint64_t>(size)]) {}
+			~asset_buffer_t() { delete[] data; }
+
+			constexpr void swap(asset_buffer_t &other) noexcept { std::swap(data, other.data); }
+
+			std::byte *data = nullptr;
+		};
+
 		struct package_fragment;
 		struct master_package;
 
@@ -61,13 +75,13 @@ namespace sek::engine
 			};
 			struct archive_info
 			{
-				std::uint64_t asset_offset;	  /* Offset into the archive at which asset's data is located. */
-				std::uint64_t asset_size;	  /* Size of the data within the archive. */
-				std::uint64_t asset_src_size; /* Decompressed size of the asset if any compression is used. */
-				std::uint64_t asset_frames;	  /* Amount of compressed frames used (0 if not compressed). */
+				std::int64_t asset_offset;	 /* Offset into the archive at which asset's data is located. */
+				std::int64_t asset_size;	 /* Size of the data within the archive. */
+				std::int64_t asset_src_size; /* Decompressed size of the asset if any compression is used. */
+				std::uint64_t asset_frames;	 /* Amount of compressed frames used (0 if not compressed). */
 
-				std::uint64_t meta_offset; /* Offset into the archive at which asset's metadata is located. */
-				std::uint64_t meta_size;   /* Size of the asset metadata within the archive. */
+				std::int64_t meta_offset; /* Offset into the archive at which asset's metadata is located. */
+				std::int64_t meta_size;	  /* Size of the asset metadata within the archive. */
 				/* Metadata is never compressed, since it generally is not large, thus using compression
 				 * will have more overhead than reading directly from a file. */
 			};
@@ -149,6 +163,9 @@ namespace sek::engine
 			std::vector<package_fragment> fragments; /* Fragments of this package. */
 			asset_database db;						 /* Database containing assets of all fragments. */
 		};
+
+		inline asset_source make_asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset);
+		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size, std::int64_t offset);
 	}	 // namespace detail
 
 	/** @brief Structure used to represent a data source of an asset.
@@ -158,5 +175,86 @@ namespace sek::engine
 	 * streams cannot be used directly either, as access to the underlying file or data buffer is needed. */
 	class asset_source
 	{
+		constexpr asset_source(std::int64_t size, std::int64_t offset) noexcept : data_size(size), file_offset(offset)
+		{
+		}
+		inline asset_source(detail::asset_buffer_t &&buffer, std::int64_t size, std::int64_t offset)
+			: asset_source(size, offset)
+		{
+			std::construct_at(&asset_buffer, std::move(buffer));
+		}
+		inline asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset)
+			: asset_source(size, offset)
+		{
+			std::construct_at(&asset_file, std::move(file));
+		}
+
+		friend inline asset_source detail::make_asset_source(detail::asset_buffer_t &&, std::int64_t, std::int64_t);
+		friend inline asset_source detail::make_asset_source(system::native_file &&, std::int64_t, std::int64_t);
+
+	public:
+		/** Initializes an empty asset source. */
+		constexpr asset_source() noexcept : padding{} {}
+		constexpr asset_source(asset_source &&other) noexcept : asset_source() { swap(other); }
+		constexpr asset_source &operator=(asset_source &&other) noexcept
+		{
+			swap(other);
+			return *this;
+		}
+
+		~asset_source()
+		{
+			if (has_file())
+				std::destroy_at(&asset_file);
+			else
+				std::destroy_at(&asset_buffer);
+		}
+
+		/** Returns the size of the asset. */
+		[[nodiscard]] constexpr std::int64_t size() const noexcept { return data_size; }
+		/** Checks if the asset source is empty. */
+		[[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
+
+		/** Returns the base file offset of the asset.
+		 * @note If the asset is not backed by a file, returns a negative integer. */
+		[[nodiscard]] constexpr std::int64_t base_offset() const noexcept { return file_offset; }
+		/** Checks if the asset is backed by a file. */
+		[[nodiscard]] constexpr bool has_file() const noexcept { return base_offset() >= 0; }
+		/** Returns reference to the underlying native file.
+		 * @warning Undefined behavior if the asset is not backed by a file. */
+		[[nodiscard]] constexpr const system::native_file &file() const noexcept { return asset_file; }
+
+		constexpr void swap(asset_source &other) noexcept
+		{
+			using std::swap;
+			swap(data_size, other.data_size);
+			swap(file_offset, other.file_offset);
+			swap(read_pos, other.read_pos);
+			swap(padding, other.padding);
+		}
+		friend constexpr void swap(asset_source &a, asset_source &b) noexcept { a.swap(b); }
+
+	private:
+		std::int64_t data_size = 0;	  /* Total size of the asset. */
+		std::int64_t file_offset = 0; /* Base offset within the file, -1 if not backed by a file. */
+		std::int64_t read_pos = 0;	  /* Current read position with the base offset applied. */
+		union
+		{
+			std::byte padding[sizeof(system::native_file)];
+			detail::asset_buffer_t asset_buffer;
+			system::native_file asset_file;
+		};
 	};
+
+	namespace detail
+	{
+		inline asset_source make_asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset)
+		{
+			return asset_source{std::move(file), size, offset};
+		}
+		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size, std::int64_t offset)
+		{
+			return asset_source{std::move(buff), size, offset};
+		}
+	}	 // namespace detail
 }	 // namespace sek::engine

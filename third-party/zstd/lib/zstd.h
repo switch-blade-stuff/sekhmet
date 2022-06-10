@@ -632,7 +632,7 @@ typedef struct ZSTD_outBuffer_s {
 *  Note that the function may not consume the entire input, for example, because
 *  the output buffer is already full, in which case `input.pos < input.size`.
 *  The caller must check if input has been entirely consumed.
-*  If not, the caller must make some room to receive more compressed data,
+* If not, the caller must make some room to receive more compressed data,
 *  and then present again remaining input data.
 *  note: ZSTD_e_continue is guaranteed to make some forward progress when called,
 *        but doesn't guarantee maximal forward progress. This is especially relevant
