@@ -78,55 +78,39 @@ namespace sek::engine
 		constexpr std::array<char, 7> signature_str = {'\3', 'S', 'E', 'K', 'P', 'A', 'K'};
 		constexpr std::size_t signature_size_min = signature_str.size() + 1;
 
-		[[nodiscard]] constexpr std::uint8_t read_signature(const std::uint8_t *data)
-		{
-			if (!std::equal(data, data + signature_str.size(), signature_str.data())) [[unlikely]]
-				return 0;
-			return data[signature_str.size()];
-		}
-		constexpr void write_signature(std::uint8_t *data, std::uint8_t ver)
-		{
-			std::copy_n(signature_str.data(), signature_str.size(), data);
-			data[signature_str.size()] = ver;
-		}
-		[[nodiscard]] constexpr header_flags read_flags(const std::uint8_t *data)
-		{
-			return static_cast<header_flags>(BSWAP_LE_32(*std::bit_cast<const std::uint32_t *>(data)));
-		}
-		constexpr void write_flags(std::uint8_t *data, header_flags flags)
-		{
-			*std::bit_cast<std::uint32_t *>(data) = BSWAP_LE_32(flags);
-		}
-
-		void package_fragment::acquire() { pack_vtable->acquire_func(this); }
-		void package_fragment::release() { pack_vtable->release_func(this); }
-
-		asset_source package_fragment::open_asset(const asset_info *info) const
-		{
-			return asset_vtable->asset_open_func(this, info);
-		}
 		std::vector<std::byte> package_fragment::load_meta(const asset_info *info) const
 		{
 			return asset_vtable->meta_load_func(this, info);
 		}
-		void package_fragment::destroy_asset(asset_info *info) const { asset_vtable->asset_dtor_func(info); }
+		asset_source package_fragment::open_asset(const asset_info *info) const
+		{
+			return asset_vtable->asset_open_func(this, info);
+		}
+		void package_fragment::acquire() { pack_vtable->acquire_func(this); }
+		void package_fragment::release() { pack_vtable->release_func(this); }
 
-		static void acquire_master(master_package *ptr) noexcept { ++ptr->ref_count; }
-		static void release_master(master_package *ptr)
+		master_package::~master_package()
+		{
+			for (auto entry : asset_database::uuid_table) entry.second->destroy();
+		}
+
+		inline static void acquire_master(master_package *ptr) noexcept { ++ptr->ref_count; }
+		inline static void release_master(master_package *ptr)
 		{
 			if (ptr->ref_count.fetch_sub(1) == 1) [[unlikely]]
 				delete ptr;
 		}
-		constinit const typename package_fragment::pack_vtable_t master_vtable = {
-			.acquire_func = +[](package_fragment *ptr) -> void { acquire_master(static_cast<master_package *>(ptr)); },
-			.release_func = +[](package_fragment *ptr) -> void { release_master(static_cast<master_package *>(ptr)); },
-		};
-		constinit const typename package_fragment::pack_vtable_t fragment_vtable = {
+
+		constinit const typename package_fragment::pack_vtable_t package_fragment::fragment_vtable = {
 			.acquire_func = +[](package_fragment *ptr) -> void { acquire_master(ptr->master); },
 			.release_func = +[](package_fragment *ptr) -> void { release_master(ptr->master); },
 		};
+		constinit const typename package_fragment::pack_vtable_t package_fragment::master_vtable = {
+			.acquire_func = +[](package_fragment *ptr) -> void { acquire_master(static_cast<master_package *>(ptr)); },
+			.release_func = +[](package_fragment *ptr) -> void { release_master(static_cast<master_package *>(ptr)); },
+		};
 
-		constinit const typename package_fragment::asset_vtable_t loose_vtable = {
+		constinit const typename package_fragment::asset_vtable_t package_fragment::loose_vtable = {
 			.meta_load_func = +[](const package_fragment *frag, const asset_info *info) -> std::vector<std::byte>
 			{
 				auto full_path = frag->path / info->loose.meta_path;
@@ -151,20 +135,15 @@ namespace sek::engine
 				file.seek(0, system::native_file::beg);
 				return make_asset_source(std::move(file), size, 0);
 			},
-			.asset_dtor_func = +[](asset_info *ptr) -> void
-			{
-				std::destroy_at(&ptr->loose);
-				std::destroy_at(ptr);
-			},
 		};
 
-		static thread_pool &asset_zstd_pool()
+		inline static thread_pool &asset_zstd_pool()
 		{
 			static thread_pool instance;
 			return instance;
 		}
 
-		static system::native_file open_fragment(const std::filesystem::path &path, std::int64_t offset)
+		inline static system::native_file open_fragment(const std::filesystem::path &path, std::int64_t offset)
 		{
 			auto file = system::native_file{path, system::native_file::in};
 			if (!file.is_open()) [[unlikely]]
@@ -176,7 +155,7 @@ namespace sek::engine
 			}
 			return file;
 		}
-		static std::vector<std::byte> load_archive_metadata(const package_fragment *frag, const asset_info *info)
+		inline static std::vector<std::byte> load_archive_metadata(const package_fragment *frag, const asset_info *info)
 		{
 			std::vector<std::byte> result;
 
@@ -185,13 +164,13 @@ namespace sek::engine
 			file.read(result.data(), result.size());
 			return result;
 		}
-		static asset_source load_archive_asset(const package_fragment *frag, const asset_info *info)
+		inline static asset_source load_archive_asset(const package_fragment *frag, const asset_info *info)
 		{
 			const auto offset = info->archive.asset_offset;
 			const auto size = info->archive.asset_size;
 			return make_asset_source(open_fragment(frag->path, offset), size, offset);
 		}
-		static asset_source load_zstd_asset(const package_fragment *frag, const asset_info *info)
+		inline static asset_source load_zstd_asset(const package_fragment *frag, const asset_info *info)
 		{
 			auto &ctx = zstd_thread_ctx::instance();
 
@@ -262,15 +241,13 @@ namespace sek::engine
 			return make_asset_source(std::move(writer.buffer), src_size, 0);
 		}
 
-		constinit const typename package_fragment::asset_vtable_t archive_vtable = {
+		constinit const typename package_fragment::asset_vtable_t package_fragment::archive_vtable = {
 			.meta_load_func = load_archive_metadata,
 			.asset_open_func = load_archive_asset,
-			.asset_dtor_func = std::destroy_at<asset_info>,
 		};
-		constinit const typename package_fragment::asset_vtable_t zstd_vtable = {
+		constinit const typename package_fragment::asset_vtable_t package_fragment::zstd_vtable = {
 			.meta_load_func = load_archive_metadata,
 			.asset_open_func = load_zstd_asset,
-			.asset_dtor_func = std::destroy_at<asset_info>,
 		};
 	}	 // namespace detail
 }	 // namespace sek::engine

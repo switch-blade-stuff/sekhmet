@@ -63,6 +63,9 @@ namespace sek::engine
 			std::byte *data = nullptr;
 		};
 
+		inline asset_source make_asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset);
+		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size, std::int64_t offset);
+
 		struct package_fragment;
 		struct master_package;
 
@@ -86,22 +89,28 @@ namespace sek::engine
 				 * will have more overhead than reading directly from a file. */
 			};
 
-		private:
 			asset_info(package_fragment *parent, interned_string name) : parent(parent), name(std::move(name)) {}
-
-		public:
 			asset_info(type_selector_t<archive_info>, package_fragment *parent, interned_string name)
 				: asset_info(parent, std::move(name))
 			{
+				destroy_func = std::destroy_at<asset_info>;
 			}
 			asset_info(type_selector_t<loose_info>, package_fragment *parent, interned_string name)
 				: asset_info(parent, std::move(name))
 			{
 				std::construct_at(&loose);
+				destroy_func = +[](asset_info *info) -> void
+				{
+					std::destroy_at(&info->loose);
+					std::destroy_at(info);
+				};
 			}
 			~asset_info() {}
 
-			package_fragment *parent = nullptr; /* Parent fragment of the asset. */
+			void destroy() { destroy_func(this); }
+
+			void (*destroy_func)(asset_info *); /* Function used to destroy the asset info. */
+			package_fragment *parent;			/* Parent fragment of the asset. */
 
 			interned_string name;			 /* Optional human-readable name of the asset. */
 			dense_set<interned_string> tags; /* Optional tags of the asset. */
@@ -112,11 +121,6 @@ namespace sek::engine
 				loose_info loose;
 			};
 		};
-		struct asset_database
-		{
-			dense_map<uuid, asset_info *> uuid_table;
-			dense_map<std::string_view, uuid> name_table;
-		};
 		struct package_fragment
 		{
 			struct pack_vtable_t
@@ -124,27 +128,24 @@ namespace sek::engine
 				void (*acquire_func)(package_fragment *);
 				void (*release_func)(package_fragment *);
 			};
+
+			constinit static const pack_vtable_t fragment_vtable;
+			constinit static const pack_vtable_t master_vtable;
+
 			struct asset_vtable_t
 			{
 				std::vector<std::byte> (*meta_load_func)(const package_fragment *, const asset_info *);
 				asset_source (*asset_open_func)(const package_fragment *, const asset_info *);
-				void (*asset_dtor_func)(asset_info *); /* Function used to destroy an asset in-place. */
 			};
 
-			~package_fragment()
-			{
-				// clang-format off
-				for (auto entry : assets)
-					destroy_asset(entry);
-				// clang-format on
-			}
+			constinit static const asset_vtable_t loose_vtable;
+			constinit static const asset_vtable_t archive_vtable;
+			constinit static const asset_vtable_t zstd_vtable;
 
+			std::vector<std::byte> load_meta(const asset_info *) const;
+			asset_source open_asset(const asset_info *) const;
 			void acquire();
 			void release();
-
-			asset_source open_asset(const asset_info *) const;
-			std::vector<std::byte> load_meta(const asset_info *) const;
-			void destroy_asset(asset_info *) const;
 
 			union
 			{
@@ -153,19 +154,25 @@ namespace sek::engine
 			};
 
 			const pack_vtable_t *pack_vtable;	/* Vtable used for master/fragment operations. */
-			const asset_vtable_t *asset_vtable; /* Vtable used for loose/archive/compressed operations. */
+			const asset_vtable_t *asset_vtable; /* Vtable used for loose/archived/compressed asset operations. */
 
-			std::filesystem::path path;		/* Path to fragment's directory or archive file. */
-			dense_set<asset_info *> assets; /* Assets of this fragment. */
+			std::filesystem::path path; /* Path to fragment's directory or archive file. */
 		};
-		struct master_package : package_fragment
+		struct asset_database
 		{
-			std::vector<package_fragment> fragments; /* Fragments of this package. */
-			asset_database db;						 /* Database containing assets of all fragments. */
-		};
+			using uuid_table_t = dense_map<uuid, asset_info *>;
+			using uuid_entry_t = typename uuid_table_t::const_reference;
+			using name_table_t = dense_map<std::string_view, uuid_entry_t>;
 
-		inline asset_source make_asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset);
-		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size, std::int64_t offset);
+			uuid_table_t uuid_table;
+			name_table_t name_table;
+		};
+		struct master_package : package_fragment, asset_database
+		{
+			~master_package();
+
+			std::vector<package_fragment> fragments;
+		};
 	}	 // namespace detail
 
 	/** @brief Structure providing a read-only access to data of an asset.
