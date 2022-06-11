@@ -38,7 +38,9 @@ namespace sek::engine
 {
 	inline static std::string format_asset_name(const detail::asset_info *info, uuid id)
 	{
-		return fmt::format(R"("{}" {{{}}})", info->name.sv(), id.to_string());
+		char id_str[37] = {0};
+		id.to_string(id_str);
+		return fmt::format(R"("{}" {{{}}})", info->name.sv(), id_str);
 	}
 
 	namespace detail
@@ -78,20 +80,9 @@ namespace sek::engine
 		constexpr std::array<char, 7> signature_str = {'\3', 'S', 'E', 'K', 'P', 'A', 'K'};
 		constexpr std::size_t signature_size_min = signature_str.size() + 1;
 
-		std::vector<std::byte> package_fragment::load_meta(const asset_info *info) const
-		{
-			return asset_vtable->meta_load_func(this, info);
-		}
-		asset_source package_fragment::open_asset(const asset_info *info) const
-		{
-			return asset_vtable->asset_open_func(this, info);
-		}
-		void package_fragment::acquire() { pack_vtable->acquire_func(this); }
-		void package_fragment::release() { pack_vtable->release_func(this); }
-
 		master_package::~master_package()
 		{
-			for (auto entry : asset_database::uuid_table) entry.second->destroy();
+			for (auto entry : asset_table::uuid_table) entry.second->destroy();
 		}
 
 		inline static void acquire_master(master_package *ptr) noexcept { ++ptr->ref_count; }
@@ -250,4 +241,10 @@ namespace sek::engine
 			.asset_open_func = load_zstd_asset,
 		};
 	}	 // namespace detail
+
+	asset_handle::asset_handle(uuid id, detail::asset_info *ptr) : asset_id(std::move(id)), asset_ptr(ptr)
+	{
+		asset_ptr.acquire();
+	}
+	package_handle::package_handle(detail::package_fragment *ptr) : fragment_ptr(ptr) { fragment_ptr.acquire(); }
 }	 // namespace sek::engine

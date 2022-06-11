@@ -24,6 +24,7 @@
 
 #include <atomic>
 #include <filesystem>
+#include <utility>
 
 #include "sekhmet/detail/basic_pool.hpp"
 #include "sekhmet/detail/dense_map.hpp"
@@ -31,11 +32,14 @@
 #include "sekhmet/detail/intern.hpp"
 #include "sekhmet/detail/service.hpp"
 #include "sekhmet/detail/uuid.hpp"
+#include "sekhmet/serialization/ubjson.hpp"
 #include "sekhmet/system/native_file.hpp"
 
 namespace sek::engine
 {
 	class asset_source;
+	class asset_handle;
+	class package_handle;
 
 	/** @brief Exception thrown when operation on an asset package fails. */
 	class asset_package_error : public std::runtime_error
@@ -67,8 +71,6 @@ namespace sek::engine
 		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size, std::int64_t offset);
 
 		struct package_fragment;
-		struct master_package;
-
 		struct asset_info
 		{
 			struct loose_info
@@ -121,6 +123,8 @@ namespace sek::engine
 				loose_info loose;
 			};
 		};
+
+		struct master_package;
 		struct package_fragment
 		{
 			struct pack_vtable_t
@@ -158,7 +162,8 @@ namespace sek::engine
 
 			std::filesystem::path path; /* Path to fragment's directory or archive file. */
 		};
-		struct asset_database
+
+		struct asset_table
 		{
 			using uuid_table_t = dense_map<uuid, asset_info *>;
 			using uuid_entry_t = typename uuid_table_t::const_reference;
@@ -167,7 +172,7 @@ namespace sek::engine
 			uuid_table_t uuid_table;
 			name_table_t name_table;
 		};
-		struct master_package : package_fragment, asset_database
+		struct master_package : package_fragment, asset_table
 		{
 			~master_package();
 
@@ -340,5 +345,207 @@ namespace sek::engine
 		{
 			return asset_source{std::move(buff), size, offset};
 		}
+
+		inline std::vector<std::byte> package_fragment::load_meta(const asset_info *info) const
+		{
+			return asset_vtable->meta_load_func(this, info);
+		}
+		inline asset_source package_fragment::open_asset(const asset_info *info) const
+		{
+			return asset_vtable->asset_open_func(this, info);
+		}
+		inline void package_fragment::acquire() { pack_vtable->acquire_func(this); }
+		inline void package_fragment::release() { pack_vtable->release_func(this); }
+
+		struct asset_info_ptr
+		{
+			constexpr explicit asset_info_ptr(asset_info *ptr) noexcept : ptr(ptr) {}
+
+			constexpr asset_info_ptr() noexcept = default;
+			constexpr asset_info_ptr(asset_info_ptr &&other) noexcept { swap(other); }
+			constexpr asset_info_ptr &operator=(asset_info_ptr &&other) noexcept
+			{
+				swap(other);
+				return *this;
+			}
+			asset_info_ptr(const asset_info_ptr &other) noexcept : ptr(other.ptr) { acquire(); }
+			asset_info_ptr &operator=(const asset_info_ptr &other) noexcept
+			{
+				if (this != &other)
+				{
+					release();
+					ptr = other.ptr;
+					acquire();
+				}
+				return *this;
+			}
+			~asset_info_ptr() { release(); }
+
+			[[nodiscard]] constexpr bool empty() const noexcept { return ptr == nullptr; }
+			[[nodiscard]] constexpr asset_info *operator->() const noexcept { return ptr; }
+
+			constexpr void swap(asset_info_ptr &other) noexcept { std::swap(ptr, other.ptr); }
+
+			void acquire() const
+			{
+				if (ptr != nullptr) [[likely]]
+					ptr->parent->acquire();
+			}
+			void release() const
+			{
+				if (ptr != nullptr) [[likely]]
+					ptr->parent->release();
+			}
+
+			asset_info *ptr = nullptr;
+		};
+		struct package_fragment_ptr
+		{
+			constexpr explicit package_fragment_ptr(package_fragment *ptr) noexcept : ptr(ptr) {}
+
+			constexpr package_fragment_ptr() noexcept = default;
+			constexpr package_fragment_ptr(package_fragment_ptr &&other) noexcept { swap(other); }
+			constexpr package_fragment_ptr &operator=(package_fragment_ptr &&other) noexcept
+			{
+				swap(other);
+				return *this;
+			}
+			package_fragment_ptr(const package_fragment_ptr &other) noexcept : ptr(other.ptr) { acquire(); }
+			package_fragment_ptr &operator=(const package_fragment_ptr &other) noexcept
+			{
+				if (this != &other)
+				{
+					release();
+					ptr = other.ptr;
+					acquire();
+				}
+				return *this;
+			}
+			~package_fragment_ptr() { release(); }
+
+			[[nodiscard]] constexpr bool empty() const noexcept { return ptr == nullptr; }
+			[[nodiscard]] constexpr package_fragment *operator->() const noexcept { return ptr; }
+
+			constexpr void swap(package_fragment_ptr &other) noexcept { std::swap(ptr, other.ptr); }
+
+			void acquire() const
+			{
+				if (ptr != nullptr) [[likely]]
+					ptr->acquire();
+			}
+			void release() const
+			{
+				if (ptr != nullptr) [[likely]]
+					ptr->release();
+			}
+
+			package_fragment *ptr = nullptr;
+		};
 	}	 // namespace detail
+
+	/** @brief Structure used to reference an asset.
+	 * @note Asset packages are kept alive as long as any of their assets are referenced. */
+	class asset_handle
+	{
+		friend class package_handle;
+
+		constexpr asset_handle(uuid id, detail::asset_info_ptr &&ptr) noexcept
+			: asset_id(std::move(id)), asset_ptr(std::move(ptr))
+		{
+		}
+		SEK_API asset_handle(uuid id, detail::asset_info *ptr);
+
+	public:
+		/** Initializes an empty asset handle. */
+		constexpr asset_handle() noexcept = default;
+		constexpr asset_handle(asset_handle &&) noexcept = default;
+		constexpr asset_handle &operator=(asset_handle &&other) noexcept
+		{
+			asset_id = std::move(other.asset_id);
+			asset_ptr = std::move(other.asset_ptr);
+			return *this;
+		}
+		asset_handle(const asset_handle &) = default;
+		asset_handle &operator=(const asset_handle &) = default;
+
+		/** Checks if the asset handle is empty (does not reference a valid asset). */
+		[[nodiscard]] constexpr bool empty() const noexcept { return asset_ptr.empty(); }
+		/** Checks if the asset handle is partial (does not reference an asset but has a UUID). */
+		[[nodiscard]] constexpr bool partial() const noexcept { return empty() && asset_id != uuid{}; }
+		/** Returns the id of the asset. If the asset handle does not point to an asset, returns a nil uuid. */
+		[[nodiscard]] constexpr uuid id() const noexcept { return asset_id; }
+		/** Returns reference to the name of the asset.
+		 * @warning Undefined behavior if the asset handle is empty. */
+		[[nodiscard]] constexpr const interned_string &name() const noexcept { return asset_ptr->name; }
+		/** Returns handle to the parent package of the asset.
+		 * @warning Undefined behavior if the asset handle is empty. */
+		[[nodiscard]] package_handle package() const;
+
+		/** Opens an asset for reading.
+		 * @return Asset source used to read asset's data.
+		 * @warning Undefined behavior if the asset handle is empty. */
+		[[nodiscard]] asset_source open() const { return asset_ptr->parent->open_asset(asset_ptr.ptr); }
+		/** Loads & deserializes asset's metadata.
+		 * @param args Arguments passed to `T`'s deserialization function.
+		 * @return Metadata of the asset.
+		 * @warning Undefined behavior if the asset handle is empty. */
+		template<typename T, typename... Args>
+		[[nodiscard]] T metadata(Args &&...args) const
+		{
+			const auto bytes = asset_ptr->parent->load_meta(asset_ptr.ptr);
+			serialization::ubj::input_archive ar(bytes.data(), bytes.size());
+			return ar.read(std::in_place_type<T>, std::forward<Args>(args)...);
+		}
+
+		constexpr void swap(asset_handle &other) noexcept
+		{
+			asset_id.swap(other.asset_id);
+			asset_ptr.swap(other.asset_ptr);
+		}
+		friend constexpr void swap(asset_handle &a, asset_handle &b) noexcept { a.swap(b); }
+
+		/** Returns true if both handles reference the *exact* same asset.
+		 * @note Multiple handles with the same id may reference different assets if any of the handles
+		 * were obtained directly from a package (thus overrides are not resolved). */
+		[[nodiscard]] constexpr bool operator==(const asset_handle &other) const noexcept
+		{
+			return asset_ptr.ptr == other.asset_ptr.ptr;
+		}
+
+	private:
+		uuid asset_id;
+		detail::asset_info_ptr asset_ptr;
+	};
+
+	/** @brief Structure used to reference an asset package. */
+	class package_handle
+	{
+		friend class asset_handle;
+
+		constexpr explicit package_handle(detail::package_fragment_ptr &&ptr) noexcept : fragment_ptr(std::move(ptr)) {}
+		SEK_API explicit package_handle(detail::package_fragment *ptr);
+
+	public:
+		/** Initializes an empty package handle. */
+		constexpr package_handle() noexcept = default;
+		constexpr package_handle(package_handle &&) noexcept = default;
+		constexpr package_handle &operator=(package_handle &&other) noexcept
+		{
+			fragment_ptr = std::move(other.fragment_ptr);
+			return *this;
+		}
+		package_handle(const package_handle &) = default;
+		package_handle &operator=(const package_handle &) = default;
+
+		/** Checks if the package handle is empty (does not reference a valid asset package). */
+		[[nodiscard]] constexpr bool empty() const noexcept { return fragment_ptr.empty(); }
+		/** Returns path of the asset package.
+		 * @warning Undefined behavior if the package handle is empty. */
+		[[nodiscard]] constexpr const std::filesystem::path &path() const noexcept { return fragment_ptr->path; }
+
+	private:
+		detail::package_fragment_ptr fragment_ptr;
+	};
+
+	package_handle asset_handle::package() const { return package_handle{asset_ptr->parent}; }
 }	 // namespace sek::engine

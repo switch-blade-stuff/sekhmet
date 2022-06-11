@@ -77,6 +77,15 @@ namespace sek
 		/** Initializes a nil UUID. */
 		constexpr uuid() noexcept = default;
 
+		constexpr uuid(const uuid &) noexcept = default;
+		constexpr uuid &operator=(const uuid &) noexcept = default;
+		constexpr uuid(uuid &&other) noexcept { swap(other); }
+		constexpr uuid &operator=(uuid &&other) noexcept
+		{
+			swap(other);
+			return *this;
+		}
+
 		/** Initializes UUID using the specified generator. */
 		constexpr explicit uuid(const generator &gen) noexcept { gen(*this); }
 
@@ -129,6 +138,9 @@ namespace sek
 		{
 			return to_string<std::iter_value_t<Iter>, Iter>(out, upper);
 		}
+
+		constexpr void swap(uuid &other) noexcept { std::swap(bytes, other.bytes); }
+		friend constexpr void swap(uuid &a, uuid &b) noexcept { a.swap(b); }
 
 		[[nodiscard]] constexpr auto operator<=>(const uuid &) const noexcept = default;
 		[[nodiscard]] constexpr bool operator==(const uuid &) const noexcept = default;
