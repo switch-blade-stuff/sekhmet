@@ -73,25 +73,6 @@ namespace sek::engine
 		constexpr std::array<char, 7> signature_str = {'\3', 'S', 'E', 'K', 'P', 'A', 'K'};
 		constexpr std::size_t signature_size_min = signature_str.size() + 1;
 
-		asset_info::~asset_info()
-		{
-			if (parent->is_archive())
-				std::destroy_at(&archive_info);
-			else
-				std::destroy_at(&loose_info);
-		}
-
-		master_package::~master_package()
-		{
-			std::ranges::for_each(uuid_table, [](auto &&p) { std::destroy_at(p.second); });
-		}
-		void master_package::acquire_impl() { ++ref_count; }
-		void master_package::release_impl()
-		{
-			if (ref_count.fetch_sub(1) == 1) [[unlikely]]
-				delete this;
-		}
-
 		master_package *package_fragment::get_master() noexcept
 		{
 			return is_master() ? static_cast<master_package *>(this) : master;
@@ -247,6 +228,101 @@ namespace sek::engine
 		}
 	}	 // namespace detail
 
-	asset_package::asset_package(detail::package_fragment *frag) : ptr(frag) { ptr.acquire(); }
+	asset_package::asset_package(detail::master_package *pkg) : ptr(pkg) { ptr.acquire(); }
 	void asset_package::reset() { ptr.reset(); }
+
+	std::ranges::subrange<typename asset_database::package_iter> asset_database::packages() const
+	{
+		std::shared_lock<std::shared_mutex> l(mtx);
+		return {current_packages.begin(), current_packages.end()};
+	}
+	void asset_database::add_package(const asset_package &pkg)
+	{
+		std::unique_lock<std::shared_mutex> l(mtx);
+		if (find_package(pkg) == current_packages.end()) [[likely]]
+		{
+			current_packages.push_back(pkg);
+			for (auto entry : pkg.ptr->uuid_table)
+			{
+				const auto uuid = entry.first;
+				const auto info = entry.second;
+				auto &new_name = info->name;
+
+				/* Replace existing or add new entry to both uuid & name tables. */
+				if (auto iter = uuid_table.find(uuid); iter != uuid_table.end()) [[unlikely]]
+					iter->second = info;
+				else
+					uuid_table.emplace(uuid, info);
+
+				if (!new_name.empty()) [[likely]]
+				{
+					// clang-format off
+					name_table.emplace(std::piecewise_construct,
+									   std::forward_as_tuple(new_name),
+									   std::forward_as_tuple(uuid, info));
+					// clang-format on
+				}
+			}
+		}
+	}
+	void asset_database::remove_package(const asset_package &pkg)
+	{
+		std::unique_lock<std::shared_mutex> l(mtx);
+		if (auto iter = find_package(pkg); iter != current_packages.end()) [[likely]]
+		{
+			current_packages.erase(iter);
+			for (auto entry : pkg.ptr->uuid_table)
+			{
+				const auto uuid = entry.first;
+				const auto info = entry.second;
+				auto &old_name = info->name;
+
+				/* Ignore all conflicting assets that do not have `pkg` as their parent, those belong to other packages.
+				 * No need to check if the asset uuid is present within the database, since if the
+				 * package is present within the database, it's assets are a subset of the database's assets. */
+				auto asset_iter = uuid_table.find(uuid);
+				if (asset_iter->second->parent->get_master() != pkg.ptr->get_master()) [[likely]]
+					continue;
+
+				auto name_iter = old_name.empty() ? name_table.end() : name_table.find(old_name);
+				const auto update_name = name_iter->second.second == info;
+				auto need_uuid_entry = true, uuid_replaced = false;
+				auto need_name_entry = update_name, name_replaced = false;
+
+				/* Find a replacement for the old UUID and/or name among lower priority packages.
+				 * Replacement assets might not be the same for the old UUID and the name. */
+				for (auto other_iter = iter; other_iter-- != current_packages.begin();)
+				{
+					/* Stop once both entries have been replaced. */
+					if (!(need_uuid_entry || need_name_entry)) [[unlikely]]
+						break;
+
+					/* Find a replacement asset for the old UUID. */
+					if (need_uuid_entry)
+					{
+						auto &other_table = other_iter->ptr->uuid_table;
+						if (auto replacement_iter = other_table.find(uuid); replacement_iter != other_table.end())
+						{
+							asset_iter->second = replacement_iter->second;
+							std::swap(need_uuid_entry, uuid_replaced);
+						}
+					}
+					/* Find a replacement asset for the old name. */
+					if (need_name_entry)
+					{
+						auto &other_table = other_iter->ptr->name_table;
+						if (auto replacement_iter = other_table.find(old_name); replacement_iter != other_table.end())
+						{
+							name_iter->second = replacement_iter->second;
+							std::swap(need_name_entry, name_replaced);
+						}
+					}
+				}
+
+				/* Erase the old UUID and name entries if they were not replaced. */
+				if (!uuid_replaced) uuid_table.erase(asset_iter);
+				if (!name_replaced && update_name) name_table.erase(name_iter);
+			}
+		}
+	}
 }	 // namespace sek::engine

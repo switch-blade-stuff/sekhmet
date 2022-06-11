@@ -478,7 +478,6 @@ namespace sek::detail
 
 		template<typename... Args>
 		constexpr std::pair<iterator, bool> emplace(Args &&...args)
-			requires std::constructible_from<value_type, Args...>
 		{
 			/* Temporary entry needs to be created at first. */
 			auto &entry = value_vector().emplace_back(std::forward<Args>(args)...);

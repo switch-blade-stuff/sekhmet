@@ -33,12 +33,14 @@
 #include "sekhmet/detail/service.hpp"
 #include "sekhmet/detail/uuid.hpp"
 #include "sekhmet/system/native_file.hpp"
+#include <shared_mutex>
 
 namespace sek::engine
 {
 	class asset_source;
 	class asset_ref;
 	class asset_package;
+	class asset_database;
 
 	/** @brief Exception thrown when operation on an asset package fails. */
 	class asset_package_error : public std::runtime_error
@@ -158,21 +160,34 @@ namespace sek::engine
 			std::filesystem::path path; /* Path to fragment's directory or archive file. */
 		};
 
+		asset_info::~asset_info()
+		{
+			if (parent->is_archive())
+				std::destroy_at(&archive_info);
+			else
+				std::destroy_at(&loose_info);
+		}
+
 		struct asset_table
 		{
 			using uuid_table_t = dense_map<uuid, asset_info *>;
-			using uuid_entry_t = typename uuid_table_t::const_reference;
-			using name_table_t = dense_map<std::string_view, uuid_entry_t>;
+			using name_table_t = dense_map<std::string_view, std::pair<uuid, asset_info *>>;
 
 			uuid_table_t uuid_table;
 			name_table_t name_table;
 		};
 		struct master_package : package_fragment, asset_table
 		{
-			~master_package();
-
-			void acquire_impl();
-			void release_impl();
+			~master_package()
+			{
+				for (auto p : uuid_table) std::destroy_at(p.second);
+			}
+			inline void acquire_impl() { ++ref_count; }
+			inline void release_impl()
+			{
+				if (ref_count.fetch_sub(1) == 1) [[unlikely]]
+					delete this;
+			}
 
 			std::vector<package_fragment> fragments;
 		};
@@ -392,53 +407,53 @@ namespace sek::engine
 
 			asset_info *info = nullptr;
 		};
-		struct package_fragment_ptr
+		struct package_ptr
 		{
-			constexpr explicit package_fragment_ptr(package_fragment *frag) noexcept : frag(frag) {}
+			constexpr explicit package_ptr(master_package *pkg) noexcept : pkg(pkg) {}
 
-			constexpr package_fragment_ptr() noexcept = default;
-			constexpr package_fragment_ptr(package_fragment_ptr &&other) noexcept { swap(other); }
-			constexpr package_fragment_ptr &operator=(package_fragment_ptr &&other) noexcept
+			constexpr package_ptr() noexcept = default;
+			constexpr package_ptr(package_ptr &&other) noexcept { swap(other); }
+			constexpr package_ptr &operator=(package_ptr &&other) noexcept
 			{
 				swap(other);
 				return *this;
 			}
-			package_fragment_ptr(const package_fragment_ptr &other) noexcept : frag(other.frag) { acquire(); }
-			package_fragment_ptr &operator=(const package_fragment_ptr &other) noexcept
+			package_ptr(const package_ptr &other) noexcept : pkg(other.pkg) { acquire(); }
+			package_ptr &operator=(const package_ptr &other) noexcept
 			{
-				if (this != &other) reset(other.frag);
+				if (this != &other) reset(other.pkg);
 				return *this;
 			}
-			~package_fragment_ptr() { release(); }
+			~package_ptr() { release(); }
 
-			[[nodiscard]] constexpr bool empty() const noexcept { return frag == nullptr; }
-			[[nodiscard]] constexpr package_fragment *operator->() const noexcept { return frag; }
+			[[nodiscard]] constexpr bool empty() const noexcept { return pkg == nullptr; }
+			[[nodiscard]] constexpr master_package *operator->() const noexcept { return pkg; }
 
-			constexpr void swap(package_fragment_ptr &other) noexcept { std::swap(frag, other.frag); }
+			constexpr void swap(package_ptr &other) noexcept { std::swap(pkg, other.pkg); }
 
 			void acquire() const
 			{
-				if (frag != nullptr) [[likely]]
-					frag->acquire();
+				if (pkg != nullptr) [[likely]]
+					pkg->acquire();
 			}
 			void release() const
 			{
-				if (frag != nullptr) [[likely]]
-					frag->release();
+				if (pkg != nullptr) [[likely]]
+					pkg->release();
 			}
-			void reset(package_fragment *new_frag)
+			void reset(master_package *new_pkg)
 			{
 				release();
-				frag = new_frag;
+				pkg = new_pkg;
 				acquire();
 			}
 			void reset()
 			{
 				release();
-				frag = nullptr;
+				pkg = nullptr;
 			}
 
-			package_fragment *frag = nullptr;
+			master_package *pkg = nullptr;
 		};
 	}	 // namespace detail
 
@@ -447,6 +462,7 @@ namespace sek::engine
 	class asset_ref
 	{
 		friend class asset_package;
+		friend class asset_database;
 
 		constexpr asset_ref(uuid id, detail::asset_info_ptr &&ptr) noexcept
 			: asset_id(std::move(id)), ptr(std::move(ptr))
@@ -503,9 +519,10 @@ namespace sek::engine
 	class asset_package
 	{
 		friend class asset_ref;
+		friend class asset_database;
 
-		constexpr explicit asset_package(detail::package_fragment_ptr &&ptr) noexcept : ptr(std::move(ptr)) {}
-		SEK_API explicit asset_package(detail::package_fragment *frag);
+		constexpr explicit asset_package(detail::package_ptr &&ptr) noexcept : ptr(std::move(ptr)) {}
+		SEK_API explicit asset_package(detail::master_package *pkg);
 
 	public:
 		/** Initializes an empty package handle. */
@@ -529,8 +546,35 @@ namespace sek::engine
 		SEK_API void reset();
 
 	private:
-		detail::package_fragment_ptr ptr;
+		detail::package_ptr ptr;
 	};
 
 	asset_package asset_ref::package() const { return asset_package{ptr->parent->get_master()}; }
+
+	class asset_database : detail::asset_table
+	{
+		using packages_t = std::vector<asset_package>;
+		using package_iter = typename packages_t::const_iterator;
+
+	public:
+		/** Returns a range of all packages present within the database. */
+		[[nodiscard]] SEK_API std::ranges::subrange<package_iter> packages() const;
+		/** Adds a package to the database.
+		 * @param pkg Package to add. */
+		SEK_API void add_package(const asset_package &pkg);
+		/** Removes a package from the database.
+		 * @param pkg Package to remove.
+		 * @note Removing a package will require a rebuild of the internal asset table. */
+		SEK_API void remove_package(const asset_package &pkg);
+
+	private:
+		[[nodiscard]] constexpr auto find_package(const asset_package &pkg) const noexcept
+		{
+			const auto pred = [ptr = pkg.ptr.pkg](auto &pkg) { return ptr == pkg.ptr.pkg; };
+			return std::find_if(current_packages.begin(), current_packages.end(), pred);
+		}
+
+		mutable std::shared_mutex mtx;
+		packages_t current_packages;
+	};
 }	 // namespace sek::engine

@@ -77,6 +77,7 @@ namespace sek
 
 			/* Here overloading operator& is fine, since we want to use value_pointer for pointers. */
 			[[nodiscard]] constexpr value_pointer<Const> operator&() const noexcept { return value_pointer<Const>{this}; }
+			[[nodiscard]] constexpr operator value_type() const noexcept { return {first, second}; }
 
 			[[nodiscard]] constexpr auto operator<=>(const value_reference &other) const noexcept
 			{
