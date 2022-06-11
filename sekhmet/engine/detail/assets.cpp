@@ -64,69 +64,52 @@ namespace sek::engine
 		 * Description           Bit(s)      Values
 		 * Master flag             0         0 - Fragment
 		 *                                   1 - Master
-		 * Compression format     1-3        0 - No compression
-		 *                                   1 - ZSTD
+		 * Compression format     1-4        1 - No compression
+		 *                                   2 - ZSTD
 		 * Reserved               4-31
 		 * ============================================================================
 		 * */
 
-		enum header_flags : std::int32_t
-		{
-			MASTER = 1,
-			FORMAT_ZSTD = 0b0010,
-			FORMAT_MASK = 0b1110,
-		};
-
 		constexpr std::array<char, 7> signature_str = {'\3', 'S', 'E', 'K', 'P', 'A', 'K'};
 		constexpr std::size_t signature_size_min = signature_str.size() + 1;
 
+		asset_info::~asset_info()
+		{
+			if (parent->is_archive())
+				std::destroy_at(&archive_info);
+			else
+				std::destroy_at(&loose_info);
+		}
+
 		master_package::~master_package()
 		{
-			for (auto entry : asset_table::uuid_table) entry.second->destroy();
+			std::ranges::for_each(uuid_table, [](auto &&p) { std::destroy_at(p.second); });
 		}
-
-		inline static void acquire_master(master_package *ptr) noexcept { ++ptr->ref_count; }
-		inline static void release_master(master_package *ptr)
+		void master_package::acquire_impl() { ++ref_count; }
+		void master_package::release_impl()
 		{
-			if (ptr->ref_count.fetch_sub(1) == 1) [[unlikely]]
-				delete ptr;
+			if (ref_count.fetch_sub(1) == 1) [[unlikely]]
+				delete this;
 		}
 
-		constinit const typename package_fragment::pack_vtable_t package_fragment::fragment_vtable = {
-			.acquire_func = +[](package_fragment *ptr) -> void { acquire_master(ptr->master); },
-			.release_func = +[](package_fragment *ptr) -> void { release_master(ptr->master); },
-		};
-		constinit const typename package_fragment::pack_vtable_t package_fragment::master_vtable = {
-			.acquire_func = +[](package_fragment *ptr) -> void { acquire_master(static_cast<master_package *>(ptr)); },
-			.release_func = +[](package_fragment *ptr) -> void { release_master(static_cast<master_package *>(ptr)); },
-		};
-
-		constinit const typename package_fragment::asset_vtable_t package_fragment::loose_vtable = {
-			.meta_load_func = +[](const package_fragment *frag, const asset_info *info) -> std::vector<std::byte>
-			{
-				auto full_path = frag->path / info->loose.meta_path;
-				auto file = system::native_file{full_path, system::native_file::in | system::native_file::atend};
-				if (!file.is_open()) [[unlikely]]
-					throw asset_package_error(fmt::format("Failed to open asset metadata at path \"{}\"", full_path.string()));
-
-				std::vector<std::byte> result;
-				result.resize(static_cast<std::size_t>(file.tell()));
-				file.seek(0, system::native_file::beg);
-				file.read(result.data(), result.size());
-				return result;
-			},
-			.asset_open_func = +[](const package_fragment *frag, const asset_info *info) -> asset_source
-			{
-				auto full_path = frag->path / info->loose.asset_path;
-				auto file = system::native_file{full_path, system::native_file::in | system::native_file::atend};
-				if (!file.is_open()) [[unlikely]]
-					throw asset_package_error(fmt::format("Failed to open asset at path \"{}\"", full_path.string()));
-
-				const auto size = file.tell();
-				file.seek(0, system::native_file::beg);
-				return make_asset_source(std::move(file), size, 0);
-			},
-		};
+		master_package *package_fragment::get_master() noexcept
+		{
+			return is_master() ? static_cast<master_package *>(this) : master;
+		}
+		void package_fragment::acquire()
+		{
+			if (is_master())
+				static_cast<master_package *>(this)->acquire_impl();
+			else
+				master->acquire_impl();
+		}
+		void package_fragment::release()
+		{
+			if (is_master())
+				static_cast<master_package *>(this)->release_impl();
+			else
+				master->release_impl();
+		}
 
 		inline static thread_pool &asset_zstd_pool()
 		{
@@ -134,7 +117,7 @@ namespace sek::engine
 			return instance;
 		}
 
-		inline static system::native_file open_fragment(const std::filesystem::path &path, std::int64_t offset)
+		system::native_file package_fragment::open_archive(std::int64_t offset) const
 		{
 			auto file = system::native_file{path, system::native_file::in};
 			if (!file.is_open()) [[unlikely]]
@@ -146,29 +129,54 @@ namespace sek::engine
 			}
 			return file;
 		}
-		inline static std::vector<std::byte> load_archive_metadata(const package_fragment *frag, const asset_info *info)
+		std::vector<std::byte> package_fragment::read_metadata(const asset_info *info) const
 		{
 			std::vector<std::byte> result;
+			if (system::native_file file; is_archive())
+			{
+				file = open_archive(info->archive_info.meta_offset);
+				result.resize(static_cast<std::size_t>(info->archive_info.meta_size));
+				file.read(result.data(), result.size());
+			}
+			else
+			{
+				const auto full_path = path / info->loose_info.meta_path;
+				file = system::native_file{full_path, system::native_file::in | system::native_file::atend};
+				if (!file.is_open()) [[unlikely]]
+					throw asset_package_error(fmt::format("Failed to open asset metadata at path \"{}\"", full_path.string()));
 
-			auto file = open_fragment(frag->path, info->archive.meta_offset);
-			result.resize(static_cast<std::size_t>(info->archive.meta_size));
-			file.read(result.data(), result.size());
+				result.resize(static_cast<std::size_t>(file.tell()));
+				file.seek(0, system::native_file::beg);
+				file.read(result.data(), result.size());
+			}
+
 			return result;
 		}
-		inline static asset_source load_archive_asset(const package_fragment *frag, const asset_info *info)
+		asset_source package_fragment::open_asset_loose(const asset_info *info) const
 		{
-			const auto offset = info->archive.asset_offset;
-			const auto size = info->archive.asset_size;
-			return make_asset_source(open_fragment(frag->path, offset), size, offset);
+			const auto full_path = path / info->loose_info.asset_path;
+			auto file = system::native_file{full_path, system::native_file::in | system::native_file::atend};
+			if (!file.is_open()) [[unlikely]]
+				throw asset_package_error(fmt::format("Failed to open asset at path \"{}\"", full_path.string()));
+
+			const auto size = file.tell();
+			file.seek(0, system::native_file::beg);
+			return make_asset_source(std::move(file), size, 0);
 		}
-		inline static asset_source load_zstd_asset(const package_fragment *frag, const asset_info *info)
+		asset_source package_fragment::open_asset_flat(const asset_info *info) const
+		{
+			const auto offset = info->archive_info.asset_offset;
+			const auto size = info->archive_info.asset_size;
+			return make_asset_source(open_archive(offset), size, offset);
+		}
+		asset_source package_fragment::open_asset_zstd(const asset_info *info) const
 		{
 			auto &ctx = zstd_thread_ctx::instance();
 
-			const auto src_size = info->archive.asset_src_size;
-			const auto frames = info->archive.asset_frames;
-			const auto offset = info->archive.asset_offset;
-			const auto size = info->archive.asset_size;
+			const auto src_size = info->archive_info.asset_src_size;
+			const auto frames = info->archive_info.asset_frames;
+			const auto offset = info->archive_info.asset_offset;
+			const auto size = info->archive_info.asset_size;
 
 			struct reader_t
 			{
@@ -184,11 +192,9 @@ namespace sek::engine
 					pos = new_pos;
 					return file.read(dst, n);
 				}
-
 				system::native_file file;
-				std::size_t size;
-				std::size_t pos;
-			} reader = {open_fragment(frag->path, offset), static_cast<std::size_t>(size), 0};
+				std::size_t size, pos;
+			} reader = {open_archive(offset), static_cast<std::size_t>(size), 0};
 			struct writer_t
 			{
 				std::size_t write(const void *src, std::size_t n)
@@ -203,10 +209,8 @@ namespace sek::engine
 					memcpy(buffer.data + std::exchange(pos, new_pos), src, n);
 					return n;
 				}
-
 				asset_buffer_t buffer;
-				std::size_t size;
-				std::size_t pos;
+				std::size_t size, pos;
 			} writer = {asset_buffer_t{src_size}, static_cast<std::size_t>(src_size), 0};
 
 			try
@@ -231,20 +235,18 @@ namespace sek::engine
 
 			return make_asset_source(std::move(writer.buffer), src_size, 0);
 		}
-
-		constinit const typename package_fragment::asset_vtable_t package_fragment::archive_vtable = {
-			.meta_load_func = load_archive_metadata,
-			.asset_open_func = load_archive_asset,
-		};
-		constinit const typename package_fragment::asset_vtable_t package_fragment::zstd_vtable = {
-			.meta_load_func = load_archive_metadata,
-			.asset_open_func = load_zstd_asset,
-		};
+		asset_source package_fragment::open_asset(const asset_info *info) const
+		{
+			switch (flags & ARCHIVE_MASK)
+			{
+				case 0: return open_asset_loose(info);
+				case ARCHIVE_FLAT: return open_asset_flat(info);
+				case ARCHIVE_ZSTD: return open_asset_zstd(info);
+				default: throw asset_package_error("Failed to open asset source - invalid package flags");
+			}
+		}
 	}	 // namespace detail
 
-	asset_handle::asset_handle(uuid id, detail::asset_info *ptr) : asset_id(std::move(id)), asset_ptr(ptr)
-	{
-		asset_ptr.acquire();
-	}
-	package_handle::package_handle(detail::package_fragment *ptr) : fragment_ptr(ptr) { fragment_ptr.acquire(); }
+	asset_package::asset_package(detail::package_fragment *frag) : ptr(frag) { ptr.acquire(); }
+	void asset_package::reset() { ptr.reset(); }
 }	 // namespace sek::engine
