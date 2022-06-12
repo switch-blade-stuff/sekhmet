@@ -984,12 +984,18 @@ namespace sek::math
 	template<std::size_t... I, typename U, std::size_t M, storage_policy Sp>
 	constexpr basic_vector<U, sizeof...(I), Sp> shuffle(const basic_vector<U, M, Sp> &l) noexcept
 	{
-		basic_vector<U, sizeof...(I)> result;
-		if (std::is_constant_evaluated())
-			detail::generic::vector_shuffle(result.m_data, l.m_data, std::index_sequence<I...>{});
+		using Idx = std::index_sequence<I...>;
+		if constexpr (std::is_same_v<Idx, std::make_index_sequence<M>>)
+			return l;
 		else
-			detail::vector_shuffle(result.m_data, l.m_data, std::index_sequence<I...>{});
-		return result;
+		{
+			basic_vector<U, sizeof...(I)> result;
+			if (std::is_constant_evaluated())
+				detail::generic::vector_shuffle(result.m_data, l.m_data, Idx{});
+			else
+				detail::vector_shuffle(result.m_data, l.m_data, Idx{});
+			return result;
+		}
 	}
 
 	/** Gets the Ith element of the vector. */
