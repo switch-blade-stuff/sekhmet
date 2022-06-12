@@ -142,19 +142,19 @@ namespace sek::engine
 		 * @return Reference to this logger. */
 		basic_logger &log(sv_t msg)
 		{
-			log_event(formatter(level, msg));
+			m_log_event(formatter(level, msg));
 			return *this;
 		}
 		/** @copydoc log */
 		basic_logger &operator<<(sv_t msg) { return log(msg); }
 
 		/** Returns event proxy for the internal log event. */
-		[[nodiscard]] constexpr event_proxy<event_t> on_log() noexcept { return event_proxy{log_event}; }
+		[[nodiscard]] constexpr event_proxy<event_t> on_log() noexcept { return event_proxy{m_log_event}; }
 
 		constexpr void swap(basic_logger &other) noexcept
 		{
 			using std::swap;
-			swap(log_event, other.log_event);
+			swap(m_log_event, other.m_log_event);
 			swap(formatter, other.formatter);
 			swap(level, other.level);
 		}
@@ -163,7 +163,7 @@ namespace sek::engine
 
 	private:
 		/** Event used to dispatch logged messages. */
-		event_t log_event;
+		event_t m_log_event;
 
 	public:
 		/* No reason to make getters & setters for these. */

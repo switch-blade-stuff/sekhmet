@@ -112,7 +112,7 @@ namespace sek
 		template<typename... Args>
 		constexpr dynarray(size_type n, Args &&...args)
 			requires std::constructible_from<T, Args...>
-		: data_size(n)
+		: m_size(n)
 		{
 			init_impl(n);
 			while (n-- > 0) ::new (data() + n) value_type{std::forward<Args>(args)...};
@@ -131,15 +131,15 @@ namespace sek
 
 		constexpr dynarray(const dynarray &other)
 		{
-			init_impl(data_size = other.data_size);
-			std::copy_n(other.data(), data_size, data());
+			init_impl(m_size = other.m_size);
+			std::copy_n(other.data(), m_size, data());
 		}
 		constexpr dynarray &operator=(const dynarray &other)
 		{
 			if (this != &other)
 			{
-				reserve(data_size = other.data_size);
-				std::copy_n(other.data(), data_size, data());
+				reserve(m_size = other.m_size);
+				std::copy_n(other.data(), m_size, data());
 			}
 			return *this;
 		}
@@ -152,38 +152,38 @@ namespace sek
 
 		constexpr ~dynarray() { destroy_impl(); }
 
-		constexpr void clear() { data_size = 0; }
-		constexpr void shrink_to_fit() { resize_impl(data_size); }
+		constexpr void clear() { m_size = 0; }
+		constexpr void shrink_to_fit() { resize_impl(m_size); }
 		constexpr void reserve(size_type n)
 		{
-			if (n > data_capacity) resize_impl(n);
+			if (n > m_capacity) resize_impl(n);
 		}
 		template<typename... Args>
 		constexpr void resize(size_type n, Args &&...args)
 			requires std::constructible_from<T, Args...>
 		{
 			resize_impl(n);
-			if (n > data_size)
+			if (n > m_size)
 			{
 				auto aligned = data();
-				for (auto elem = aligned + data_size, end = aligned + n; elem < end; ++elem)
+				for (auto elem = aligned + m_size, end = aligned + n; elem < end; ++elem)
 					::new (elem) value_type{std::forward<Args>(args)...};
 			}
-			data_size = n;
+			m_size = n;
 		}
 
-		[[nodiscard]] constexpr size_type size() const noexcept { return data_size; }
+		[[nodiscard]] constexpr size_type size() const noexcept { return m_size; }
 		[[nodiscard]] constexpr size_type max_size() const noexcept
 		{
 			return static_cast<size_type>(std::numeric_limits<difference_type>::max() / sizeof(value_type));
 		}
-		[[nodiscard]] constexpr size_type capacity() const noexcept { return data_capacity; }
+		[[nodiscard]] constexpr size_type capacity() const noexcept { return m_capacity; }
 		[[nodiscard]] constexpr size_type empty() const noexcept { return size() == 0; }
 
-		[[nodiscard]] constexpr pointer data() noexcept { return static_cast<pointer>(align_ptr(data_begin)); }
+		[[nodiscard]] constexpr pointer data() noexcept { return static_cast<pointer>(align_ptr(m_begin)); }
 		[[nodiscard]] constexpr const_pointer data() const noexcept
 		{
-			return static_cast<const_pointer>(align_ptr(data_begin));
+			return static_cast<const_pointer>(align_ptr(m_begin));
 		}
 
 		[[nodiscard]] constexpr reference at(size_type i) noexcept { return data()[i]; }
@@ -239,7 +239,7 @@ namespace sek
 			}
 		}
 
-		constexpr void pop_back() { --data_size; }
+		constexpr void pop_back() { --m_size; }
 		constexpr void push_back(const value_type &value) { insert(end(), value); }
 		constexpr void push_back(value_type &&value) { insert(end(), std::forward<value_type>(value)); }
 		constexpr void push_front(const value_type &value) { insert(begin(), value); }
@@ -253,8 +253,8 @@ namespace sek
 			auto amount = last - first;
 			auto first_pos = first - begin(), last_pos = last - begin();
 			auto aligned = data();
-			std::move(aligned + last_pos, aligned + data_size, aligned + first_pos);
-			data_size -= static_cast<size_type>(amount);
+			std::move(aligned + last_pos, aligned + m_size, aligned + first_pos);
+			m_size -= static_cast<size_type>(amount);
 
 			return iterator{aligned + first_pos};
 		}
@@ -272,9 +272,9 @@ namespace sek
 		constexpr void swap(dynarray &other) noexcept
 		{
 			using std::swap;
-			swap(data_begin, other.data_begin);
-			swap(data_size, other.data_size);
-			swap(data_capacity, other.data_capacity);
+			swap(m_begin, other.m_begin);
+			swap(m_size, other.m_size);
+			swap(m_capacity, other.m_capacity);
 		}
 
 		friend constexpr void swap(dynarray &a, dynarray &b) noexcept { a.swap(b); }
@@ -282,25 +282,25 @@ namespace sek
 	private:
 		constexpr void take_data(dynarray &&other) noexcept
 		{
-			data_begin = other.data_begin;
-			data_size = other.data_size;
-			data_capacity = other.data_capacity;
+			m_begin = other.m_begin;
+			m_size = other.m_size;
+			m_capacity = other.m_capacity;
 
-			other.data_begin = nullptr;
-			other.data_size = 0;
-			other.data_capacity = 0;
+			other.m_begin = nullptr;
+			other.m_size = 0;
+			other.m_capacity = 0;
 		}
 
 		constexpr void destroy_impl()
 		{
-			if (data_begin) do_aligned_free(data_begin);
+			if (m_begin) do_aligned_free(m_begin);
 		}
 		constexpr void init_impl(size_type n)
 		{
-			data_begin = static_cast<pointer>(do_aligned_alloc(n));
-			if (!data_begin) [[unlikely]]
+			m_begin = static_cast<pointer>(do_aligned_alloc(n));
+			if (!m_begin) [[unlikely]]
 				throw std::bad_alloc();
-			data_capacity = n;
+			m_capacity = n;
 		}
 		constexpr void resize_impl(size_type n)
 		{
@@ -308,21 +308,21 @@ namespace sek
 				destroy_impl();
 			else
 			{
-				data_begin = static_cast<pointer>(do_aligned_realloc(static_cast<void *>(data_begin), n));
-				if (!data_begin) [[unlikely]]
+				m_begin = static_cast<pointer>(do_aligned_realloc(static_cast<void *>(m_begin), n));
+				if (!m_begin) [[unlikely]]
 					throw std::bad_alloc();
-				data_capacity = n;
+				m_capacity = n;
 			}
 		}
 
 		constexpr void make_space(difference_type pos, size_type amount)
 		{
-			auto new_size = data_size + amount;
+			auto new_size = m_size + amount;
 			reserve(new_size);
 
 			auto aligned = data();
-			std::move_backward(aligned + pos, aligned + data_size, aligned + new_size);
-			data_size = new_size;
+			std::move_backward(aligned + pos, aligned + m_size, aligned + new_size);
+			m_size = new_size;
 		}
 		template<typename... Args>
 		constexpr iterator emplace_impl(const_iterator where, size_type amount, Args &&...args)
@@ -338,8 +338,8 @@ namespace sek
 			return iterator{aligned + insert_pos};
 		}
 
-		pointer data_begin = nullptr;
-		size_type data_size = 0;
-		size_type data_capacity = 0;
+		pointer m_begin = nullptr;
+		size_type m_size = 0;
+		size_type m_capacity = 0;
 	};
 }	 // namespace sek

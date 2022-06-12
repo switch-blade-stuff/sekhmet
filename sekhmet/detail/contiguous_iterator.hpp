@@ -48,57 +48,57 @@ namespace sek
 	public:
 		constexpr contiguous_iterator() noexcept = default;
 
-		constexpr explicit contiguous_iterator(pointer element) noexcept : ptr(element) {}
+		constexpr explicit contiguous_iterator(pointer element) noexcept : m_ptr(element) {}
 
 		template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
-		constexpr contiguous_iterator(const contiguous_iterator<T, OtherConst> &other) noexcept : ptr(other.ptr)
+		constexpr contiguous_iterator(const contiguous_iterator<T, OtherConst> &other) noexcept : m_ptr(other.m_ptr)
 		{
 		}
 
 		constexpr contiguous_iterator operator++(int) noexcept
 		{
 			auto temp = *this;
-			ptr++;
+			m_ptr++;
 			return temp;
 		}
 		constexpr contiguous_iterator operator--(int) noexcept
 		{
 			auto temp = *this;
-			ptr--;
+			m_ptr--;
 			return temp;
 		}
 		constexpr contiguous_iterator &operator++() noexcept
 		{
-			ptr++;
+			m_ptr++;
 			return *this;
 		}
 		constexpr contiguous_iterator &operator--() noexcept
 		{
-			ptr--;
+			m_ptr--;
 			return *this;
 		}
 		constexpr contiguous_iterator &operator+=(difference_type n) noexcept
 		{
-			ptr += n;
+			m_ptr += n;
 			return *this;
 		}
 		constexpr contiguous_iterator &operator-=(difference_type n) noexcept
 		{
-			ptr -= n;
+			m_ptr -= n;
 			return *this;
 		}
 
 		[[nodiscard]] constexpr contiguous_iterator operator+(difference_type n) const noexcept
 		{
-			return contiguous_iterator{ptr + n};
+			return contiguous_iterator{m_ptr + n};
 		}
 		[[nodiscard]] constexpr contiguous_iterator operator-(difference_type n) const noexcept
 		{
-			return contiguous_iterator{ptr - n};
+			return contiguous_iterator{m_ptr - n};
 		}
 		[[nodiscard]] constexpr difference_type operator-(const contiguous_iterator &other) const noexcept
 		{
-			return ptr - other.ptr;
+			return m_ptr - other.m_ptr;
 		}
 
 		[[nodiscard]] friend constexpr contiguous_iterator operator+(difference_type n, const contiguous_iterator &iter) noexcept
@@ -107,7 +107,7 @@ namespace sek
 		}
 
 		/** Returns pointer to the target element. */
-		[[nodiscard]] constexpr pointer get() const noexcept { return ptr; }
+		[[nodiscard]] constexpr pointer get() const noexcept { return m_ptr; }
 		/** @copydoc value */
 		[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 		/** Returns reference to the target element. */
@@ -120,6 +120,6 @@ namespace sek
 
 	private:
 		/** Pointer into the target sequence. */
-		pointer ptr;
+		pointer m_ptr;
 	};
 }	 // namespace sek

@@ -299,25 +299,25 @@ namespace sek
 		/** @copydoc thread_pool
 		 * @param res Memory resource used to allocate internal state. */
 		thread_pool(std::pmr::memory_resource *res, std::size_t n, queue_mode mode = fifo)
-			: cb(control_block::make_control_block(res, n, mode))
+			: m_cb(control_block::make_control_block(res, n, mode))
 		{
 		}
 		/** Terminates all worker threads & releases internal state. */
 		~thread_pool()
 		{
-			cb->terminate();
-			cb->release();
+			m_cb->terminate();
+			m_cb->release();
 		}
 
 		/** Returns the current queue dispatch mode of the pool. */
-		[[nodiscard]] constexpr queue_mode mode() const noexcept { return cb->dispatch_mode; }
+		[[nodiscard]] constexpr queue_mode mode() const noexcept { return m_cb->dispatch_mode; }
 		/** Sets pool's queue dispatch mode. */
-		constexpr void mode(queue_mode mode) noexcept { cb->dispatch_mode = mode; }
+		constexpr void mode(queue_mode mode) noexcept { m_cb->dispatch_mode = mode; }
 
 		/** Returns the current amount of worker threads in the pool. */
-		[[nodiscard]] constexpr std::size_t size() const noexcept { return cb->workers_count; }
+		[[nodiscard]] constexpr std::size_t size() const noexcept { return m_cb->workers_count; }
 		/** Resizes the pool to n workers. If n is set to 0, uses `std::thread::hardware_concurrency` workers. */
-		void resize(std::size_t n) { cb->resize(n); }
+		void resize(std::size_t n) { m_cb->resize(n); }
 
 		/** Schedules a task to be executed by one of the worker threads.
 		 * Tasks are dispatched according to the current queue mode.
@@ -335,10 +335,10 @@ namespace sek
 		template<typename T, std::invocable F>
 		std::future<T> schedule(std::promise<T> &&promise, F &&task)
 		{
-			return cb->schedule(std::forward<std::promise<T>>(promise), std::forward<F>(task));
+			return m_cb->schedule(std::forward<std::promise<T>>(promise), std::forward<F>(task));
 		}
 
 	private:
-		control_block *cb;
+		control_block *m_cb;
 	};
 }	 // namespace sek

@@ -464,11 +464,10 @@ namespace sek::engine
 		friend class asset_package;
 		friend class asset_database;
 
-		constexpr asset_ref(uuid id, detail::asset_info_ptr &&ptr) noexcept
-			: asset_id(std::move(id)), ptr(std::move(ptr))
+		constexpr asset_ref(uuid id, detail::asset_info_ptr &&ptr) noexcept : m_id(std::move(id)), m_ptr(std::move(ptr))
 		{
 		}
-		asset_ref(uuid id, detail::asset_info *info) : asset_id(std::move(id)), ptr(info) { ptr.acquire(); }
+		asset_ref(uuid id, detail::asset_info *info) : m_id(std::move(id)), m_ptr(info) { m_ptr.acquire(); }
 
 	public:
 		asset_ref() = delete;
@@ -476,29 +475,29 @@ namespace sek::engine
 		constexpr asset_ref(asset_ref &&) noexcept = default;
 		constexpr asset_ref &operator=(asset_ref &&other) noexcept
 		{
-			asset_id = std::move(other.asset_id);
-			ptr = std::move(other.ptr);
+			m_id = std::move(other.m_id);
+			m_ptr = std::move(other.m_ptr);
 			return *this;
 		}
 		asset_ref(const asset_ref &) = default;
 		asset_ref &operator=(const asset_ref &) = default;
 
 		/** Returns the id of the asset. If the asset reference does not point to an asset, returns a nil uuid. */
-		[[nodiscard]] constexpr uuid id() const noexcept { return asset_id; }
+		[[nodiscard]] constexpr uuid id() const noexcept { return m_id; }
 		/** Returns reference to the name of the asset.
 		 * @warning Undefined behavior if the asset reference is empty. */
-		[[nodiscard]] constexpr const interned_string &name() const noexcept { return ptr->name; }
+		[[nodiscard]] constexpr const interned_string &name() const noexcept { return m_ptr->name; }
 		/** Returns a handle to the parent package of the asset. */
 		[[nodiscard]] asset_package package() const;
 		/** Opens an asset source used to read asset's data. */
-		[[nodiscard]] asset_source open() const { return ptr->parent->open_asset(ptr.info); }
+		[[nodiscard]] asset_source open() const { return m_ptr->parent->open_asset(m_ptr.info); }
 		/** Returns a vector of bytes containing asset's metadata. */
-		[[nodiscard]] std::vector<std::byte> metadata() const { return ptr->parent->read_metadata(ptr.info); }
+		[[nodiscard]] std::vector<std::byte> metadata() const { return m_ptr->parent->read_metadata(m_ptr.info); }
 
 		constexpr void swap(asset_ref &other) noexcept
 		{
-			asset_id.swap(other.asset_id);
-			ptr.swap(other.ptr);
+			m_id.swap(other.m_id);
+			m_ptr.swap(other.m_ptr);
 		}
 		friend constexpr void swap(asset_ref &a, asset_ref &b) noexcept { a.swap(b); }
 
@@ -508,12 +507,12 @@ namespace sek::engine
 		 * thus no overrides could be resolved. */
 		[[nodiscard]] constexpr bool operator==(const asset_ref &other) const noexcept
 		{
-			return ptr.info == other.ptr.info;
+			return m_ptr.info == other.m_ptr.info;
 		}
 
 	private:
-		uuid asset_id;
-		detail::asset_info_ptr ptr;
+		uuid m_id;
+		detail::asset_info_ptr m_ptr;
 	};
 	/** @brief Reference-counted handle used to reference an asset package. */
 	class asset_package
@@ -521,7 +520,7 @@ namespace sek::engine
 		friend class asset_ref;
 		friend class asset_database;
 
-		constexpr explicit asset_package(detail::package_ptr &&ptr) noexcept : ptr(std::move(ptr)) {}
+		constexpr explicit asset_package(detail::package_ptr &&ptr) noexcept : m_ptr(std::move(ptr)) {}
 		SEK_API explicit asset_package(detail::master_package *pkg);
 
 	public:
@@ -530,26 +529,26 @@ namespace sek::engine
 		constexpr asset_package(asset_package &&) noexcept = default;
 		constexpr asset_package &operator=(asset_package &&other) noexcept
 		{
-			ptr = std::move(other.ptr);
+			m_ptr = std::move(other.m_ptr);
 			return *this;
 		}
 		asset_package(const asset_package &) = default;
 		asset_package &operator=(const asset_package &) = default;
 
 		/** Checks if the package handle is empty (does not reference any asset package). */
-		[[nodiscard]] constexpr bool empty() const noexcept { return ptr.empty(); }
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_ptr.empty(); }
 		/** Returns path of the asset package.
 		 * @warning Undefined behavior if the package handle is empty. */
-		[[nodiscard]] constexpr const std::filesystem::path &path() const noexcept { return ptr->path; }
+		[[nodiscard]] constexpr const std::filesystem::path &path() const noexcept { return m_ptr->path; }
 
 		/** Resets the package handle to an empty state. */
 		SEK_API void reset();
 
 	private:
-		detail::package_ptr ptr;
+		detail::package_ptr m_ptr;
 	};
 
-	asset_package asset_ref::package() const { return asset_package{ptr->parent->get_master()}; }
+	asset_package asset_ref::package() const { return asset_package{m_ptr->parent->get_master()}; }
 
 	class asset_database : detail::asset_table
 	{
@@ -570,11 +569,11 @@ namespace sek::engine
 	private:
 		[[nodiscard]] constexpr auto find_package(const asset_package &pkg) const noexcept
 		{
-			const auto pred = [ptr = pkg.ptr.pkg](auto &pkg) { return ptr == pkg.ptr.pkg; };
-			return std::find_if(current_packages.begin(), current_packages.end(), pred);
+			const auto pred = [ptr = pkg.m_ptr.pkg](auto &pkg) { return ptr == pkg.m_ptr.pkg; };
+			return std::find_if(m_packages.begin(), m_packages.end(), pred);
 		}
 
-		mutable std::shared_mutex mtx;
-		packages_t current_packages;
+		mutable std::shared_mutex m_mtx;
+		packages_t m_packages;
 	};
 }	 // namespace sek::engine

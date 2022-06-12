@@ -263,11 +263,11 @@ namespace sek::engine
 		SEK_API std::size_t compress_st(read_t r, write_t w, std::uint32_t level = 0, std::uint32_t frame_size = 0);
 
 	private:
-		[[nodiscard]] auto guard_read() { return std::lock_guard<std::mutex>{in_mtx}; }
-		[[nodiscard]] auto guard_write() { return std::lock_guard<std::mutex>{out_mtx}; }
+		[[nodiscard]] auto guard_read() { return std::lock_guard<std::mutex>{m_in_mtx}; }
+		[[nodiscard]] auto guard_write() { return std::lock_guard<std::mutex>{m_out_mtx}; }
 
-		[[nodiscard]] bool read_checked(void *dst, std::size_t n) { return read(dst, n) == n; }
-		[[nodiscard]] bool write_checked(const void *src, std::size_t n) { return write(src, n) == n; }
+		[[nodiscard]] bool read_checked(void *dst, std::size_t n) { return m_read(dst, n) == n; }
+		[[nodiscard]] bool write_checked(const void *src, std::size_t n) { return m_write(src, n) == n; }
 		[[nodiscard]] bool read_frame_header(frame_header &header)
 		{
 			skip_frame frame;
@@ -285,22 +285,22 @@ namespace sek::engine
 
 		void init(read_t r, write_t w) noexcept
 		{
-			in_frame = out_frame = queue_base = 0;
-			task_queue.clear();
-			reuse_list.clear();
+			m_in_frame = m_out_frame = m_queue_base = 0;
+			m_task_queue.clear();
+			m_reuse_list.clear();
 
-			read = r;
-			write = w;
+			m_read = r;
+			m_write = w;
 		}
 
 		void init_task_buffer(buffer_t &buff)
 		{
 			/* If there are any buffers in the reuse list from previously submitted tasks, reuse an existing buffer.
 			 * Otherwise, default-initialize the buffer, it will be allocated later. */
-			if (!reuse_list.empty())
+			if (!m_reuse_list.empty())
 			{
-				buff = reuse_list.back();
-				reuse_list.pop_back();
+				buff = m_reuse_list.back();
+				m_reuse_list.pop_back();
 			}
 			else
 				buff = buffer_t{};
@@ -308,7 +308,7 @@ namespace sek::engine
 		bool commit(thread_task &task)
 		{
 			const auto result = write_checked(task.data, task.size);
-			reuse_list.push_back(task);
+			m_reuse_list.push_back(task);
 			return result;
 		}
 		bool submit(thread_task task)
@@ -318,34 +318,34 @@ namespace sek::engine
 			 * after, keeping the queue small, so it does not matter that much.
 			 *
 			 * Re-using empty space within the queue will reduce memory overhead. */
-			if (queue_base != 0) [[likely]]
+			if (m_queue_base != 0) [[likely]]
 			{
-				task_queue[--queue_base] = task_queue.back();
-				task_queue.back() = task;
+				m_task_queue[--m_queue_base] = m_task_queue.back();
+				m_task_queue.back() = task;
 			}
 			else
-				task_queue.push_back(task);
+				m_task_queue.push_back(task);
 
 			/* Attempt to commit the queue. */
-			for (auto start = task_queue.size(), i = start; i > queue_base;)
-				if (auto &queued = task_queue[--i]; queued.frame_idx == out_frame) [[likely]]
+			for (auto start = m_task_queue.size(), i = start; i > m_queue_base;)
+				if (auto &queued = m_task_queue[--i]; queued.frame_idx == m_out_frame) [[likely]]
 				{
 					if (!commit(queued)) [[unlikely]]
 						return false;
 
 					/* Move out of the queue. */
-					if (const auto old_base = queue_base++; i != old_base) [[likely]]
-						queued = task_queue[old_base];
+					if (const auto old_base = m_queue_base++; i != old_base) [[likely]]
+						queued = m_task_queue[old_base];
 					/* Try to commit the queue for next frame. */
-					++out_frame;
+					++m_out_frame;
 					i = start;
 				}
 			return true;
 		}
 		void clear_tasks()
 		{
-			for (auto i = queue_base; i < task_queue.size(); ++i) task_queue[i].reset();
-			for (auto &buff : reuse_list) buff.reset();
+			for (auto i = m_queue_base; i < m_task_queue.size(); ++i) m_task_queue[i].reset();
+			for (auto &buff : m_reuse_list) buff.reset();
 		}
 
 		bool init_decomp_frame(buffer_t &src_buff, buffer_t &dst_buff);
@@ -358,22 +358,22 @@ namespace sek::engine
 		template<typename F>
 		void spawn_workers(thread_pool &pool, std::size_t n, F &&f);
 
-		std::mutex in_mtx;	/* Read synchronization. */
-		std::mutex out_mtx; /* Write synchronization. */
+		std::mutex m_in_mtx;	/* Read synchronization. */
+		std::mutex m_out_mtx; /* Write synchronization. */
 
-		std::size_t in_frame;  /* Index of the next frame to be read. */
-		std::size_t out_frame; /* Index of the next frame to be submitted. */
+		std::size_t m_in_frame;  /* Index of the next frame to be read. */
+		std::size_t m_out_frame; /* Index of the next frame to be submitted. */
 
-		dynarray<thread_task> task_queue;
+		dynarray<thread_task> m_task_queue;
 
 		/* To avoid erasing & inserting tasks, committed tasks are swapped to the start of the queue.
 		 * Queue base then points to the first non-empty task. */
-		std::size_t queue_base;
+		std::size_t m_queue_base;
 
 		/* Empty task buffers are cached for reuse. */
-		dynarray<buffer_t> reuse_list;
+		dynarray<buffer_t> m_reuse_list;
 
-		read_t read;   /* Delegate used to read source data. */
-		write_t write; /* Delegate used to write result. */
+		read_t m_read;   /* Delegate used to read source data. */
+		write_t m_write; /* Delegate used to write result. */
 	};
 }	 // namespace sek::engine

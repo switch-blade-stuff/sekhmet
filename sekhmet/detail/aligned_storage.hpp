@@ -39,11 +39,11 @@ namespace sek
 			return std::bit_cast<const T *>(data());
 		}
 
-		[[nodiscard]] constexpr void *data() noexcept { return static_cast<void *>(data_bytes); }
-		[[nodiscard]] constexpr const void *data() const noexcept { return static_cast<const void *>(data_bytes); }
+		[[nodiscard]] constexpr void *data() noexcept { return static_cast<void *>(m_bytes); }
+		[[nodiscard]] constexpr const void *data() const noexcept { return static_cast<const void *>(m_bytes); }
 
 	private:
-		std::byte data_bytes[Size];
+		std::byte m_bytes[Size];
 	};
 
 	template<typename T>

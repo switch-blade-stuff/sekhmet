@@ -106,7 +106,7 @@ namespace sek
 		{
 		}
 		/** Initializes a UUID from a byte array. */
-		constexpr explicit uuid(const std::byte (&data)[16]) noexcept { std::copy_n(data, 16, bytes); }
+		constexpr explicit uuid(const std::byte (&data)[16]) noexcept { std::copy_n(data, 16, m_bytes); }
 
 		/** Converts the UUID to string.
 		 * @tparam C Character type of the output sequence.
@@ -139,7 +139,7 @@ namespace sek
 			return to_string<std::iter_value_t<Iter>, Iter>(out, upper);
 		}
 
-		constexpr void swap(uuid &other) noexcept { std::swap(bytes, other.bytes); }
+		constexpr void swap(uuid &other) noexcept { std::swap(m_bytes, other.m_bytes); }
 		friend constexpr void swap(uuid &a, uuid &b) noexcept { a.swap(b); }
 
 		[[nodiscard]] constexpr auto operator<=>(const uuid &) const noexcept = default;
@@ -149,13 +149,13 @@ namespace sek
 		template<typename Iter>
 		constexpr void parse_string(Iter first, Iter last) noexcept
 		{
-			for (std::size_t i = 0; i < SEK_ARRAY_SIZE(bytes) * 2 && first != last; ++first)
+			for (std::size_t i = 0; i < SEK_ARRAY_SIZE(m_bytes) * 2 && first != last; ++first)
 			{
 				const auto c = *first;
 				if (c == '-') [[unlikely]]
 					continue;
 				auto idx = i++;
-				bytes[idx / 2] |= static_cast<std::byte>(parse_digit(c) << (idx % 2 ? 0 : 4));
+				m_bytes[idx / 2] |= static_cast<std::byte>(parse_digit(c) << (idx % 2 ? 0 : 4));
 			}
 		}
 		template<typename C, typename Iter>
@@ -169,18 +169,21 @@ namespace sek
 			{
 				if (i == 4 || i == 6 || i == 8 || i == 10) *out++ = '-';
 
-				auto top = static_cast<std::uint8_t>(bytes[i]) >> 4;
-				auto bottom = static_cast<std::uint8_t>(bytes[i]) & 0xf;
+				auto top = static_cast<std::uint8_t>(m_bytes[i]) >> 4;
+				auto bottom = static_cast<std::uint8_t>(m_bytes[i]) & 0xf;
 
 				*out++ = alphabet[top];
 				*out++ = alphabet[bottom];
 			}
 		}
 
-		alignas(std::uint64_t[2]) std::byte bytes[16] = {};
+		alignas(std::uint64_t[2]) std::byte m_bytes[16] = {};
 	};
 
-	[[nodiscard]] constexpr hash_t hash(const uuid &id) noexcept { return fnv1a(id.bytes, SEK_ARRAY_SIZE(id.bytes)); }
+	[[nodiscard]] constexpr hash_t hash(const uuid &id) noexcept
+	{
+		return fnv1a(id.m_bytes, SEK_ARRAY_SIZE(id.m_bytes));
+	}
 
 	namespace literals
 	{

@@ -109,7 +109,7 @@ namespace sek
 		};
 		struct to_sv
 		{
-			constexpr auto operator()(const value_type &s) const noexcept { return s.header->sv(); }
+			constexpr auto operator()(const value_type &s) const noexcept { return s.m_header->sv(); }
 		};
 		struct fnv_hash
 		{
@@ -147,20 +147,20 @@ namespace sek
 		constexpr ~basic_intern_pool() = default;
 
 		/** Initializes the pool using the provided memory resource. */
-		constexpr explicit basic_intern_pool(std::pmr::memory_resource *alloc) : data(alloc) {}
+		constexpr explicit basic_intern_pool(std::pmr::memory_resource *alloc) : m_data(alloc) {}
 
 		/** Returns iterator to the first interned string within internal storage. */
-		[[nodiscard]] constexpr const_iterator begin() const noexcept { return data.cbegin(); }
+		[[nodiscard]] constexpr const_iterator begin() const noexcept { return m_data.cbegin(); }
 		/** Returns iterator one past the last interned string within internal storage. */
-		[[nodiscard]] constexpr const_iterator end() const noexcept { return data.cend(); }
+		[[nodiscard]] constexpr const_iterator end() const noexcept { return m_data.cend(); }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
 		/** Returns reverse iterator to the end of the string. */
-		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return data.crbegin(); }
+		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return m_data.crbegin(); }
 		/** Returns reverse iterator to the start of the string. */
-		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return data.crend(); }
+		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return m_data.crend(); }
 		/** @copydoc rbegin */
 		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return rbegin(); }
 		/** @copydoc rend */
@@ -174,24 +174,24 @@ namespace sek
 		[[nodiscard]] constexpr string_type intern(const C *str, size_type n) { return string_type{*this, str, n}; }
 
 	private:
-		[[nodiscard]] constexpr auto resource() const { return data.value_allocator().resource(); }
+		[[nodiscard]] constexpr auto resource() const { return m_data.value_allocator().resource(); }
 		[[nodiscard]] constexpr header_t *intern_impl(sv_t sv)
 		{
-			auto iter = data.find(sv);
-			if (iter == data.end()) [[unlikely]]
+			auto iter = m_data.find(sv);
+			if (iter == m_data.end()) [[unlikely]]
 			{
 				auto h = static_cast<header_t *>(resource()->allocate(sizeof(header_t) + (sv.size() + 1)));
-				iter = data.insert(string_type{std::in_place, std::construct_at(h, this, sv.data(), sv.size())}).first;
+				iter = m_data.insert(string_type{std::in_place, std::construct_at(h, this, sv.data(), sv.size())}).first;
 			}
-			return iter->header;
+			return iter->m_header;
 		}
 		constexpr void unintern(header_t *h)
 		{
-			data.erase(h->sv());
+			m_data.erase(h->sv());
 			resource()->deallocate(h, sizeof(header_t) + (h->length + 1) * sizeof(C));
 		}
 
-		data_t data;
+		data_t m_data;
 	};
 
 	/** @brief String-view like container used to intern strings via a global pool.
@@ -229,15 +229,15 @@ namespace sek
 
 		using header_t = detail::intern_str_header<C, Traits>;
 
-		constexpr basic_interned_string(std::in_place_t, header_t *h) : header(h), str_len(h->length) {}
-		constexpr explicit basic_interned_string(header_t *h) : header(h), str_len(h->length) { acquire(); }
+		constexpr basic_interned_string(std::in_place_t, header_t *h) : m_header(h), m_length(h->length) {}
+		constexpr explicit basic_interned_string(header_t *h) : m_header(h), m_length(h->length) { acquire(); }
 
 	public:
 		/** Initializes an empty string. */
 		constexpr basic_interned_string() noexcept = default;
 
 		constexpr basic_interned_string(const basic_interned_string &other) noexcept
-			: basic_interned_string(other.header)
+			: basic_interned_string(other.m_header)
 		{
 		}
 		constexpr basic_interned_string &operator=(const basic_interned_string &other)
@@ -247,12 +247,12 @@ namespace sek
 			return *this;
 		}
 		constexpr basic_interned_string(basic_interned_string &&other) noexcept
-			: header(std::exchange(other.header, nullptr)), str_len(header->length)
+			: m_header(std::exchange(other.m_header, nullptr)), m_length(m_header->length)
 		{
 		}
 		constexpr basic_interned_string &operator=(basic_interned_string &&other) noexcept
 		{
-			std::swap(header, other.header);
+			std::swap(m_header, other.m_header);
 			return *this;
 		}
 		constexpr ~basic_interned_string() { release(); }
@@ -327,8 +327,8 @@ namespace sek
 		/** Returns pointer to the string's data. */
 		[[nodiscard]] constexpr const_pointer data() const noexcept
 		{
-			if (header) [[likely]]
-				return header->data();
+			if (m_header) [[likely]]
+				return m_header->data();
 			else
 				return nullptr;
 		}
@@ -344,7 +344,7 @@ namespace sek
 		[[nodiscard]] constexpr const_reference back() const noexcept { return data()[size() - 1]; }
 
 		/** Returns size of the string. */
-		[[nodiscard]] constexpr size_type size() const noexcept { return str_len; }
+		[[nodiscard]] constexpr size_type size() const noexcept { return m_length; }
 		/** @copydoc size */
 		[[nodiscard]] constexpr size_type length() const noexcept { return size(); }
 		/** Returns maximum value for size. */
@@ -359,7 +359,7 @@ namespace sek
 		template<typename Alloc = std::allocator<C>>
 		[[nodiscard]] constexpr std::basic_string<C, Traits, Alloc> str() const noexcept
 		{
-			if (header) [[likely]]
+			if (m_header) [[likely]]
 				return std::basic_string<C, Traits, Alloc>{data(), size()};
 			else
 				return {};
@@ -373,8 +373,8 @@ namespace sek
 		/** Converts the interned string to a string view. */
 		[[nodiscard]] constexpr std::basic_string_view<C, Traits> sv() const noexcept
 		{
-			if (header) [[likely]]
-				return header->sv();
+			if (m_header) [[likely]]
+				return m_header->sv();
 			else
 				return {};
 		}
@@ -639,31 +639,31 @@ namespace sek
 
 		constexpr void swap(basic_interned_string &other) noexcept
 		{
-			std::swap(header, other.header);
-			std::swap(str_len, other.str_len);
+			std::swap(m_header, other.m_header);
+			std::swap(m_length, other.m_length);
 		}
 		friend constexpr void swap(basic_interned_string &a, basic_interned_string &b) noexcept { a.swap(b); }
 
 	private:
 		constexpr void acquire()
 		{
-			if (header) [[likely]]
-				header->acquire();
+			if (m_header) [[likely]]
+				m_header->acquire();
 		}
 		constexpr void release()
 		{
-			if (header) [[likely]]
-				header->release();
+			if (m_header) [[likely]]
+				m_header->release();
 		}
 		constexpr void release(header_t *new_header)
 		{
 			release();
-			header = new_header;
-			str_len = new_header->length;
+			m_header = new_header;
+			m_length = new_header->length;
 		}
 
-		header_t *header = nullptr;
-		std::size_t str_len = 0;
+		header_t *m_header = nullptr;
+		std::size_t m_length = 0;
 	};
 
 	template<typename C, typename T>

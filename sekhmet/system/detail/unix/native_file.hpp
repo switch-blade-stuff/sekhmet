@@ -43,13 +43,13 @@ namespace sek::system::detail
 		inline std::int64_t tell() const noexcept { return this->seek(0, cur); }
 		SEK_API bool sync() const noexcept;
 
-		[[nodiscard]] constexpr bool is_open() const noexcept { return descriptor >= 0; }
-		[[nodiscard]] constexpr native_handle_type native_handle() const noexcept { return descriptor; }
+		[[nodiscard]] constexpr bool is_open() const noexcept { return m_descriptor >= 0; }
+		[[nodiscard]] constexpr native_handle_type native_handle() const noexcept { return m_descriptor; }
 
-		constexpr void swap(native_file_handle &other) noexcept { std::swap(descriptor, other.descriptor); }
+		constexpr void swap(native_file_handle &other) noexcept { std::swap(m_descriptor, other.m_descriptor); }
 		friend constexpr void swap(native_file_handle &a, native_file_handle &b) noexcept { a.swap(b); }
 
 	private:
-		int descriptor = -1;
+		int m_descriptor = -1;
 	};
 }	 // namespace sek::system::detail

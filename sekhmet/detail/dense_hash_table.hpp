@@ -140,14 +140,14 @@ namespace sek::detail
 			typedef std::random_access_iterator_tag iterator_category;
 
 		private:
-			constexpr explicit dense_table_iterator(ptr_t ptr) noexcept : ptr(ptr) {}
-			constexpr explicit dense_table_iterator(iter_t iter) noexcept : ptr(std::to_address(iter)) {}
+			constexpr explicit dense_table_iterator(ptr_t ptr) noexcept : m_ptr(ptr) {}
+			constexpr explicit dense_table_iterator(iter_t iter) noexcept : m_ptr(std::to_address(iter)) {}
 
 		public:
 			constexpr dense_table_iterator() noexcept = default;
 			template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
 			constexpr dense_table_iterator(const dense_table_iterator<OtherConst> &other) noexcept
-				: dense_table_iterator(other.ptr)
+				: dense_table_iterator(other.m_ptr)
 			{
 			}
 
@@ -159,12 +159,12 @@ namespace sek::detail
 			}
 			constexpr dense_table_iterator &operator++() noexcept
 			{
-				++ptr;
+				++m_ptr;
 				return *this;
 			}
 			constexpr dense_table_iterator &operator+=(difference_type n) noexcept
 			{
-				ptr += n;
+				m_ptr += n;
 				return *this;
 			}
 			constexpr dense_table_iterator operator--(int) noexcept
@@ -175,46 +175,46 @@ namespace sek::detail
 			}
 			constexpr dense_table_iterator &operator--() noexcept
 			{
-				--ptr;
+				--m_ptr;
 				return *this;
 			}
 			constexpr dense_table_iterator &operator-=(difference_type n) noexcept
 			{
-				ptr -= n;
+				m_ptr -= n;
 				return *this;
 			}
 
 			constexpr dense_table_iterator operator+(difference_type n) const noexcept
 			{
-				return dense_table_iterator{ptr + n};
+				return dense_table_iterator{m_ptr + n};
 			}
 			constexpr dense_table_iterator operator-(difference_type n) const noexcept
 			{
-				return dense_table_iterator{ptr - n};
+				return dense_table_iterator{m_ptr - n};
 			}
 			constexpr difference_type operator-(const dense_table_iterator &other) const noexcept
 			{
-				return ptr - other.ptr;
+				return m_ptr - other.m_ptr;
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{&ptr->value()}; }
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{&m_ptr->value()}; }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 
 			/** Returns reference to the element at an offset. */
-			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return ptr[n].value(); }
+			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return m_ptr[n].value(); }
 			/** Returns reference to the target element. */
 			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
 
 			[[nodiscard]] constexpr auto operator<=>(const dense_table_iterator &) const noexcept = default;
 			[[nodiscard]] constexpr bool operator==(const dense_table_iterator &) const noexcept = default;
 
-			constexpr void swap(dense_table_iterator &other) noexcept { std::swap(ptr, other.ptr); }
+			constexpr void swap(dense_table_iterator &other) noexcept { std::swap(m_ptr, other.m_ptr); }
 			friend constexpr void swap(dense_table_iterator &a, dense_table_iterator &b) noexcept { a.swap(b); }
 
 		private:
-			ptr_t ptr;
+			ptr_t m_ptr;
 		};
 
 		template<bool IsConst>
@@ -237,10 +237,10 @@ namespace sek::detail
 			typedef std::forward_iterator_tag iterator_category;
 
 		private:
-			constexpr explicit dense_table_bucket_iterator(ptr_t ptr) noexcept : ptr(ptr) {}
-			constexpr explicit dense_table_bucket_iterator(iter_t iter) noexcept : ptr(std::to_address(iter)) {}
+			constexpr explicit dense_table_bucket_iterator(ptr_t ptr) noexcept : m_ptr(ptr) {}
+			constexpr explicit dense_table_bucket_iterator(iter_t iter) noexcept : m_ptr(std::to_address(iter)) {}
 			constexpr explicit dense_table_bucket_iterator(iter_t iter, size_type off) noexcept
-				: ptr(std::to_address(iter)), off(off)
+				: m_ptr(std::to_address(iter)), m_off(off)
 			{
 			}
 
@@ -248,7 +248,7 @@ namespace sek::detail
 			constexpr dense_table_bucket_iterator() noexcept = default;
 			template<bool OtherConst, typename = std::enable_if_t<IsConst && OtherConst>>
 			constexpr dense_table_bucket_iterator(const dense_table_bucket_iterator<OtherConst> &other) noexcept
-				: dense_table_bucket_iterator(other.ptr, other.off)
+				: dense_table_bucket_iterator(other.m_ptr, other.m_off)
 			{
 			}
 
@@ -260,12 +260,12 @@ namespace sek::detail
 			}
 			constexpr dense_table_bucket_iterator &operator++() noexcept
 			{
-				off = ptr[static_cast<difference_type>(off)].next;
+				m_off = m_ptr[static_cast<difference_type>(m_off)].next;
 				return *this;
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{&ptr->value()}; }
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{&m_ptr->value()}; }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 			/** Returns reference to the target element. */
@@ -276,8 +276,8 @@ namespace sek::detail
 			constexpr void swap(dense_table_bucket_iterator &other) noexcept
 			{
 				using std::swap;
-				swap(ptr, other.ptr);
-				swap(off, other.off);
+				swap(m_ptr, other.m_ptr);
+				swap(m_off, other.m_off);
 			}
 			friend constexpr void swap(dense_table_bucket_iterator &a, dense_table_bucket_iterator &b) noexcept
 			{
@@ -285,8 +285,8 @@ namespace sek::detail
 			}
 
 		private:
-			ptr_t ptr;
-			size_type off = 0;
+			ptr_t m_ptr;
+			size_type m_off = 0;
 		};
 
 	public:
@@ -324,50 +324,50 @@ namespace sek::detail
 								   const hash_type &hash,
 								   const value_allocator_type &value_alloc,
 								   const bucket_allocator_type &bucket_alloc)
-			: dense_data{value_alloc, equal},
-			  sparse_data{std::piecewise_construct,
-						  std::forward_as_tuple(bucket_count, npos, bucket_alloc),
-						  std::forward_as_tuple(hash)}
+			: m_dense_data{value_alloc, equal},
+			  m_sparse_data{std::piecewise_construct,
+							std::forward_as_tuple(bucket_count, npos, bucket_alloc),
+							std::forward_as_tuple(hash)}
 		{
 		}
 		constexpr dense_hash_table(const dense_hash_table &other, const value_allocator_type &value_alloc)
-			: dense_data{std::piecewise_construct,
-						 std::forward_as_tuple(other.value_vector(), value_alloc),
-						 std::forward_as_tuple(other.dense_data.second())},
-			  sparse_data{other.sparse_data},
+			: m_dense_data{std::piecewise_construct,
+						   std::forward_as_tuple(other.value_vector(), value_alloc),
+						   std::forward_as_tuple(other.m_dense_data.second())},
+			  m_sparse_data{other.m_sparse_data},
 			  max_load_factor{other.max_load_factor}
 		{
 		}
 		constexpr dense_hash_table(const dense_hash_table &other,
 								   const value_allocator_type &value_alloc,
 								   const bucket_allocator_type &bucket_alloc)
-			: dense_data{std::piecewise_construct,
-						 std::forward_as_tuple(other.value_vector(), value_alloc),
-						 std::forward_as_tuple(other.dense_data.second())},
-			  sparse_data{std::piecewise_construct,
-						  std::forward_as_tuple(other.bucket_vector(), bucket_alloc),
-						  std::forward_as_tuple(other.sparse_data.second())},
+			: m_dense_data{std::piecewise_construct,
+						   std::forward_as_tuple(other.value_vector(), value_alloc),
+						   std::forward_as_tuple(other.m_dense_data.second())},
+			  m_sparse_data{std::piecewise_construct,
+							std::forward_as_tuple(other.bucket_vector(), bucket_alloc),
+							std::forward_as_tuple(other.m_sparse_data.second())},
 			  max_load_factor{other.max_load_factor}
 		{
 		}
 
 		constexpr dense_hash_table(dense_hash_table &&other, const value_allocator_type &value_alloc)
-			: dense_data{std::piecewise_construct,
-						 std::forward_as_tuple(std::move(other.value_vector()), value_alloc),
-						 std::forward_as_tuple(std::move(other.dense_data.second()))},
-			  sparse_data{std::move(other.sparse_data)},
+			: m_dense_data{std::piecewise_construct,
+						   std::forward_as_tuple(std::move(other.value_vector()), value_alloc),
+						   std::forward_as_tuple(std::move(other.m_dense_data.second()))},
+			  m_sparse_data{std::move(other.m_sparse_data)},
 			  max_load_factor{other.max_load_factor}
 		{
 		}
 		constexpr dense_hash_table(dense_hash_table &&other,
 								   const value_allocator_type &value_alloc,
 								   const bucket_allocator_type &bucket_alloc)
-			: dense_data{std::piecewise_construct,
-						 std::forward_as_tuple(std::move(other.value_vector()), value_alloc),
-						 std::forward_as_tuple(std::move(other.dense_data.second()))},
-			  sparse_data{std::piecewise_construct,
-						  std::forward_as_tuple(std::move(other.bucket_vector()), bucket_alloc),
-						  std::forward_as_tuple(std::move(other.sparse_data.second()))},
+			: m_dense_data{std::piecewise_construct,
+						   std::forward_as_tuple(std::move(other.value_vector()), value_alloc),
+						   std::forward_as_tuple(std::move(other.m_dense_data.second()))},
+			  m_sparse_data{std::piecewise_construct,
+							std::forward_as_tuple(std::move(other.bucket_vector()), bucket_alloc),
+							std::forward_as_tuple(std::move(other.m_sparse_data.second()))},
 			  max_load_factor{other.max_load_factor}
 		{
 		}
@@ -443,7 +443,7 @@ namespace sek::detail
 		[[nodiscard]] constexpr size_type bucket(const auto &key) const noexcept { return *get_chain(key_hash(key)); }
 		[[nodiscard]] constexpr size_type bucket(const_iterator iter) const noexcept
 		{
-			return *get_chain(iter.ptr->hash);
+			return *get_chain(iter.m_ptr->hash);
 		}
 
 		[[nodiscard]] constexpr iterator find(const auto &key) noexcept
@@ -564,7 +564,7 @@ namespace sek::detail
 			while (first < last) result = erase(--last);
 			return result;
 		}
-		constexpr iterator erase(const_iterator where) { return erase_impl(where.ptr->hash, get_key(*where.get())); }
+		constexpr iterator erase(const_iterator where) { return erase_impl(where.m_ptr->hash, get_key(*where.get())); }
 
 		// clang-format off
 		template<typename T>
@@ -577,25 +577,28 @@ namespace sek::detail
 
 		[[nodiscard]] constexpr auto value_allocator() const noexcept { return value_vector().get_allocator(); }
 		[[nodiscard]] constexpr auto bucket_allocator() const noexcept { return bucket_vector().get_allocator(); }
-		[[nodiscard]] constexpr auto &get_hash() const noexcept { return sparse_data.second(); }
-		[[nodiscard]] constexpr auto &get_comp() const noexcept { return dense_data.second(); }
+		[[nodiscard]] constexpr auto &get_hash() const noexcept { return m_sparse_data.second(); }
+		[[nodiscard]] constexpr auto &get_comp() const noexcept { return m_dense_data.second(); }
 
 		constexpr void swap(dense_hash_table &other) noexcept
 		{
 			using std::swap;
-			swap(sparse_data, other.sparse_data);
-			swap(dense_data, other.dense_data);
+			swap(m_sparse_data, other.m_sparse_data);
+			swap(m_dense_data, other.m_dense_data);
 			swap(max_load_factor, other.max_load_factor);
 		}
 
 	private:
-		[[nodiscard]] constexpr auto &value_vector() noexcept { return dense_data.first(); }
-		[[nodiscard]] constexpr const auto &value_vector() const noexcept { return dense_data.first(); }
-		[[nodiscard]] constexpr auto &bucket_vector() noexcept { return sparse_data.first(); }
-		[[nodiscard]] constexpr const auto &bucket_vector() const noexcept { return sparse_data.first(); }
+		[[nodiscard]] constexpr auto &value_vector() noexcept { return m_dense_data.first(); }
+		[[nodiscard]] constexpr const auto &value_vector() const noexcept { return m_dense_data.first(); }
+		[[nodiscard]] constexpr auto &bucket_vector() noexcept { return m_sparse_data.first(); }
+		[[nodiscard]] constexpr const auto &bucket_vector() const noexcept { return m_sparse_data.first(); }
 
-		[[nodiscard]] constexpr auto key_hash(const auto &k) const { return sparse_data.second()(k); }
-		[[nodiscard]] constexpr auto key_comp(const auto &a, const auto &b) const { return dense_data.second()(a, b); }
+		[[nodiscard]] constexpr auto key_hash(const auto &k) const { return m_sparse_data.second()(k); }
+		[[nodiscard]] constexpr auto key_comp(const auto &a, const auto &b) const
+		{
+			return m_dense_data.second()(a, b);
+		}
 		[[nodiscard]] constexpr auto *get_chain(hash_t h) noexcept
 		{
 			auto idx = h % bucket_vector().size();
@@ -725,8 +728,8 @@ namespace sek::detail
 			return end();
 		}
 
-		packed_pair<dense_data_t, key_equal> dense_data;
-		packed_pair<sparse_data_t, hash_type> sparse_data = {sparse_data_t(initial_capacity, npos), hash_type{}};
+		packed_pair<dense_data_t, key_equal> m_dense_data;
+		packed_pair<sparse_data_t, hash_type> m_sparse_data = {sparse_data_t(initial_capacity, npos), hash_type{}};
 
 	public:
 		float max_load_factor = initial_load_factor;

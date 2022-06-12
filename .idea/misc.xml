@@ -9,6 +9,7 @@
       <file path="$PROJECT_DIR$/cmake-build-release-editor" />
       <file path="$PROJECT_DIR$/cmake-build-relwithdebinfo" />
       <file path="$PROJECT_DIR$/cmake-build-relwithdebinfo-editor" />
+      <file path="$PROJECT_DIR$/docs" />
     </excludeRoots>
   </component>
 </project>

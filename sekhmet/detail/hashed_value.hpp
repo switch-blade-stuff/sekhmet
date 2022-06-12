@@ -66,7 +66,7 @@ namespace sek
 			noexcept(std::is_nothrow_move_constructible_v<hash_base> &&	std::is_nothrow_move_constructible_v<value_base>)
 			: hash_base{std::forward<hash_base>(other)},
 			  value_base(std::forward<value_base>(other)),
-			  hash_value(other.hash_value)
+			  m_hash(other.m_hash)
 		{
 		}
 		constexpr hashed_value &operator=(hashed_value &&other)
@@ -74,7 +74,7 @@ namespace sek
 		{
 			hash_base::operator=(std::move(other));
 			value_base::operator=(std::move(other));
-			hash_value = other.hash_value;
+			m_hash = other.m_hash;
 			return *this;
 		}
 
@@ -101,14 +101,14 @@ namespace sek
 		/** @copydoc value */
 		[[nodiscard]] constexpr const value_type &value() const noexcept { return *value_base::get(); }
 		/** Returns hash of the value. */
-		[[nodiscard]] constexpr hash_t hash() const noexcept { return hash_value; }
+		[[nodiscard]] constexpr hash_t hash() const noexcept { return m_hash; }
 
 		/** Returns reference to the hash function. */
 		[[nodiscard]] constexpr const value_type &hash_function() const noexcept { return *value_base::get(); }
 
 	private:
-		constexpr void rehash() noexcept { hash_value = hash_function()(value()); }
+		constexpr void rehash() noexcept { m_hash = hash_function()(value()); }
 
-		hash_t hash_value;
+		hash_t m_hash;
 	};
 }	 // namespace sek

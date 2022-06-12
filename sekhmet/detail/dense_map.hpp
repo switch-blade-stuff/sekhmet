@@ -224,7 +224,7 @@ namespace sek
 									 const hash_type &key_hash = {},
 									 const allocator_type &value_alloc = allocator_type{},
 									 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: data_table(key_compare, key_hash, value_alloc, bucket_alloc)
+			: m_table(key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}
 		/** Constructs a map with the specified minimum capacity.
@@ -238,7 +238,7 @@ namespace sek
 									 const hash_type &key_hash = {},
 									 const allocator_type &value_alloc = allocator_type{},
 									 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: data_table(capacity, key_compare, key_hash, value_alloc, bucket_alloc)
+			: m_table(capacity, key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}
 
@@ -296,7 +296,7 @@ namespace sek
 		/** Copy-constructs the map. Both allocators are copied via `select_on_container_copy_construction`.
 		 * @param other Map to copy data and allocators from. */
 		constexpr dense_map(const dense_map &other) noexcept(std::is_nothrow_copy_constructible_v<table_type>)
-			: data_table(other.data_table)
+			: m_table(other.m_table)
 		{
 		}
 		/** Copy-constructs the map. Bucket allocator is copied via `select_on_container_copy_construction`.
@@ -304,7 +304,7 @@ namespace sek
 		 * @param value_alloc Allocator used to allocate map's value array. */
 		constexpr dense_map(const dense_map &other, const allocator_type &value_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, const table_type &, const allocator_type &>)
-			: data_table(other.data_table, value_alloc)
+			: m_table(other.m_table, value_alloc)
 		{
 		}
 		/** Copy-constructs the map.
@@ -313,14 +313,14 @@ namespace sek
 		 * @param bucket_alloc Allocator used to allocate map's bucket array. */
 		constexpr dense_map(const dense_map &other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, const table_type &, const allocator_type &, const bucket_allocator_type &>)
-			: data_table(other.data_table, value_alloc, bucket_alloc)
+			: m_table(other.m_table, value_alloc, bucket_alloc)
 		{
 		}
 
 		/** Move-constructs the map. Both allocators are move-constructed.
 		 * @param other Map to move elements and allocators from. */
 		constexpr dense_map(dense_map &&other) noexcept(std::is_nothrow_move_constructible_v<table_type>)
-			: data_table(std::move(other.data_table))
+			: m_table(std::move(other.m_table))
 		{
 		}
 		/** Move-constructs the map. Bucket allocator is move-constructed.
@@ -328,7 +328,7 @@ namespace sek
 		 * @param value_alloc Allocator used to allocate map's value array. */
 		constexpr dense_map(dense_map &&other, const allocator_type &value_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &>)
-			: data_table(std::move(other.data_table), value_alloc)
+			: m_table(std::move(other.m_table), value_alloc)
 		{
 		}
 		/** Move-constructs the map.
@@ -337,7 +337,7 @@ namespace sek
 		 * @param bucket_alloc Allocator used to allocate map's bucket array. */
 		constexpr dense_map(dense_map &&other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &, const bucket_allocator_type &>)
-			: data_table(std::move(other.data_table), value_alloc, bucket_alloc)
+			: m_table(std::move(other.m_table), value_alloc, bucket_alloc)
 		{
 		}
 
@@ -345,38 +345,38 @@ namespace sek
 		 * @param other Map to copy elements from. */
 		constexpr dense_map &operator=(const dense_map &other)
 		{
-			if (this != &other) data_table = other.data_table;
+			if (this != &other) m_table = other.m_table;
 			return *this;
 		}
 		/** Move-assigns the map.
 		 * @param other Map to move elements from. */
 		constexpr dense_map &operator=(dense_map &&other) noexcept(std::is_nothrow_move_assignable_v<table_type>)
 		{
-			data_table = std::move(other.data_table);
+			m_table = std::move(other.m_table);
 			return *this;
 		}
 
 		/** Returns iterator to the start of the map. */
-		[[nodiscard]] constexpr iterator begin() noexcept { return data_table.begin(); }
+		[[nodiscard]] constexpr iterator begin() noexcept { return m_table.begin(); }
 		/** Returns iterator to the end of the map. */
-		[[nodiscard]] constexpr iterator end() noexcept { return data_table.end(); }
+		[[nodiscard]] constexpr iterator end() noexcept { return m_table.end(); }
 		/** Returns const iterator to the start of the map. */
-		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return data_table.begin(); }
+		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return m_table.begin(); }
 		/** Returns const iterator to the end of the map. */
-		[[nodiscard]] constexpr const_iterator cend() const noexcept { return data_table.end(); }
+		[[nodiscard]] constexpr const_iterator cend() const noexcept { return m_table.end(); }
 		/** @copydoc cbegin */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return cbegin(); }
 		/** @copydoc cend */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
 
 		/** Returns reverse iterator to the end of the map. */
-		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return data_table.rbegin(); }
+		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return m_table.rbegin(); }
 		/** Returns reverse iterator to the start of the map. */
-		[[nodiscard]] constexpr reverse_iterator rend() noexcept { return data_table.rend(); }
+		[[nodiscard]] constexpr reverse_iterator rend() noexcept { return m_table.rend(); }
 		/** Returns const reverse iterator to the end of the map. */
-		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return data_table.crbegin(); }
+		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return m_table.crbegin(); }
 		/** Returns const reverse iterator to the start of the map. */
-		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return data_table.crend(); }
+		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return m_table.crend(); }
 		/** @copydoc crbegin */
 		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return crbegin(); }
 		/** @copydoc crend */
@@ -385,22 +385,22 @@ namespace sek
 		/** Locates an element for the specific key.
 		 * @param key Key to search for.
 		 * @return Iterator to the element mapped to key. */
-		constexpr iterator find(const key_type &key) noexcept { return data_table.find(key); }
+		constexpr iterator find(const key_type &key) noexcept { return m_table.find(key); }
 		/** @copydoc find */
-		constexpr const_iterator find(const key_type &key) const noexcept { return data_table.find(key); }
+		constexpr const_iterator find(const key_type &key) const noexcept { return m_table.find(key); }
 		/** @copydoc find
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
 		constexpr const_iterator find(const auto &key) noexcept
 			requires transparent_key
 		{
-			return data_table.find(key);
+			return m_table.find(key);
 		}
 		/** @copydoc find */
 		constexpr const_iterator find(const auto &key) const noexcept
 			requires transparent_key
 		{
-			return data_table.find(key);
+			return m_table.find(key);
 		}
 
 		/** Checks if the map contains an element with specific key.
@@ -477,12 +477,12 @@ namespace sek
 		}
 
 		/** Empties the map's contents. */
-		constexpr void clear() { data_table.clear(); }
+		constexpr void clear() { m_table.clear(); }
 
 		/** Re-hashes the map for the specified minimal capacity. */
-		constexpr void rehash(size_type capacity) { data_table.rehash(capacity); }
+		constexpr void rehash(size_type capacity) { m_table.rehash(capacity); }
 		/** Resizes the internal storage to have space for at least n elements. */
-		constexpr void reserve(size_type n) { data_table.reserve(n); }
+		constexpr void reserve(size_type n) { m_table.reserve(n); }
 
 		/** Attempts to construct a value in-place at the specified key.
 		 * If such key is already associated with a value, does nothing.
@@ -493,13 +493,13 @@ namespace sek
 		template<typename... Args>
 		constexpr std::pair<iterator, bool> try_emplace(key_type &&key, Args &&...args)
 		{
-			return data_table.try_emplace(std::forward<key_type>(key), std::forward<Args>(args)...);
+			return m_table.try_emplace(std::forward<key_type>(key), std::forward<Args>(args)...);
 		}
 		/** @copydoc try_emplace */
 		template<typename... Args>
 		constexpr std::pair<iterator, bool> try_emplace(const key_type &key, Args &&...args)
 		{
-			return data_table.try_emplace(key, std::forward<Args>(args)...);
+			return m_table.try_emplace(key, std::forward<Args>(args)...);
 		}
 		/** @copydoc try_emplace
 		 * @note This overload participates in overload resolution only
@@ -508,7 +508,7 @@ namespace sek
 		constexpr std::pair<iterator, bool> try_emplace(const auto &key, Args &&...args)
 			requires transparent_key
 		{
-			return data_table.try_emplace(key, std::forward<Args>(args)...);
+			return m_table.try_emplace(key, std::forward<Args>(args)...);
 		}
 		/** Constructs a value (of value_type) in-place.
 		 * If a value for the constructed key is already present within the map, replaces that value.
@@ -518,7 +518,7 @@ namespace sek
 		template<typename... Args>
 		constexpr std::pair<iterator, bool> emplace(Args &&...args)
 		{
-			return data_table.emplace(std::forward<Args>(args)...);
+			return m_table.emplace(std::forward<Args>(args)...);
 		}
 
 		/** Attempts to insert a value into the map.
@@ -528,10 +528,10 @@ namespace sek
 		 * and second is boolean indicating whether the element was inserted (`true` if inserted, `false` otherwise). */
 		constexpr std::pair<iterator, bool> try_insert(value_type &&value)
 		{
-			return data_table.try_insert(std::forward<value_type>(value));
+			return m_table.try_insert(std::forward<value_type>(value));
 		}
 		/** @copydoc try_insert */
-		constexpr std::pair<iterator, bool> try_insert(const value_type &value) { return data_table.try_insert(value); }
+		constexpr std::pair<iterator, bool> try_insert(const value_type &value) { return m_table.try_insert(value); }
 		/** @copydetails try_insert
 		 * @param hint Hint for where to insert the value.
 		 * @param value Value to insert.
@@ -554,7 +554,7 @@ namespace sek
 		template<std::forward_iterator Iterator>
 		constexpr size_type try_insert(Iterator first, Iterator last)
 		{
-			return data_table.try_insert(first, last);
+			return m_table.try_insert(first, last);
 		}
 		/** Attempts to insert a sequence of values (of value_type) specified by the initializer list into the map.
 		 * If values with the same key are already present within the map, does not replace them.
@@ -572,10 +572,10 @@ namespace sek
 		 * and second is boolean indicating whether the element was inserted or replaced (`true` if inserted new, `false` if replaced). */
 		constexpr std::pair<iterator, bool> insert(value_type &&value)
 		{
-			return data_table.insert(std::forward<value_type>(value));
+			return m_table.insert(std::forward<value_type>(value));
 		}
 		/** @copydoc insert */
-		constexpr std::pair<iterator, bool> insert(const value_type &value) { return data_table.insert(value); }
+		constexpr std::pair<iterator, bool> insert(const value_type &value) { return m_table.insert(value); }
 		/** @copydetails insert
 		 * @param hint Hint for where to insert the value.
 		 * @param value Value to insert.
@@ -598,7 +598,7 @@ namespace sek
 		template<std::forward_iterator Iterator>
 		constexpr size_type insert(Iterator first, Iterator last)
 		{
-			return data_table.insert(first, last);
+			return m_table.insert(first, last);
 		}
 		/** Inserts a sequence of values (of value_type) specified by the initializer list into the map.
 		 * If values with the same key are already present within the map, replaces them.
@@ -609,20 +609,20 @@ namespace sek
 		/** Removes the specified element from the map.
 		 * @param where Iterator to the target element.
 		 * @return Iterator to the element after the erased one. */
-		constexpr iterator erase(const_iterator where) { return data_table.erase(where); }
+		constexpr iterator erase(const_iterator where) { return m_table.erase(where); }
 		/** Removes all elements in the [first, last) range.
 		 * @param first Iterator to the first element of the target range.
 		 * @param last Iterator to the last element of the target range.
 		 * @return Iterator to the element after the erased sequence. */
-		constexpr iterator erase(const_iterator first, const_iterator last) { return data_table.erase(first, last); }
+		constexpr iterator erase(const_iterator first, const_iterator last) { return m_table.erase(first, last); }
 		/** Removes element mapped to the specified key from the map if it is present.
 		 * @param key Key of the target element.
 		 * @return `true` if the element was removed, `false` otherwise. */
 		constexpr bool erase(const key_type &key)
 		{
-			if (auto target = data_table.find(key); target != data_table.end())
+			if (auto target = m_table.find(key); target != m_table.end())
 			{
-				data_table.erase(target);
+				m_table.erase(target);
 				return true;
 			}
 			else
@@ -635,9 +635,9 @@ namespace sek
 		constexpr bool erase(const auto &key)
 			requires transparent_key
 		{
-			if (auto target = data_table.find(key); target != data_table.end())
+			if (auto target = m_table.find(key); target != m_table.end())
 			{
-				data_table.erase(target);
+				m_table.erase(target);
 				return true;
 			}
 			else
@@ -645,51 +645,51 @@ namespace sek
 		}
 
 		/** Returns current amount of elements in the map. */
-		[[nodiscard]] constexpr size_type size() const noexcept { return data_table.size(); }
+		[[nodiscard]] constexpr size_type size() const noexcept { return m_table.size(); }
 		/** Returns current capacity of the map. */
-		[[nodiscard]] constexpr size_type capacity() const noexcept { return data_table.capacity(); }
+		[[nodiscard]] constexpr size_type capacity() const noexcept { return m_table.capacity(); }
 		/** Returns maximum possible amount of elements in the map. */
-		[[nodiscard]] constexpr size_type max_size() const noexcept { return data_table.max_size(); }
+		[[nodiscard]] constexpr size_type max_size() const noexcept { return m_table.max_size(); }
 		/** Checks if the map is empty. */
 		[[nodiscard]] constexpr size_type empty() const noexcept { return size() == 0; }
 
 		/** Returns current amount of buckets in the map. */
-		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return data_table.bucket_count(); }
+		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return m_table.bucket_count(); }
 		/** Returns the maximum amount of buckets. */
-		[[nodiscard]] constexpr size_type max_bucket_count() const noexcept { return data_table.max_bucket_count(); }
+		[[nodiscard]] constexpr size_type max_bucket_count() const noexcept { return m_table.max_bucket_count(); }
 
 		/** Returns local iterator to the start of a bucket. */
-		[[nodiscard]] constexpr local_iterator begin(size_type bucket) noexcept { return data_table.begin(bucket); }
+		[[nodiscard]] constexpr local_iterator begin(size_type bucket) noexcept { return m_table.begin(bucket); }
 		/** Returns const local iterator to the start of a bucket. */
 		[[nodiscard]] constexpr const_local_iterator cbegin(size_type bucket) const noexcept
 		{
-			return data_table.cbegin(bucket);
+			return m_table.cbegin(bucket);
 		}
 		/** @copydoc cbegin */
 		[[nodiscard]] constexpr const_local_iterator begin(size_type bucket) const noexcept
 		{
-			return data_table.begin(bucket);
+			return m_table.begin(bucket);
 		}
 		/** Returns local iterator to the end of a bucket. */
-		[[nodiscard]] constexpr local_iterator end(size_type bucket) noexcept { return data_table.end(bucket); }
+		[[nodiscard]] constexpr local_iterator end(size_type bucket) noexcept { return m_table.end(bucket); }
 		/** Returns const local iterator to the end of a bucket. */
 		[[nodiscard]] constexpr const_local_iterator cend(size_type bucket) const noexcept
 		{
-			return data_table.cend(bucket);
+			return m_table.cend(bucket);
 		}
 		/** @copydoc cbegin */
 		[[nodiscard]] constexpr const_local_iterator end(size_type bucket) const noexcept
 		{
-			return data_table.end(bucket);
+			return m_table.end(bucket);
 		}
 
 		/** Returns the amount of elements stored within the bucket. */
 		[[nodiscard]] constexpr size_type bucket_size(size_type bucket) const noexcept
 		{
-			return data_table.bucket_size(bucket);
+			return m_table.bucket_size(bucket);
 		}
 		/** Returns the index of the bucket associated with a key. */
-		[[nodiscard]] constexpr size_type bucket(const key_type &key) const noexcept { return data_table.bucket(key); }
+		[[nodiscard]] constexpr size_type bucket(const key_type &key) const noexcept { return m_table.bucket(key); }
 		/** @copydoc bucket
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
@@ -697,41 +697,41 @@ namespace sek
 		[[nodiscard]] constexpr size_type bucket(const auto &key) const noexcept
 			requires transparent_key
 		{
-			return data_table.bucket(key);
+			return m_table.bucket(key);
 		}
 		/** Returns the index of the bucket containing the pointed-to element. */
-		[[nodiscard]] constexpr size_type bucket(const_iterator iter) const noexcept { return data_table.bucket(iter); }
+		[[nodiscard]] constexpr size_type bucket(const_iterator iter) const noexcept { return m_table.bucket(iter); }
 
 		/** Returns current load factor of the map. */
-		[[nodiscard]] constexpr auto load_factor() const noexcept { return data_table.load_factor(); }
+		[[nodiscard]] constexpr auto load_factor() const noexcept { return m_table.load_factor(); }
 		/** Returns current max load factor of the map. */
-		[[nodiscard]] constexpr auto max_load_factor() const noexcept { return data_table.max_load_factor; }
+		[[nodiscard]] constexpr auto max_load_factor() const noexcept { return m_table.max_load_factor; }
 		/** Sets current max load factor of the map. */
 		constexpr void max_load_factor(float f) noexcept
 		{
 			SEK_ASSERT(f > .0f);
-			data_table.max_load_factor = f;
+			m_table.max_load_factor = f;
 		}
 
-		[[nodiscard]] constexpr allocator_type get_allocator() const noexcept { return data_table.value_allocator(); }
+		[[nodiscard]] constexpr allocator_type get_allocator() const noexcept { return m_table.value_allocator(); }
 		[[nodiscard]] constexpr bucket_allocator_type get_bucket_allocator() const noexcept
 		{
-			return data_table.bucket_allocator();
+			return m_table.bucket_allocator();
 		}
 
-		[[nodiscard]] constexpr hash_type hash_function() const noexcept { return data_table.get_hash(); }
-		[[nodiscard]] constexpr key_equal key_eq() const noexcept { return data_table.get_comp(); }
+		[[nodiscard]] constexpr hash_type hash_function() const noexcept { return m_table.get_hash(); }
+		[[nodiscard]] constexpr key_equal key_eq() const noexcept { return m_table.get_comp(); }
 
 		[[nodiscard]] constexpr bool operator==(const dense_map &other) const noexcept
 		{
 			return std::is_permutation(begin(), end(), other.begin(), other.end());
 		}
 
-		constexpr void swap(dense_map &other) noexcept { data_table.swap(other.data_table); }
+		constexpr void swap(dense_map &other) noexcept { m_table.swap(other.m_table); }
 		friend constexpr void swap(dense_map &a, dense_map &b) noexcept { a.swap(b); }
 
 	private:
 		/** Hash table used to implement the map. */
-		table_type data_table;
+		table_type m_table;
 	};
 }	 // namespace sek

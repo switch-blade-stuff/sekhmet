@@ -39,7 +39,7 @@ public:                                                                         
 	constexpr static auto rows = M;                                                                                    \
                                                                                                                        \
 private:                                                                                                               \
-	col_type data[N] = {}; /* Matrices stored as columns to optimize SIMD computation. */                              \
+	col_type m_data[N] = {}; /* Matrices stored as columns to optimize SIMD computation. */                            \
                                                                                                                        \
 public:                                                                                                                \
 	/** Initializes an identity matrix. */                                                                             \
@@ -54,35 +54,35 @@ public:                                                                         
                                                                                                                        \
 	constexpr explicit basic_matrix(const col_type(&cols)[N]) noexcept                                                 \
 	{                                                                                                                  \
-		std::copy_n(cols, N, data);                                                                                    \
+		std::copy_n(cols, N, m_data);                                                                                  \
 	}                                                                                                                  \
                                                                                                                        \
 	/** Returns the corresponding column of the matrix. */                                                             \
 	[[nodiscard]] constexpr col_type &operator[](std::size_t i) noexcept                                               \
 	{                                                                                                                  \
-		return data[i];                                                                                                \
+		return m_data[i];                                                                                              \
 	}                                                                                                                  \
 	/** @copydoc operator[] */                                                                                         \
 	[[nodiscard]] constexpr const col_type &operator[](std::size_t i) const noexcept                                   \
 	{                                                                                                                  \
-		return data[i];                                                                                                \
+		return m_data[i];                                                                                              \
 	}                                                                                                                  \
 	/** @copydoc operator[] */                                                                                         \
 	[[nodiscard]] constexpr col_type &col(std::size_t i) noexcept                                                      \
 	{                                                                                                                  \
-		return data[i];                                                                                                \
+		return m_data[i];                                                                                              \
 	}                                                                                                                  \
 	/** @copydoc operator[] */                                                                                         \
 	[[nodiscard]] constexpr const col_type &col(std::size_t i) const noexcept                                          \
 	{                                                                                                                  \
-		return data[i];                                                                                                \
+		return m_data[i];                                                                                              \
 	}                                                                                                                  \
                                                                                                                        \
 private:                                                                                                               \
 	template<std::size_t... Is>                                                                                        \
 	[[nodiscard]] constexpr row_type row(std::index_sequence<Is...>, std::size_t i) const noexcept                     \
 	{                                                                                                                  \
-		return row_type{data[Is][i]...};                                                                               \
+		return row_type{m_data[Is][i]...};                                                                             \
 	}                                                                                                                  \
                                                                                                                        \
 public:                                                                                                                \
@@ -96,7 +96,7 @@ public:                                                                         
                                                                                                                        \
 	constexpr void swap(const basic_matrix &other) noexcept                                                            \
 	{                                                                                                                  \
-		std::swap(data, other.data);                                                                                   \
+		std::swap(m_data, other.m_data);                                                                               \
 	}
 
 namespace sek::math

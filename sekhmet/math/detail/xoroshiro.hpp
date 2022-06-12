@@ -58,16 +58,16 @@ namespace sek::math
 
 		constexpr auto do_next() noexcept
 		{
-			const auto result = std::rotl(state[1] * 5, 7) * 9;
-			const auto t = state[1] << 17;
+			const auto result = std::rotl(m_state[1] * 5, 7) * 9;
+			const auto t = m_state[1] << 17;
 
-			state[2] ^= state[0];
-			state[3] ^= state[1];
-			state[1] ^= state[2];
-			state[0] ^= state[3];
+			m_state[2] ^= m_state[0];
+			m_state[3] ^= m_state[1];
+			m_state[1] ^= m_state[2];
+			m_state[0] ^= m_state[3];
 
-			state[2] ^= t;
-			state[3] = std::rotl(state[3], 45);
+			m_state[2] ^= t;
+			m_state[3] = std::rotl(m_state[3], 45);
 
 			return result;
 		}
@@ -79,20 +79,20 @@ namespace sek::math
 				{
 					if (jmp & static_cast<result_type>(1) << b)
 					{
-						temp[0] ^= state[0];
-						temp[1] ^= state[1];
-						temp[2] ^= state[2];
-						temp[3] ^= state[3];
+						temp[0] ^= m_state[0];
+						temp[1] ^= m_state[1];
+						temp[2] ^= m_state[2];
+						temp[3] ^= m_state[3];
 					}
 					do_next();
 				}
 
-			std::copy_n(temp, SEK_ARRAY_SIZE(state), state);
+			std::copy_n(temp, SEK_ARRAY_SIZE(m_state), m_state);
 		}
 
 		[[nodiscard]] constexpr bool operator==(const xoroshiro_base &) const noexcept = default;
 
-		state_type state;
+		state_type m_state;
 	};
 	template<>
 	struct xoroshiro_base<std::uint64_t, 128>
@@ -106,13 +106,13 @@ namespace sek::math
 
 		constexpr auto do_next() noexcept
 		{
-			const auto s0 = state[0];
+			const auto s0 = m_state[0];
 			const auto result = std::rotl(s0 * 5, 7) * 9;
-			auto s1 = state[1];
+			auto s1 = m_state[1];
 
 			s1 ^= s0;
-			state[0] = std::rotl(s0, 24) ^ s1 ^ (s1 << 16);
-			state[1] = std::rotl(s1, 37);
+			m_state[0] = std::rotl(s0, 24) ^ s1 ^ (s1 << 16);
+			m_state[1] = std::rotl(s1, 37);
 
 			return result;
 		}
@@ -124,18 +124,18 @@ namespace sek::math
 				{
 					if (jmp & static_cast<result_type>(1) << b)
 					{
-						temp[0] ^= state[0];
-						temp[1] ^= state[1];
+						temp[0] ^= m_state[0];
+						temp[1] ^= m_state[1];
 					}
 					do_next();
 				}
 
-			std::copy_n(temp, SEK_ARRAY_SIZE(state), state);
+			std::copy_n(temp, SEK_ARRAY_SIZE(m_state), m_state);
 		}
 
 		[[nodiscard]] constexpr bool operator==(const xoroshiro_base &) const noexcept = default;
 
-		state_type state;
+		state_type m_state;
 	};
 	template<>
 	struct xoroshiro_base<double, 256>
@@ -149,16 +149,16 @@ namespace sek::math
 
 		constexpr auto do_next() noexcept
 		{
-			const auto result = state[0] + state[3];
-			const auto temp = state[1] << 17;
+			const auto result = m_state[0] + m_state[3];
+			const auto temp = m_state[1] << 17;
 
-			state[2] ^= state[0];
-			state[3] ^= state[1];
-			state[1] ^= state[2];
-			state[0] ^= state[3];
+			m_state[2] ^= m_state[0];
+			m_state[3] ^= m_state[1];
+			m_state[1] ^= m_state[2];
+			m_state[0] ^= m_state[3];
 
-			state[2] ^= temp;
-			state[3] = std::rotl(state[3], 45);
+			m_state[2] ^= temp;
+			m_state[3] = std::rotl(m_state[3], 45);
 
 			return uint64_to_double(result);
 		}
@@ -170,20 +170,20 @@ namespace sek::math
 				{
 					if (jmp & static_cast<std::uint64_t>(1) << b)
 					{
-						temp[0] ^= state[0];
-						temp[1] ^= state[1];
-						temp[2] ^= state[2];
-						temp[3] ^= state[3];
+						temp[0] ^= m_state[0];
+						temp[1] ^= m_state[1];
+						temp[2] ^= m_state[2];
+						temp[3] ^= m_state[3];
 					}
 					do_next();
 				}
 
-			std::copy_n(temp, SEK_ARRAY_SIZE(state), state);
+			std::copy_n(temp, SEK_ARRAY_SIZE(m_state), m_state);
 		}
 
 		[[nodiscard]] constexpr bool operator==(const xoroshiro_base &) const noexcept = default;
 
-		state_type state;
+		state_type m_state;
 	};
 	template<>
 	struct xoroshiro_base<double, 128>
@@ -197,13 +197,13 @@ namespace sek::math
 
 		constexpr auto do_next() noexcept
 		{
-			const auto s0 = state[0];
-			auto s1 = state[1];
+			const auto s0 = m_state[0];
+			auto s1 = m_state[1];
 			const auto result = s0 + s1;
 
 			s1 ^= s0;
-			state[0] = std::rotl(s0, 24) ^ s1 ^ (s1 << 16);
-			state[1] = std::rotl(s1, 37);
+			m_state[0] = std::rotl(s0, 24) ^ s1 ^ (s1 << 16);
+			m_state[1] = std::rotl(s1, 37);
 
 			return uint64_to_double(result);
 		}
@@ -215,18 +215,18 @@ namespace sek::math
 				{
 					if (jmp & static_cast<std::uint64_t>(1) << b)
 					{
-						temp[0] ^= state[0];
-						temp[1] ^= state[1];
+						temp[0] ^= m_state[0];
+						temp[1] ^= m_state[1];
 					}
 					do_next();
 				}
 
-			std::copy_n(temp, SEK_ARRAY_SIZE(state), state);
+			std::copy_n(temp, SEK_ARRAY_SIZE(m_state), m_state);
 		}
 
 		[[nodiscard]] constexpr bool operator==(const xoroshiro_base &) const noexcept = default;
 
-		state_type state;
+		state_type m_state;
 	};
 
 	template<>
@@ -241,16 +241,16 @@ namespace sek::math
 
 		constexpr auto do_next() noexcept
 		{
-			const auto result = std::rotl(state[1] * 5, 7) * 9;
-			const auto temp = state[1] << 9;
+			const auto result = std::rotl(m_state[1] * 5, 7) * 9;
+			const auto temp = m_state[1] << 9;
 
-			state[2] ^= state[0];
-			state[3] ^= state[1];
-			state[1] ^= state[2];
-			state[0] ^= state[3];
+			m_state[2] ^= m_state[0];
+			m_state[3] ^= m_state[1];
+			m_state[1] ^= m_state[2];
+			m_state[0] ^= m_state[3];
 
-			state[2] ^= temp;
-			state[3] = std::rotl(state[3], 11);
+			m_state[2] ^= temp;
+			m_state[3] = std::rotl(m_state[3], 11);
 
 			return result;
 		}
@@ -262,18 +262,18 @@ namespace sek::math
 				{
 					if (jmp & static_cast<result_type>(1) << b)
 					{
-						temp[0] ^= state[0];
-						temp[1] ^= state[1];
+						temp[0] ^= m_state[0];
+						temp[1] ^= m_state[1];
 					}
 					do_next();
 				}
 
-			std::copy_n(temp, SEK_ARRAY_SIZE(state), state);
+			std::copy_n(temp, SEK_ARRAY_SIZE(m_state), m_state);
 		}
 
 		[[nodiscard]] constexpr bool operator==(const xoroshiro_base &) const noexcept = default;
 
-		state_type state;
+		state_type m_state;
 	};
 	template<>
 	struct xoroshiro_base<float, 128>
@@ -287,16 +287,16 @@ namespace sek::math
 
 		constexpr auto do_next() noexcept
 		{
-			const auto result = state[0] + state[3];
-			const auto temp = state[1] << 9;
+			const auto result = m_state[0] + m_state[3];
+			const auto temp = m_state[1] << 9;
 
-			state[2] ^= state[0];
-			state[3] ^= state[1];
-			state[1] ^= state[2];
-			state[0] ^= state[3];
+			m_state[2] ^= m_state[0];
+			m_state[3] ^= m_state[1];
+			m_state[1] ^= m_state[2];
+			m_state[0] ^= m_state[3];
 
-			state[2] ^= temp;
-			state[3] = std::rotl(state[3], 11);
+			m_state[2] ^= temp;
+			m_state[3] = std::rotl(m_state[3], 11);
 
 			return uint32_to_float(result);
 		}
@@ -308,18 +308,18 @@ namespace sek::math
 				{
 					if (jmp & static_cast<std::uint32_t>(1) << b)
 					{
-						temp[0] ^= state[0];
-						temp[1] ^= state[1];
+						temp[0] ^= m_state[0];
+						temp[1] ^= m_state[1];
 					}
 					do_next();
 				}
 
-			std::copy_n(temp, SEK_ARRAY_SIZE(state), state);
+			std::copy_n(temp, SEK_ARRAY_SIZE(m_state), m_state);
 		}
 
 		[[nodiscard]] constexpr bool operator==(const xoroshiro_base &) const noexcept = default;
 
-		state_type state;
+		state_type m_state;
 	};
 
 	template<typename, std::size_t>
@@ -363,7 +363,7 @@ namespace sek::math
 		}
 
 		/** Seeds the generator with a default seed. */
-		constexpr void seed() noexcept { std::copy(std::begin(base::initial), std::end(base::initial), base::state); }
+		constexpr void seed() noexcept { std::copy(std::begin(base::initial), std::end(base::initial), base::m_state); }
 		/** Seeds the generator with an integer seed. */
 		constexpr void seed(result_type seed) noexcept
 		{
@@ -377,7 +377,7 @@ namespace sek::math
 		template<seed_generator<result_type> S>
 		constexpr void seed(S &s) noexcept
 		{
-			s.generate(std::begin(base::state), std::end(base::state));
+			s.generate(std::begin(base::m_state), std::end(base::m_state));
 		}
 
 		/** Returns the read random number. */
@@ -400,8 +400,8 @@ namespace sek::math
 		[[nodiscard]] constexpr bool operator==(const xoroshiro &) const noexcept = default;
 
 	private:
-		[[nodiscard]] constexpr auto &state() noexcept { return base::state; }
-		[[nodiscard]] constexpr const auto &state() const noexcept { return base::state; }
+		[[nodiscard]] constexpr auto &state() noexcept { return base::m_state; }
+		[[nodiscard]] constexpr const auto &state() const noexcept { return base::m_state; }
 	};
 
 	template<typename C, typename Tr, typename T, std::size_t W>

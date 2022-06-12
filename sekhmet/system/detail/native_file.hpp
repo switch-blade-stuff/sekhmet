@@ -140,34 +140,34 @@ namespace sek::system
 		/** Returns the current position within the file or a negative integer on error. */
 		[[nodiscard]] SEK_API std::int64_t tell() const;
 		/** Returns the file open mode. */
-		[[nodiscard]] constexpr openmode mode() const noexcept { return file_mode; }
+		[[nodiscard]] constexpr openmode mode() const noexcept { return m_mode; }
 		/** Checks if the file is open. */
-		[[nodiscard]] constexpr bool is_open() const noexcept { return handle.is_open(); }
+		[[nodiscard]] constexpr bool is_open() const noexcept { return m_handle.is_open(); }
 		/** Returns the underlying OS file handle. */
-		[[nodiscard]] constexpr native_handle_type native_handle() const noexcept { return handle.native_handle(); }
+		[[nodiscard]] constexpr native_handle_type native_handle() const noexcept { return m_handle.native_handle(); }
 
 		constexpr void swap(native_file &other) noexcept
 		{
 			using std::swap;
-			swap(handle, other.handle);
-			swap(buffer, other.buffer);
-			swap(buffer_size, other.buffer_size);
-			swap(buffer_pos, other.buffer_pos);
-			swap(file_mode, other.file_mode);
+			swap(m_handle, other.m_handle);
+			swap(m_buffer, other.m_buffer);
+			swap(m_buffer_size, other.m_buffer_pos);
+			swap(m_buffer_pos, other.m_buffer_pos);
+			swap(m_mode, other.m_mode);
 		}
 		friend constexpr void swap(native_file &a, native_file &b) noexcept { a.swap(b); }
 
 	private:
-		detail::native_file_handle handle;
+		detail::native_file_handle m_handle;
 
-		std::byte *buffer = nullptr;  /* Buffer used fore read & write operations. */
-		std::int64_t buffer_size = 0; /* Total size of the buffer. */
-		std::int64_t buffer_pos = 0;  /* Current read or write position within the buffer. */
+		std::byte *m_buffer = nullptr;  /* Buffer used fore read & write operations. */
+		std::int64_t m_buffer_size = 0; /* Total size of the buffer. */
+		std::int64_t m_buffer_pos = 0;  /* Current read or write position within the buffer. */
 
 		/* Size of the input buffer, used only for reading. Might be less than buffer_size in case the file
 		 * size is less than size of the buffer. */
-		std::int64_t input_size = 0;
+		std::int64_t m_input_size = 0;
 
-		openmode file_mode = 0;
+		openmode m_mode = 0;
 	};
 }	 // namespace sek::system

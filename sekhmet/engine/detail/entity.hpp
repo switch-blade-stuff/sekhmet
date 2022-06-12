@@ -60,18 +60,18 @@ namespace sek::engine
 
 			/** Initializes an entity generation from an underlying value type.
 			 * @note Value must be 24-bit max. */
-			constexpr explicit generation_type(value_type value) noexcept : gen_value(value << offset) {}
+			constexpr explicit generation_type(value_type value) noexcept : m_value(value << offset) {}
 
 			/** Checks if the entity generation is valid. */
-			[[nodiscard]] constexpr bool valid() const noexcept { return (gen_value & mask) == mask; }
+			[[nodiscard]] constexpr bool valid() const noexcept { return (m_value & mask) == mask; }
 			/** Returns the underlying integer value of the generation. */
-			[[nodiscard]] constexpr value_type value() const noexcept { return gen_value >> offset; }
+			[[nodiscard]] constexpr value_type value() const noexcept { return m_value >> offset; }
 
 			[[nodiscard]] constexpr auto operator<=>(const generation_type &) const noexcept = default;
 			[[nodiscard]] constexpr bool operator==(const generation_type &) const noexcept = default;
 
 		private:
-			value_type gen_value = 0;
+			value_type m_value = 0;
 		};
 		/** @brief Structure used to represent an entity index. */
 		class index_type
@@ -89,16 +89,16 @@ namespace sek::engine
 
 			/** Initializes an entity index from an underlying value type.
 			 * @note Value must be 40-bit max. */
-			constexpr explicit index_type(value_type value) noexcept : idx_value(value) {}
+			constexpr explicit index_type(value_type value) noexcept : m_value(value) {}
 
 			/** Returns the underlying integer value of the index. */
-			[[nodiscard]] constexpr value_type value() const noexcept { return idx_value; }
+			[[nodiscard]] constexpr value_type value() const noexcept { return m_value; }
 
 			[[nodiscard]] constexpr auto operator<=>(const index_type &) const noexcept = default;
 			[[nodiscard]] constexpr bool operator==(const index_type &) const noexcept = default;
 
 		private:
-			value_type idx_value = 0;
+			value_type m_value = 0;
 		};
 
 		/** Returns value of an invalid entity. */
@@ -108,9 +108,9 @@ namespace sek::engine
 		/** Initializes an invalid entity. */
 		constexpr entity() noexcept = default;
 		/** Initializes an entity from an index and the default generation (0). */
-		constexpr entity(index_type idx) noexcept : ent_value(idx.idx_value) {}
+		constexpr entity(index_type idx) noexcept : m_value(idx.m_value) {}
 		/** Initializes an entity from a generation and an index. */
-		constexpr entity(generation_type gen, index_type idx) noexcept : ent_value(gen.gen_value | idx.idx_value) {}
+		constexpr entity(generation_type gen, index_type idx) noexcept : m_value(gen.m_value | idx.m_value) {}
 
 		/** Checks if the entity valid (invalid entities have generation of `0xff'ffff`). */
 		[[nodiscard]] constexpr bool valid() const noexcept { return generation() == generation_type::invalid(); }
@@ -119,39 +119,36 @@ namespace sek::engine
 		[[nodiscard]] constexpr generation_type generation() const noexcept
 		{
 			generation_type result;
-			result.gen_value = ent_value & generation_type::mask;
+			result.m_value = m_value & generation_type::mask;
 			return result;
 		}
 		/** Returns index of the entity. */
-		[[nodiscard]] constexpr index_type index() const noexcept
-		{
-			return index_type{ent_value & index_type::max_val};
-		}
+		[[nodiscard]] constexpr index_type index() const noexcept { return index_type{m_value & index_type::max_val}; }
 		/** Returns the underlying integer value of the entity. */
-		[[nodiscard]] constexpr value_type value() const noexcept { return ent_value; }
+		[[nodiscard]] constexpr value_type value() const noexcept { return m_value; }
 
 		[[nodiscard]] constexpr auto operator<=>(const entity &other) const noexcept
 		{
-			if (((ent_value & other.ent_value) >> generation_type::offset) == generation_type::inv_val)
+			if (((m_value & other.m_value) >> generation_type::offset) == generation_type::inv_val)
 				return std::strong_ordering::equivalent;
 			else
-				return ent_value <=> other.ent_value;
+				return m_value <=> other.m_value;
 		}
 		[[nodiscard]] constexpr bool operator==(const entity &other) const noexcept
 		{
-			return ((ent_value & other.ent_value) >> generation_type::offset) == generation_type::inv_val ||
-				   ent_value == other.ent_value;
+			return ((m_value & other.m_value) >> generation_type::offset) == generation_type::inv_val ||
+				   m_value == other.m_value;
 		}
 
 	private:
-		value_type ent_value = 0;
+		value_type m_value = 0;
 	};
 
 	[[nodiscard]] constexpr hash_t hash(entity e) noexcept { return e.value(); }
 }	 // namespace sek::engine
 
 template<>
-struct std::hash<sek::ecs::entity>
+struct std::hash<sek::engine::entity>
 {
-	[[nodiscard]] constexpr sek::hash_t operator()(sek::ecs::entity e) noexcept { return sek::ecs::hash(e); }
+	[[nodiscard]] constexpr sek::hash_t operator()(sek::engine::entity e) noexcept { return sek::engine::hash(e); }
 };

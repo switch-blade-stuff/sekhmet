@@ -49,10 +49,10 @@ namespace sek
 
 		public:
 			constexpr basic_version_base() noexcept = default;
-			constexpr explicit basic_version_base(T component) noexcept : component(component) {}
+			constexpr explicit basic_version_base(T component) noexcept : m_component(component) {}
 
 		private:
-			T component = {};
+			T m_component = {};
 		};
 
 		template<std::size_t I, std::integral T, std::integral... Ts>
@@ -65,23 +65,23 @@ namespace sek
 			constexpr basic_version_base() noexcept = default;
 			template<std::integral... Args>
 			constexpr explicit basic_version_base(T component, Args... args) noexcept
-				: basic_version_base<I + 1, Ts...>(args...), component(component)
+				: basic_version_base<I + 1, Ts...>(args...), m_component(component)
 			{
 			}
 
 		private:
-			T component = {};
+			T m_component = {};
 		};
 
 		template<std::size_t I, typename T, typename... Ts>
 		constexpr T &extract_component(basic_version_base<I, T, Ts...> &v) noexcept
 		{
-			return v.component;
+			return v.m_component;
 		}
 		template<std::size_t I, typename T, typename... Ts>
 		constexpr const T &extract_component(const basic_version_base<I, T, Ts...> &v) noexcept
 		{
-			return v.component;
+			return v.m_component;
 		}
 
 		template<typename U, typename C>

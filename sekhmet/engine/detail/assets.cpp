@@ -228,21 +228,21 @@ namespace sek::engine
 		}
 	}	 // namespace detail
 
-	asset_package::asset_package(detail::master_package *pkg) : ptr(pkg) { ptr.acquire(); }
-	void asset_package::reset() { ptr.reset(); }
+	asset_package::asset_package(detail::master_package *pkg) : m_ptr(pkg) { m_ptr.acquire(); }
+	void asset_package::reset() { m_ptr.reset(); }
 
 	std::ranges::subrange<typename asset_database::package_iter> asset_database::packages() const
 	{
-		std::shared_lock<std::shared_mutex> l(mtx);
-		return {current_packages.begin(), current_packages.end()};
+		std::shared_lock<std::shared_mutex> l(m_mtx);
+		return {m_packages.begin(), m_packages.end()};
 	}
 	void asset_database::add_package(const asset_package &pkg)
 	{
-		std::unique_lock<std::shared_mutex> l(mtx);
-		if (find_package(pkg) == current_packages.end()) [[likely]]
+		std::unique_lock<std::shared_mutex> l(m_mtx);
+		if (find_package(pkg) == m_packages.end()) [[likely]]
 		{
-			current_packages.push_back(pkg);
-			for (auto entry : pkg.ptr->uuid_table)
+			m_packages.push_back(pkg);
+			for (auto entry : pkg.m_ptr->uuid_table)
 			{
 				const auto uuid = entry.first;
 				const auto info = entry.second;
@@ -267,11 +267,11 @@ namespace sek::engine
 	}
 	void asset_database::remove_package(const asset_package &pkg)
 	{
-		std::unique_lock<std::shared_mutex> l(mtx);
-		if (auto iter = find_package(pkg); iter != current_packages.end()) [[likely]]
+		std::unique_lock<std::shared_mutex> l(m_mtx);
+		if (auto iter = find_package(pkg); iter != m_packages.end()) [[likely]]
 		{
-			current_packages.erase(iter);
-			for (auto entry : pkg.ptr->uuid_table)
+			m_packages.erase(iter);
+			for (auto entry : pkg.m_ptr->uuid_table)
 			{
 				const auto uuid = entry.first;
 				const auto info = entry.second;
@@ -281,7 +281,7 @@ namespace sek::engine
 				 * No need to check if the asset uuid is present within the database, since if the
 				 * package is present within the database, it's assets are a subset of the database's assets. */
 				auto asset_iter = uuid_table.find(uuid);
-				if (asset_iter->second->parent->get_master() != pkg.ptr->get_master()) [[likely]]
+				if (asset_iter->second->parent->get_master() != pkg.m_ptr->get_master()) [[likely]]
 					continue;
 
 				auto name_iter = old_name.empty() ? name_table.end() : name_table.find(old_name);
@@ -291,7 +291,7 @@ namespace sek::engine
 
 				/* Find a replacement for the old UUID and/or name among lower priority packages.
 				 * Replacement assets might not be the same for the old UUID and the name. */
-				for (auto other_iter = iter; other_iter-- != current_packages.begin();)
+				for (auto other_iter = iter; other_iter-- != m_packages.begin();)
 				{
 					/* Stop once both entries have been replaced. */
 					if (!(need_uuid_entry || need_name_entry)) [[unlikely]]
@@ -300,7 +300,7 @@ namespace sek::engine
 					/* Find a replacement asset for the old UUID. */
 					if (need_uuid_entry)
 					{
-						auto &other_table = other_iter->ptr->uuid_table;
+						auto &other_table = other_iter->m_ptr->uuid_table;
 						if (auto replacement_iter = other_table.find(uuid); replacement_iter != other_table.end())
 						{
 							asset_iter->second = replacement_iter->second;
@@ -310,7 +310,7 @@ namespace sek::engine
 					/* Find a replacement asset for the old name. */
 					if (need_name_entry)
 					{
-						auto &other_table = other_iter->ptr->name_table;
+						auto &other_table = other_iter->m_ptr->name_table;
 						if (auto replacement_iter = other_table.find(old_name); replacement_iter != other_table.end())
 						{
 							name_iter->second = replacement_iter->second;

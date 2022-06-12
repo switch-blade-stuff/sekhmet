@@ -178,18 +178,18 @@ namespace sek::engine
 	bool plugin::enabled() const noexcept
 	{
 		std::shared_lock<std::shared_mutex> l(detail::plugin_db::instance().mtx);
-		return data->status == detail::plugin_data::ENABLED;
+		return m_data->status == detail::plugin_data::ENABLED;
 	}
 	bool plugin::enable() const noexcept
 	{
 		std::lock_guard<std::shared_mutex> l(detail::plugin_db::instance().mtx);
 
 		logger::info() << fmt::format("Enabling plugin \"{}\"", id());
-		if (data->status != detail::plugin_data::DISABLED) [[unlikely]]
+		if (m_data->status != detail::plugin_data::DISABLED) [[unlikely]]
 			logger::error() << fmt::format(ENABLE_FAIL_MSG "already enabled or not loaded");
-		else if (detail::enable_guarded(data)) [[likely]]
+		else if (detail::enable_guarded(m_data)) [[likely]]
 		{
-			data->status = detail::plugin_data::ENABLED;
+			m_data->status = detail::plugin_data::ENABLED;
 			return true;
 		}
 		return false;
@@ -199,12 +199,12 @@ namespace sek::engine
 		std::lock_guard<std::shared_mutex> l(detail::plugin_db::instance().mtx);
 
 		logger::info() << fmt::format("Disabling plugin \"{}\"", id());
-		if (data->status != detail::plugin_data::ENABLED) [[unlikely]]
+		if (m_data->status != detail::plugin_data::ENABLED) [[unlikely]]
 			logger::error() << fmt::format(DISABLE_FAIL_MSG "already disabled or not loaded");
 		else
 		{
-			detail::disable_guarded(data);
-			data->status = detail::plugin_data::DISABLED;
+			detail::disable_guarded(m_data);
+			m_data->status = detail::plugin_data::DISABLED;
 			return true;
 		}
 		return false;

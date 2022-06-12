@@ -100,7 +100,7 @@ namespace sek
 							name()));
 		}
 		else
-			return ctor->node->invoke(args);
+			return ctor->m_node->invoke(args);
 	}
 	any type_info::invoke(std::string_view name, any instance, std::span<any> args) const
 	{
@@ -111,7 +111,7 @@ namespace sek
 			throw invalid_member_error(fmt::format("No matching function with name \"{}\" "
 												   "found for type \"{}\"",
 												   name,
-												   data->name));
+												   m_data->name));
 		}
 		else
 			return func->invoke(std::move(instance), args);
@@ -129,18 +129,18 @@ namespace sek
 
 	any any::convert(std::string_view n) noexcept
 	{
-		if (info.name() == n)
+		if (m_info.name() == n)
 			return ref();
 		else
 		{
 			/* Attempt to cast to an immediate parent. */
-			const auto parents = info.parents();
+			const auto parents = m_info.parents();
 			auto p_iter = std::find_if(parents.begin(), parents.end(), [n](auto p) { return p.type().name() == n; });
 			if (p_iter != parents.end()) [[likely]]
 				return p_iter->cast(*this);
 
 			/* Attempt to cast to an explicit conversion. */
-			const auto convs = info.conversions();
+			const auto convs = m_info.conversions();
 			auto conv_iter = std::find_if(convs.begin(), convs.end(), [n](auto c) { return c.type().name() == n; });
 			if (conv_iter != convs.end()) [[likely]]
 				return conv_iter->convert(ref());
@@ -159,18 +159,18 @@ namespace sek
 	any any::convert(type_info to_type) noexcept { return convert(to_type.name()); }
 	any any::convert(std::string_view n) const noexcept
 	{
-		if (info.name() == n)
+		if (m_info.name() == n)
 			return ref();
 		else
 		{
 			/* Attempt to cast to an immediate parent. */
-			const auto parents = info.parents();
+			const auto parents = m_info.parents();
 			auto p_iter = std::find_if(parents.begin(), parents.end(), [n](auto p) { return p.type().name() == n; });
 			if (p_iter != parents.end()) [[likely]]
 				return p_iter->cast(*this);
 
 			/* Attempt to cast to an explicit conversion. */
-			const auto convs = info.conversions();
+			const auto convs = m_info.conversions();
 			auto conv_iter = std::find_if(convs.begin(), convs.end(), [n](auto c) { return c.type().name() == n; });
 			if (conv_iter != convs.end()) [[likely]]
 				return conv_iter->convert(ref());

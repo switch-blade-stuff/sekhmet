@@ -104,10 +104,13 @@ namespace
 
 #include "sekhmet/serialization/json.hpp"
 
+namespace json = ser::json;
+
+template class json::basic_input_archive<json::pretty_print | json::inline_arrays>;
+template class json::basic_output_archive<json::pretty_print | json::inline_arrays>;
+
 TEST(serialization_tests, json_test)
 {
-	namespace json = ser::json;
-
 	std::string json_string;
 	{
 		json::output_archive archive{json_string};
@@ -129,6 +132,11 @@ TEST(serialization_tests, json_test)
 }
 
 #include "sekhmet/serialization/ubjson.hpp"
+
+namespace ubj = ser::ubj;
+
+template class ubj::basic_input_archive<ubj::highp_error>;
+template class ubj::basic_output_archive<ubj::fixed_type>;
 
 TEST(serialization_tests, ubjson_test)
 {

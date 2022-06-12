@@ -104,21 +104,21 @@ namespace sek::engine
 		SEK_API static plugin get(std::string_view id);
 
 	private:
-		constexpr explicit plugin(detail::plugin_data *data) noexcept : data(data) {}
+		constexpr explicit plugin(detail::plugin_data *data) noexcept : m_data(data) {}
 
 	public:
 		/** Initializes an empty plugin handle. */
 		constexpr plugin() noexcept = default;
 
 		/** Checks if the plugin handle is empty. */
-		[[nodiscard]] constexpr bool empty() const noexcept { return data == nullptr; }
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_data == nullptr; }
 		/** @copydoc empty */
 		[[nodiscard]] constexpr operator bool() const noexcept { return !empty(); }
 
 		/** Returns id of the plugin. */
-		[[nodiscard]] constexpr std::string_view id() const noexcept { return data->info.id; }
+		[[nodiscard]] constexpr std::string_view id() const noexcept { return m_data->info.id; }
 		/** Returns engine version of the plugin. */
-		[[nodiscard]] constexpr version engine_ver() const noexcept { return data->info.engine_ver; }
+		[[nodiscard]] constexpr version engine_ver() const noexcept { return m_data->info.engine_ver; }
 
 		/** Checks if the plugin is enabled. */
 		[[nodiscard]] SEK_API bool enabled() const noexcept;
@@ -135,7 +135,7 @@ namespace sek::engine
 		[[nodiscard]] constexpr bool operator==(const plugin &) const noexcept = default;
 
 	private:
-		detail::plugin_data *data = nullptr;
+		detail::plugin_data *m_data = nullptr;
 	};
 }	 // namespace sek::engine
 

@@ -269,12 +269,12 @@ namespace sek
 			typedef std::forward_iterator_tag iterator_category;
 
 		public:
-			constexpr explicit type_node_iterator(V node_value) noexcept : node_value(node_value) {}
+			constexpr explicit type_node_iterator(V node_value) noexcept : m_value(node_value) {}
 			constexpr type_node_iterator() noexcept = default;
 
 			constexpr type_node_iterator &operator++() noexcept
 			{
-				node_value.node = node()->next;
+				m_value.m_node = node()->next;
 				return *this;
 			}
 			constexpr type_node_iterator operator++(int) noexcept
@@ -284,18 +284,18 @@ namespace sek
 				return temp;
 			}
 
-			[[nodiscard]] constexpr pointer operator->() const noexcept { return &node_value; }
-			[[nodiscard]] constexpr reference operator*() const noexcept { return node_value; }
+			[[nodiscard]] constexpr pointer operator->() const noexcept { return &m_value; }
+			[[nodiscard]] constexpr reference operator*() const noexcept { return m_value; }
 
 			[[nodiscard]] constexpr bool operator==(const type_node_iterator &other) const noexcept
 			{
-				return node_value == other.node_value;
+				return m_value == other.m_value;
 			}
 
 		private:
-			[[nodiscard]] constexpr auto *node() const noexcept { return node_value.node; }
+			[[nodiscard]] constexpr auto *node() const noexcept { return m_value.m_node; }
 
-			value_type node_value;
+			value_type m_value;
 		};
 
 		/* Custom view, as CLang has issues with `std::ranges::subrange` at this time. */
@@ -316,11 +316,11 @@ namespace sek
 
 		public:
 			constexpr type_data_view() noexcept = default;
-			constexpr type_data_view(iterator first, iterator last) noexcept : first(first), last(last) {}
+			constexpr type_data_view(iterator first, iterator last) noexcept : m_first(first), m_last(last) {}
 
-			[[nodiscard]] constexpr iterator begin() const noexcept { return first; }
+			[[nodiscard]] constexpr iterator begin() const noexcept { return m_first; }
 			[[nodiscard]] constexpr iterator cbegin() const noexcept { return begin(); }
-			[[nodiscard]] constexpr iterator end() const noexcept { return last; }
+			[[nodiscard]] constexpr iterator end() const noexcept { return m_last; }
 			[[nodiscard]] constexpr iterator cend() const noexcept { return end(); }
 
 			[[nodiscard]] constexpr reference front() const noexcept { return *begin(); }
@@ -348,12 +348,12 @@ namespace sek
 
 			[[nodiscard]] constexpr bool operator==(const type_data_view &other) const noexcept
 			{
-				return std::equal(first, last, other.first, other.last);
+				return std::equal(m_first, m_last, other.m_first, other.m_last);
 			}
 
 		private:
-			Iter first;
-			Iter last;
+			Iter m_first;
+			Iter m_last;
 		};
 
 		// clang-format off
@@ -446,7 +446,7 @@ namespace sek
 		{
 			friend class type_info;
 
-			constexpr explicit type_factory(data_t &data) noexcept : data(data) {}
+			constexpr explicit type_factory(data_t &data) noexcept : m_data(data) {}
 
 			// clang-format off
 			template<typename U>
@@ -476,7 +476,7 @@ namespace sek
 			template<typename... Args>
 			type_factory &constructor() requires std::constructible_from<T, Args...>
 			{
-				data.template add_ctor<T, Args...>();
+				m_data.template add_ctor<T, Args...>();
 				return *this;
 			}
 			/** Adds a member or member function to `T`'s list of function.
@@ -486,7 +486,7 @@ namespace sek
 			type_factory &function(std::string_view name) requires(member_func<F> || free_func<F>)
 			{
 				using traits = func_traits<F>;
-				data.template add_func<T, F, typename traits::return_type>(typename traits::arg_types{}, name);
+				m_data.template add_func<T, F, typename traits::return_type>(typename traits::arg_types{}, name);
 				return *this;
 			}
 			/** Adds `P` to the list of parents of `T`.
@@ -494,7 +494,7 @@ namespace sek
 			template<typename P>
 			type_factory &parent() requires std::derived_from<T, P> && unqualified<P> && different<P>
 			{
-				data.template add_parent<T, P>();
+				m_data.template add_parent<T, P>();
 				return *this;
 			}
 			/** Adds `U` to `T`'s list of conversions.
@@ -502,7 +502,7 @@ namespace sek
 			template<typename U>
 			type_factory &convertible() requires good_cast<U> && unqualified<U> && different<U>
 			{
-				data.template add_conv<T, U>();
+				m_data.template add_conv<T, U>();
 				return *this;
 			}
 			/** Adds an attribute to `T`'s list of attributes.
@@ -515,8 +515,8 @@ namespace sek
 			template<typename A, typename... Args>
 			type_factory<T, A, Attr...> attribute(Args &&...args)
 			{
-				data.template add_attrib<T>(type_seq<A, Attr...>, [&](A *ptr){ std::construct_at(ptr, std::forward<Args>(args)...); });
-				return type_factory<T, A, Attr...>{data};
+				m_data.template add_attrib<T>(type_seq<A, Attr...>, [&](A *ptr){ std::construct_at(ptr, std::forward<Args>(args)...); });
+				return type_factory<T, A, Attr...>{m_data};
 			}
 			/** Adds an attribute to `T`'s list of attributes.
 			 * @tparam Value Value of the attribute. */
@@ -527,13 +527,13 @@ namespace sek
 			template<typename A, auto Value>
 			type_factory<T, A, Attr...> attribute()
 			{
-				data.template add_attrib<T, Value>(type_seq<A, Attr...>);
-				return type_factory<T, A, Attr...>{data};
+				m_data.template add_attrib<T, Value>(type_seq<A, Attr...>);
+				return type_factory<T, A, Attr...>{m_data};
 			}
 			// clang-format on
 
 		private:
-			data_t &data;
+			data_t &m_data;
 		};
 
 	public:
@@ -579,40 +579,40 @@ namespace sek
 		using conversion_iterator = detail::type_node_iterator<conversion_info>;
 		using attribute_iterator = detail::type_node_iterator<attribute_info>;
 
-		constexpr explicit type_info(const data_t *data) noexcept : data(data) {}
-		constexpr explicit type_info(handle_t handle) noexcept : data(handle.get()) {}
+		constexpr explicit type_info(const data_t *data) noexcept : m_data(data) {}
+		constexpr explicit type_info(handle_t handle) noexcept : m_data(handle.get()) {}
 
 	public:
 		/** Initializes an invalid type info (type info with no underlying type). */
 		constexpr type_info() noexcept = default;
 
 		/** Checks if the type info references a reflected type. */
-		[[nodiscard]] constexpr bool valid() const noexcept { return data != nullptr; }
+		[[nodiscard]] constexpr bool valid() const noexcept { return m_data != nullptr; }
 		/** @copydoc valid */
 		[[nodiscard]] constexpr operator bool() const noexcept { return valid(); }
 
 		/** Returns the name of the underlying type. */
-		[[nodiscard]] constexpr std::string_view name() const noexcept { return data->name; }
+		[[nodiscard]] constexpr std::string_view name() const noexcept { return m_data->name; }
 
 		/** Checks if the underlying type is empty. */
-		[[nodiscard]] constexpr bool is_empty() const noexcept { return data->is_empty(); }
+		[[nodiscard]] constexpr bool is_empty() const noexcept { return m_data->is_empty(); }
 		/** Checks if the underlying type has an extent (is a bounded array). */
-		[[nodiscard]] constexpr bool has_extent() const noexcept { return data->has_extent(); }
+		[[nodiscard]] constexpr bool has_extent() const noexcept { return m_data->has_extent(); }
 		/** Checks if the underlying type is an array. */
-		[[nodiscard]] constexpr bool is_array() const noexcept { return data->is_array(); }
+		[[nodiscard]] constexpr bool is_array() const noexcept { return m_data->is_array(); }
 		/** Checks if the underlying type is a range. */
-		[[nodiscard]] constexpr bool is_range() const noexcept { return data->is_range(); }
+		[[nodiscard]] constexpr bool is_range() const noexcept { return m_data->is_range(); }
 		/** Checks if the underlying type is a pointer. */
-		[[nodiscard]] constexpr bool is_pointer() const noexcept { return data->is_pointer(); }
+		[[nodiscard]] constexpr bool is_pointer() const noexcept { return m_data->is_pointer(); }
 		/** Checks if the underlying type is a pointer-like object. */
-		[[nodiscard]] constexpr bool is_pointer_like() const noexcept { return data->is_pointer_like(); }
+		[[nodiscard]] constexpr bool is_pointer_like() const noexcept { return m_data->is_pointer_like(); }
 
 		/** Returns the extent of the underlying type.
 		 * @note If the type is not a bounded array, extent is 0. */
-		[[nodiscard]] constexpr std::size_t extent() const noexcept { return data->extent; }
+		[[nodiscard]] constexpr std::size_t extent() const noexcept { return m_data->extent; }
 		/** Returns value type oof the underlying range, pointer or pointer-like type.
 		 * @note If the type is not a range, pointer or pointer-like, returns identity. */
-		[[nodiscard]] constexpr type_info value_type() const noexcept { return type_info{data->value_type}; }
+		[[nodiscard]] constexpr type_info value_type() const noexcept { return type_info{m_data->value_type}; }
 
 		/** Returns a view containing constructors of this type. */
 		[[nodiscard]] constexpr detail::type_data_view<constructor_iterator> constructors() const noexcept;
@@ -657,7 +657,7 @@ namespace sek
 		[[nodiscard]] constexpr bool inherits(std::string_view name) const noexcept
 		{
 			const auto pred = [name](auto &n) { return n.type->name == name || type_info{n.type}.inherits(name); };
-			return std::ranges::any_of(data->parents, pred);
+			return std::ranges::any_of(m_data->parents, pred);
 		}
 		/** Checks if the underlying type inherits the specified type. */
 		[[nodiscard]] constexpr bool inherits(type_info info) const noexcept { return inherits(info.name()); }
@@ -674,7 +674,7 @@ namespace sek
 		[[nodiscard]] constexpr bool has_attribute(std::string_view name) const noexcept
 		{
 			const auto pred = [name](auto &n) { return n.type->name == name; };
-			return std::ranges::any_of(data->attribs, pred);
+			return std::ranges::any_of(m_data->attribs, pred);
 		}
 		/** Checks if the type has an attribute of the specified type. */
 		[[nodiscard]] constexpr bool has_attribute(type_info info) const noexcept { return has_attribute(info.name()); }
@@ -701,7 +701,7 @@ namespace sek
 		[[nodiscard]] constexpr bool convertible_to(std::string_view name) const noexcept
 		{
 			const auto pred = [name](auto &n) { return n.type->name == name; };
-			return std::ranges::any_of(data->convs, pred);
+			return std::ranges::any_of(m_data->convs, pred);
 		}
 		/** Checks if the underlying type is convertible to the specified type via `static_cast`. */
 		[[nodiscard]] constexpr bool convertible_to(type_info info) const noexcept
@@ -717,14 +717,14 @@ namespace sek
 
 		[[nodiscard]] constexpr bool operator==(const type_info &other) const noexcept
 		{
-			return data == other.data || (data && other.data && name() == other.name());
+			return m_data == other.m_data || (m_data && other.m_data && name() == other.name());
 		}
 
-		constexpr void swap(type_info &other) noexcept { std::swap(data, other.data); }
+		constexpr void swap(type_info &other) noexcept { std::swap(m_data, other.m_data); }
 		friend constexpr void swap(type_info &a, type_info &b) noexcept { a.swap(b); }
 
 	private:
-		const data_t *data = nullptr;
+		const data_t *m_data = nullptr;
 	};
 
 	template<typename T>
@@ -824,7 +824,7 @@ namespace sek
 		}
 
 		constexpr any(const vtable_t *vtable, type_info info, storage_t storage, flags_t flags) noexcept
-			: vtable(vtable), info(info), storage(storage), flags(flags)
+			: m_vtable(vtable), m_info(info), m_storage(storage), m_flags(flags)
 		{
 		}
 
@@ -882,37 +882,37 @@ namespace sek
 		}
 
 		/** Returns type info of the managed object. */
-		[[nodiscard]] constexpr type_info type() const noexcept { return info; }
+		[[nodiscard]] constexpr type_info type() const noexcept { return m_info; }
 
 		/** Checks if `any` manages an object. */
-		[[nodiscard]] constexpr bool empty() const noexcept { return vtable == nullptr; }
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_vtable == nullptr; }
 		/** Checks if `any` references an externally-stored object. */
-		[[nodiscard]] constexpr bool is_ref() const noexcept { return flags & IS_REF; }
+		[[nodiscard]] constexpr bool is_ref() const noexcept { return m_flags & IS_REF; }
 		/** Checks if the managed object is stored in-place. */
-		[[nodiscard]] constexpr bool is_local() const noexcept { return flags & IS_LOCAL; }
+		[[nodiscard]] constexpr bool is_local() const noexcept { return m_flags & IS_LOCAL; }
 		/** Checks if the managed object is const-qualified. */
-		[[nodiscard]] constexpr bool is_const() const noexcept { return flags & IS_CONST; }
+		[[nodiscard]] constexpr bool is_const() const noexcept { return m_flags & IS_CONST; }
 
 		/** Resets `any` by destroying and releasing the internal object. */
 		void reset()
 		{
 			reset_impl();
-			vtable = nullptr;
-			info = {};
-			storage = {};
-			flags = {};
+			m_vtable = nullptr;
+			m_info = {};
+			m_storage = {};
+			m_flags = {};
 		}
 
 		/** Returns raw pointer to the managed object's data.
 		 * @note If the managed object is const-qualified, returns nullptr. */
 		[[nodiscard]] constexpr void *data() noexcept
 		{
-			return is_const() ? nullptr : is_local() ? storage.local.data() : storage.external;
+			return is_const() ? nullptr : is_local() ? m_storage.local.data() : m_storage.external;
 		}
 		/** Returns raw const pointer to the managed object's data. */
 		[[nodiscard]] constexpr const void *cdata() const noexcept
 		{
-			return is_local() ? storage.local.data() : storage.external;
+			return is_local() ? m_storage.local.data() : m_storage.external;
 		}
 		/** @copydoc cdata */
 		[[nodiscard]] constexpr const void *data() const noexcept { return cdata(); }
@@ -921,12 +921,12 @@ namespace sek
 		 * @note Preserves const-ness of the managed object. */
 		[[nodiscard]] any ref() noexcept
 		{
-			return any{vtable, info, cdata(), static_cast<flags_t>(IS_REF | (flags & IS_CONST))};
+			return any{m_vtable, m_info, cdata(), static_cast<flags_t>(IS_REF | (m_flags & IS_CONST))};
 		}
 		/** Returns a const `any` referencing to the managed object. */
 		[[nodiscard]] any cref() const noexcept
 		{
-			return any{vtable, info, cdata(), static_cast<flags_t>(IS_REF | IS_CONST)};
+			return any{m_vtable, m_info, cdata(), static_cast<flags_t>(IS_REF | IS_CONST)};
 		}
 		/** @copydoc cref */
 		[[nodiscard]] any ref() const noexcept { return cref(); }
@@ -941,7 +941,7 @@ namespace sek
 				return as_cptr<T>();
 			else
 			{
-				if (info == type_info::get<T>()) [[likely]]
+				if (m_info == type_info::get<T>()) [[likely]]
 					return static_cast<T *>(data());
 				return nullptr;
 			}
@@ -953,7 +953,7 @@ namespace sek
 		[[nodiscard]] constexpr std::add_const_t<T> *as_cptr() const noexcept
 		{
 			using U = std::remove_const_t<T>;
-			if (info == type_info::get<U>()) [[likely]]
+			if (m_info == type_info::get<U>()) [[likely]]
 				return static_cast<const U *>(cdata());
 			return nullptr;
 		}
@@ -1063,15 +1063,15 @@ namespace sek
 			if (empty() && other.empty()) [[unlikely]]
 				return true;
 			else
-				return info == other.info && vtable->compare(*this, other);
+				return m_info == other.m_info && m_vtable->compare(*this, other);
 		}
 
 		constexpr void swap(any &other) noexcept
 		{
-			std::swap(vtable, other.vtable);
-			info.swap(other.info);
-			storage.swap(other.storage);
-			std::swap(flags, other.flags);
+			std::swap(m_vtable, other.m_vtable);
+			m_info.swap(other.m_info);
+			m_storage.swap(other.m_storage);
+			std::swap(m_flags, other.m_flags);
 		}
 		friend constexpr void swap(any &a, any &b) noexcept { a.swap(b); }
 
@@ -1079,49 +1079,49 @@ namespace sek
 		void reset_impl()
 		{
 			/* References are not destroyed. */
-			if (flags & IS_REF) [[unlikely]]
+			if (m_info & IS_REF) [[unlikely]]
 				return;
-			else if (vtable != nullptr) [[likely]]
-				vtable->destroy(*this);
+			else if (m_vtable != nullptr) [[likely]]
+				m_vtable->destroy(*this);
 		}
 		void copy_construct(const any &from)
 		{
-			if (from.vtable != nullptr) [[likely]]
-				from.vtable->copy_construct(*this, from);
-			vtable = from.vtable;
-			info = from.info;
+			if (from.m_vtable != nullptr) [[likely]]
+				from.m_vtable->copy_construct(*this, from);
+			m_vtable = from.m_vtable;
+			m_info = from.m_info;
 		}
 		void copy_assign(const any &from)
 		{
-			if (empty() && from.vtable != nullptr) [[unlikely]]
-				from.vtable->copy_construct(*this, from);
-			else if (from.vtable != nullptr) [[likely]]
-				from.vtable->copy_assign(*this, from);
+			if (empty() && from.m_vtable != nullptr) [[unlikely]]
+				from.m_vtable->copy_construct(*this, from);
+			else if (from.m_vtable != nullptr) [[likely]]
+				from.m_vtable->copy_assign(*this, from);
 			else
 				reset();
-			vtable = from.vtable;
-			info = from.info;
+			m_vtable = from.m_vtable;
+			m_info = from.m_info;
 		}
 
-		const vtable_t *vtable = nullptr;
-		type_info info;
-		storage_t storage = {};
-		flags_t flags = {};
+		const vtable_t *m_vtable = nullptr;
+		type_info m_info;
+		storage_t m_storage = {};
+		flags_t m_flags = {};
 	};
 
 	template<typename T>
 	constinit const any::vtable_t any::vtable_instance<T>::value = {
 		.copy_construct = +[](any &to, const any &from) -> void
 		{
-			to.storage.template init<T>(*static_cast<const T *>(from.data()));
-			to.flags = make_flags<T>();
+			to.m_storage.template init<T>(*static_cast<const T *>(from.data()));
+			to.m_flags = make_flags<T>();
 		},
 		.copy_assign = +[](any &to, const any &from) -> void
 		{
 			constexpr auto reset_copy = [](any &t, const any &f)
 			{
 				t.reset();
-				t.storage.template init<T>(*static_cast<const T *>(f.data()));
+				t.m_storage.template init<T>(*static_cast<const T *>(f.data()));
 			};
 
 			using U = std::add_const_t<T>;
@@ -1129,14 +1129,14 @@ namespace sek
 				reset_copy(to, from);
 			else
 			{
-				if (to.info != from.info)
+				if (to.m_info != from.m_info)
 					reset_copy(to, from);
 				else if constexpr (local_candidate<T>)
-					*to.storage.local.template get<T>() = *static_cast<U *>(from.data());
+					*to.m_storage.local.template get<T>() = *static_cast<U *>(from.data());
 				else
-					*static_cast<T *>(to.storage.external) = *static_cast<U *>(from.data());
+					*static_cast<T *>(to.m_storage.external) = *static_cast<U *>(from.data());
 			}
-			to.flags = make_flags<T>();
+			to.m_flags = make_flags<T>();
 		},
 		.compare = +[](const any &a, const any &b) -> bool
 		{
@@ -1153,11 +1153,11 @@ namespace sek
 		.destroy = +[](any &instance) -> void
 		{
 			if constexpr (local_candidate<T>)
-				std::destroy_at(instance.storage.local.template get<T>());
+				std::destroy_at(instance.m_storage.local.template get<T>());
 			else if constexpr (std::is_bounded_array_v<T>)
-				delete[] static_cast<T *>(instance.storage.external);
+				delete[] static_cast<T *>(instance.m_storage.external);
 			else
-				delete static_cast<T *>(instance.storage.external);
+				delete static_cast<T *>(instance.m_storage.external);
 		},
 	};
 
@@ -1199,7 +1199,7 @@ namespace sek
 		any_ref(any &&data) noexcept
 		{
 			SEK_ASSERT(data.is_ref(), "Unable to move-initialize `any_ref` from a non-reference `any`");
-			std::construct_at(storage.get<any>(), std::move(data));
+			std::construct_at(m_storage.get<any>(), std::move(data));
 		}
 		/** Initializes `any` reference from an `any` instance.
 		 * @param data `any` containing data to be referenced. */
@@ -1207,7 +1207,10 @@ namespace sek
 		/** @copydoc any_ref */
 		any_ref(const any &data) noexcept : any_ref(data.ref()) {}
 
-		constexpr any_ref(any_ref &&other) noexcept { std::construct_at(storage.get<any>(), std::move(other.value())); }
+		constexpr any_ref(any_ref &&other) noexcept
+		{
+			std::construct_at(m_storage.get<any>(), std::move(other.value()));
+		}
 		constexpr any_ref &operator=(any_ref &&other) noexcept
 		{
 			value().swap(other.value());
@@ -1224,11 +1227,11 @@ namespace sek
 		[[nodiscard]] constexpr bool is_const() const noexcept { return value().is_const(); }
 
 		/** @copydoc any::data */
-		[[nodiscard]] constexpr void *data() noexcept { return !is_const() ? value().storage.external : nullptr; }
+		[[nodiscard]] constexpr void *data() noexcept { return !is_const() ? value().m_storage.external : nullptr; }
 		/** @copydoc any::cdata */
-		[[nodiscard]] constexpr const void *cdata() const noexcept { return value().storage.external; }
+		[[nodiscard]] constexpr const void *cdata() const noexcept { return value().m_storage.external; }
 		/** @copydoc cdata */
-		[[nodiscard]] constexpr const void *data() const noexcept { return value().storage.external; }
+		[[nodiscard]] constexpr const void *data() const noexcept { return value().m_storage.external; }
 
 		/** @copydoc any::as_ptr */
 		template<typename T>
@@ -1316,10 +1319,10 @@ namespace sek
 		friend constexpr void swap(any_ref &a, any_ref &b) noexcept { a.swap(b); }
 
 	private:
-		[[nodiscard]] constexpr any &value() noexcept { return *storage.get<any>(); }
-		[[nodiscard]] constexpr const any &value() const noexcept { return *storage.get<any>(); }
+		[[nodiscard]] constexpr any &value() noexcept { return *m_storage.get<any>(); }
+		[[nodiscard]] constexpr const any &value() const noexcept { return *m_storage.get<any>(); }
 
-		type_storage<any> storage;
+		type_storage<any> m_storage;
 	};
 
 	namespace detail
@@ -1708,7 +1711,7 @@ namespace sek
 		using arg_view = detail::type_data_view<arg_iterator>;
 
 		constexpr signature_info(type_info ret_t, std::span<detail::type_handle> arg_ts) noexcept
-			: ret_type(ret_t), arg_types(arg_ts)
+			: m_ret(ret_t), m_args(arg_ts)
 		{
 		}
 
@@ -1717,22 +1720,22 @@ namespace sek
 
 		/** Returns type info of the return type of this signature.
 		 * @note Returns invalid type info if the signature is a constructor signature. */
-		[[nodiscard]] constexpr type_info ret() const noexcept { return ret_type; }
+		[[nodiscard]] constexpr type_info ret() const noexcept { return m_ret; }
 		/** Returns a view of argument types of this signature. */
 		[[nodiscard]] constexpr arg_view args() const noexcept
 		{
-			return arg_view{arg_iterator{std::to_address(arg_types.begin())}, arg_iterator{std::to_address(arg_types.end())}};
+			return arg_view{arg_iterator{std::to_address(m_args.begin())}, arg_iterator{std::to_address(m_args.end())}};
 		}
 
 		/** Checks if the signature is invocable with a set of arguments. */
 		[[nodiscard]] constexpr bool invocable_with(std::span<type_info> types) const noexcept
 		{
-			if (const auto argc = types.size(); argc != arg_types.size())
+			if (const auto argc = types.size(); argc != m_args.size())
 				return false;
 			else
 			{
 				for (std::size_t i = 0; i < argc; ++i)
-					if (type_info{arg_types[i]} != types[i]) [[unlikely]]
+					if (type_info{m_args[i]} != types[i]) [[unlikely]]
 						return false;
 				return true;
 			}
@@ -1740,12 +1743,12 @@ namespace sek
 		/** @copydoc invocable_with */
 		[[nodiscard]] constexpr bool invocable_with(std::span<any> argv) const noexcept
 		{
-			if (const auto argc = argv.size(); argc != arg_types.size())
+			if (const auto argc = argv.size(); argc != m_args.size())
 				return false;
 			else
 			{
 				for (std::size_t i = 0; i < argc; ++i)
-					if (type_info{arg_types[i]} != argv[i].type()) [[unlikely]]
+					if (type_info{m_args[i]} != argv[i].type()) [[unlikely]]
 						return false;
 				return true;
 			}
@@ -1754,8 +1757,8 @@ namespace sek
 	private:
 		[[nodiscard]] SEK_API bool assert_args(std::span<any> values) const;
 
-		type_info ret_type; /* Invalid if constructor signature. */
-		std::span<detail::type_handle> arg_types;
+		type_info m_ret; /* Invalid if constructor signature. */
+		std::span<detail::type_handle> m_args;
 	};
 
 	class constructor_info
@@ -1766,7 +1769,7 @@ namespace sek
 		using node_t = detail::type_data::ctor_node;
 
 		constexpr constructor_info() noexcept = default;
-		constexpr explicit constructor_info(const node_t *node) noexcept : node(node) {}
+		constexpr explicit constructor_info(const node_t *node) noexcept : m_node(node) {}
 
 	public:
 		constexpr constructor_info(const constructor_info &) noexcept = default;
@@ -1776,7 +1779,7 @@ namespace sek
 
 		/** Returns signature info of the constructor.
 		 * @note Return type of constructor signature is always invalid. */
-		[[nodiscard]] constexpr signature_info signature() const noexcept { return {{}, node->arg_types}; }
+		[[nodiscard]] constexpr signature_info signature() const noexcept { return {{}, m_node->arg_types}; }
 
 		/** Invokes the underlying constructor, producing an instance of `any`.
 		 * @param args Arguments passed to the constructor.
@@ -1786,19 +1789,19 @@ namespace sek
 		[[nodiscard]] any invoke(std::span<any> args) const
 		{
 			if (signature().assert_args(args)) [[likely]]
-				return node->invoke(args);
+				return m_node->invoke(args);
 			return {};
 		}
 
 		[[nodiscard]] constexpr bool operator==(const constructor_info &) const noexcept = default;
 
 	private:
-		const node_t *node = nullptr;
+		const node_t *m_node = nullptr;
 	};
 
 	constexpr detail::type_data_view<type_info::constructor_iterator> type_info::constructors() const noexcept
 	{
-		return {constructor_iterator{constructor_info{data->constructors.front}}, {}};
+		return {constructor_iterator{constructor_info{m_data->constructors.front}}, {}};
 	}
 	constexpr bool type_info::constructable_with(std::span<type_info> args) const noexcept
 	{
@@ -1825,7 +1828,7 @@ namespace sek
 		using node_t = detail::type_data::func_node;
 
 		constexpr function_info() noexcept = default;
-		constexpr explicit function_info(const node_t *node) noexcept : node(node) {}
+		constexpr explicit function_info(const node_t *node) noexcept : m_node(node) {}
 
 	public:
 		constexpr function_info(const function_info &) noexcept = default;
@@ -1834,9 +1837,9 @@ namespace sek
 		constexpr function_info &operator=(function_info &&) noexcept = default;
 
 		/** Returns reflected name of the function. */
-		[[nodiscard]] constexpr std::string_view name() const noexcept { return node->name; }
+		[[nodiscard]] constexpr std::string_view name() const noexcept { return m_node->name; }
 		/** Returns signature info of the function. */
-		[[nodiscard]] constexpr signature_info signature() const noexcept { return {{}, node->arg_types}; }
+		[[nodiscard]] constexpr signature_info signature() const noexcept { return {{}, m_node->arg_types}; }
 
 		/** Invokes the underlying function.
 		 * @param instance Instance of the object this function is invoked on.
@@ -1850,19 +1853,19 @@ namespace sek
 		any invoke(any instance, std::span<any> args) const
 		{
 			if (signature().assert_args(args)) [[likely]]
-				return node->invoke(std::move(instance), args);
+				return m_node->invoke(std::move(instance), args);
 			return {};
 		}
 
 		[[nodiscard]] constexpr bool operator==(const function_info &) const noexcept = default;
 
 	private:
-		const node_t *node = nullptr;
+		const node_t *m_node = nullptr;
 	};
 
 	constexpr detail::type_data_view<type_info::function_iterator> type_info::functions() const noexcept
 	{
-		return {function_iterator{function_info{data->funcs.front}}, {}};
+		return {function_iterator{function_info{m_data->funcs.front}}, {}};
 	}
 	// clang-format off
 	template<typename... AnyArgs>
@@ -1881,7 +1884,7 @@ namespace sek
 		using node_t = detail::type_data::parent_node;
 
 		constexpr parent_info() noexcept = default;
-		constexpr explicit parent_info(const node_t *node) noexcept : node(node) {}
+		constexpr explicit parent_info(const node_t *node) noexcept : m_node(node) {}
 
 	public:
 		constexpr parent_info(const parent_info &) noexcept = default;
@@ -1890,23 +1893,23 @@ namespace sek
 		constexpr parent_info &operator=(parent_info &&) noexcept = default;
 
 		/** Returns type info of the parent type. */
-		[[nodiscard]] constexpr type_info type() const noexcept { return type_info{node->type}; }
+		[[nodiscard]] constexpr type_info type() const noexcept { return type_info{m_node->type}; }
 
 		/** Casts an `any` instance containing a reference to an oobject of child type to
 		 * an `any` reference of parent type (preserving const-ness).
 		 * @note Passed `any` instance must be a reference. Passing a non-reference `any` will result in
 		 * undefined behavior (likely a crash). */
-		[[nodiscard]] any_ref cast(any_ref child) const { return node->cast(std::move(child)); }
+		[[nodiscard]] any_ref cast(any_ref child) const { return m_node->cast(std::move(child)); }
 
 		[[nodiscard]] constexpr bool operator==(const parent_info &) const noexcept = default;
 
 	private:
-		const node_t *node = nullptr;
+		const node_t *m_node = nullptr;
 	};
 
 	constexpr detail::type_data_view<type_info::parent_iterator> type_info::parents() const noexcept
 	{
-		return {parent_iterator{parent_info{data->parents.front}}, {}};
+		return {parent_iterator{parent_info{m_data->parents.front}}, {}};
 	}
 
 	class conversion_info
@@ -1917,7 +1920,7 @@ namespace sek
 		using node_t = detail::type_data::conv_node;
 
 		constexpr conversion_info() noexcept = default;
-		constexpr explicit conversion_info(const node_t *node) noexcept : node(node) {}
+		constexpr explicit conversion_info(const node_t *node) noexcept : m_node(node) {}
 
 	public:
 		constexpr conversion_info(const conversion_info &) noexcept = default;
@@ -1926,22 +1929,22 @@ namespace sek
 		constexpr conversion_info &operator=(conversion_info &&) noexcept = default;
 
 		/** Returns type info of the converted-to type. */
-		[[nodiscard]] constexpr type_info type() const noexcept { return type_info{node->type}; }
+		[[nodiscard]] constexpr type_info type() const noexcept { return type_info{m_node->type}; }
 
 		/** Converts an `any` instance containing an object (or reference to one) of source type to
 		 * an `any` instance of converted-to type (as if via `static_cast`).
 		 * If such cast is not possible, returns empty `any`. */
-		[[nodiscard]] any convert(any child) const { return node->convert(std::move(child)); }
+		[[nodiscard]] any convert(any child) const { return m_node->convert(std::move(child)); }
 
 		[[nodiscard]] constexpr bool operator==(const conversion_info &) const noexcept = default;
 
 	private:
-		const node_t *node = nullptr;
+		const node_t *m_node = nullptr;
 	};
 
 	constexpr detail::type_data_view<type_info::conversion_iterator> type_info::conversions() const noexcept
 	{
-		return {conversion_iterator{conversion_info{data->convs.front}}, {}};
+		return {conversion_iterator{conversion_info{m_data->convs.front}}, {}};
 	}
 
 	class attribute_info
@@ -1952,7 +1955,7 @@ namespace sek
 		using node_t = detail::type_data::attrib_node;
 
 		constexpr attribute_info() noexcept = default;
-		constexpr explicit attribute_info(const node_t *node) noexcept : node(node) {}
+		constexpr explicit attribute_info(const node_t *node) noexcept : m_node(node) {}
 
 	public:
 		constexpr attribute_info(const attribute_info &) noexcept = default;
@@ -1961,25 +1964,25 @@ namespace sek
 		constexpr attribute_info &operator=(attribute_info &&) noexcept = default;
 
 		/** Returns type info of the attribute. */
-		[[nodiscard]] constexpr type_info type() const noexcept { return type_info{node->type}; }
+		[[nodiscard]] constexpr type_info type() const noexcept { return type_info{m_node->type}; }
 
 		/** Returns `any` reference to the attribute data. */
-		[[nodiscard]] any_ref value() const noexcept { return {node->get_any(node)}; }
+		[[nodiscard]] any_ref value() const noexcept { return {m_node->get_any(m_node)}; }
 		/** Returns raw pointer to attribute's data. */
 		[[nodiscard]] const void *data() const noexcept { return value().cdata(); }
 
 		[[nodiscard]] bool operator==(const attribute_info &other) const noexcept
 		{
-			return node == other.node || (node && other.node && value() == other.value());
+			return m_node == other.m_node || (m_node && other.m_node && value() == other.value());
 		}
 
 	private:
-		const node_t *node = nullptr;
+		const node_t *m_node = nullptr;
 	};
 
 	constexpr detail::type_data_view<type_info::attribute_iterator> type_info::attributes() const noexcept
 	{
-		return {attribute_iterator{attribute_info{data->attribs.front}}, {}};
+		return {attribute_iterator{attribute_info{m_data->attribs.front}}, {}};
 	}
 	template<typename T>
 	any type_info::get_attribute() const noexcept
@@ -1992,12 +1995,12 @@ namespace sek
 	{
 		if constexpr (std::is_const_v<T>)
 			return static_cast<const any *>(this)->template try_cast<T>();
-		else if (const auto t_info = type_info::get<T>(); info == t_info)
+		else if (const auto t_info = type_info::get<T>(); m_info == t_info)
 			return static_cast<T *>(data());
 		else if constexpr (std::is_class_v<T> && !std::is_union_v<T>) /* Ignore non-inheritable types. */
 		{
 			/* Attempt to cast to an immediate parent. */
-			const auto parents = info.parents();
+			const auto parents = m_info.parents();
 			auto iter = std::find_if(parents.begin(), parents.end(), [t_info](auto p) { return p.type() == t_info; });
 			if (iter != parents.end()) [[likely]]
 			{
@@ -2020,12 +2023,12 @@ namespace sek
 	std::add_const_t<T> *any::try_cast() const noexcept
 	{
 		using U = std::add_const_t<T>;
-		if (const auto t_info = type_info::get<T>(); info == t_info)
+		if (const auto t_info = type_info::get<T>(); m_info == t_info)
 			return static_cast<U *>(data());
 		else if constexpr (std::is_class_v<T> && !std::is_union_v<T>) /* Ignore non-inheritable types. */
 		{
 			/* Attempt to cast to an immediate parent. */
-			const auto parents = info.parents();
+			const auto parents = m_info.parents();
 			auto iter = std::find_if(parents.begin(), parents.end(), [t_info](auto p) { return p.type() == t_info; });
 			if (iter != parents.end()) [[likely]]
 				return static_cast<U *>(iter->cast(*this).cdata());

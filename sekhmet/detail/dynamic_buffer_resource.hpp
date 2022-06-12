@@ -37,7 +37,9 @@ namespace sek::detail
 		dynamic_buffer_resource &operator=(const dynamic_buffer_resource &) = delete;
 
 		constexpr dynamic_buffer_resource() noexcept = default;
-		constexpr explicit dynamic_buffer_resource(std::pmr::memory_resource *upstream) noexcept : upstream(upstream) {}
+		constexpr explicit dynamic_buffer_resource(std::pmr::memory_resource *upstream) noexcept : m_upstream(upstream)
+		{
+		}
 		constexpr dynamic_buffer_resource(dynamic_buffer_resource &&other) noexcept { swap(other); }
 		constexpr dynamic_buffer_resource &operator=(dynamic_buffer_resource &&other) noexcept
 		{
@@ -49,8 +51,8 @@ namespace sek::detail
 
 		void release()
 		{
-			for (auto *page = main_page; page != nullptr;) page = release_page(page);
-			main_page = nullptr;
+			for (auto *page = m_main_page; page != nullptr;) page = release_page(page);
+			m_main_page = nullptr;
 		}
 
 		void *reallocate(void *old, std::size_t old_n, std::size_t n, std::size_t align = alignof(std::max_align_t))
@@ -61,12 +63,12 @@ namespace sek::detail
 				return do_allocate(n, align);
 
 			/* Try to expand if old data is the top allocation and there is enough space for it. */
-			const auto *main_page_bytes = page_data(main_page);
+			const auto *main_page_bytes = page_data(m_main_page);
 			const auto *old_bytes = static_cast<std::byte *>(old);
-			const auto new_used = main_page->used_size + n - old_n;
-			if (old_bytes + old_n == main_page_bytes + main_page->used_size && new_used <= main_page->page_size) [[likely]]
+			const auto new_used = m_main_page->used_size + n - old_n;
+			if (old_bytes + old_n == main_page_bytes + m_main_page->used_size && new_used <= m_main_page->page_size) [[likely]]
 			{
-				main_page->used_size = new_used;
+				m_main_page->used_size = new_used;
 				return old;
 			}
 
@@ -74,7 +76,12 @@ namespace sek::detail
 			return std::memcpy(do_allocate(n, align), old, old_n);
 		}
 
-		constexpr void swap(dynamic_buffer_resource &other) noexcept { std::swap(main_page, other.main_page); }
+		constexpr void swap(dynamic_buffer_resource &other) noexcept
+		{
+			std::swap(m_upstream, other.m_upstream);
+			std::swap(m_main_page, other.m_main_page);
+		}
+		friend constexpr void swap(dynamic_buffer_resource &a, dynamic_buffer_resource &b) noexcept { a.swap(b); }
 
 	protected:
 		void *do_allocate(std::size_t n, std::size_t align) override
@@ -83,10 +90,10 @@ namespace sek::detail
 			const auto padded = n + align - 1;
 
 			/* Allocate on a new page. */
-			if (auto used = padded; !main_page || (used += main_page->used_size) > main_page->page_size) [[unlikely]]
+			if (auto used = padded; !m_main_page || (used += m_main_page->used_size) > m_main_page->page_size) [[unlikely]]
 				return alloc_new_page(padded, align);
 			else
-				return align_ptr(page_data(main_page) + std::exchange(main_page->used_size, used), align);
+				return align_ptr(page_data(m_main_page) + std::exchange(m_main_page->used_size, used), align);
 		}
 
 		void do_deallocate(void *, std::size_t, std::size_t) noexcept override {}
@@ -108,28 +115,28 @@ namespace sek::detail
 		page_header *release_page(page_header *page_ptr)
 		{
 			auto previous = page_ptr->previous;
-			upstream->deallocate(page_ptr, sizeof(page_header) + page_ptr->page_size);
+			m_upstream->deallocate(page_ptr, sizeof(page_header) + page_ptr->page_size);
 			return previous;
 		}
 		page_header *insert_page(std::size_t n)
 		{
-			auto result = static_cast<page_header *>(upstream->allocate(n));
+			auto result = static_cast<page_header *>(m_upstream->allocate(n));
 			if (!result) [[unlikely]]
 				return nullptr;
 			/* If the previous main page is empty, deallocate it immediately. */
-			if (main_page && !main_page->used_size) [[unlikely]]
-				result->previous = release_page(main_page);
+			if (m_main_page && !m_main_page->used_size) [[unlikely]]
+				result->previous = release_page(m_main_page);
 			else
-				result->previous = main_page;
+				result->previous = m_main_page;
 			result->page_size = 0;
-			return main_page = result;
+			return m_main_page = result;
 		}
 		constexpr std::byte *page_data(page_header *header) noexcept
 		{
 			return std::bit_cast<std::byte *>(header) + sizeof(page_header);
 		}
 
-		std::pmr::memory_resource *upstream = nullptr;
-		page_header *main_page = nullptr;
+		std::pmr::memory_resource *m_upstream = nullptr;
+		page_header *m_main_page = nullptr;
 	};
 }	 // namespace sek::detail

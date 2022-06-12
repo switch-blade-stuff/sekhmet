@@ -52,8 +52,8 @@ namespace sek
 	void uuid::version4_t::operator()(uuid &id) const noexcept
 	{
 		/* Fill with random bits. */
-		for (std::size_t i = 0; i < SEK_ARRAY_SIZE(id.bytes) / sizeof(std::uint64_t); ++i)
-			reinterpret_cast<std::uint64_t *>(id.bytes)[i] = uuid_rng.next();
+		for (std::size_t i = 0; i < SEK_ARRAY_SIZE(id.m_bytes) / sizeof(std::uint64_t); ++i)
+			reinterpret_cast<std::uint64_t *>(id.m_bytes)[i] = uuid_rng.next();
 
 		/* Apply version & variant. */
 		constexpr std::uint8_t version_mask = 0b0000'1111;
@@ -61,7 +61,7 @@ namespace sek
 		constexpr std::uint8_t variant_mask = 0b0011'1111;
 		constexpr std::uint8_t variant_bits = 0b1000'0000;
 
-		id.bytes[6] = static_cast<std::byte>((static_cast<std::uint8_t>(id.bytes[6]) & version_mask) | version_bits);
-		id.bytes[8] = static_cast<std::byte>((static_cast<std::uint8_t>(id.bytes[8]) & variant_mask) | variant_bits);
+		id.m_bytes[6] = static_cast<std::byte>((static_cast<std::uint8_t>(id.m_bytes[6]) & version_mask) | version_bits);
+		id.m_bytes[8] = static_cast<std::byte>((static_cast<std::uint8_t>(id.m_bytes[8]) & variant_mask) | variant_bits);
 	}
 }	 // namespace sek

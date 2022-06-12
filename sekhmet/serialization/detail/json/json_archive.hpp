@@ -257,7 +257,7 @@ namespace sek::serialization::json
 		void parse(rj_reader reader)
 		{
 			rj_event_handler handler{*this};
-			detail::rj_allocator allocator{base_t::upstream};
+			detail::rj_allocator allocator{base_t::m_upstream};
 			rj_parser parser{&allocator};
 
 			constexpr unsigned parse_flags =
@@ -468,14 +468,13 @@ namespace sek::serialization::json
 		basic_output_archive &operator=(const basic_output_archive &) = delete;
 
 		constexpr basic_output_archive(basic_output_archive &&other) noexcept
-			: base_t(std::forward<basic_output_archive>(other))
+			: base_t(std::forward<base_t>(other)), m_writer(std::move(other.m_writer))
 		{
-			writer = other.writer;
 		}
 		constexpr basic_output_archive &operator=(basic_output_archive &&other) noexcept
 		{
-			base_t::operator=(std::forward<basic_output_archive>(other));
-			std::swap(writer, other.writer);
+			base_t::operator=(std::forward<base_t>(other));
+			std::swap(m_writer, other.m_writer);
 			return *this;
 		}
 
@@ -488,7 +487,7 @@ namespace sek::serialization::json
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
 		basic_output_archive(archive_writer<char_type> writer, std::pmr::memory_resource *res)
-			: base_t(res), writer(std::move(writer))
+			: base_t(res), m_writer(std::move(writer))
 		{
 		}
 		/** Initializes output archive for writing to a string.
@@ -502,7 +501,7 @@ namespace sek::serialization::json
 		 * @param res Memory resource used for internal allocation. */
 		template<typename Traits = std::char_traits<char_type>, typename Alloc = std::allocator<char_type>>
 		basic_output_archive(std::basic_string<char_type, Traits, Alloc> &str, std::pmr::memory_resource *res)
-			: base_t(res), writer(make_writer(str))
+			: base_t(res), m_writer(make_writer(str))
 		{
 		}
 		/** Initializes output archive for file writing.
@@ -567,19 +566,19 @@ namespace sek::serialization::json
 		constexpr void swap(basic_output_archive &other) noexcept
 		{
 			base_t::swap(other);
-			std::swap(writer, other.writer);
+			std::swap(m_writer, other.m_writer);
 		}
 		friend constexpr void swap(basic_output_archive &a, basic_output_archive &b) noexcept { a.swap(b); }
 
 	private:
 		void flush_impl()
 		{
-			detail::rj_allocator allocator{base_t::upstream};
-			rj_emitter emitter{writer, allocator};
+			detail::rj_allocator allocator{base_t::m_upstream};
+			rj_emitter emitter{m_writer, allocator};
 			base_t::do_flush(emitter);
 		}
 
-		rj_writer writer;
+		rj_writer m_writer;
 	};
 
 	typedef basic_output_archive<pretty_print | inline_arrays> output_archive;

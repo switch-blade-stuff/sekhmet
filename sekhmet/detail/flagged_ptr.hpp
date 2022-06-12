@@ -53,24 +53,24 @@ namespace sek
 			set_flag(flag);
 		}
 
-		[[nodiscard]] constexpr T *get_pointer() const noexcept { return data_t{data.int_value & mask}.ptr_value; }
+		[[nodiscard]] constexpr T *get_pointer() const noexcept { return data_t{m_data.int_value & mask}.ptr_value; }
 		constexpr T *set_pointer(T *new_ptr) noexcept
 		{
-			data.int_value = data_t{new_ptr}.int_value | get_flag();
+			m_data.int_value = data_t{new_ptr}.int_value | get_flag();
 			return new_ptr;
 		}
-		[[nodiscard]] constexpr bool get_flag() const noexcept { return data.int_value & 1; }
+		[[nodiscard]] constexpr bool get_flag() const noexcept { return m_data.int_value & 1; }
 		constexpr bool set_flag(bool flag) noexcept
 		{
-			data.int_value = (data.int_value & mask) | flag;
+			m_data.int_value = (m_data.int_value & mask) | flag;
 			return flag;
 		}
-		constexpr void toggle_flag() noexcept { data.int_value ^= 1; }
+		constexpr void toggle_flag() noexcept { m_data.int_value ^= 1; }
 
 		[[nodiscard]] constexpr bool operator==(const flagged_ptr_t &) const noexcept = default;
 
 	private:
-		data_t data;
+		data_t m_data;
 	};
 
 	template<typename T>

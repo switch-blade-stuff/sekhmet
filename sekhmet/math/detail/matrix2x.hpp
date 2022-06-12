@@ -32,10 +32,10 @@ namespace sek::math
 		SEK_MATH_MATRIX_COMMON(T, 2, 2, P)
 
 	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
+		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : m_data{c0, c1} {}
 		template<storage_policy Sp>
 		constexpr basic_matrix(const basic_vector<T, 2, Sp> &c0, const basic_vector<T, 2, Sp> &c1) noexcept
-			: data{col_type{c0}, col_type{c1}}
+			: m_data{col_type{c0}, col_type{c1}}
 		{
 		}
 		constexpr basic_matrix(T xx, T yx, T xy, T yy) noexcept : basic_matrix({xx, xy}, {yx, yy}) {}
@@ -158,10 +158,10 @@ namespace sek::math
 		SEK_MATH_MATRIX_COMMON(T, 2, 3, P)
 
 	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
+		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : m_data{c0, c1} {}
 		template<storage_policy Sp>
 		constexpr basic_matrix(const basic_vector<T, 3, Sp> &c0, const basic_vector<T, 3, Sp> &c1) noexcept
-			: data{col_type{c0}, col_type{c1}}
+			: m_data{col_type{c0}, col_type{c1}}
 		{
 		}
 		constexpr basic_matrix(T xx, T yx, T xy, T yy, T xz, T yz) noexcept : basic_matrix({xx, xy, xz}, {yx, yy, yz})
@@ -290,10 +290,10 @@ namespace sek::math
 		SEK_MATH_MATRIX_COMMON(T, 2, 4, P)
 
 	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : data{c0, c1} {}
+		constexpr basic_matrix(const col_type &c0, const col_type &c1) noexcept : m_data{c0, c1} {}
 		template<storage_policy Sp>
 		constexpr basic_matrix(const basic_vector<T, 4, Sp> &c0, const basic_vector<T, 4, Sp> &c1) noexcept
-			: data{col_type{c0}, col_type{c1}}
+			: m_data{col_type{c0}, col_type{c1}}
 		{
 		}
 		constexpr basic_matrix(T xx, T yx, T xy, T yy, T xz, T yz, T xw, T yw) noexcept

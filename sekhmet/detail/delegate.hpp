@@ -116,7 +116,8 @@ namespace sek
 		constexpr static bool compatible_arg = candidate_arg<U> && std::is_convertible_v<U, T>;
 		// clang-format on
 
-		constexpr delegate(R (*proxy)(const void *, Args...), const void *data) noexcept : proxy(proxy), data_ptr(data)
+		constexpr delegate(R (*proxy)(const void *, Args...), const void *data) noexcept
+			: m_proxy(proxy), m_data_ptr(data)
 		{
 		}
 
@@ -235,8 +236,8 @@ namespace sek
 		template<typename RF, typename... ArgsF>
 		constexpr delegate &assign(RF (*f)(ArgsF...)) noexcept requires compatible_sign<RF, ArgsF...>
 		{
-			proxy = +[](const void *p, Args ...args) -> R { return std::bit_cast<RF (*)(ArgsF...)>(p)(std::forward<Args>(args)...); };
-			data_ptr = std::bit_cast<const void *>(f);
+			m_proxy = +[](const void *p, Args ...args) -> R { return std::bit_cast<RF (*)(ArgsF...)>(p)(std::forward<Args>(args)...); };
+			m_data_ptr = std::bit_cast<const void *>(f);
 			return *this;
 		}
 		/** @copydoc assign */
@@ -249,31 +250,31 @@ namespace sek
 		template<typename Arg>
 		constexpr delegate &assign(R (*f)(Arg *, Args...), Arg *arg)  noexcept
 		{
-			proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
-			data_ptr = static_cast<const void *>(arg);
+			m_proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
+			m_data_ptr = static_cast<const void *>(arg);
 			return *this;
 		}
 		/** @copydoc assign */
 		template<typename Arg>
 		constexpr delegate &assign(R (*f)(Arg *, Args...), Arg &arg)  noexcept
 		{
-			proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
-			data_ptr = static_cast<const void *>(std::addressof(arg));
+			m_proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
+			m_data_ptr = static_cast<const void *>(std::addressof(arg));
 			return *this;
 		}
 		/** @copydoc assign */
 		template<typename Arg>
 		constexpr delegate &assign(R (*f)(Arg &, Args...), Arg &arg)  noexcept
 		{
-			proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
-			data_ptr = static_cast<const void *>(std::addressof(arg));
+			m_proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
+			m_data_ptr = static_cast<const void *>(std::addressof(arg));
 			return *this;
 		}
 		/** @copydoc assign */
 		template<typename T, typename U>
 		constexpr delegate &assign(R (*f)(T, Args...), U &&arg) noexcept requires compatible_arg<T, U>
 		{
-			proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
+			m_proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
 			std::construct_at(bytes_ptr<U>(), std::forward<U>(arg));
 			return *this;
 		}
@@ -282,11 +283,11 @@ namespace sek
 		template<typename F>
 		constexpr delegate &assign(F) noexcept requires empty_ftor<F>
 		{
-			proxy = +[](const void *, Args...args) -> R
+			m_proxy = +[](const void *, Args...args) -> R
 			{
 				return F{}(std::forward<Args>(args)...);
 			};
-			data_ptr = nullptr;
+			m_data_ptr = nullptr;
 			return *this;
 		}
 		/** @copydoc assign */
@@ -299,36 +300,36 @@ namespace sek
 		template<typename F, typename Arg>
 		constexpr delegate &assign(F, Arg *arg) noexcept requires empty_ftor<F, Arg *>
 		{
-			proxy = +[](const void *p, Args...args) -> R
+			m_proxy = +[](const void *p, Args...args) -> R
 			{
 				using U = std::add_const_t<Arg>;
 				return F{}(const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
 			};
-			data_ptr = static_cast<const void *>(arg);
+			m_data_ptr = static_cast<const void *>(arg);
 			return *this;
 		}
 		/** @copydoc assign */
 		template<typename F, typename Arg>
 		constexpr delegate &assign(F, Arg &arg) noexcept requires empty_ftor<F, Arg *>
 		{
-			proxy = +[](const void *p, Args...args) -> R
+			m_proxy = +[](const void *p, Args...args) -> R
 			{
 				using U = std::add_const_t<Arg>;
 				return F{}(const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
 			};
-			data_ptr = static_cast<const void *>(std::addressof(arg));
+			m_data_ptr = static_cast<const void *>(std::addressof(arg));
 			return *this;
 		}
 		/** @copydoc assign */
 		template<typename F, typename Arg>
 		constexpr delegate &assign(F, Arg &arg) noexcept requires empty_ftor<F, Arg &>
 		{
-			proxy = +[](const void *p, Args...args) -> R
+			m_proxy = +[](const void *p, Args...args) -> R
 			{
 				using U = std::add_const_t<Arg>;
 				return F{}(*const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
 			};
-			data_ptr = static_cast<const void *>(std::addressof(arg));
+			m_data_ptr = static_cast<const void *>(std::addressof(arg));
 			return *this;
 		}
 		/** @copydoc assign */
@@ -337,7 +338,7 @@ namespace sek
 		{
 			using U = std::decay_t<T>;
 
-			proxy = +[](const void *p, Args...args) -> R
+			m_proxy = +[](const void *p, Args...args) -> R
 			{
 				return F{}(ptr_bytes<U>(p), std::forward<Args>(args)...);
 			};
@@ -349,8 +350,8 @@ namespace sek
 		template<auto F>
 		constexpr delegate &assign() noexcept requires free_func<F>
 		{
-			proxy = +[](const void *, Args...args) -> R { return F(std::forward<Args>(args)...); };
-			data_ptr = nullptr;
+			m_proxy = +[](const void *, Args...args) -> R { return F(std::forward<Args>(args)...); };
+			m_data_ptr = nullptr;
 			return *this;
 		}
 		/** @copydoc assign */
@@ -370,36 +371,36 @@ namespace sek
 		template<auto F, typename Arg>
 		constexpr delegate &assign(Arg *arg) noexcept requires free_func<F, Arg *>
 		{
-			proxy = +[](const void *p, Args...args) -> R
+			m_proxy = +[](const void *p, Args...args) -> R
 			{
 				using U = std::add_const_t<Arg>;
 				return F(const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
 			};
-			data_ptr = static_cast<const void *>(arg);
+			m_data_ptr = static_cast<const void *>(arg);
 			return *this;
 		}
 		/** @copydoc assign */
 		template<auto F, typename Arg>
 		constexpr delegate &assign(Arg &arg) noexcept requires free_func<F, Arg *>
 		{
-			proxy = +[](const void *p, Args...args) -> R
+			m_proxy = +[](const void *p, Args...args) -> R
 			{
 				using U = std::add_const_t<Arg>;
 				return F(const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
 			};
-			data_ptr = static_cast<const void *>(std::addressof(arg));
+			m_data_ptr = static_cast<const void *>(std::addressof(arg));
 			return *this;
 		}
 		/** @copydoc assign */
 		template<auto F, typename Arg>
 		constexpr delegate &assign(Arg &arg) noexcept requires free_func<F, Arg &>
 		{
-			proxy = +[](const void *p, Args...args) -> R
+			m_proxy = +[](const void *p, Args...args) -> R
 			{
 				using U = std::add_const_t<Arg>;
 				return F(*const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
 			};
-			data_ptr = static_cast<const void *>(std::addressof(arg));
+			m_data_ptr = static_cast<const void *>(std::addressof(arg));
 			return *this;
 		}
 		/** @copydoc assign */
@@ -408,7 +409,7 @@ namespace sek
 		{
 			using U = std::decay_t<T>;
 
-			proxy = +[](const void *p, Args...args) -> R
+			m_proxy = +[](const void *p, Args...args) -> R
 			{
 				return F(ptr_bytes<U>(p), std::forward<Args>(args)...);
 			};
@@ -444,12 +445,12 @@ namespace sek
 		template<auto F, typename I>
 		constexpr delegate &assign(I *instance) noexcept requires mem_func<F>
 		{
-			proxy = +[](const void *p, Args...args) -> R
+			m_proxy = +[](const void *p, Args...args) -> R
 			{
 				using U = std::add_const_t<I>;
 				return (const_cast<I *>(static_cast<U *>(p))->*F)(std::forward<Args>(args)...);
 			};
-			data_ptr = static_cast<const void *>(instance);
+			m_data_ptr = static_cast<const void *>(instance);
 			return *this;
 		}
 		/** @copydoc assign */
@@ -462,12 +463,12 @@ namespace sek
 		template<auto F, typename I>
 		constexpr delegate &assign(I &instance) noexcept requires mem_func<F>
 		{
-			proxy = +[](const void *p, Args...args) -> R
+			m_proxy = +[](const void *p, Args...args) -> R
 			{
 				using U = std::add_const_t<I>;
 				return (const_cast<I *>(static_cast<U *>(p))->*F)(std::forward<Args>(args)...);
 			};
-			data_ptr = static_cast<const void *>(std::addressof(instance));
+			m_data_ptr = static_cast<const void *>(std::addressof(instance));
 			return *this;
 		}
 		/** @copydoc assign */
@@ -479,9 +480,9 @@ namespace sek
 		// clang-format on
 
 		/** Checks if the delegate is bound to a function. */
-		[[nodiscard]] constexpr bool valid() const noexcept { return proxy != nullptr; }
+		[[nodiscard]] constexpr bool valid() const noexcept { return m_proxy != nullptr; }
 		/** Returns pointer to the data of the bound argument or object instance. */
-		[[nodiscard]] constexpr const void *data() const noexcept { return data_ptr; }
+		[[nodiscard]] constexpr const void *data() const noexcept { return m_data_ptr; }
 
 		/** Invokes the bound function.
 		 * @param args Arguments passed to the function.
@@ -490,7 +491,7 @@ namespace sek
 		constexpr R invoke(Args... args) const
 		{
 			if (valid()) [[likely]]
-				return proxy(data_ptr, std::forward<Args>(args)...);
+				return m_proxy(m_data_ptr, std::forward<Args>(args)...);
 			else
 				throw delegate_error();
 		}
@@ -499,14 +500,14 @@ namespace sek
 
 		[[nodiscard]] constexpr bool operator==(const delegate &other) const noexcept
 		{
-			return proxy == other.proxy && data_ptr == other.data_ptr;
+			return m_proxy == other.m_proxy && m_data_ptr == other.m_data_ptr;
 		}
 
 		constexpr void swap(delegate &other) noexcept
 		{
 			using std::swap;
-			swap(proxy, other.proxy);
-			swap(data_ptr, other.data_ptr);
+			swap(m_proxy, other.m_proxy);
+			swap(m_data_ptr, other.m_data_ptr);
 		}
 		friend constexpr void swap(delegate &a, delegate &b) noexcept { a.swap(b); }
 
@@ -519,14 +520,14 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] constexpr T *bytes_ptr() noexcept
 		{
-			return std::bit_cast<T *>(&data_bytes);
+			return std::bit_cast<T *>(&m_data_bytes);
 		}
 
-		R (*proxy)(const void *, Args...) = nullptr;
+		R (*m_proxy)(const void *, Args...) = nullptr;
 		union
 		{
-			std::intptr_t data_bytes = {};
-			const void *data_ptr;
+			std::intptr_t m_data_bytes = {};
+			const void *m_data_ptr;
 		};
 	};
 

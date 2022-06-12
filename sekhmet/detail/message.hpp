@@ -270,8 +270,8 @@ namespace sek
 
 			template<typename T>
 			constexpr explicit message_source(type_selector_t<T>) noexcept
-				: global(&vtable_t::instance<T, message_scope::GLOBAL>),
-				  thread(&vtable_t::instance<T, message_scope::THREAD>)
+				: m_global(&vtable_t::instance<T, message_scope::GLOBAL>),
+				  m_thread(&vtable_t::instance<T, message_scope::THREAD>)
 			{
 			}
 
@@ -287,9 +287,9 @@ namespace sek
 			void queue(any data) const
 			{
 				if constexpr (Scope == message_scope::GLOBAL)
-					global->queue(std::move(data));
+					m_global->queue(std::move(data));
 				else
-					thread->queue(std::move(data));
+					m_thread->queue(std::move(data));
 			}
 			/** Dispatches the bound message queue.
 			 * @tparam Scope Scope of the message queue to dispatch. */
@@ -297,9 +297,9 @@ namespace sek
 			void dispatch() const
 			{
 				if constexpr (Scope == message_scope::GLOBAL)
-					global->dispatch();
+					m_global->dispatch();
 				else
-					thread->dispatch();
+					m_thread->dispatch();
 			}
 			/** Sends message using the bound message queue.
 			 * @tparam Scope Scope of the message queue to send the message on.
@@ -308,14 +308,14 @@ namespace sek
 			void send(any data) const
 			{
 				if constexpr (Scope == message_scope::GLOBAL)
-					global->send(std::move(data));
+					m_global->send(std::move(data));
 				else
-					thread->send(std::move(data));
+					m_thread->send(std::move(data));
 			}
 
 		private:
-			const vtable_t *global;
-			const vtable_t *thread;
+			const vtable_t *m_global;
+			const vtable_t *m_thread;
 		};
 
 		template<typename T, message_scope S>

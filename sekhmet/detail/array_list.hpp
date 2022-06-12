@@ -374,17 +374,17 @@ namespace sek
 		constexpr ~array_list()
 		{
 			clear();
-			get_node_allocator().deallocate(data_begin, data_capacity);
+			get_node_allocator().deallocate(m_begin, m_capacity);
 		}
 
 		/** Returns iterator to the start of the list. */
-		[[nodiscard]] constexpr iterator begin() noexcept { return iterator{data_begin}; }
+		[[nodiscard]] constexpr iterator begin() noexcept { return iterator{m_begin}; }
 		/** Returns iterator to the end of the list. */
-		[[nodiscard]] constexpr iterator end() noexcept { return iterator{data_end}; }
+		[[nodiscard]] constexpr iterator end() noexcept { return iterator{m_end}; }
 		/** Returns const iterator to the start of the list. */
-		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return const_iterator{data_begin}; }
+		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return const_iterator{m_begin}; }
 		/** Returns const iterator to the end of the list. */
-		[[nodiscard]] constexpr const_iterator cend() const noexcept { return const_iterator{data_end}; }
+		[[nodiscard]] constexpr const_iterator cend() const noexcept { return const_iterator{m_end}; }
 		/** @copydoc cbegin */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return cbegin(); }
 		/** @copydoc cend */
@@ -409,21 +409,21 @@ namespace sek
 		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return crbegin(); }
 
 		/** Returns pointer to the internal pointer array. */
-		[[nodiscard]] constexpr pointer *data() noexcept { return data_begin; }
+		[[nodiscard]] constexpr pointer *data() noexcept { return m_begin; }
 		/** @copydoc data */
-		[[nodiscard]] constexpr const const_pointer *data() const noexcept { return data_begin; }
+		[[nodiscard]] constexpr const const_pointer *data() const noexcept { return m_begin; }
 
 		/** Returns reference to the element at the specified index. */
 		[[nodiscard]] constexpr reference at(size_type i) noexcept
 		{
 			SEK_ASSERT(i < size());
-			return *(data_begin[i]);
+			return *(m_begin[i]);
 		}
 		/** @copydoc at */
 		[[nodiscard]] constexpr const_reference at(size_type i) const noexcept
 		{
 			SEK_ASSERT(i < size());
-			return *(data_begin[i]);
+			return *(m_begin[i]);
 		}
 		/** @copydoc at */
 		[[nodiscard]] constexpr reference operator[](size_type i) noexcept { return at(i); }
@@ -441,20 +441,20 @@ namespace sek
 		/** Removes all elements from the list. Does not reserve the internal array. */
 		constexpr void clear()
 		{
-			for (auto node = data_begin; node != data_end; ++node)
+			for (auto node = m_begin; node != m_end; ++node)
 			{
 				std::destroy_at(*node);
 				get_allocator().deallocate(*node, 1);
 			}
-			data_end = data_begin;
+			m_end = m_begin;
 		}
 		/** Removes all elements from the list and destroys the internal node array. */
 		constexpr void purge()
 		{
 			clear();
-			get_node_allocator().deallocate(data_begin, data_capacity);
-			data_end = data_begin = nullptr;
-			data_capacity = 0;
+			get_node_allocator().deallocate(m_begin, m_capacity);
+			m_end = m_begin = nullptr;
+			m_capacity = 0;
 		}
 
 		/** Shrinks the list to only occupy the required amount of space for it's size. */
@@ -477,7 +477,7 @@ namespace sek
 		{
 			reserve(n);
 			if (n < size())
-				erase_impl(data_begin + n, data_end);
+				erase_impl(m_begin + n, m_end);
 			else
 				emplace_impl(end(), n - size(), std::forward<Args>(args)...);
 		}
@@ -639,8 +639,8 @@ namespace sek
 			SEK_ASSERT(where >= begin() && where <= end());
 
 			auto extract_pos = where - begin();
-			auto result = node_handle{data_begin[extract_pos], get_allocator()};
-			data_end = std::move(data_begin + extract_pos + 1, data_end, data_begin + extract_pos);
+			auto result = node_handle{m_begin[extract_pos], get_allocator()};
+			m_end = std::move(m_begin + extract_pos + 1, m_end, m_begin + extract_pos);
 
 			return result;
 		}
@@ -654,14 +654,14 @@ namespace sek
 
 			auto insert_pos = where.node_ptr - data();
 			make_space(insert_pos, 1);
-			data_begin[insert_pos] = node.reset();
-			return iterator{data_begin + insert_pos};
+			m_begin[insert_pos] = node.reset();
+			return iterator{m_begin + insert_pos};
 		}
 
 		/** Returns current size of the list. */
 		[[nodiscard]] constexpr size_type size() const noexcept
 		{
-			return static_cast<size_type>(data_end - data_begin);
+			return static_cast<size_type>(m_end - m_begin);
 		}
 		/** Returns max size of the list. */
 		[[nodiscard]] constexpr size_type max_size() const noexcept
@@ -671,9 +671,9 @@ namespace sek
 			return math::min(absolute_max, alloc_max) / sizeof(value_type);
 		}
 		/** Returns current capacity of the list. */
-		[[nodiscard]] constexpr size_type capacity() const noexcept { return data_capacity; }
+		[[nodiscard]] constexpr size_type capacity() const noexcept { return m_capacity; }
 		/** Checks if the list is empty. */
-		[[nodiscard]] constexpr bool empty() const noexcept { return data_begin == data_end; }
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_begin == m_end; }
 
 		[[nodiscard]] constexpr allocator_type &get_allocator() noexcept { return *value_ebo_base::get(); }
 		[[nodiscard]] constexpr const allocator_type &get_allocator() const noexcept { return *value_ebo_base::get(); }
@@ -705,20 +705,20 @@ namespace sek
 		friend constexpr void swap(array_list &a, array_list &b) noexcept { a.swap(b); }
 
 	private:
-		[[nodiscard]] constexpr size_type next_capacity() const noexcept { return data_capacity * 2; }
+		[[nodiscard]] constexpr size_type next_capacity() const noexcept { return m_capacity * 2; }
 
 		constexpr void take_data(array_list &&other) noexcept
 		{
-			data_begin = std::exchange(other.data_begin, nullptr);
-			data_end = std::exchange(other.data_end, nullptr);
-			data_capacity = std::exchange(other.data_capacity, 0);
+			m_begin = std::exchange(other.m_begin, nullptr);
+			m_end = std::exchange(other.m_end, nullptr);
+			m_capacity = std::exchange(other.m_capacity, 0);
 		}
 		constexpr void swap_data(array_list &other) noexcept
 		{
 			using std::swap;
-			swap(data_begin, other.data_begin);
-			swap(data_end, other.data_end);
-			swap(data_capacity, other.data_capacity);
+			swap(m_begin, other.m_begin);
+			swap(m_end, other.m_end);
+			swap(m_capacity, other.m_capacity);
 		}
 		constexpr void move_values(array_list &&other)
 		{
@@ -727,16 +727,16 @@ namespace sek
 
 			for (size_type i = new_size; --i > 0;)
 			{
-				auto **dst_node = data_begin + i;
-				auto **src_node = other.data_begin + i;
-				if (dst_node < data_end) /* Occupied nodes must not be null. */
+				auto **dst_node = m_begin + i;
+				auto **src_node = other.m_begin + i;
+				if (dst_node < m_end) /* Occupied nodes must not be null. */
 					**dst_node = std::move(**src_node);
 				else
 					*dst_node = make_node(std::move(**src_node));
 			}
-			auto new_end = data_begin + new_size;
-			if (new_end < data_end) erase_impl(new_end, data_end);
-			data_end = new_end;
+			auto new_end = m_begin + new_size;
+			if (new_end < m_end) erase_impl(new_end, m_end);
+			m_end = new_end;
 			other.clear();
 		}
 		constexpr void move_assign_impl(array_list &&other)
@@ -778,12 +778,12 @@ namespace sek
 				if (new_size < old_size)
 				{
 					std::copy_n(other.begin(), new_size, begin());
-					erase_impl(data_begin + new_size, data_end);
+					erase_impl(m_begin + new_size, m_end);
 				}
 				else
 				{
 					std::copy_n(other.begin(), old_size, begin());
-					push_back(const_iterator{data_begin + old_size}, other.cend());
+					push_back(const_iterator{m_begin + old_size}, other.cend());
 				}
 			}
 		}
@@ -792,19 +792,19 @@ namespace sek
 		{
 			if (new_capacity)
 			{
-				data_begin = get_node_allocator().allocate(new_capacity);
-				data_capacity = new_capacity;
-				data_end = data_begin;
+				m_begin = get_node_allocator().allocate(new_capacity);
+				m_capacity = new_capacity;
+				m_end = m_begin;
 			}
 		}
 		constexpr void resize_impl(size_type new_capacity)
 		{
-			auto old_capacity = data_capacity;
-			auto old_data = data_begin;
-			auto old_end = data_end;
+			auto old_capacity = m_capacity;
+			auto old_data = m_begin;
+			auto old_end = m_end;
 
-			data_begin = get_node_allocator().allocate(data_capacity = new_capacity);
-			data_end = std::copy(old_data, old_end, data_begin);
+			m_begin = get_node_allocator().allocate(m_capacity = new_capacity);
+			m_end = std::copy(old_data, old_end, m_begin);
 			get_node_allocator().deallocate(old_data, old_capacity);
 		}
 
@@ -825,9 +825,9 @@ namespace sek
 			if (new_size > capacity()) [[unlikely]]
 				resize_impl(math::max(new_size, next_capacity()));
 
-			auto new_end = data_begin + new_size;
-			std::move_backward(data_begin + pos, data_end, new_end);
-			data_end = new_end;
+			auto new_end = m_begin + new_size;
+			std::move_backward(m_begin + pos, m_end, new_end);
+			m_end = new_end;
 		}
 		template<typename... Args>
 		constexpr iterator emplace_impl(const_iterator where, size_type amount, Args &&...args)
@@ -837,7 +837,7 @@ namespace sek
 			auto insert_pos = where - begin();
 			make_space(insert_pos, amount);
 
-			for (auto elem = data_begin + insert_pos, last = elem + amount; elem != last; ++elem)
+			for (auto elem = m_begin + insert_pos, last = elem + amount; elem != last; ++elem)
 				*elem = make_node(std::forward<Args>(args)...);
 			return begin() + insert_pos;
 		}
@@ -850,7 +850,7 @@ namespace sek
 			auto insert_pos = where - begin();
 			make_space(insert_pos, static_cast<size_type>(std::distance(first, last)));
 
-			for (auto elem = data_begin + insert_pos; first != last; ++elem, ++first) *elem = make_node(*first);
+			for (auto elem = m_begin + insert_pos; first != last; ++elem, ++first) *elem = make_node(*first);
 			return begin() + insert_pos;
 		}
 		template<std::forward_iterator Iterator>
@@ -865,19 +865,19 @@ namespace sek
 
 		constexpr list_node *erase_impl(list_node *first, list_node *last)
 		{
-			SEK_ASSERT(first >= data_begin && last <= data_end);
+			SEK_ASSERT(first >= m_begin && last <= m_end);
 
 			for (; first < last; ++first) destroy_node(*first);
-			data_end = std::move(last, data_end, first);
+			m_end = std::move(last, m_end, first);
 			return first;
 		}
 
 		/** Pointer to the start of list's data array. */
-		list_node *data_begin = nullptr;
+		list_node *m_begin = nullptr;
 		/** Pointer to the end of list's data array. */
-		list_node *data_end = nullptr;
+		list_node *m_end = nullptr;
 		/** Capacity of the list. */
-		size_type data_capacity = 0;
+		size_type m_capacity = 0;
 	};
 
 	template<std::forward_iterator Iterator>

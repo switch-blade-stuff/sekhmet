@@ -377,13 +377,13 @@ namespace sek
 				typedef std::random_access_iterator_tag iterator_category;
 
 			private:
-				constexpr explicit mkmap_iterator(ptr_t ptr) noexcept : ptr(ptr) {}
-				constexpr explicit mkmap_iterator(iter_t iter) noexcept : ptr(std::to_address(iter)) {}
+				constexpr explicit mkmap_iterator(ptr_t ptr) noexcept : m_ptr(ptr) {}
+				constexpr explicit mkmap_iterator(iter_t iter) noexcept : m_ptr(std::to_address(iter)) {}
 
 			public:
 				constexpr mkmap_iterator() noexcept = default;
 				template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
-				constexpr mkmap_iterator(const mkmap_iterator<OtherConst> &other) noexcept : mkmap_iterator(other.ptr)
+				constexpr mkmap_iterator(const mkmap_iterator<OtherConst> &other) noexcept : mkmap_iterator(other.m_ptr)
 				{
 				}
 
@@ -395,12 +395,12 @@ namespace sek
 				}
 				constexpr mkmap_iterator &operator++() noexcept
 				{
-					++ptr;
+					++m_ptr;
 					return *this;
 				}
 				constexpr mkmap_iterator &operator+=(difference_type n) noexcept
 				{
-					ptr += n;
+					m_ptr += n;
 					return *this;
 				}
 				constexpr mkmap_iterator operator--(int) noexcept
@@ -411,42 +411,51 @@ namespace sek
 				}
 				constexpr mkmap_iterator &operator--() noexcept
 				{
-					--ptr;
+					--m_ptr;
 					return *this;
 				}
 				constexpr mkmap_iterator &operator-=(difference_type n) noexcept
 				{
-					ptr -= n;
+					m_ptr -= n;
 					return *this;
 				}
 
-				constexpr mkmap_iterator operator+(difference_type n) const noexcept { return mkmap_iterator{ptr + n}; }
-				constexpr mkmap_iterator operator-(difference_type n) const noexcept { return mkmap_iterator{ptr - n}; }
+				constexpr mkmap_iterator operator+(difference_type n) const noexcept
+				{
+					return mkmap_iterator{m_ptr + n};
+				}
+				constexpr mkmap_iterator operator-(difference_type n) const noexcept
+				{
+					return mkmap_iterator{m_ptr - n};
+				}
 				constexpr difference_type operator-(const mkmap_iterator &other) const noexcept
 				{
-					return ptr - other.ptr;
+					return m_ptr - other.m_ptr;
 				}
 
 				/** Returns pointer to the target element. */
-				[[nodiscard]] constexpr pointer get() const noexcept { return &ptr->value; }
+				[[nodiscard]] constexpr pointer get() const noexcept { return &m_ptr->value; }
 				/** @copydoc value */
 				[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 
 				/** Returns reference to the element at an offset. */
-				[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return ptr[n].value; }
+				[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept
+				{
+					return m_ptr[n].value;
+				}
 				/** Returns reference to the target element. */
 				[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
 
 				[[nodiscard]] constexpr auto operator<=>(const mkmap_iterator &) const noexcept = default;
 				[[nodiscard]] constexpr bool operator==(const mkmap_iterator &) const noexcept = default;
 
-				constexpr void swap(mkmap_iterator &other) noexcept { std::swap(ptr, other.ptr); }
+				constexpr void swap(mkmap_iterator &other) noexcept { std::swap(m_ptr, other.m_ptr); }
 				friend constexpr void swap(mkmap_iterator &a, mkmap_iterator &b) noexcept { a.swap(b); }
 
 			private:
-				[[nodiscard]] constexpr auto &entry() const noexcept { return *ptr; }
+				[[nodiscard]] constexpr auto &entry() const noexcept { return *m_ptr; }
 
-				ptr_t ptr;
+				ptr_t m_ptr;
 			};
 
 		public:
@@ -493,7 +502,7 @@ namespace sek
 			constexpr explicit mkmap_impl(size_type capacity,
 										  const allocator_type &value_alloc,
 										  const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-				: entries(value_alloc), buckets(capacity, bucket_type{}, bucket_alloc)
+				: m_entries(value_alloc), m_buckets(capacity, bucket_type{}, bucket_alloc)
 			{
 			}
 
@@ -570,7 +579,7 @@ namespace sek
 										  const typename Ks::hash_type &...kh,
 										  const allocator_type &value_alloc = allocator_type{},
 										  const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-				: comp_base(kc...), hash_base(kh...), entries(value_alloc), buckets(capacity, bucket_type{}, bucket_alloc)
+				: comp_base(kc...), hash_base(kh...), m_entries(value_alloc), m_buckets(capacity, bucket_type{}, bucket_alloc)
 			{
 			}
 
@@ -626,15 +635,15 @@ namespace sek
 			}
 
 			/** Returns iterator to the start of the map. */
-			[[nodiscard]] constexpr iterator begin() noexcept { return iterator{entries.begin()}; }
+			[[nodiscard]] constexpr iterator begin() noexcept { return iterator{m_entries.begin()}; }
 			/** Returns const iterator to the start of the map. */
-			[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return const_iterator{entries.begin()}; }
+			[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return const_iterator{m_entries.begin()}; }
 			/** @copydoc cbegin */
 			[[nodiscard]] constexpr const_iterator begin() const noexcept { return cbegin(); }
 			/** Returns iterator to the end of the map. */
-			[[nodiscard]] constexpr iterator end() noexcept { return iterator{entries.end()}; }
+			[[nodiscard]] constexpr iterator end() noexcept { return iterator{m_entries.end()}; }
 			/** Returns const iterator to the end of the map. */
-			[[nodiscard]] constexpr const_iterator cend() const noexcept { return const_iterator{entries.end()}; }
+			[[nodiscard]] constexpr const_iterator cend() const noexcept { return const_iterator{m_entries.end()}; }
 			/** @copydoc cend */
 			[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
 			/** Returns reverse iterator to the end of the map. */
@@ -657,18 +666,18 @@ namespace sek
 			[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return crend(); }
 
 			/** Returns the current size of the map. */
-			[[nodiscard]] constexpr size_type size() const noexcept { return entries.size(); }
+			[[nodiscard]] constexpr size_type size() const noexcept { return m_entries.size(); }
 			/** Returns the current capacity of the map. */
 			[[nodiscard]] constexpr size_type capacity() const noexcept
 			{
 				/* Capacity needs to take into account the max load factor. */
-				return static_cast<size_type>(static_cast<float>(bucket_count()) * load_factor_mult);
+				return static_cast<size_type>(static_cast<float>(bucket_count()) * m_load_factor);
 			}
 			/** Returns the maximum possible size of the map. */
 			[[nodiscard]] constexpr size_type max_size() const noexcept
 			{
 				/* Max size cannot exceed max load factor of max entry capacity. */
-				return static_cast<size_type>(static_cast<float>(entries.max_size()) * load_factor_mult);
+				return static_cast<size_type>(static_cast<float>(m_entries.max_size()) * m_load_factor);
 			}
 			/** Checks if the map is empty. */
 			[[nodiscard]] constexpr size_type empty() const noexcept { return size() == 0; }
@@ -676,34 +685,33 @@ namespace sek
 			/** Removes all elements from the map. */
 			constexpr void clear()
 			{
-				std::fill_n(buckets.data(), bucket_count(), bucket_type{});
-				entries.clear();
+				std::fill_n(m_buckets.data(), bucket_count(), bucket_type{});
+				m_entries.clear();
 			}
 
 			/** Re-hashes the map for the specified minimal capacity. */
 			constexpr void rehash(size_type new_cap)
 			{
 				/* Adjust the capacity to be at least large enough to fit the current size. */
-				new_cap = math::max(
-					static_cast<size_type>(static_cast<float>(size()) / load_factor_mult), new_cap, initial_capacity);
+				new_cap = math::max(static_cast<size_type>(static_cast<float>(size()) / m_load_factor), new_cap, initial_capacity);
 
 				/* Don't do anything if the capacity did not change after the adjustment. */
-				if (new_cap != buckets.capacity()) [[likely]]
+				if (new_cap != m_buckets.capacity()) [[likely]]
 					rehash_impl(new_cap);
 			}
 			/** Resizes the internal storage to have space for at least n elements. */
 			constexpr void reserve(size_type n)
 			{
-				entries.reserve(n);
-				rehash(static_cast<size_type>(static_cast<float>(n) / load_factor_mult));
+				m_entries.reserve(n);
+				rehash(static_cast<size_type>(static_cast<float>(n) / m_load_factor));
 			}
 			/** Shrinks internal storage to only occupy the required amount of space for it's size. */
 			constexpr void narrow()
 			{
-				buckets.shrink_to_fit();
-				entries.shrink_to_fit();
-				buckets.resize(math::next_pow_2(static_cast<size_type>(static_cast<float>(size()) / load_factor_mult)),
-							   bucket_type{});
+				m_buckets.shrink_to_fit();
+				m_entries.shrink_to_fit();
+				m_buckets.resize(math::next_pow_2(static_cast<size_type>(static_cast<float>(size()) / m_load_factor)),
+								 bucket_type{});
 			}
 			/** @copydoc narrow */
 			constexpr void shrink_to_fit() { narrow(); }
@@ -970,7 +978,7 @@ namespace sek
 			/** Removes the specified element from the map.
 			 * @param where Iterator to the target element.
 			 * @return Iterator to the element after the erased one. */
-			constexpr iterator erase(const_iterator where) { return erase_impl(where.ptr); }
+			constexpr iterator erase(const_iterator where) { return erase_impl(where.m_ptr); }
 			/** Removes all elements in the [first, last) range.
 			 * @param first Iterator to the first element of the target range.
 			 * @param last Iterator to the last element of the target range.
@@ -1015,9 +1023,9 @@ namespace sek
 			}
 
 			/** Returns current bucket count (same for all keys). */
-			[[nodiscard]] constexpr size_type bucket_count() const noexcept { return buckets.size(); }
+			[[nodiscard]] constexpr size_type bucket_count() const noexcept { return m_buckets.size(); }
 			/** Returns maximum possible bucket count (same for all keys). */
-			[[nodiscard]] constexpr size_type max_bucket_count() const noexcept { return buckets.max_size(); }
+			[[nodiscard]] constexpr size_type max_bucket_count() const noexcept { return m_buckets.max_size(); }
 
 			/** Returns current load factor of the map. */
 			[[nodiscard]] constexpr auto load_factor() const noexcept
@@ -1025,18 +1033,18 @@ namespace sek
 				return static_cast<float>(size()) / static_cast<float>(bucket_count());
 			}
 			/** Returns current max load factor of the map. */
-			[[nodiscard]] constexpr auto max_load_factor() const noexcept { return load_factor_mult; }
+			[[nodiscard]] constexpr auto max_load_factor() const noexcept { return m_load_factor; }
 			/** Sets current max load factor of the map. */
 			constexpr void max_load_factor(float f) noexcept
 			{
 				SEK_ASSERT(f > .0f);
-				load_factor_mult = f;
+				m_load_factor = f;
 			}
 
-			[[nodiscard]] constexpr allocator_type get_allocator() const noexcept { return entries.get_allocator(); }
+			[[nodiscard]] constexpr allocator_type get_allocator() const noexcept { return m_entries.get_allocator(); }
 			[[nodiscard]] constexpr bucket_allocator_type get_bucket_allocator() const noexcept
 			{
-				return buckets.get_allocator();
+				return m_buckets.get_allocator();
 			}
 
 			template<size_type I = 0>
@@ -1068,9 +1076,9 @@ namespace sek
 			constexpr void swap(mkmap_impl &other) noexcept
 			{
 				using std::swap;
-				swap(buckets, other.buckets);
-				swap(entries, other.entries);
-				swap(load_factor_mult, other.load_factor_mult);
+				swap(m_buckets, other.m_buckets);
+				swap(m_entries, other.m_entries);
+				swap(m_load_factor, other.m_load_factor);
 			}
 			friend constexpr void swap(mkmap_impl &a, mkmap_impl &b) noexcept { a.swap(b); }
 
@@ -1089,12 +1097,12 @@ namespace sek
 			template<size_type I>
 			[[nodiscard]] constexpr auto *get_chain(hash_t h) noexcept
 			{
-				return &buckets[h % buckets.size()].template off<I>();
+				return &m_buckets[h % m_buckets.size()].template off<I>();
 			}
 			template<size_type I>
 			[[nodiscard]] constexpr auto *get_chain(hash_t h) const noexcept
 			{
-				return &buckets[h % buckets.size()].template off<I>();
+				return &m_buckets[h % m_buckets.size()].template off<I>();
 			}
 
 			constexpr void insert_entry(entry_type &entry, size_type pos)
@@ -1104,7 +1112,7 @@ namespace sek
 					[&]<size_type I>(index_selector_t<I>)
 					{
 						for (auto chain_idx = get_chain<I>(entry.template hash<I>());;
-							 chain_idx = &entries[*chain_idx].template next<I>())
+							 chain_idx = &m_entries[*chain_idx].template next<I>())
 							if (*chain_idx == npos)
 							{
 								*chain_idx = pos;
@@ -1136,7 +1144,7 @@ namespace sek
 			[[nodiscard]] constexpr iterator insert_new(Args &&...args) noexcept
 			{
 				const auto pos = size();
-				auto &entry = entries.emplace_back(std::forward<Args>(args)...);
+				auto &entry = m_entries.emplace_back(std::forward<Args>(args)...);
 				rehash_entry(entry);
 				insert_entry(entry, pos);
 				maybe_rehash();
@@ -1155,7 +1163,7 @@ namespace sek
 						const auto h = key_hash<I>(key);
 						auto *chain_idx = get_chain<I>(h);
 						while (*chain_idx != npos)
-							if (auto existing = entries.data() + *chain_idx;
+							if (auto existing = m_entries.data() + *chain_idx;
 								existing->template hash<I>() == h && key_comp<I>(key, existing->template key<I>()))
 							{
 								erase_impl(existing);
@@ -1190,7 +1198,7 @@ namespace sek
 						const auto h = key_hash<I>(key);
 						auto *chain_idx = get_chain<I>(h);
 						while (*chain_idx != npos)
-							if (auto &existing = entries[*chain_idx];
+							if (auto &existing = m_entries[*chain_idx];
 								existing.template hash<I>() == h && key_comp<I>(key, existing.template key<I>()))
 							{
 								result = begin() + static_cast<difference_type>(*chain_idx);
@@ -1220,29 +1228,29 @@ namespace sek
 			{
 				for (auto *idx = get_chain<I>(h); *idx != npos;)
 				{
-					auto &entry = entries[*idx];
+					auto &entry = m_entries[*idx];
 					if (entry.template hash<I>() == h && key_comp<I>(key, entry.template key<I>())) [[likely]]
 						return *idx;
 					idx = &entry.template next<I>();
 				}
-				return entries.size();
+				return m_entries.size();
 			}
 
 			constexpr void maybe_rehash()
 			{
-				if (load_factor() > load_factor_mult) [[unlikely]]
+				if (load_factor() > m_load_factor) [[unlikely]]
 					rehash(bucket_count() * 2);
 			}
 			constexpr void rehash_impl(size_type new_cap)
 			{
 				/* Clear & reserve the bucket vector filled with npos. */
-				buckets.clear();
-				buckets.resize(new_cap);
+				m_buckets.clear();
+				m_buckets.resize(new_cap);
 
 				/* Go through each entry & re-insert it. */
-				for (std::size_t i = 0; i < entries.size(); ++i)
+				for (std::size_t i = 0; i < m_entries.size(); ++i)
 				{
-					auto &entry = entries[i];
+					auto &entry = m_entries[i];
 					foreach_key(
 						[&]<size_type I>(index_selector_t<I>)
 						{
@@ -1256,13 +1264,13 @@ namespace sek
 			constexpr iterator erase_impl(typename dense_data_t::const_pointer where)
 			{
 				/* Un-link the entry from the chain & swap with the last entry. */
-				const auto pos = static_cast<size_type>(where - entries.data());
+				const auto pos = static_cast<size_type>(where - m_entries.data());
 				foreach_key(
 					[&]<size_type I>(index_selector_t<I>)
 					{
 						/* Find the chain offset pointing to the entry position & replace it with the next position. */
 						for (auto chain_idx = get_chain<I>(where->template hash<I>()); *chain_idx != npos;
-							 chain_idx = &entries[*chain_idx].template next<I>())
+							 chain_idx = &m_entries[*chain_idx].template next<I>())
 							if (*chain_idx == pos)
 							{
 								*chain_idx = where->template next<I>();
@@ -1274,16 +1282,16 @@ namespace sek
 				if (pos != old_pos) /* Make sure we are not erasing the last item. */
 				{
 					if constexpr (std::is_move_assignable_v<entry_type>)
-						entries[pos] = std::move(entries.back());
+						m_entries[pos] = std::move(m_entries.back());
 					else
-						entries[pos].swap(entries.back());
+						m_entries[pos].swap(m_entries.back());
 
 					/* Find the chain offsets pointing to the old position & replace them with the new position. */
 					foreach_key(
 						[&]<size_type I>(index_selector_t<I>)
 						{
 							for (auto chain_idx = get_chain<I>(where->template hash<I>()); *chain_idx != npos;
-								 chain_idx = &entries[*chain_idx].template next<I>())
+								 chain_idx = &m_entries[*chain_idx].template next<I>())
 								if (*chain_idx == old_pos)
 								{
 									*chain_idx = pos;
@@ -1292,13 +1300,13 @@ namespace sek
 						});
 				}
 
-				entries.pop_back();
+				m_entries.pop_back();
 				return begin() + static_cast<difference_type>(pos);
 			}
 
-			dense_data_t entries;
-			sparse_data_t buckets = sparse_data_t(initial_capacity, bucket_type{});
-			float load_factor_mult = initial_load_factor;
+			dense_data_t m_entries;
+			sparse_data_t m_buckets = sparse_data_t(initial_capacity, bucket_type{});
+			float m_load_factor = initial_load_factor;
 		};
 	}	 // namespace detail
 

@@ -164,7 +164,7 @@ namespace sek::detail
 			using bucket_ptr_type = bucket_type *;
 
 			constexpr explicit sparse_table_iterator(bucket_ptr_type current, bucket_ptr_type end) noexcept
-				: bucket_ptr(current), end_ptr(end)
+				: m_bucket_ptr(current), m_end_ptr(end)
 			{
 				skip_to_next_occupied();
 			}
@@ -173,7 +173,7 @@ namespace sek::detail
 			constexpr sparse_table_iterator() noexcept = default;
 			template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
 			constexpr sparse_table_iterator(const sparse_table_iterator<OtherConst> &other) noexcept
-				: sparse_table_iterator(other.bucket_ptr, other.end_ptr)
+				: sparse_table_iterator(other.m_bucket_ptr, other.m_end_ptr)
 			{
 			}
 
@@ -185,13 +185,13 @@ namespace sek::detail
 			}
 			constexpr sparse_table_iterator &operator++() noexcept
 			{
-				++bucket_ptr;
+				++m_bucket_ptr;
 				skip_to_next_occupied();
 				return *this;
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return &bucket_ptr->value(); }
+			[[nodiscard]] constexpr pointer get() const noexcept { return &m_bucket_ptr->value(); }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 			/** Returns reference to the target element. */
@@ -199,25 +199,25 @@ namespace sek::detail
 
 			[[nodiscard]] constexpr auto operator<=>(const sparse_table_iterator &other) const noexcept
 			{
-				return bucket_ptr <=> other.bucket_ptr;
+				return m_bucket_ptr <=> other.m_bucket_ptr;
 			}
 			[[nodiscard]] constexpr bool operator==(const sparse_table_iterator &) const noexcept = default;
 
 			friend constexpr void swap(sparse_table_iterator &a, sparse_table_iterator &b) noexcept
 			{
 				using std::swap;
-				swap(a.bucket_ptr, b.bucket_ptr);
-				swap(a.end_ptr, b.end_ptr);
+				swap(a.m_bucket_ptr, b.m_bucket_ptr);
+				swap(a.m_end_ptr, b.m_end_ptr);
 			}
 
 		private:
 			constexpr void skip_to_next_occupied() noexcept
 			{
-				while (bucket_ptr != end_ptr && !bucket_ptr->is_occupied()) ++bucket_ptr;
+				while (m_bucket_ptr != m_end_ptr && !m_bucket_ptr->is_occupied()) ++m_bucket_ptr;
 			}
 
-			bucket_ptr_type bucket_ptr;
-			bucket_ptr_type end_ptr;
+			bucket_ptr_type m_bucket_ptr;
+			bucket_ptr_type m_end_ptr;
 		};
 
 		constexpr static float initial_load_factor = .65f;
@@ -235,7 +235,7 @@ namespace sek::detail
 			using ebo_base = ebo_base_helper<value_allocator_type>;
 
 			constexpr explicit node_handle(bucket_type &b, const value_allocator_type &a) noexcept
-				: ebo_base(a), bucket(b)
+				: ebo_base(a), m_bucket(b)
 			{
 				b.set_tombstone();
 			}
@@ -248,19 +248,19 @@ namespace sek::detail
 			constexpr ~node_handle() { destroy(); }
 
 			constexpr node_handle(node_handle &&other) noexcept
-				: ebo_base(std::move(other.get_allocator())), bucket(other.reset())
+				: ebo_base(std::move(other.get_allocator())), m_bucket(other.reset())
 			{
 			}
 			constexpr node_handle &operator=(node_handle &&other) noexcept
 			{
 				destroy();
 				get_allocator() = std::move(other.get_allocator());
-				bucket = other.reset();
+				m_bucket = other.reset();
 				return *this;
 			}
 
-			[[nodiscard]] constexpr bool empty() const noexcept { return !bucket.is_occupied(); }
-			[[nodiscard]] constexpr value_type &value() const noexcept { return bucket.value(); }
+			[[nodiscard]] constexpr bool empty() const noexcept { return !m_bucket.is_occupied(); }
+			[[nodiscard]] constexpr value_type &value() const noexcept { return m_bucket.value(); }
 
 			[[nodiscard]] constexpr value_allocator_type &get_allocator() noexcept { return *ebo_base::get(); }
 			[[nodiscard]] constexpr const value_allocator_type &get_allocator() const noexcept
@@ -272,7 +272,7 @@ namespace sek::detail
 			{
 				using std::swap;
 				ebo_base::swap(other);
-				swap(bucket, other.bucket);
+				swap(m_bucket, other.m_bucket);
 			}
 
 			friend constexpr void swap(node_handle &a, node_handle &b) noexcept { a.swap(b); }
@@ -282,13 +282,13 @@ namespace sek::detail
 			{
 				if (!empty())
 				{
-					std::destroy_at(&bucket.value());
-					get_allocator().deallocate(&bucket.value(), 1);
+					std::destroy_at(&m_bucket.value());
+					get_allocator().deallocate(&m_bucket.value(), 1);
 				}
 			}
-			constexpr bucket_type reset() noexcept { return std::exchange(bucket, {}); }
+			constexpr bucket_type reset() noexcept { return std::exchange(m_bucket, {}); }
 
-			bucket_type bucket = {};
+			bucket_type m_bucket = {};
 		};
 
 	private:
@@ -355,7 +355,7 @@ namespace sek::detail
 			: value_ebo_base(value_alloc), bucket_ebo_base(bucket_alloc), compare_ebo_base(key_compare), hash_ebo_base(key_hash)
 		{
 			if (capacity) [[likely]]
-				buckets_data = allocate_buckets(buckets_capacity = math::next_pow_2(capacity));
+				m_buckets_data = allocate_buckets(m_buckets_capacity = math::next_pow_2(capacity));
 		}
 
 		constexpr sparse_hash_table(const sparse_hash_table &other)
@@ -431,7 +431,7 @@ namespace sek::detail
 		constexpr ~sparse_hash_table()
 		{
 			clear();
-			delete_buckets(buckets_data, buckets_capacity);
+			delete_buckets(m_buckets_data, m_buckets_capacity);
 		}
 
 		[[nodiscard]] constexpr iterator begin() noexcept { return iterator_from_bucket(buckets_start()); }
@@ -439,10 +439,10 @@ namespace sek::detail
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return iterator_from_bucket(buckets_start()); }
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return iterator_from_bucket(buckets_end()); }
 
-		[[nodiscard]] constexpr size_type size() const noexcept { return load_count; }
+		[[nodiscard]] constexpr size_type size() const noexcept { return m_load_count; }
 		[[nodiscard]] constexpr size_type capacity() const noexcept
 		{
-			return static_cast<size_type>(static_cast<float>(buckets_capacity) * max_load_factor);
+			return static_cast<size_type>(static_cast<float>(m_buckets_capacity) * max_load_factor);
 		}
 		[[nodiscard]] constexpr size_type max_size() const noexcept
 		{
@@ -453,7 +453,7 @@ namespace sek::detail
 			return static_cast<size_type>(static_cast<float>(math::min(absolute_max, alloc_max) / sizeof(value_type)) *
 										  max_load_factor);
 		}
-		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return buckets_capacity; }
+		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return m_buckets_capacity; }
 
 		[[nodiscard]] constexpr iterator find(const auto &key) noexcept
 		{
@@ -466,7 +466,7 @@ namespace sek::detail
 
 		constexpr void clear()
 		{
-			for (auto item = begin(), last = end(); item != last; ++item) erase_bucket_impl(item.bucket_ptr);
+			for (auto item = begin(), last = end(); item != last; ++item) erase_bucket_impl(item.m_bucket_ptr);
 			destroy_data();
 		}
 
@@ -479,7 +479,7 @@ namespace sek::detail
 			new_cap = math::next_pow_2(new_cap);
 
 			/* Don't do anything if the capacity did not change after the adjustment. */
-			if (new_cap != buckets_capacity) [[likely]]
+			if (new_cap != m_buckets_capacity) [[likely]]
 				rehash_impl(new_cap);
 		}
 		constexpr void reserve(size_type n) { rehash(static_cast<size_type>(static_cast<float>(n) / max_load_factor)); }
@@ -568,16 +568,16 @@ namespace sek::detail
 		[[nodiscard]] constexpr node_handle extract_node(const_iterator where)
 		{
 			SEK_ASSERT(where >= begin() && where < end());
-			SEK_ASSERT(where.bucket_ptr->is_occupied());
+			SEK_ASSERT(where.m_bucket_ptr->is_occupied());
 
 			erase_aux(1);
-			return node_handle{*where.bucket_ptr, get_value_allocator()};
+			return node_handle{*where.m_bucket_ptr, get_value_allocator()};
 		}
 		constexpr std::pair<iterator, bool> insert_node(node_handle &&handle)
 		{
 			maybe_rehash();
 
-			auto dest = find_bucket<false>(handle.bucket.key(), handle.bucket.hash);
+			auto dest = find_bucket<false>(handle.m_bucket.key(), handle.m_bucket.hash);
 			auto inserted = insert_impl(dest, handle.reset());
 			return {iterator_from_bucket(dest), inserted};
 		}
@@ -585,7 +585,7 @@ namespace sek::detail
 		{
 			maybe_rehash();
 
-			if (auto dest = find_bucket<false>(handle.bucket.key(), handle.bucket.hash); dest->is_occupied())
+			if (auto dest = find_bucket<false>(handle.m_bucket.key(), handle.m_bucket.hash); dest->is_occupied())
 				return {iterator_from_bucket(dest), false};
 			else
 			{
@@ -597,16 +597,16 @@ namespace sek::detail
 
 		constexpr iterator erase(const_iterator where)
 		{
-			erase_bucket_impl(where.bucket_ptr);
+			erase_bucket_impl(where.m_bucket_ptr);
 			erase_aux(1);
-			return iterator_from_bucket(where.bucket_ptr);
+			return iterator_from_bucket(where.m_bucket_ptr);
 		}
 		constexpr iterator erase(const_iterator first, const_iterator last)
 		{
 			size_type amount = 0;
-			for (; first < last; ++first, ++amount) erase_bucket_impl(first.bucket_ptr);
+			for (; first < last; ++first, ++amount) erase_bucket_impl(first.m_bucket_ptr);
 			erase_aux(amount);
-			return iterator_from_bucket(first.bucket_ptr);
+			return iterator_from_bucket(first.m_bucket_ptr);
 		}
 
 		[[nodiscard]] constexpr auto load_factor() const noexcept
@@ -615,7 +615,7 @@ namespace sek::detail
 		}
 		[[nodiscard]] constexpr auto tombstone_factor() const noexcept
 		{
-			return static_cast<float>(tombstone_count) / static_cast<float>(bucket_count());
+			return static_cast<float>(m_tombstone_count) / static_cast<float>(bucket_count());
 		}
 
 		[[nodiscard]] constexpr value_allocator_type &get_value_allocator() noexcept { return *value_ebo_base::get(); }
@@ -653,11 +653,11 @@ namespace sek::detail
 	private:
 		constexpr void take_data(sparse_hash_table &&other) noexcept
 		{
-			buckets_data = std::exchange(other.buckets_data, nullptr);
-			buckets_capacity = std::exchange(other.buckets_capacity, 0);
-			load_count = std::exchange(other.load_count, 0);
-			tombstone_count = std::exchange(other.tombstone_count, 0);
-			consider_shrink = std::exchange(other.consider_shrink, false);
+			m_buckets_data = std::exchange(other.m_buckets_data, nullptr);
+			m_buckets_capacity = std::exchange(other.m_buckets_capacity, 0);
+			m_load_count = std::exchange(other.m_load_count, 0);
+			m_tombstone_count = std::exchange(other.m_tombstone_count, 0);
+			m_consider_shrink = std::exchange(other.m_consider_shrink, false);
 		}
 		constexpr void swap_data(sparse_hash_table &other) noexcept
 		{
@@ -665,11 +665,11 @@ namespace sek::detail
 			hash_ebo_base::swap(other);
 
 			using std::swap;
-			swap(buckets_data, other.buckets_data);
-			swap(buckets_capacity, other.buckets_capacity);
-			swap(load_count, other.load_count);
-			swap(tombstone_count, other.tombstone_count);
-			swap(consider_shrink, other.consider_shrink);
+			swap(m_buckets_data, other.m_buckets_data);
+			swap(m_buckets_capacity, other.m_buckets_capacity);
+			swap(m_load_count, other.m_load_count);
+			swap(m_tombstone_count, other.m_tombstone_count);
+			swap(m_consider_shrink, other.m_consider_shrink);
 		}
 		constexpr void move_values(sparse_hash_table &&other)
 		{
@@ -729,8 +729,11 @@ namespace sek::detail
 		{
 			return const_iterator{bucket, buckets_end()};
 		}
-		[[nodiscard]] constexpr bucket_type *buckets_start() const noexcept { return buckets_data; }
-		[[nodiscard]] constexpr bucket_type *buckets_end() const noexcept { return buckets_data + buckets_capacity; }
+		[[nodiscard]] constexpr bucket_type *buckets_start() const noexcept { return m_buckets_data; }
+		[[nodiscard]] constexpr bucket_type *buckets_end() const noexcept
+		{
+			return m_buckets_data + m_buckets_capacity;
+		}
 
 		constexpr bucket_type *allocate_buckets(size_type capacity)
 		{
@@ -744,10 +747,10 @@ namespace sek::detail
 		}
 		constexpr void destroy_data()
 		{
-			delete_buckets(std::exchange(buckets_data, nullptr), std::exchange(buckets_capacity, 0));
-			consider_shrink = false;
-			load_count = 0;
-			tombstone_count = 0;
+			delete_buckets(std::exchange(m_buckets_data, nullptr), std::exchange(m_buckets_capacity, 0));
+			m_consider_shrink = false;
+			m_load_count = 0;
+			m_tombstone_count = 0;
 		}
 
 		template<bool RequireOccupied = true>
@@ -758,22 +761,22 @@ namespace sek::detail
 		template<bool RequireOccupied = true>
 		[[nodiscard]] constexpr bucket_type *find_bucket(const auto &key, auto hash) const noexcept
 		{
-			return find_bucket_impl<RequireOccupied>(buckets_data, buckets_capacity, key, hash, get_comp());
+			return find_bucket_impl<RequireOccupied>(m_buckets_data, m_buckets_capacity, key, hash, get_comp());
 		}
 
 		constexpr void rehash_impl(size_type new_cap)
 		{
 			/* Reset tombstones & shrink flag since the new bucket list will have no tombstones. */
-			tombstone_count = 0;
-			consider_shrink = false;
+			m_tombstone_count = 0;
+			m_consider_shrink = false;
 
 			/* Allocate new array, move all current elements to the new array, then destroy the current one. */
 			auto new_data = allocate_buckets(new_cap);
-			if (buckets_data) [[likely]]
+			if (m_buckets_data) [[likely]]
 			{
 				auto src_begin = begin(), src_end = end();
 				for (; src_begin != src_end; ++src_begin)
-					if (auto *src = src_begin.bucket_ptr; src->is_occupied()) [[likely]]
+					if (auto *src = src_begin.m_bucket_ptr; src->is_occupied()) [[likely]]
 					{
 						auto dest = find_bucket_impl<false>(new_data, new_cap, src->key(), src->hash, get_comp());
 						*dest = std::move(*src);
@@ -781,18 +784,18 @@ namespace sek::detail
 
 				/* It is safe to deallocate the current node array, since all
 				 * pointers should be transferred by now. */
-				delete_buckets(buckets_data, buckets_capacity);
+				delete_buckets(m_buckets_data, m_buckets_capacity);
 			}
-			buckets_data = new_data;
-			buckets_capacity = new_cap;
+			m_buckets_data = new_data;
+			m_buckets_capacity = new_cap;
 		}
 		constexpr void maybe_rehash()
 		{
-			if (!buckets_capacity) [[unlikely]]
-				buckets_data = allocate_buckets(buckets_capacity = initial_capacity);
+			if (!m_buckets_capacity) [[unlikely]]
+				m_buckets_data = allocate_buckets(m_buckets_capacity = initial_capacity);
 			else if (load_factor() > max_load_factor)
-				rehash_impl(buckets_capacity * 2);
-			else if (consider_shrink && tombstone_factor() > max_tombstone_factor)
+				rehash_impl(m_buckets_capacity * 2);
+			else if (m_consider_shrink && tombstone_factor() > max_tombstone_factor)
 				rehash_impl(math::next_pow_2(static_cast<size_type>(static_cast<float>(size()) / max_load_factor)));
 		}
 
@@ -815,9 +818,9 @@ namespace sek::detail
 
 		constexpr void insert_aux(bucket_type *dest)
 		{
-			load_count++;
+			m_load_count++;
 			if (dest->is_tombstone()) [[unlikely]]
-				tombstone_count--;
+				m_tombstone_count--;
 		}
 		constexpr bool insert_impl(bucket_type *dest_bucket, bucket_type new_bucket)
 		{
@@ -849,9 +852,9 @@ namespace sek::detail
 
 		constexpr void erase_aux(size_type amount)
 		{
-			load_count -= amount;
-			tombstone_count += amount;
-			consider_shrink = true;
+			m_load_count -= amount;
+			m_tombstone_count += amount;
+			m_consider_shrink = true;
 		}
 		constexpr void erase_bucket_impl(bucket_type *bucket)
 		{
@@ -863,15 +866,15 @@ namespace sek::detail
 		}
 
 		/** Pointer to the bucket array. */
-		bucket_type *buckets_data = nullptr;
+		bucket_type *m_buckets_data = nullptr;
 		/** Total amount of buckets in the node array. */
-		size_type buckets_capacity = 0;
+		size_type m_buckets_capacity = 0;
 
 		/** Total amount of empty buckets. */
-		size_type load_count = 0;
+		size_type m_load_count = 0;
 		/** Total amount of tombstone buckets. */
-		size_type tombstone_count = 0;
+		size_type m_tombstone_count = 0;
 		/** Flag indicating that the table should consider shrinking on read insert. */
-		bool consider_shrink = false;
+		bool m_consider_shrink = false;
 	};
 }	 // namespace sek::detail

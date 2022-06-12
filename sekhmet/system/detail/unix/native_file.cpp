@@ -51,36 +51,36 @@ namespace sek::system::detail
 		if (mode & append) native_flags |= O_APPEND;
 		if (mode & create) native_flags |= O_CREAT;
 
-		if ((descriptor = ::open(path, native_flags, access)) < 0) [[unlikely]]
+		if ((m_descriptor = ::open(path, native_flags, access)) < 0) [[unlikely]]
 			return false;
 
 		/* Optionally seek file to the end. */
-		if ((mode & atend) && LSEEK(descriptor, 0, SEEK_END) < 0) [[unlikely]]
+		if ((mode & atend) && LSEEK(m_descriptor, 0, SEEK_END) < 0) [[unlikely]]
 		{
-			::close(std::exchange(descriptor, -1));
+			::close(std::exchange(m_descriptor, -1));
 			return false;
 		}
 		return true;
 	}
-	bool native_file_handle::close() noexcept { return ::close(std::exchange(descriptor, -1)) == 0; }
+	bool native_file_handle::close() noexcept { return ::close(std::exchange(m_descriptor, -1)) == 0; }
 
 	std::int64_t native_file_handle::read(void *dst, std::size_t n) const noexcept
 	{
-		return ::read(descriptor, dst, n);
+		return ::read(m_descriptor, dst, n);
 	}
 	std::int64_t native_file_handle::write(const void *src, std::size_t n) const noexcept
 	{
-		return ::write(descriptor, src, n);
+		return ::write(m_descriptor, src, n);
 	}
 	std::int64_t native_file_handle::seek(std::int64_t off, int way) const noexcept
 	{
-		return LSEEK(descriptor, off, way < 0 ? SEEK_SET : way > 0 ? SEEK_END : SEEK_CUR);
+		return LSEEK(m_descriptor, off, way < 0 ? SEEK_SET : way > 0 ? SEEK_END : SEEK_CUR);
 	}
 	bool native_file_handle::sync() const noexcept
 	{
 #if (defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))) ||                            \
 	(defined(_BSD_SOURCE) || defined(_XOPEN_SOURCE) || (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L))
-		return ::fsync(descriptor) == 0;
+		return ::fsync(m_descriptor) == 0;
 #else
 		::sync();
 		return true;

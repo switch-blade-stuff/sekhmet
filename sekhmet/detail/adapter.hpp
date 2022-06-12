@@ -204,15 +204,15 @@ namespace sek
 		constexpr adapter() = default;
 		/** Binds a type instance to the adapter. */
 		template<typename T>
-		constexpr explicit adapter(T &instance) : instance(instance), vtable(generate_vtable<T>())
+		constexpr explicit adapter(T &instance) : m_instance(instance), m_vtable(generate_vtable<T>())
 		{
 		}
 
 		/** Resets the adapter to an empty state. */
 		constexpr void reset() noexcept
 		{
-			instance = {};
-			vtable = nullptr;
+			m_instance = {};
+			m_vtable = nullptr;
 		}
 
 		/** Re-binds the adapter for a different instance.
@@ -221,8 +221,8 @@ namespace sek
 		template<typename T>
 		constexpr adapter &rebind(T &new_instance)
 		{
-			instance = detail::adapter_instance{new_instance};
-			vtable = generate_vtable<T>();
+			m_instance = detail::adapter_instance{new_instance};
+			m_vtable = generate_vtable<T>();
 
 			return *this;
 		}
@@ -238,7 +238,7 @@ namespace sek
 			if (empty()) [[unlikely]]
 				throw adapter_error("Attempted to invoke a proxy on an empty adapter");
 			else
-				return vtable->template get<proxy_func_type<Proxy>>()(instance, std::forward<Args>(args)...);
+				return m_vtable->template get<proxy_func_type<Proxy>>()(m_instance, std::forward<Args>(args)...);
 		}
 		/** Returns a delegate used to call a specific proxy on this adapter.
 		 * @tparam Proxy Proxy to call.
@@ -250,21 +250,21 @@ namespace sek
 		}
 
 		/** Checks if an adapter is empty. */
-		[[nodiscard]] constexpr bool empty() const noexcept { return instance.empty(); }
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_instance.empty(); }
 		/** @copydoc empty */
 		[[nodiscard]] constexpr explicit operator bool() const noexcept { return !empty(); }
 
 		constexpr void swap(adapter &other) noexcept
 		{
 			using std::swap;
-			swap(instance, other.instance);
-			swap(vtable, other.vtable);
+			swap(m_instance, other.m_instance);
+			swap(m_vtable, other.m_vtable);
 		}
 
 		friend constexpr void swap(adapter &a, adapter &b) noexcept { a.swap(b); }
 
 	private:
-		detail::adapter_instance instance = {};
-		const vtable_type *vtable = nullptr;
+		detail::adapter_instance m_instance = {};
+		const vtable_type *m_vtable = nullptr;
 	};
 }	 // namespace sek

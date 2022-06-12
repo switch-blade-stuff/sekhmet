@@ -33,7 +33,7 @@ namespace sek::math
 
 	public:
 		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2, const col_type &c3) noexcept
-			: data{c0, c1, c2, c3}
+			: m_data{c0, c1, c2, c3}
 		{
 		}
 		template<storage_policy Sp>
@@ -41,7 +41,7 @@ namespace sek::math
 							   const basic_vector<T, 2, Sp> &c1,
 							   const basic_vector<T, 2, Sp> &c2,
 							   const basic_vector<T, 2, Sp> &c3) noexcept
-			: data{col_type{c0}, col_type{c1}, col_type{c2}, col_type{c3}}
+			: m_data{col_type{c0}, col_type{c1}, col_type{c2}, col_type{c3}}
 		{
 		}
 		constexpr basic_matrix(T xx, T yx, T zx, T wx, T xy, T yy, T zy, T wy) noexcept
@@ -168,7 +168,7 @@ namespace sek::math
 
 	public:
 		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2, const col_type &c3) noexcept
-			: data{c0, c1, c2, c3}
+			: m_data{c0, c1, c2, c3}
 		{
 		}
 		template<storage_policy Sp>
@@ -176,7 +176,7 @@ namespace sek::math
 							   const basic_vector<T, 3, Sp> &c1,
 							   const basic_vector<T, 3, Sp> &c2,
 							   const basic_vector<T, 3, Sp> &c3) noexcept
-			: data{col_type{c0}, col_type{c1}, col_type{c2}, col_type{c3}}
+			: m_data{col_type{c0}, col_type{c1}, col_type{c2}, col_type{c3}}
 		{
 		}
 		constexpr basic_matrix(T xx, T yx, T zx, T wx, T xy, T yy, T zy, T wy, T xz, T yz, T zz, T wz) noexcept
@@ -307,7 +307,7 @@ namespace sek::math
 
 	public:
 		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2, const col_type &c3) noexcept
-			: data{c0, c1, c2, c3}
+			: m_data{c0, c1, c2, c3}
 		{
 		}
 		template<storage_policy Sp>
@@ -315,7 +315,7 @@ namespace sek::math
 							   const basic_vector<T, 4, Sp> &c1,
 							   const basic_vector<T, 4, Sp> &c2,
 							   const basic_vector<T, 4, Sp> &c3) noexcept
-			: data{col_type{c0}, col_type{c1}, col_type{c2}, col_type{c3}}
+			: m_data{col_type{c0}, col_type{c1}, col_type{c2}, col_type{c3}}
 		{
 		}
 		constexpr basic_matrix(T xx, T yx, T zx, T wx, T xy, T yy, T zy, T wy, T xz, T yz, T zz, T wz, T xw, T yw, T zw, T ww) noexcept

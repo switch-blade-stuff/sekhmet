@@ -32,14 +32,14 @@ namespace sek::math
 		SEK_MATH_MATRIX_COMMON(T, 3, 2, P)
 
 	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
+		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : m_data{c0, c1, c2}
 		{
 		}
 		template<storage_policy Sp>
 		constexpr basic_matrix(const basic_vector<T, 2, Sp> &c0,
 							   const basic_vector<T, 2, Sp> &c1,
 							   const basic_vector<T, 2, Sp> &c2) noexcept
-			: data{col_type{c0}, col_type{c1}, col_type{c2}}
+			: m_data{col_type{c0}, col_type{c1}, col_type{c2}}
 		{
 		}
 		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy) noexcept : basic_matrix({xx, xy}, {yx, yy}, {zx, zy})
@@ -164,14 +164,14 @@ namespace sek::math
 		SEK_MATH_MATRIX_COMMON(T, 3, 3, P)
 
 	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
+		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : m_data{c0, c1, c2}
 		{
 		}
 		template<storage_policy Sp>
 		constexpr basic_matrix(const basic_vector<T, 3, Sp> &c0,
 							   const basic_vector<T, 3, Sp> &c1,
 							   const basic_vector<T, 3, Sp> &c2) noexcept
-			: data{col_type{c0}, col_type{c1}, col_type{c2}}
+			: m_data{col_type{c0}, col_type{c1}, col_type{c2}}
 		{
 		}
 		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy, T xz, T yz, T zz) noexcept
@@ -299,14 +299,14 @@ namespace sek::math
 		SEK_MATH_MATRIX_COMMON(T, 3, 4, P)
 
 	public:
-		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : data{c0, c1, c2}
+		constexpr basic_matrix(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : m_data{c0, c1, c2}
 		{
 		}
 		template<storage_policy Sp>
 		constexpr basic_matrix(const basic_vector<T, 4, Sp> &c0,
 							   const basic_vector<T, 4, Sp> &c1,
 							   const basic_vector<T, 4, Sp> &c2) noexcept
-			: data{col_type{c0}, col_type{c1}, col_type{c2}}
+			: m_data{col_type{c0}, col_type{c1}, col_type{c2}}
 		{
 		}
 		constexpr basic_matrix(T xx, T yx, T zx, T xy, T yy, T zy, T xz, T yz, T zz, T xw, T yw, T zw) noexcept

@@ -145,7 +145,7 @@ namespace sek::engine
 				/* Failure to fill next frame means we are at the end of compressed data. */
 				if (!init_decomp_frame(src_buff, dst_buff)) [[unlikely]]
 					break;
-				frame_idx = in_frame++;
+				frame_idx = m_in_frame++;
 			}
 
 			/* At this point we have a valid task & a filled compressed data buffer. */
@@ -166,7 +166,7 @@ namespace sek::engine
 
 		raii_buffer_t src_buff;
 		raii_buffer_t dst_buff;
-		for (;; ++out_frame)
+		for (;; ++m_out_frame)
 		{
 			/* Read next frame into the compressed buffer and initialize the decompressed buffer.
 			 * Failure to fill next frame means we are at the end of compressed data. */
@@ -179,7 +179,7 @@ namespace sek::engine
 			if (!write_checked(dst_buff.data, dst_buff.size)) [[unlikely]]
 				throw zstd_error("Failed to write decompression result");
 		}
-		return out_frame;
+		return m_out_frame;
 	}
 	std::size_t zstd_thread_ctx::decompress(thread_pool &pool, read_t r, write_t w, std::size_t frames)
 	{
@@ -190,7 +190,7 @@ namespace sek::engine
 		{
 			init(r, w);
 			spawn_workers(pool, tasks, [this]() { decompress_threaded(); });
-			return out_frame;
+			return m_out_frame;
 		}
 	}
 
@@ -284,7 +284,7 @@ namespace sek::engine
 		/* Allocate input & output buffers and read source data. */
 		if (!dst_buff.resize(ZSTD_compressBound(frame_size)) || !src_buff.resize(frame_size)) [[unlikely]]
 			throw std::bad_alloc();
-		return (src_buff.size = read(src_buff.data, frame_size)) != 0;
+		return (src_buff.size = m_read(src_buff.data, frame_size)) != 0;
 	}
 	void zstd_thread_ctx::compress_threaded(std::uint32_t level, std::uint32_t frame_size)
 	{
@@ -304,7 +304,7 @@ namespace sek::engine
 				 * If read 0 bytes, we are at EOF. */
 				if (!init_comp_frame(frame_size, src_buff, dst_buff)) [[unlikely]]
 					break;
-				frame_idx = in_frame++;
+				frame_idx = m_in_frame++;
 			}
 
 			/* At this point we have a valid task & a filled source buffer. */
@@ -324,7 +324,7 @@ namespace sek::engine
 
 		raii_buffer_t src_buff;
 		raii_buffer_t dst_buff;
-		for (;; ++out_frame)
+		for (;; ++m_out_frame)
 		{
 			/* Initialize both buffers & read source data up to the frame size. Actual source size may be less than the
 			 * frame size. If the source size is 0 (no bytes read), we are at the end of input. */
@@ -349,7 +349,7 @@ namespace sek::engine
 			compress_single(level, frame_size);
 		else
 			spawn_workers(pool, workers, [this, level, frame_size]() { compress_threaded(level, frame_size); });
-		return out_frame;
+		return m_out_frame;
 	}
 	std::size_t zstd_thread_ctx::compress_st(read_t r, write_t w, std::uint32_t level, std::uint32_t frame_size)
 	{
@@ -357,7 +357,7 @@ namespace sek::engine
 		frame_size = get_frame_size(level, frame_size);
 		init(r, w);
 		compress_single(level, frame_size);
-		return out_frame;
+		return m_out_frame;
 	}
 
 	template<typename F>

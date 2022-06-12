@@ -142,7 +142,7 @@ namespace sek::serialization
 
 		/** Initializes a reader using a callback vtable and a data pointer. */
 		constexpr archive_reader(const vtable_t *callback_vtable, void *data) noexcept
-			: vtable(callback_vtable), data(data)
+			: m_vtable(callback_vtable), m_data(data)
 		{
 		}
 		/** Initializes a reader from a stream buffer. */
@@ -151,16 +151,16 @@ namespace sek::serialization
 		constexpr archive_reader(FILE *file) noexcept : archive_reader(&file_vtable, file) {}
 
 		/** Checks if the reader was fully initialized. */
-		[[nodiscard]] constexpr bool empty() { return vtable == nullptr; }
+		[[nodiscard]] constexpr bool empty() { return m_vtable == nullptr; }
 
-		std::size_t getn(char_type *dst, std::size_t n) { return vtable->getn(data, dst, n); }
-		std::size_t bump(std::size_t n) { return vtable->bump(data, n); }
-		std::size_t tell() { return vtable->tell(data); }
-		int_type peek() { return vtable->peek(data); }
-		int_type take() { return vtable->take(data); }
+		std::size_t getn(char_type *dst, std::size_t n) { return m_vtable->getn(m_data, dst, n); }
+		std::size_t bump(std::size_t n) { return m_vtable->bump(m_data, n); }
+		std::size_t tell() { return m_vtable->tell(m_data); }
+		int_type peek() { return m_vtable->peek(m_data); }
+		int_type take() { return m_vtable->take(m_data); }
 
 	private:
-		const vtable_t *vtable = nullptr;
-		void *data;
+		const vtable_t *m_vtable = nullptr;
+		void *m_data;
 	};
 }	 // namespace sek::serialization

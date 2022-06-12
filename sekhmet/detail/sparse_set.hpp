@@ -87,7 +87,8 @@ namespace sek
 		/** Constructs a set with the specified allocators.
 		 * @param value_alloc Allocator used to allocate set's elements.
 		 * @param bucket_alloc Allocator used to allocate set's internal bucket array. */
-		constexpr explicit sparse_set(const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
+		constexpr explicit sparse_set(const allocator_type &value_alloc,
+									  const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
 			: sparse_set(key_equal{}, hash_type{}, value_alloc, bucket_alloc)
 		{
 		}
@@ -110,7 +111,7 @@ namespace sek
 									  const hash_type &key_hash = {},
 									  const allocator_type &value_alloc = allocator_type{},
 									  const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: data_table(key_compare, key_hash, value_alloc, bucket_alloc)
+			: m_table(key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}
 		/** Constructs a set with the specified minimum capacity.
@@ -124,7 +125,7 @@ namespace sek
 									  const KeyHash &key_hash = {},
 									  const allocator_type &value_alloc = allocator_type{},
 									  const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: data_table(capacity, key_compare, key_hash, value_alloc, bucket_alloc)
+			: m_table(capacity, key_compare, key_hash, value_alloc, bucket_alloc)
 		{
 		}
 
@@ -182,7 +183,7 @@ namespace sek
 		/** Copy-constructs the set. Both allocators are copied via `select_on_container_copy_construction`.
 		 * @param other Map to copy data and allocators from. */
 		constexpr sparse_set(const sparse_set &other) noexcept(std::is_nothrow_copy_constructible_v<table_type>)
-			: data_table(other.data_table)
+			: m_table(other.m_table)
 		{
 		}
 		/** Copy-constructs the set. Bucket allocator is copied via `select_on_container_copy_construction`.
@@ -190,7 +191,7 @@ namespace sek
 		 * @param value_alloc Allocator used to allocate set's elements. */
 		constexpr sparse_set(const sparse_set &other, const allocator_type &value_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, const table_type &, const allocator_type &>)
-			: data_table(other.data_table, value_alloc)
+			: m_table(other.m_table, value_alloc)
 		{
 		}
 		/** Copy-constructs the set.
@@ -199,14 +200,14 @@ namespace sek
 		 * @param bucket_alloc Allocator used to allocate set's internal bucket array. */
 		constexpr sparse_set(const sparse_set &other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, const table_type &, const allocator_type &, const bucket_allocator_type &>)
-			: data_table(other.data_table, value_alloc, bucket_alloc)
+			: m_table(other.m_table, value_alloc, bucket_alloc)
 		{
 		}
 
 		/** Move-constructs the set. Both allocators are move-constructed.
 		 * @param other Map to move elements and allocators from. */
 		constexpr sparse_set(sparse_set &&other) noexcept(std::is_nothrow_move_constructible_v<table_type>)
-			: data_table(std::move(other.data_table))
+			: m_table(std::move(other.m_table))
 		{
 		}
 		/** Move-constructs the set. Bucket allocator is move-constructed.
@@ -214,7 +215,7 @@ namespace sek
 		 * @param value_alloc Allocator used to allocate set's elements. */
 		constexpr sparse_set(sparse_set &&other, const allocator_type &value_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &>)
-			: data_table(std::move(other.data_table), value_alloc)
+			: m_table(std::move(other.m_table), value_alloc)
 		{
 		}
 		/** Move-constructs the set.
@@ -223,7 +224,7 @@ namespace sek
 		 * @param bucket_alloc Allocator used to allocate set's internal bucket array. */
 		constexpr sparse_set(sparse_set &&other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &, const bucket_allocator_type &>)
-			: data_table(std::move(other.data_table), value_alloc, bucket_alloc)
+			: m_table(std::move(other.m_table), value_alloc, bucket_alloc)
 		{
 		}
 
@@ -231,25 +232,25 @@ namespace sek
 		 * @param other Map to copy elements from. */
 		constexpr sparse_set &operator=(const sparse_set &other)
 		{
-			if (this != &other) data_table = other.data_table;
+			if (this != &other) m_table = other.m_table;
 			return *this;
 		}
 		/** Move-assigns the set.
 		 * @param other Map to move elements from. */
 		constexpr sparse_set &operator=(sparse_set &&other) noexcept(std::is_nothrow_move_assignable_v<table_type>)
 		{
-			data_table = std::move(other.data_table);
+			m_table = std::move(other.m_table);
 			return *this;
 		}
 
 		/** Returns iterator to the start of the set. */
-		[[nodiscard]] constexpr iterator begin() noexcept { return data_table.begin(); }
+		[[nodiscard]] constexpr iterator begin() noexcept { return m_table.begin(); }
 		/** Returns iterator to the end of the set. */
-		[[nodiscard]] constexpr iterator end() noexcept { return data_table.end(); }
+		[[nodiscard]] constexpr iterator end() noexcept { return m_table.end(); }
 		/** Returns const iterator to the start of the set. */
-		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return data_table.begin(); }
+		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return m_table.begin(); }
 		/** Returns const iterator to the end of the set. */
-		[[nodiscard]] constexpr const_iterator cend() const noexcept { return data_table.end(); }
+		[[nodiscard]] constexpr const_iterator cend() const noexcept { return m_table.end(); }
 		/** @copydoc cbegin */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return cbegin(); }
 		/** @copydoc cend */
@@ -258,22 +259,22 @@ namespace sek
 		/** Locates an element within the set.
 		 * @param key Key to search for.
 		 * @return Iterator to the element setped to key. */
-		constexpr iterator find(const key_type &key) noexcept { return data_table.find(key); }
+		constexpr iterator find(const key_type &key) noexcept { return m_table.find(key); }
 		/** @copydoc find */
-		constexpr const_iterator find(const key_type &key) const noexcept { return data_table.find(key); }
+		constexpr const_iterator find(const key_type &key) const noexcept { return m_table.find(key); }
 		/** @copydoc find
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
 		constexpr const_iterator find(const auto &key) noexcept
 			requires transparent_key
 		{
-			return data_table.find(key);
+			return m_table.find(key);
 		}
 		/** @copydoc find */
 		constexpr const_iterator find(const auto &key) const noexcept
 			requires transparent_key
 		{
-			return data_table.find(key);
+			return m_table.find(key);
 		}
 		/** Checks if the set contains a specific element.
 		 * @param key Key to search for. */
@@ -288,12 +289,12 @@ namespace sek
 		}
 
 		/** Empties the set's contents. */
-		constexpr void clear() { data_table.clear(); }
+		constexpr void clear() { m_table.clear(); }
 
 		/** Re-hashes the set for the specified minimal capacity. */
-		constexpr void rehash(size_type capacity) { data_table.rehash(capacity); }
+		constexpr void rehash(size_type capacity) { m_table.rehash(capacity); }
 		/** Resizes the internal storage to have space for at least n elements. */
-		constexpr void reserve(size_type n) { data_table.reserve(n); }
+		constexpr void reserve(size_type n) { m_table.reserve(n); }
 
 		/** Constructs a value (of value_type) in-place.
 		 * If the same value is already present within the set, replaces that value.
@@ -303,7 +304,7 @@ namespace sek
 		template<typename... Args>
 		constexpr std::pair<iterator, bool> emplace(Args &&...args)
 		{
-			return data_table.emplace(std::forward<Args>(args)...);
+			return m_table.emplace(std::forward<Args>(args)...);
 		}
 
 		/** Attempts to insert a value into the set.
@@ -313,10 +314,10 @@ namespace sek
 		 * and second is boolean indicating whether the element was inserted (`true` if inserted, `false` otherwise). */
 		constexpr std::pair<iterator, bool> try_insert(value_type &&value)
 		{
-			return data_table.try_insert(std::forward<value_type>(value));
+			return m_table.try_insert(std::forward<value_type>(value));
 		}
 		/** @copydoc try_insert */
-		constexpr std::pair<iterator, bool> try_insert(const value_type &value) { return data_table.try_insert(value); }
+		constexpr std::pair<iterator, bool> try_insert(const value_type &value) { return m_table.try_insert(value); }
 		/** @copydetails try_insert
 		 * @param hint Hint for where to insert the value.
 		 * @param value Value to insert.
@@ -339,7 +340,7 @@ namespace sek
 		template<std::forward_iterator Iterator>
 		constexpr size_type try_insert(Iterator first, Iterator last)
 		{
-			return data_table.try_insert(first, last);
+			return m_table.try_insert(first, last);
 		}
 		/** Attempts to insert a sequence of values (of value_type) specified by the initializer list into the set.
 		 * If same values are already present within the set, does not replace them.
@@ -357,10 +358,10 @@ namespace sek
 		 * and second is boolean indicating whether the element was inserted or replaced (`true` if inserted new, `false` if replaced). */
 		constexpr std::pair<iterator, bool> insert(value_type &&value)
 		{
-			return data_table.insert(std::forward<value_type>(value));
+			return m_table.insert(std::forward<value_type>(value));
 		}
 		/** @copydoc insert */
-		constexpr std::pair<iterator, bool> insert(const value_type &value) { return data_table.insert(value); }
+		constexpr std::pair<iterator, bool> insert(const value_type &value) { return m_table.insert(value); }
 		/** @copydetails insert
 		 * @param hint Hint for where to insert the value.
 		 * @param value Value to insert.
@@ -383,34 +384,31 @@ namespace sek
 		template<std::forward_iterator Iterator>
 		constexpr size_type insert(Iterator first, Iterator last)
 		{
-			return data_table.insert(first, last);
+			return m_table.insert(first, last);
 		}
 		/** Inserts a sequence of values (of value_type) specified by the initializer list into the set.
 		 * If same values are already present within the set, replaces them.
 		 * @param il Initializer list containing the values.
 		 * @return Amount of new elements inserted. */
-		constexpr size_type insert(std::initializer_list<value_type> il)
-		{
-			return insert(il.begin(), il.end());
-		}
+		constexpr size_type insert(std::initializer_list<value_type> il) { return insert(il.begin(), il.end()); }
 
 		/** Removes the specified element from the set.
 		 * @param where Iterator to the target element.
 		 * @return Iterator to the element after the erased one. */
-		constexpr iterator erase(const_iterator where) { return data_table.erase(where); }
+		constexpr iterator erase(const_iterator where) { return m_table.erase(where); }
 		/** Removes all elements in the [first, last) range.
 		 * @param first Iterator to the first element of the target range.
 		 * @param last Iterator to the last element of the target range.
 		 * @return Iterator to the element after the erased sequence. */
-		constexpr iterator erase(const_iterator first, const_iterator last) { return data_table.erase(first, last); }
+		constexpr iterator erase(const_iterator first, const_iterator last) { return m_table.erase(first, last); }
 		/** Removes the specified element from the set if it is present.
 		 * @param value Value of the target element.
 		 * @return `true` if the element was removed, `false` otherwise. */
 		constexpr bool erase(const key_type &value)
 		{
-			if (auto target = data_table.find(value); target != data_table.end())
+			if (auto target = m_table.find(value); target != m_table.end())
 			{
-				data_table.erase(target);
+				m_table.erase(target);
 				return true;
 			}
 			else
@@ -422,9 +420,9 @@ namespace sek
 		constexpr bool erase(const auto &value)
 			requires transparent_key
 		{
-			if (auto target = data_table.find(value); target != data_table.end())
+			if (auto target = m_table.find(value); target != m_table.end())
 			{
-				data_table.erase(target);
+				m_table.erase(target);
 				return true;
 			}
 			else
@@ -434,14 +432,14 @@ namespace sek
 		/** Extracts the specified node from the set.
 		 * @param where Iterator to the target node.
 		 * @return Node handle to the extracted node. */
-		constexpr node_handle extract(const_iterator where) { return data_table.extract_node(where); }
+		constexpr node_handle extract(const_iterator where) { return m_table.extract_node(where); }
 		/** Extracts the specified node from the set.
 		 * @param key Key of the target node.
 		 * @return Node handle to the extracted node or, if the key is not present, an empty node handle. */
 		constexpr node_handle extract(const key_type &key)
 		{
-			if (auto target = data_table.find(key); target != data_table.end())
-				return data_table.extract_node(target);
+			if (auto target = m_table.find(key); target != m_table.end())
+				return m_table.extract_node(target);
 			else
 				return {};
 		}
@@ -451,7 +449,7 @@ namespace sek
 		constexpr node_handle extract(const auto &key)
 			requires transparent_key
 		{
-			return data_table.extract_node(key);
+			return m_table.extract_node(key);
 		}
 
 		/** Inserts the specified node into the set.
@@ -461,7 +459,7 @@ namespace sek
 		 * and second is boolean indicating whether the node was inserted or replaced (`true` if inserted new, `false` if replaced). */
 		constexpr std::pair<iterator, bool> insert(node_handle &&node)
 		{
-			return data_table.insert_node(std::forward<node_handle>(node));
+			return m_table.insert_node(std::forward<node_handle>(node));
 		}
 		/** @copydetails insert
 		 * @param hint Hint for where to insert the node.
@@ -479,7 +477,7 @@ namespace sek
 		 * and second is boolean indicating whether the node was inserted (`true` if inserted, `false` otherwise). */
 		constexpr std::pair<iterator, bool> try_insert(node_handle &&node)
 		{
-			return data_table.try_insert_node(std::forward<node_handle>(node));
+			return m_table.try_insert_node(std::forward<node_handle>(node));
 		}
 		/** @copydetails try_insert
 		 * @param hint Hint for where to insert the node.
@@ -492,64 +490,64 @@ namespace sek
 		}
 
 		/** Returns current amount of elements in the set. */
-		[[nodiscard]] constexpr size_type size() const noexcept { return data_table.size(); }
+		[[nodiscard]] constexpr size_type size() const noexcept { return m_table.size(); }
 		/** Returns current capacity of the set. */
-		[[nodiscard]] constexpr size_type capacity() const noexcept { return data_table.capacity(); }
+		[[nodiscard]] constexpr size_type capacity() const noexcept { return m_table.capacity(); }
 		/** Returns maximum possible amount of elements in the set. */
-		[[nodiscard]] constexpr size_type max_size() const noexcept { return data_table.max_size(); }
+		[[nodiscard]] constexpr size_type max_size() const noexcept { return m_table.max_size(); }
 		/** Checks if the set is empty. */
 		[[nodiscard]] constexpr size_type empty() const noexcept { return size() == 0; }
 		/** Returns current amount of buckets in the set. */
-		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return data_table.bucket_count(); }
+		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return m_table.bucket_count(); }
 
 		/** Returns current load factor of the set. */
-		[[nodiscard]] constexpr auto load_factor() const noexcept { return data_table.load_factor(); }
+		[[nodiscard]] constexpr auto load_factor() const noexcept { return m_table.load_factor(); }
 		/** Returns current max load factor of the set. */
-		[[nodiscard]] constexpr auto max_load_factor() const noexcept { return data_table.max_load_factor; }
+		[[nodiscard]] constexpr auto max_load_factor() const noexcept { return m_table.max_load_factor; }
 		/** Sets current max load factor of the set. */
 		constexpr void max_load_factor(float f) noexcept
 		{
 			SEK_ASSERT(f > .0f);
-			data_table.max_load_factor = f;
+			m_table.max_load_factor = f;
 		}
 		/** Returns current tombstone factor of the set. */
-		[[nodiscard]] constexpr auto tombstone_factor() const noexcept { return data_table.tombstone_factor(); }
+		[[nodiscard]] constexpr auto tombstone_factor() const noexcept { return m_table.tombstone_factor(); }
 		/** Returns current max tombstone factor of the set. */
-		[[nodiscard]] constexpr auto max_tombstone_factor() const noexcept { return data_table.max_tombstone_factor; }
+		[[nodiscard]] constexpr auto max_tombstone_factor() const noexcept { return m_table.max_tombstone_factor; }
 		/** Sets current max tombstone factor of the set. */
 		constexpr void max_tombstone_factor(float f) noexcept
 		{
 			SEK_ASSERT(f > .0f);
-			data_table.max_tombstone_factor = f;
+			m_table.max_tombstone_factor = f;
 		}
 
-		[[nodiscard]] constexpr allocator_type &get_allocator() noexcept { return data_table.get_value_allocator(); }
+		[[nodiscard]] constexpr allocator_type &get_allocator() noexcept { return m_table.get_value_allocator(); }
 		[[nodiscard]] constexpr const allocator_type &get_allocator() const noexcept
 		{
-			return data_table.get_value_allocator();
+			return m_table.get_value_allocator();
 		}
 		[[nodiscard]] constexpr bucket_allocator_type &get_bucket_allocator() noexcept
 		{
-			return data_table.get_bucket_allocator();
+			return m_table.get_bucket_allocator();
 		}
 		[[nodiscard]] constexpr const bucket_allocator_type &get_bucket_allocator() const noexcept
 		{
-			return data_table.get_bucket_allocator();
+			return m_table.get_bucket_allocator();
 		}
 
-		[[nodiscard]] constexpr hash_type hash_function() const noexcept { return data_table.get_hash(); }
-		[[nodiscard]] constexpr key_equal key_eq() const noexcept { return data_table.get_comp(); }
+		[[nodiscard]] constexpr hash_type hash_function() const noexcept { return m_table.get_hash(); }
+		[[nodiscard]] constexpr key_equal key_eq() const noexcept { return m_table.get_comp(); }
 
 		[[nodiscard]] constexpr bool operator==(const sparse_set &other) const noexcept
 		{
 			return std::is_permutation(begin(), end(), other.begin(), other.end());
 		}
 
-		constexpr void swap(sparse_set &other) noexcept { data_table.swap(other.data_table); }
+		constexpr void swap(sparse_set &other) noexcept { m_table.swap(other.m_table); }
 		friend constexpr void swap(sparse_set &a, sparse_set &b) noexcept { a.swap(b); }
 
 	private:
 		/** Hash table used to implement the set. */
-		table_type data_table;
+		table_type m_table;
 	};
 }	 // namespace sek

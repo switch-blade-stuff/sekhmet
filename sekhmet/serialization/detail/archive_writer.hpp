@@ -105,7 +105,7 @@ namespace sek::serialization
 
 		/** Initializes a writer using a callback vtable and a data pointer. */
 		constexpr archive_writer(const vtable_t *callback_vtable, void *data) noexcept
-			: vtable(callback_vtable), data(data)
+			: m_vtable(callback_vtable), m_data(data)
 		{
 		}
 		/** Initializes a writer from a stream buffer. */
@@ -114,15 +114,15 @@ namespace sek::serialization
 		constexpr archive_writer(FILE *file) noexcept : archive_writer(&file_vtable, file) {}
 
 		/** Checks if the writer was fully initialized. */
-		[[nodiscard]] constexpr bool empty() { return vtable == nullptr; }
+		[[nodiscard]] constexpr bool empty() { return m_vtable == nullptr; }
 
-		std::size_t putn(const char_type *src, std::size_t n) { return vtable->putn(data, src, n); }
-		std::size_t tell() { return vtable->tell(data); }
-		void put(char_type c) { vtable->put(data, c); }
-		void flush() { vtable->flush(data); }
+		std::size_t putn(const char_type *src, std::size_t n) { return m_vtable->putn(m_data, src, n); }
+		std::size_t tell() { return m_vtable->tell(m_data); }
+		void put(char_type c) { m_vtable->put(m_data, c); }
+		void flush() { m_vtable->flush(m_data); }
 
 	private:
-		const vtable_t *vtable = nullptr;
-		void *data;
+		const vtable_t *m_vtable = nullptr;
+		void *m_data;
 	};
 }	 // namespace sek::serialization

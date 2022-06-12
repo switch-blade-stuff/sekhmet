@@ -46,8 +46,7 @@ namespace sek::serialization::detail
 		class entry_iterator;
 		class read_frame;
 		class write_frame;
-
-		struct parser_base;
+		class parser_base;
 
 		enum entry_type : int
 		{
@@ -123,8 +122,8 @@ namespace sek::serialization::detail
 		{
 			friend struct json_archive_base;
 			friend struct member_t;
-			friend struct parser_base;
 
+			friend class parser_base;
 			friend class read_frame;
 			friend class write_frame;
 
@@ -132,12 +131,12 @@ namespace sek::serialization::detail
 
 			constexpr void swap(entry_t &other) noexcept
 			{
-				std::swap(container, other.container);
-				std::swap(type, other.type);
+				std::swap(m_container, other.m_container);
+				std::swap(m_type, other.m_type);
 			}
 
 			/* Must only be accessible from friends. */
-			constexpr entry_t() noexcept : container{}, type(NO_TYPE) {}
+			constexpr entry_t() noexcept : m_container{}, m_type(NO_TYPE) {}
 
 		public:
 			entry_t(const entry_t &) = delete;
@@ -146,7 +145,7 @@ namespace sek::serialization::detail
 			entry_t &operator=(entry_t &&) = delete;
 
 			/** Reads a null value from the entry. Returns `true` if the entry contains a null value, `false` otherwise. */
-			constexpr bool try_read(std::nullptr_t) const noexcept { return type == NULL_VALUE; }
+			constexpr bool try_read(std::nullptr_t) const noexcept { return m_type == NULL_VALUE; }
 			/** Reads a null value from the entry.
 			 * @throw archive_error If the entry does not contain a null value. */
 			constexpr const entry_t &read(std::nullptr_t) const
@@ -165,9 +164,9 @@ namespace sek::serialization::detail
 			/** Reads a bool from the entry. Returns `true` if the entry contains a bool, `false` otherwise. */
 			constexpr bool try_read(bool &b) const noexcept
 			{
-				if (type & BOOL) [[likely]]
+				if (m_type & BOOL) [[likely]]
 				{
-					b = type & 1;
+					b = m_type & 1;
 					return true;
 				}
 				else
@@ -193,9 +192,9 @@ namespace sek::serialization::detail
 			constexpr bool try_read(CharType &c) const noexcept
 				requires((Config & char_value) == char_value)
 			{
-				if (type == CHAR) [[likely]]
+				if (m_type == CHAR) [[likely]]
 				{
-					c = literal.c;
+					c = m_literal.c;
 					return true;
 				}
 				else
@@ -224,17 +223,17 @@ namespace sek::serialization::detail
 			constexpr bool try_read(I &value) const noexcept
 				requires(std::integral<I> || std::floating_point<I>)
 			{
-				if (type & INT_MASK)
+				if (m_type & INT_MASK)
 				{
-					if (type & INT_SIGN_BIT)
-						value = static_cast<I>(literal.si);
+					if (m_type & INT_SIGN_BIT)
+						value = static_cast<I>(m_literal.si);
 					else
-						value = static_cast<I>(literal.ui);
+						value = static_cast<I>(m_literal.ui);
 					return true;
 				}
-				else if (type & FLOAT_MASK)
+				else if (m_type & FLOAT_MASK)
 				{
-					value = static_cast<I>(literal.fp);
+					value = static_cast<I>(m_literal.fp);
 					return true;
 				}
 				else
@@ -265,9 +264,9 @@ namespace sek::serialization::detail
 			 * @copydoc `true` if the entry contains a string, `false` otherwise. */
 			constexpr bool try_read(std::basic_string<CharType> &value) const
 			{
-				if (type == STRING) [[likely]]
+				if (m_type == STRING) [[likely]]
 				{
-					value.assign(string);
+					value.assign(m_string);
 					return true;
 				}
 				else
@@ -278,9 +277,9 @@ namespace sek::serialization::detail
 			 * @copydoc `true` if the entry contains a string, `false` otherwise. */
 			constexpr bool try_read(std::basic_string_view<CharType> &value) const noexcept
 			{
-				if (type == STRING) [[likely]]
+				if (m_type == STRING) [[likely]]
 				{
-					value = string;
+					value = m_string;
 					return true;
 				}
 				else
@@ -292,9 +291,9 @@ namespace sek::serialization::detail
 			template<std::output_iterator<CharType> I>
 			constexpr bool try_read(I &value) const
 			{
-				if (type == STRING) [[likely]]
+				if (m_type == STRING) [[likely]]
 				{
-					std::copy_n(string.data(), string.size(), value);
+					std::copy_n(m_string.data(), m_string.size(), value);
 					return true;
 				}
 				else
@@ -307,9 +306,10 @@ namespace sek::serialization::detail
 			template<std::output_iterator<CharType> I, std::sentinel_for<I> S>
 			constexpr bool try_read(I &value, S &sent) const
 			{
-				if (type == STRING) [[likely]]
+				if (m_type == STRING) [[likely]]
 				{
-					for (std::size_t i = 0; i != string.size && value != sent; ++i, ++value) *value = string.data[i];
+					for (std::size_t i = 0; i != m_string.size && value != sent; ++i, ++value)
+						*value = m_string.data[i];
 					return true;
 				}
 				else
@@ -417,7 +417,7 @@ namespace sek::serialization::detail
 		private:
 			constexpr void emit(auto &emitter) const
 			{
-				switch (type)
+				switch (m_type)
 				{
 					case NULL_VALUE: emitter.on_null(); break;
 					case BOOL_FALSE:
@@ -440,7 +440,7 @@ namespace sek::serialization::detail
 					{
 						if constexpr ((Config & char_value) == char_value)
 						{
-							emitter.on_char(literal.c);
+							emitter.on_char(m_literal.c);
 							break;
 						}
 						else
@@ -450,20 +450,20 @@ namespace sek::serialization::detail
 					case INT_S64:
 					case INT_S32:
 					case INT_S16:
-					case INT_S8: emitter.on_int(type, literal.si); break;
+					case INT_S8: emitter.on_int(m_type, m_literal.si); break;
 					case INT_U64:
 					case INT_U32:
 					case INT_U16:
-					case INT_U8: emitter.on_uint(type, literal.ui); break;
+					case INT_U8: emitter.on_uint(m_type, m_literal.ui); break;
 
-					case FLOAT32: emitter.on_float32(literal.f32); break;
-					case FLOAT64: emitter.on_float64(literal.f64); break;
+					case FLOAT32: emitter.on_float32(m_literal.f32); break;
+					case FLOAT64: emitter.on_float64(m_literal.f64); break;
 
-					case STRING: emitter.on_string(string.data(), string.size()); break;
+					case STRING: emitter.on_string(m_string.data(), m_string.size()); break;
 					case ARRAY:
 					{
 						auto frame = emitter.enter_frame();
-						auto &array = container;
+						auto &array = m_container;
 
 						emitter.on_array_start(array.size, array.value_type);
 						for (auto value = array.array_data, end = value + array.size; value != end; ++value)
@@ -476,7 +476,7 @@ namespace sek::serialization::detail
 					case OBJECT:
 					{
 						auto frame = emitter.enter_frame();
-						auto &object = container;
+						auto &object = m_container;
 
 						emitter.on_object_start(object.size, object.value_type);
 						for (auto member = object.object_data, end = member + object.size; member != end; ++member)
@@ -495,11 +495,11 @@ namespace sek::serialization::detail
 
 			union
 			{
-				container_t container;
-				std::basic_string_view<CharType> string;
-				literal_t literal;
+				container_t m_container;
+				std::basic_string_view<CharType> m_string;
+				literal_t m_literal;
 			};
-			entry_type type;
+			entry_type m_type;
 		};
 
 		struct member_t
@@ -508,7 +508,7 @@ namespace sek::serialization::detail
 			std::basic_string_view<CharType> key;
 		};
 
-		struct parser_base
+		class parser_base
 		{
 			enum parse_state : int
 			{
@@ -533,18 +533,19 @@ namespace sek::serialization::detail
 				parse_state state;
 			};
 
-			constexpr explicit parser_base(json_archive_base &parent) noexcept : parent(parent) {}
+		public:
+			constexpr explicit parser_base(json_archive_base &parent) noexcept : m_parent(parent) {}
 			~parser_base()
 			{
-				if (parse_stack) [[likely]]
-					parent.upstream->deallocate(parse_stack, stack_capacity * sizeof(parse_frame));
+				if (m_parse_stack) [[likely]]
+					m_parent.m_upstream->deallocate(m_parse_stack, m_stack_capacity * sizeof(parse_frame));
 			}
 
 			template<std::integral S>
 			[[nodiscard]] CharType *on_string_alloc(S len) const
 			{
 				auto size = (static_cast<std::size_t>(len) + 1) * sizeof(CharType);
-				auto result = static_cast<CharType *>(parent.string_pool.allocate(size));
+				auto result = static_cast<CharType *>(m_parent.m_string_pool.allocate(size));
 				if (!result) [[unlikely]]
 					throw std::bad_alloc();
 				return result;
@@ -552,27 +553,27 @@ namespace sek::serialization::detail
 
 			bool on_null() const
 			{
-				return on_value([](entry_t &entry) { entry.type = NULL_VALUE; });
+				return on_value([](entry_t &entry) { entry.m_type = NULL_VALUE; });
 			}
 			bool on_bool(bool b) const
 			{
-				return on_value([b](entry_t &entry) { entry.type = static_cast<entry_type>(BOOL | (b ? 1 : 0)); });
+				return on_value([b](entry_t &entry) { entry.m_type = static_cast<entry_type>(BOOL | (b ? 1 : 0)); });
 			}
 			bool on_true() const
 			{
-				return on_value([](entry_t &entry) { entry.type = BOOL_TRUE; });
+				return on_value([](entry_t &entry) { entry.m_type = BOOL_TRUE; });
 			}
 			bool on_false() const
 			{
-				return on_value([](entry_t &entry) { entry.type = BOOL_FALSE; });
+				return on_value([](entry_t &entry) { entry.m_type = BOOL_FALSE; });
 			}
 			bool on_char(CharType c) const
 			{
 				return on_value(
 					[c](entry_t &entry)
 					{
-						entry.type = CHAR;
-						entry.literal.c = c;
+						entry.m_type = CHAR;
+						entry.m_literal.c = c;
 					});
 			}
 			template<std::integral I>
@@ -582,13 +583,13 @@ namespace sek::serialization::detail
 				{
 					if constexpr (std::is_signed_v<I>)
 					{
-						entry.type = INT_S;
-						entry.literal.si = static_cast<std::intmax_t>(i);
+						entry.m_type = INT_S;
+						entry.m_literal.si = static_cast<std::intmax_t>(i);
 					}
 					else
 					{
-						entry.type = INT_U;
-						entry.literal.ui = static_cast<std::uintmax_t>(i);
+						entry.m_type = INT_U;
+						entry.m_literal.ui = static_cast<std::uintmax_t>(i);
 					}
 				};
 
@@ -600,8 +601,8 @@ namespace sek::serialization::detail
 				return on_value(
 					[f](entry_t &entry)
 					{
-						entry.type = FLOAT_MASK;
-						entry.literal.fp = static_cast<double>(f);
+						entry.m_type = FLOAT_MASK;
+						entry.m_literal.fp = static_cast<double>(f);
 					});
 			}
 
@@ -611,8 +612,8 @@ namespace sek::serialization::detail
 				return on_value(
 					[&](entry_t &entry)
 					{
-						entry.type = STRING;
-						entry.string = std::basic_string_view<CharType>{str, static_cast<std::size_t>(len)};
+						entry.m_type = STRING;
+						entry.m_string = std::basic_string_view<CharType>{str, static_cast<std::size_t>(len)};
 					});
 			}
 			template<std::integral S>
@@ -628,15 +629,15 @@ namespace sek::serialization::detail
 				auto do_start_object = [&](entry_t &entry)
 				{
 					enter_frame();
-					entry.type = OBJECT;
-					current->container = &entry.container;
-					current->state = parse_state::EXPECT_OBJECT_KEY;
+					entry.m_type = OBJECT;
+					m_current->container = &entry.m_container;
+					m_current->state = parse_state::EXPECT_OBJECT_KEY;
 					if (n) resize_container<member_t>(n);
 				};
 
-				if (!parse_stack) [[unlikely]] /* If stack is empty, this is the top-level object. */
+				if (!m_parse_stack) [[unlikely]] /* If stack is empty, this is the top-level object. */
 				{
-					do_start_object(parent.top_level);
+					do_start_object(m_parent.m_top_level);
 					return true;
 				}
 				else
@@ -645,12 +646,12 @@ namespace sek::serialization::detail
 			template<std::integral S>
 			bool on_object_key(const CharType *str, S len)
 			{
-				switch (current->state)
+				switch (m_current->state)
 				{
 					case parse_state::EXPECT_OBJECT_KEY:
 					{
 						push_container<member_t>().key = std::basic_string_view<CharType>{str, static_cast<std::size_t>(len)};
-						current->state = parse_state::EXPECT_OBJECT_VALUE; /* Always expect value after key. */
+						m_current->state = parse_state::EXPECT_OBJECT_VALUE; /* Always expect value after key. */
 						return true;
 					}
 					default: return false;
@@ -666,12 +667,12 @@ namespace sek::serialization::detail
 			template<std::integral S>
 			bool on_object_end(S size)
 			{
-				switch (current->state)
+				switch (m_current->state)
 				{
 					case parse_state::EXPECT_OBJECT_KEY:
 					{
-						auto *obj = current->container;
-						obj->object_data = current->object_data;
+						auto *obj = m_current->container;
+						obj->object_data = m_current->object_data;
 						obj->size = static_cast<std::size_t>(size);
 						exit_frame();
 						return true;
@@ -685,15 +686,15 @@ namespace sek::serialization::detail
 				auto do_start_array = [&](entry_t &entry)
 				{
 					enter_frame();
-					entry.type = ARRAY;
-					current->container = &entry.container;
-					current->state = parse_state::EXPECT_ARRAY_VALUE;
+					entry.m_type = ARRAY;
+					m_current->container = &entry.m_container;
+					m_current->state = parse_state::EXPECT_ARRAY_VALUE;
 					if (n) resize_container<entry_t>(n);
 				};
 
-				if (!parse_stack) [[unlikely]] /* If stack is empty, this is the top-level array. */
+				if (!m_parse_stack) [[unlikely]] /* If stack is empty, this is the top-level array. */
 				{
-					do_start_array(parent.top_level);
+					do_start_array(m_parent.m_top_level);
 					return true;
 				}
 				else
@@ -702,12 +703,12 @@ namespace sek::serialization::detail
 			template<std::integral S>
 			bool on_array_end(S size)
 			{
-				switch (current->state)
+				switch (m_current->state)
 				{
 					case parse_state::EXPECT_ARRAY_VALUE:
 					{
-						auto *arr = current->container;
-						arr->array_data = current->array_data;
+						auto *arr = m_current->container;
+						arr->array_data = m_current->array_data;
 						arr->size = static_cast<std::size_t>(size);
 						exit_frame();
 						return true;
@@ -719,29 +720,29 @@ namespace sek::serialization::detail
 			template<typename T>
 			void resize_container(std::size_t n) const
 			{
-				auto *old_data = current->data_ptr;
-				auto old_cap = current->capacity * sizeof(T), new_cap = n * sizeof(T);
+				auto *old_data = m_current->data_ptr;
+				auto old_cap = m_current->capacity * sizeof(T), new_cap = n * sizeof(T);
 
-				auto *new_data = parent.entry_pool.reallocate(old_data, old_cap, new_cap);
+				auto *new_data = m_parent.m_entry_pool.reallocate(old_data, old_cap, new_cap);
 				if (!new_data) [[unlikely]]
 					throw std::bad_alloc();
 
-				current->data_ptr = new_data;
-				current->capacity = n;
+				m_current->data_ptr = new_data;
+				m_current->capacity = n;
 			}
 			template<typename T>
 			[[nodiscard]] T &push_container() const
 			{
-				auto next_idx = current->size;
-				if (current->capacity == current->size++) resize_container<T>(current->size * 2);
+				auto next_idx = m_current->size;
+				if (m_current->capacity == m_current->size++) resize_container<T>(m_current->size * 2);
 				/* No initialization needed here, since the entry will be initialized by parse events. */
-				return static_cast<T *>(current->data_ptr)[next_idx];
+				return static_cast<T *>(m_current->data_ptr)[next_idx];
 			}
 
 			bool on_value(auto f) const
 			{
 				entry_t *entry;
-				switch (current->state)
+				switch (m_current->state)
 				{
 					case parse_state::EXPECT_ARRAY_VALUE:
 					{
@@ -751,8 +752,8 @@ namespace sek::serialization::detail
 					case parse_state::EXPECT_OBJECT_VALUE:
 					{
 						/* Size is updated by the key event. */
-						entry = &(current->object_data[current->size - 1].value);
-						current->state = parse_state::EXPECT_OBJECT_KEY;
+						entry = &(m_current->object_data[m_current->size - 1].value);
+						m_current->state = parse_state::EXPECT_OBJECT_KEY;
 						break;
 					}
 					default: return false;
@@ -763,35 +764,37 @@ namespace sek::serialization::detail
 			}
 			void enter_frame()
 			{
-				if (!parse_stack) [[unlikely]]
+				if (!m_parse_stack) [[unlikely]]
 				{
-					auto new_stack = static_cast<parse_frame *>(parent.upstream->allocate(4 * sizeof(parse_frame)));
+					auto new_stack = static_cast<parse_frame *>(m_parent.m_upstream->allocate(4 * sizeof(parse_frame)));
 					if (!new_stack) [[unlikely]]
 						throw std::bad_alloc();
-					current = parse_stack = new_stack;
-					stack_capacity = 4;
+					m_current = m_parse_stack = new_stack;
+					m_stack_capacity = 4;
 				}
-				else if (auto pos = ++current - parse_stack; static_cast<std::size_t>(pos) == stack_capacity) [[unlikely]]
+				else if (auto pos = ++m_current - m_parse_stack; static_cast<std::size_t>(pos) == m_stack_capacity)
+					[[unlikely]]
 				{
-					auto new_cap = stack_capacity * 2;
-					auto new_stack = static_cast<parse_frame *>(parent.upstream->allocate(new_cap * sizeof(parse_frame)));
+					auto new_cap = m_stack_capacity * 2;
+					auto new_stack = static_cast<parse_frame *>(m_parent.m_upstream->allocate(new_cap * sizeof(parse_frame)));
 					if (!new_stack) [[unlikely]]
 						throw std::bad_alloc();
 
-					current = std::copy_n(parse_stack, pos, new_stack);
+					m_current = std::copy_n(m_parse_stack, pos, new_stack);
 
-					parent.upstream->deallocate(parse_stack, stack_capacity * sizeof(parse_frame));
-					parse_stack = new_stack;
-					stack_capacity = new_cap;
+					m_parent.m_upstream->deallocate(m_parse_stack, m_stack_capacity * sizeof(parse_frame));
+					m_parse_stack = new_stack;
+					m_stack_capacity = new_cap;
 				}
-				std::construct_at(current);
+				std::construct_at(m_current);
 			}
-			void exit_frame() { --current; }
+			void exit_frame() { --m_current; }
 
-			json_archive_base &parent;
-			parse_frame *parse_stack = nullptr;
-			parse_frame *current = nullptr;
-			std::size_t stack_capacity = 0;
+		private:
+			json_archive_base &m_parent;
+			parse_frame *m_parse_stack = nullptr;
+			parse_frame *m_current = nullptr;
+			std::size_t m_stack_capacity = 0;
 		};
 
 		/** @brief Iterator providing read-only access to a Json entry. */
@@ -809,7 +812,7 @@ namespace sek::serialization::detail
 			typedef std::random_access_iterator_tag iterator_category;
 
 		private:
-			constexpr entry_iterator(const void *ptr, entry_type type) noexcept : data_ptr(ptr), type(type) {}
+			constexpr entry_iterator(const void *ptr, entry_type type) noexcept : m_data_ptr(ptr), m_type(type) {}
 
 		public:
 			constexpr entry_iterator() noexcept = default;
@@ -874,33 +877,33 @@ namespace sek::serialization::detail
 			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return get()[n]; }
 
 			/** Checks if the associated entry has a key. */
-			[[nodiscard]] constexpr bool has_key() const noexcept { return type == OBJECT; }
+			[[nodiscard]] constexpr bool has_key() const noexcept { return m_type == OBJECT; }
 			/** Returns the key of the associated entry.
 			 * If the pointed-to entry is not a keyed entry (object member) returns an empty string view. */
 			[[nodiscard]] constexpr std::basic_string_view<CharType> key(std::nothrow_t) const noexcept
 			{
-				if (type != OBJECT) [[unlikely]]
+				if (m_type != OBJECT) [[unlikely]]
 					return {};
 				else
-					return object_data->key;
+					return m_object_data->key;
 			}
 			/** Returns the key of the associated entry.
 			 * @throw archive_error If the pointed-to entry is not a keyed entry (object member). */
 			[[nodiscard]] constexpr std::basic_string_view<CharType> key() const
 			{
-				if (type != OBJECT) [[unlikely]]
+				if (m_type != OBJECT) [[unlikely]]
 					throw archive_error("Entry iterator does not point to a keyed entry");
 				else
-					return object_data->key;
+					return m_object_data->key;
 			}
 
 			[[nodiscard]] friend constexpr difference_type operator-(entry_iterator a, entry_iterator b) noexcept
 			{
-				SEK_ASSERT(a.type == b.type);
-				switch (a.type)
+				SEK_ASSERT(a.m_type == b.m_type);
+				switch (a.m_type)
 				{
-					case ARRAY: return a.array_data - b.array_data;
-					case OBJECT: return a.object_data - b.object_data;
+					case ARRAY: return a.m_array_data - b.m_array_data;
+					case OBJECT: return a.m_object_data - b.m_object_data;
 					default: return 0;
 				}
 			}
@@ -911,29 +914,29 @@ namespace sek::serialization::detail
 
 			[[nodiscard]] constexpr auto operator<=>(const entry_iterator &other) const noexcept
 			{
-				return data_ptr <=> other.data_ptr;
+				return m_data_ptr <=> other.m_data_ptr;
 			}
 			[[nodiscard]] constexpr bool operator==(const entry_iterator &other) const noexcept
 			{
-				return data_ptr == other.data_ptr;
+				return m_data_ptr == other.m_data_ptr;
 			}
 
 		private:
 			[[nodiscard]] constexpr entry_t *get_entry() const noexcept
 			{
-				switch (type)
+				switch (m_type)
 				{
-					case ARRAY: return array_data;
-					case OBJECT: return &object_data->value;
+					case ARRAY: return m_array_data;
+					case OBJECT: return &m_object_data->value;
 					default: return nullptr;
 				}
 			}
 			constexpr void move_n(difference_type n) noexcept
 			{
-				switch (type)
+				switch (m_type)
 				{
-					case ARRAY: array_data += n; break;
-					case OBJECT: object_data += n; break;
+					case ARRAY: m_array_data += n; break;
+					case OBJECT: m_object_data += n; break;
 					default: break;
 				}
 			}
@@ -941,14 +944,14 @@ namespace sek::serialization::detail
 			union
 			{
 				/** Pointer used for type-agnostic operations. */
-				const void *data_ptr = nullptr;
+				const void *m_data_ptr = nullptr;
 				/** Pointer into an array container. */
-				entry_t *array_data;
+				entry_t *m_array_data;
 				/** Pointer into an object container. */
-				member_t *object_data;
+				member_t *m_object_data;
 			};
 			/** Type of the frame this iterator was created from. */
-			entry_type type;
+			entry_type m_type;
 		};
 		/** @brief Helper structure used as the API interface for Json input archive operations. */
 		class read_frame
@@ -991,18 +994,18 @@ namespace sek::serialization::detail
 				const void *end_ptr = nullptr;
 			};
 
-			constexpr explicit read_frame(const entry_t &entry) noexcept : type(entry.type)
+			constexpr explicit read_frame(const entry_t &entry) noexcept : m_type(entry.m_type)
 			{
-				frame_view = {
-					.begin_ptr = entry.container.data_ptr,
-					.current_ptr = entry.container.data_ptr,
-					.end_ptr = entry.container.data_ptr,
+				m_frame_view = {
+					.begin_ptr = entry.m_container.data_ptr,
+					.current_ptr = entry.m_container.data_ptr,
+					.end_ptr = entry.m_container.data_ptr,
 				};
 
-				if (entry.type == OBJECT) [[likely]]
-					frame_view.end_ptr = entry.container.object_data + entry.container.size;
+				if (entry.m_type == OBJECT) [[likely]]
+					m_frame_view.end_ptr = entry.m_container.object_data + entry.m_container.size;
 				else
-					frame_view.end_ptr = entry.container.array_data + entry.container.size;
+					m_frame_view.end_ptr = entry.m_container.array_data + entry.m_container.size;
 			}
 
 		public:
@@ -1013,11 +1016,11 @@ namespace sek::serialization::detail
 			read_frame &operator=(read_frame &&) = delete;
 
 			/** Returns iterator to the first entry of the currently read object or array. */
-			[[nodiscard]] constexpr entry_iterator begin() const noexcept { return {frame_view.begin_ptr, type}; }
+			[[nodiscard]] constexpr entry_iterator begin() const noexcept { return {m_frame_view.begin_ptr, m_type}; }
 			/** @copydoc begin */
 			[[nodiscard]] constexpr entry_iterator cbegin() const noexcept { return begin(); }
 			/** Returns iterator one past the last entry of the currently read object or array. */
-			[[nodiscard]] constexpr entry_iterator end() const noexcept { return {frame_view.end_ptr, type}; }
+			[[nodiscard]] constexpr entry_iterator end() const noexcept { return {m_frame_view.end_ptr, m_type}; }
 			/** @copydoc end */
 			[[nodiscard]] constexpr entry_iterator cend() const noexcept { return end(); }
 
@@ -1048,10 +1051,10 @@ namespace sek::serialization::detail
 			template<typename T, typename... Args>
 			bool try_read(T &&value, Args &&...args)
 			{
-				entry_iterator current{frame_view.current_ptr, type};
+				entry_iterator current{m_frame_view.current_ptr, m_type};
 				if (current < end() && current->try_read(std::forward<T>(value), std::forward<Args>(args)...)) [[likely]]
 				{
-					frame_view.current_ptr = (current + 1).data_ptr;
+					m_frame_view.current_ptr = (current + 1).data_ptr;
 					return true;
 				}
 				else
@@ -1071,8 +1074,8 @@ namespace sek::serialization::detail
 			template<typename T, typename... Args>
 			read_frame &read(T &&value, Args &&...args)
 			{
-				entry_iterator current{frame_view.current_ptr, type};
-				frame_view.current_ptr = (current + 1).data_ptr;
+				entry_iterator current{m_frame_view.current_ptr, m_type};
+				m_frame_view.current_ptr = (current + 1).m_data_ptr;
 				current->read(std::forward<T>(value), std::forward<Args>(args)...);
 				return *this;
 			}
@@ -1086,8 +1089,8 @@ namespace sek::serialization::detail
 			template<typename T, typename... Args>
 			T read(std::in_place_type_t<T>, Args &&...args)
 			{
-				entry_iterator current{frame_view.current_ptr, type};
-				frame_view.current_ptr = (current + 1).data_ptr;
+				entry_iterator current{m_frame_view.current_ptr, m_type};
+				m_frame_view.current_ptr = (current + 1).m_data_ptr;
 				return current->read(std::in_place_type<T>, std::forward<Args>(args)...);
 			}
 
@@ -1098,7 +1101,7 @@ namespace sek::serialization::detail
 			template<typename T, typename... Args>
 			bool try_read(keyed_entry_t<CharType, T> value, Args &&...args)
 			{
-				if (type == OBJECT) [[likely]]
+				if (m_type == OBJECT) [[likely]]
 				{
 					if (seek_entry(value.key)) [[likely]]
 						return try_read(std::forward<T>(value.value), std::forward<Args>(args)...);
@@ -1120,7 +1123,7 @@ namespace sek::serialization::detail
 			template<typename T, typename... Args>
 			read_frame &read(keyed_entry_t<CharType, T> value, Args &&...args)
 			{
-				if (type == ARRAY) [[unlikely]]
+				if (m_type == ARRAY) [[unlikely]]
 					throw archive_error("Named entry modifier cannot be applied to an array entry");
 
 				if (!seek_entry(value.key)) [[unlikely]]
@@ -1163,24 +1166,24 @@ namespace sek::serialization::detail
 		private:
 			[[nodiscard]] constexpr const member_t *find_member(std::basic_string_view<CharType> key) const noexcept
 			{
-				for (auto member = frame_view.obj_begin(); member != frame_view.obj_end(); ++member)
+				for (auto member = m_frame_view.obj_begin(); member != m_frame_view.obj_end(); ++member)
 					if (key == member->key) return member;
 				return nullptr;
 			}
 			[[nodiscard]] constexpr const entry_t *seek_entry(std::basic_string_view<CharType> key) noexcept
 			{
-				if (frame_view.obj_current() >= frame_view.obj_end() || key != frame_view.obj_current()->key)
+				if (m_frame_view.obj_current() >= m_frame_view.obj_end() || key != m_frame_view.obj_current()->key)
 				{
 					if (auto member_ptr = find_member(key); !member_ptr) [[unlikely]]
 						return nullptr;
 					else
-						frame_view.current_ptr = member_ptr;
+						m_frame_view.current_ptr = member_ptr;
 				}
-				return &frame_view.obj_current()->value;
+				return &m_frame_view.obj_current()->value;
 			}
 
-			frame_view_t frame_view = {};
-			entry_type type;
+			frame_view_t m_frame_view = {};
+			entry_type m_type;
 		};
 		/** @brief Helper structure used as the API interface for Json output archive operations. */
 		class write_frame
@@ -1193,7 +1196,8 @@ namespace sek::serialization::detail
 			typedef std::size_t size_type;
 
 		private:
-			constexpr write_frame(json_archive_base &parent, entry_t &entry) noexcept : parent(parent), current(entry)
+			constexpr write_frame(json_archive_base &parent, entry_t &entry) noexcept
+				: m_parent(parent), m_current(entry)
 			{
 			}
 
@@ -1225,7 +1229,7 @@ namespace sek::serialization::detail
 			[[nodiscard]] CharType *alloc_string(std::size_t n) const
 			{
 				auto bytes = (n + 1) * sizeof(CharType);
-				auto result = static_cast<CharType *>(parent.string_pool.allocate(bytes));
+				auto result = static_cast<CharType *>(m_parent.m_string_pool.allocate(bytes));
 				if (!result) [[unlikely]]
 					throw std::bad_alloc();
 				return result;
@@ -1240,38 +1244,38 @@ namespace sek::serialization::detail
 			template<typename T>
 			void resize_container(std::size_t n) const
 			{
-				auto *old_data = current.container.data_ptr;
-				auto old_cap = current.container.capacity * sizeof(T), new_cap = n * sizeof(T);
+				auto *old_data = m_current.m_container.data_ptr;
+				auto old_cap = m_current.m_container.capacity * sizeof(T), new_cap = n * sizeof(T);
 
-				auto *new_data = parent.entry_pool.reallocate(old_data, old_cap, new_cap);
+				auto *new_data = m_parent.m_entry_pool.reallocate(old_data, old_cap, new_cap);
 				if (!new_data) [[unlikely]]
 					throw std::bad_alloc();
 
-				current.container.data_ptr = new_data;
-				current.container.capacity = n;
+				m_current.m_container.data_ptr = new_data;
+				m_current.m_container.capacity = n;
 			}
 			template<typename T>
 			[[nodiscard]] T *push_container() const
 			{
-				auto next_idx = current.container.size;
-				if (current.container.capacity == current.container.size++)
-					resize_container<T>(current.container.size * 2);
-				return static_cast<T *>(current.container.data_ptr) + next_idx;
+				auto next_idx = m_current.m_container.size;
+				if (m_current.m_container.capacity == m_current.m_container.size++)
+					resize_container<T>(m_current.m_container.size * 2);
+				return static_cast<T *>(m_current.m_container.data_ptr) + next_idx;
 			}
 			[[nodiscard]] entry_t *next_entry() const
 			{
 				entry_t *entry;
-				switch (current.type)
+				switch (m_current.m_type)
 				{
 					default:
 					{
-						current.type = OBJECT;
+						m_current.m_type = OBJECT;
 						[[fallthrough]];
 					}
 					case OBJECT:
 					{
 						auto member = push_container<member_t>();
-						member->key = next_key;
+						member->key = m_next_key;
 						entry = &member->value;
 						break;
 					}
@@ -1289,23 +1293,23 @@ namespace sek::serialization::detail
 			template<typename T, typename... Args>
 			void write_value(entry_t &entry, T &&value, Args &&...args) const
 			{
-				write_frame frame{parent, entry};
+				write_frame frame{m_parent, entry};
 				detail::do_serialize(std::forward<T>(value), frame, std::forward<Args>(args)...);
 			}
 
-			void write_value(entry_t &entry, std::nullptr_t) const { entry.type = NULL_VALUE; }
+			void write_value(entry_t &entry, std::nullptr_t) const { entry.m_type = NULL_VALUE; }
 			template<typename T>
 			void write_value(entry_t &entry, T &&b) const
 				requires(std::same_as<std::decay_t<T>, bool>)
 			{
-				entry.type = static_cast<entry_type>(BOOL | static_cast<int>(!!b));
+				entry.m_type = static_cast<entry_type>(BOOL | static_cast<int>(!!b));
 			}
 			template<typename T>
 			void write_value(entry_t &entry, T &&c) const
 				requires(std::same_as<std::decay_t<T>, CharType> && ((Config & char_value) == char_value))
 			{
-				entry.type = CHAR;
-				entry.literal.character = c;
+				entry.m_type = CHAR;
+				entry.m_literal.character = c;
 			}
 
 			template<typename T>
@@ -1324,8 +1328,8 @@ namespace sek::serialization::detail
 			void write_value(entry_t &entry, I &&i) const
 				requires is_uint_value<std::decay_t<I>>
 			{
-				entry.type = static_cast<entry_type>(INT_U | int_size_type(i));
-				entry.literal.ui = static_cast<std::uintmax_t>(i);
+				entry.m_type = static_cast<entry_type>(INT_U | int_size_type(i));
+				entry.m_literal.ui = static_cast<std::uintmax_t>(i);
 			}
 			template<std::signed_integral I>
 			constexpr static int int_size_type(I i) noexcept
@@ -1345,8 +1349,8 @@ namespace sek::serialization::detail
 			void write_value(entry_t &entry, I &&i) const
 				requires is_int_value<std::decay_t<I>>
 			{
-				entry.type = static_cast<entry_type>(INT_S | int_size_type(i));
-				entry.literal.si = static_cast<std::intmax_t>(i);
+				entry.m_type = static_cast<entry_type>(INT_S | int_size_type(i));
+				entry.m_literal.si = static_cast<std::intmax_t>(i);
 			}
 
 			template<typename F>
@@ -1355,20 +1359,20 @@ namespace sek::serialization::detail
 			{
 				if constexpr (sizeof(F) > sizeof(float))
 				{
-					entry.type = FLOAT64;
-					entry.literal.f64 = static_cast<double>(f);
+					entry.m_type = FLOAT64;
+					entry.m_literal.f64 = static_cast<double>(f);
 				}
 				else
 				{
-					entry.type = FLOAT32;
-					entry.literal.f32 = static_cast<float>(f);
+					entry.m_type = FLOAT32;
+					entry.m_literal.f32 = static_cast<float>(f);
 				}
 			}
 
 			void write_value(entry_t &entry, std::basic_string_view<CharType> sv) const
 			{
-				entry.type = STRING;
-				entry.string = copy_string(sv);
+				entry.m_type = STRING;
+				entry.m_string = copy_string(sv);
 			}
 			void write_value(entry_t &entry, const CharType *str) const
 			{
@@ -1414,23 +1418,23 @@ namespace sek::serialization::detail
 				{
 					/* Set container value type if all entries are of the same type.
 					 * Use a different condition for integers to account for size-category. */
-					if (current.container.value_type == NO_TYPE) [[unlikely]]
-						current.container.value_type = entry->type;
+					if (m_current.m_container.value_type == NO_TYPE) [[unlikely]]
+						m_current.m_container.value_type = entry->m_type;
 					else if constexpr (!std::is_integral_v<std::decay_t<T>>)
 					{
-						if (current.container.value_type != entry->type) [[likely]]
-							current.container.value_type = DYNAMIC;
+						if (m_current.m_container.value_type != entry->m_type) [[likely]]
+							m_current.m_container.value_type = DYNAMIC;
 					}
 					else
 					{
 						/* If the current type is also an integer of the same signedness, use the largest size category. */
-						if ((current.container.value_type & INT_S) == (entry->type & INT_S))
+						if ((m_current.m_container.value_type & INT_S) == (entry->m_type & INT_S))
 						{
-							if (current.container.value_type < entry->type) [[unlikely]]
-								current.container.value_type = entry->type;
+							if (m_current.m_container.value_type < entry->m_type) [[unlikely]]
+								m_current.m_container.value_type = entry->m_type;
 						}
 						else
-							current.container.value_type = DYNAMIC;
+							m_current.m_container.value_type = DYNAMIC;
 					}
 				}
 			}
@@ -1438,25 +1442,25 @@ namespace sek::serialization::detail
 			template<typename T, typename... Args>
 			void write_impl(T &&value, Args &&...args)
 			{
-				if (current.type != ARRAY) [[likely]]
-					next_key = generate_key<CharType>(parent.string_pool, current.container.size);
+				if (m_current.m_type != ARRAY) [[likely]]
+					m_next_key = generate_key<CharType>(m_parent.m_string_pool, m_current.m_container.size);
 				write_value(std::forward<T>(value), std::forward<Args>(args)...);
 			}
 			template<typename T, typename... Args>
 			void write_impl(keyed_entry_t<CharType, T> value, Args &&...args)
 			{
-				if (current.type != ARRAY) [[likely]]
-					next_key = generate_key<CharType>(parent.string_pool, value.key);
+				if (m_current.m_type != ARRAY) [[likely]]
+					m_next_key = generate_key<CharType>(m_parent.m_string_pool, value.key);
 				write_value(std::forward<T>(value.value), std::forward<Args>(args)...);
 			}
 			template<typename T>
 			void write_impl(container_size_t<T> size)
 			{
-				switch (current.type)
+				switch (m_current.m_type)
 				{
 					default:
 					{
-						current.type = OBJECT;
+						m_current.m_type = OBJECT;
 						[[fallthrough]];
 					}
 					case OBJECT:
@@ -1473,14 +1477,14 @@ namespace sek::serialization::detail
 			}
 			void write_impl(array_mode_t)
 			{
-				SEK_ASSERT(current.type != OBJECT, "Array mode modifier applied to object entry");
+				SEK_ASSERT(m_current.m_type != OBJECT, "Array mode modifier applied to object entry");
 
-				current.type = ARRAY;
+				m_current.m_type = ARRAY;
 			}
 
-			json_archive_base &parent;
-			entry_t &current;
-			std::basic_string_view<CharType> next_key = {};
+			json_archive_base &m_parent;
+			entry_t &m_current;
+			std::basic_string_view<CharType> m_next_key = {};
 		};
 
 		using entry_pool_t = dynamic_buffer_resource<sizeof(entry_t) * 64>;
@@ -1491,16 +1495,16 @@ namespace sek::serialization::detail
 		json_archive_base &operator=(const json_archive_base &) = delete;
 
 		explicit json_archive_base(std::pmr::memory_resource *res) noexcept
-			: upstream(res), entry_pool(res), string_pool(res)
+			: m_upstream(res), m_entry_pool(res), m_string_pool(res)
 		{
 		}
 		constexpr json_archive_base(json_archive_base &&other) noexcept
-			: upstream(std::exchange(other.upstream, nullptr)),
-			  entry_pool(std::move(other.entry_pool)),
-			  string_pool(std::move(other.string_pool)),
-			  top_level()
+			: m_upstream(std::exchange(other.m_upstream, nullptr)),
+			  m_entry_pool(std::move(other.m_entry_pool)),
+			  m_string_pool(std::move(other.m_string_pool)),
+			  m_top_level()
 		{
-			top_level.swap(other.top_level);
+			m_top_level.swap(other.m_top_level);
 		}
 		constexpr json_archive_base &operator=(json_archive_base &&other) noexcept
 		{
@@ -1511,65 +1515,65 @@ namespace sek::serialization::detail
 
 		void reset()
 		{
-			entry_pool.release();
-			string_pool.release();
-			::new (&top_level) entry_t{};
+			m_entry_pool.release();
+			m_string_pool.release();
+			::new (&m_top_level) entry_t{};
 		}
 		void reset(std::pmr::memory_resource *res)
 		{
-			entry_pool = entry_pool_t{res};
-			string_pool = string_pool_t{res};
-			::new (&top_level) entry_t{};
+			m_entry_pool = entry_pool_t{res};
+			m_string_pool = string_pool_t{res};
+			::new (&m_top_level) entry_t{};
 		}
 
 		template<typename T, typename... Args>
 		bool do_try_read(T &&value, Args &&...args)
 		{
-			return top_level.try_read(std::forward<T>(value), std::forward<Args>(args)...);
+			return m_top_level.try_read(std::forward<T>(value), std::forward<Args>(args)...);
 		}
 		template<typename T, typename... Args>
 		void do_read(T &&value, Args &&...args)
 		{
-			top_level.read(std::forward<T>(value), std::forward<Args>(args)...);
+			m_top_level.read(std::forward<T>(value), std::forward<Args>(args)...);
 		}
 		template<typename T, typename... Args>
 		T do_read(std::in_place_type_t<T>, Args &&...args)
 		{
-			return top_level.read(std::in_place_type<T>, std::forward<Args>(args)...);
+			return m_top_level.read(std::in_place_type<T>, std::forward<Args>(args)...);
 		}
 
 		template<typename T, typename... Args>
 		void do_write(T &&value, Args &&...args)
 		{
-			write_frame frame{*this, top_level};
+			write_frame frame{*this, m_top_level};
 			detail::do_serialize(std::forward<T>(value), frame, std::forward<Args>(args)...);
 		}
 		void do_flush(auto &emitter) const
 		{
-			if (top_level.type != NO_TYPE) [[likely]]
-				top_level.emit(emitter);
+			if (m_top_level.m_type != NO_TYPE) [[likely]]
+				m_top_level.emit(emitter);
 		}
 
 		constexpr void swap(json_archive_base &other) noexcept
 		{
-			std::swap(upstream, other.upstream);
-			entry_pool.swap(other.entry_pool);
-			string_pool.swap(other.string_pool);
-			top_level.swap(other.top_level);
+			std::swap(m_upstream, other.m_upstream);
+			m_entry_pool.swap(other.m_entry_pool);
+			m_string_pool.swap(other.m_string_pool);
+			m_top_level.swap(other.m_top_level);
 		}
 
-		std::pmr::memory_resource *upstream;
+		std::pmr::memory_resource *m_upstream;
 
-		entry_pool_t entry_pool;   /* Allocation pool used for entry tree allocation. */
-		string_pool_t string_pool; /* Allocation pool used for string allocation. */
-		entry_t top_level = {};	   /* Top-most entry of the Json tree. */
+		entry_pool_t m_entry_pool;	 /* Allocation pool used for entry tree allocation. */
+		string_pool_t m_string_pool; /* Allocation pool used for string allocation. */
+		entry_t m_top_level = {};	 /* Top-most entry of the Json tree. */
 	};
 
 	template<typename C, json_archive_config Cfg>
 	template<typename T, typename... Args>
 	constexpr const typename json_archive_base<C, Cfg>::entry_t &json_archive_base<C, Cfg>::entry_t::read(T &&v, Args &&...args) const
 	{
-		if (!(type & CONTAINER)) [[unlikely]]
+		if (!(m_type & CONTAINER)) [[unlikely]]
 			throw archive_error("Invalid Json type, expected array or object");
 
 		read_frame frame{*this};
@@ -1580,7 +1584,7 @@ namespace sek::serialization::detail
 	template<typename T, typename... Args>
 	constexpr T json_archive_base<C, Cfg>::entry_t::read(std::in_place_type_t<T>, Args &&...args) const
 	{
-		if (!(type & CONTAINER)) [[unlikely]]
+		if (!(m_type & CONTAINER)) [[unlikely]]
 			throw archive_error("Invalid Json type, expected array or object");
 
 		if constexpr (in_place_deserializable<T, read_frame, Args...> || std::is_constructible_v<T, read_frame &, Args...> ||

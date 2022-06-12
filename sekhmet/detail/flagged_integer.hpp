@@ -42,24 +42,24 @@ namespace sek
 			set_flag(f);
 		}
 
-		[[nodiscard]] constexpr IntType get_value() const noexcept { return data / 2; }
+		[[nodiscard]] constexpr IntType get_value() const noexcept { return m_data / 2; }
 		constexpr IntType set_value(IntType value) noexcept
 		{
-			data = (value * 2) | (data & 1);
+			m_data = (value * 2) | (m_data & 1);
 			return value;
 		}
-		[[nodiscard]] constexpr bool get_flag() const noexcept { return data & 1; }
+		[[nodiscard]] constexpr bool get_flag() const noexcept { return m_data & 1; }
 		constexpr bool set_flag(bool value) noexcept
 		{
-			data = (data & mask) | value;
+			m_data = (m_data & mask) | value;
 			return value;
 		}
-		constexpr void toggle_flag() noexcept { data ^= 1; }
+		constexpr void toggle_flag() noexcept { m_data ^= 1; }
 
 		[[nodiscard]] constexpr bool operator==(const flagged_integer_t &) const noexcept = default;
 
 	private:
-		IntType data = 0;
+		IntType m_data = 0;
 	};
 
 	template<std::unsigned_integral I>

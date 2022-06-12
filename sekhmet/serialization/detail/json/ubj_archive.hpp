@@ -149,7 +149,7 @@ namespace sek::serialization::ubj
 			using base_handler = typename base_t::parser_base;
 
 			constexpr parser_spec12(basic_input_archive &archive, ubj_reader &&reader) noexcept
-				: base_handler(archive), reader(std::move(reader))
+				: base_handler(archive), m_reader(std::move(reader))
 			{
 			}
 
@@ -157,7 +157,7 @@ namespace sek::serialization::ubj
 			[[nodiscard]] T parse_literal()
 			{
 				T value;
-				reader.guarded_read(&value, sizeof(value));
+				m_reader.guarded_read(&value, sizeof(value));
 
 				/* Fix endianness from big endian to machine endianness. */
 #ifndef SEK_ARCH_BIG_ENDIAN
@@ -173,7 +173,7 @@ namespace sek::serialization::ubj
 			}
 			[[nodiscard]] std::int64_t parse_length()
 			{
-				auto token = reader.read_token();
+				auto token = m_reader.read_token();
 				switch (token)
 				{
 					case detail::token_t::UINT8: return static_cast<std::int64_t>(parse_literal<std::uint8_t>());
@@ -188,7 +188,7 @@ namespace sek::serialization::ubj
 			{
 				auto len = static_cast<std::size_t>(parse_length());
 				auto *str = base_handler::on_string_alloc(len);
-				reader.guarded_read(str, len * sizeof(char));
+				m_reader.guarded_read(str, len * sizeof(char));
 				str[len] = '\0';
 				return {str, len};
 			}
@@ -196,22 +196,22 @@ namespace sek::serialization::ubj
 			{
 				std::pair<detail::token_t, std::int64_t> result = {detail::token_t::INVALID, -1};
 
-				switch (auto token = reader.peek_token(); token)
+				switch (auto token = m_reader.peek_token(); token)
 				{
 					case detail::token_t::CONTAINER_TYPE:
 					{
 						/* Consume the token & read type. */
-						reader.bump_token();
-						result.first = reader.read_token();
+						m_reader.bump_token();
+						result.first = m_reader.read_token();
 
 						/* Container size always follows the type. */
-						if ((token = reader.peek_token()) != detail::token_t::CONTAINER_SIZE) [[unlikely]]
+						if ((token = m_reader.peek_token()) != detail::token_t::CONTAINER_SIZE) [[unlikely]]
 							throw archive_error(bad_size_msg);
 						[[fallthrough]];
 					}
 					case detail::token_t::CONTAINER_SIZE:
 					{
-						reader.bump_token();
+						m_reader.bump_token();
 						result.second = parse_length();
 						[[fallthrough]];
 					}
@@ -229,7 +229,7 @@ namespace sek::serialization::ubj
 					base_handler::on_array_start();
 					for (size = 0;; ++size)
 					{
-						auto token = reader.read_token();
+						auto token = m_reader.read_token();
 						if (token == detail::token_t::ARRAY_END) [[unlikely]]
 							break;
 						parse_entry(token);
@@ -260,10 +260,10 @@ namespace sek::serialization::ubj
 					base_handler::on_object_start();
 					for (size = 0;; ++size)
 					{
-						auto token = reader.peek_token();
+						auto token = m_reader.peek_token();
 						if (token == detail::token_t::OBJECT_END) [[unlikely]]
 						{
-							reader.bump_token();
+							m_reader.bump_token();
 							break;
 						}
 
@@ -324,9 +324,9 @@ namespace sek::serialization::ubj
 					default: [[unlikely]] throw archive_error(data_msg);
 				}
 			}
-			void parse_entry() { parse_entry(reader.read_token()); }
+			void parse_entry() { parse_entry(m_reader.read_token()); }
 
-			ubj_reader reader;
+			ubj_reader m_reader;
 		};
 
 	public:
@@ -576,7 +576,7 @@ namespace sek::serialization::ubj
 				}
 			}
 
-			constexpr explicit emitter_spec12(ubj_writer *writer) noexcept : writer(writer) {}
+			constexpr explicit emitter_spec12(ubj_writer *writer) noexcept : m_writer(writer) {}
 
 			template<typename T>
 			void emit_literal(T value)
@@ -586,43 +586,43 @@ namespace sek::serialization::ubj
 				if constexpr (sizeof(T) == sizeof(std::uint16_t))
 				{
 					auto temp = bswap_16(std::bit_cast<std::uint16_t>(value));
-					writer->write_guarded(static_cast<const void *>(&temp), sizeof(temp));
+					m_writer->write_guarded(static_cast<const void *>(&temp), sizeof(temp));
 				}
 				else if constexpr (sizeof(T) == sizeof(std::uint32_t))
 				{
 					auto temp = bswap_32(std::bit_cast<std::uint32_t>(value));
-					writer->write_guarded(static_cast<const void *>(&temp), sizeof(temp));
+					m_writer->write_guarded(static_cast<const void *>(&temp), sizeof(temp));
 				}
 				else if constexpr (sizeof(T) == sizeof(std::uint64_t))
 				{
 					auto temp = bswap_64(std::bit_cast<std::uint64_t>(value));
-					writer->write_guarded(static_cast<const void *>(&temp), sizeof(temp));
+					m_writer->write_guarded(static_cast<const void *>(&temp), sizeof(temp));
 				}
 				else
 #endif
-					writer->write_guarded(static_cast<const void *>(&value), sizeof(value));
+					m_writer->write_guarded(static_cast<const void *>(&value), sizeof(value));
 			}
-			void emit_type(detail::token_t type) { frame.emit_type_token(writer, type); }
+			void emit_type(detail::token_t type) { m_frame.emit_type_token(m_writer, type); }
 			void emit_length(std::size_t value)
 			{
 				/* << 1 is used to make sure sizes are within signed range. */
 				switch (detail::int_size_category(value << 1))
 				{
 					case 0:
-						writer->write_token(detail::token_t::UINT8);
+						m_writer->write_token(detail::token_t::UINT8);
 						emit_literal(static_cast<std::uint8_t>(value));
 						break;
 					case 1:
-						writer->write_token(detail::token_t::INT16);
+						m_writer->write_token(detail::token_t::INT16);
 						emit_literal(static_cast<std::uint16_t>(value));
 						break;
 					case 2:
-						writer->write_token(detail::token_t::INT32);
+						m_writer->write_token(detail::token_t::INT32);
 						emit_literal(static_cast<std::uint32_t>(value));
 						break;
 					case 3:
 					default:
-						writer->write_token(detail::token_t::INT64);
+						m_writer->write_token(detail::token_t::INT64);
 						emit_literal(static_cast<std::uint64_t>(value));
 						break;
 				}
@@ -630,21 +630,21 @@ namespace sek::serialization::ubj
 			void emit_string(const char *str, std::size_t size)
 			{
 				emit_length(size);
-				writer->write_guarded(str, size * sizeof(char));
+				m_writer->write_guarded(str, size * sizeof(char));
 			}
 			void emit_container(std::size_t size, entry_type value_type)
 			{
-				frame.emit_type_token = emit_dynamic_type;
+				m_frame.emit_type_token = emit_dynamic_type;
 				if constexpr ((Config & fixed_type) == fixed_type)
-					if ((frame.value_type = value_type) != entry_type::DYNAMIC)
+					if ((m_frame.value_type = value_type) != entry_type::DYNAMIC)
 					{
-						writer->write_token(detail::token_t::CONTAINER_TYPE);
-						writer->write_token(get_type_token(value_type));
-						frame.emit_type_token = emit_fixed_type;
+						m_writer->write_token(detail::token_t::CONTAINER_TYPE);
+						m_writer->write_token(get_type_token(value_type));
+						m_frame.emit_type_token = emit_fixed_type;
 					}
 				if constexpr ((Config & fixed_size) == fixed_size)
 				{
-					writer->write_token(detail::token_t::CONTAINER_SIZE);
+					m_writer->write_token(detail::token_t::CONTAINER_SIZE);
 					emit_length(size);
 				}
 			}
@@ -658,10 +658,10 @@ namespace sek::serialization::ubj
 				emit_literal(value);
 			}
 
-			entry_type current_int_type(entry_type type) const noexcept
+			[[nodiscard]] entry_type current_int_type(entry_type type) const noexcept
 			{
 				if constexpr ((Config & fixed_type) == fixed_type)
-					return frame.value_type & entry_type::INT_MASK ? frame.value_type : type;
+					return m_frame.value_type & entry_type::INT_MASK ? m_frame.value_type : type;
 				else
 					return type;
 			}
@@ -723,7 +723,7 @@ namespace sek::serialization::ubj
 			{
 				// clang-format off
 				if constexpr ((Config & fixed_size) != fixed_size)
-					writer->write_token(detail::token_t::ARRAY_END);
+					m_writer->write_token(detail::token_t::ARRAY_END);
 				// clang-format on
 			}
 			void on_object_start(std::size_t size, entry_type value_type)
@@ -736,15 +736,15 @@ namespace sek::serialization::ubj
 			{
 				// clang-format off
 				if constexpr ((Config & fixed_size) != fixed_size)
-					writer->write_token(detail::token_t::OBJECT_END);
+					m_writer->write_token(detail::token_t::OBJECT_END);
 				// clang-format on
 			}
 
-			constexpr frame_t enter_frame() { return frame; }
-			constexpr void exit_frame(frame_t old) { frame = old; }
+			constexpr frame_t enter_frame() { return m_frame; }
+			constexpr void exit_frame(frame_t old) { m_frame = old; }
 
-			frame_t frame = {emit_dynamic_type};
-			ubj_writer *writer;
+			frame_t m_frame = {emit_dynamic_type};
+			ubj_writer *m_writer;
 		};
 
 	public:
@@ -753,14 +753,13 @@ namespace sek::serialization::ubj
 		basic_output_archive &operator=(const basic_output_archive &) = delete;
 
 		constexpr basic_output_archive(basic_output_archive &&other) noexcept
-			: base_t(std::forward<basic_input_archive>(other))
+			: base_t(std::forward<base_t>(other)), m_writer(std::move(other.m_writer))
 		{
-			writer = other.writer;
 		}
 		constexpr basic_output_archive &operator=(basic_output_archive &&other) noexcept
 		{
-			base_t::operator=(std::forward<basic_input_archive>(other));
-			std::swap(writer, other.writer);
+			base_t::operator=(std::forward<base_t>(other));
+			std::swap(m_writer, other.m_writer);
 			return *this;
 		}
 
@@ -773,7 +772,7 @@ namespace sek::serialization::ubj
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
 		basic_output_archive(archive_writer<char_type> writer, std::pmr::memory_resource *res)
-			: base_t(res), writer(std::move(writer))
+			: base_t(res), m_writer(std::move(writer))
 		{
 		}
 		/** Initialized output archive for file writing.
@@ -842,18 +841,18 @@ namespace sek::serialization::ubj
 		constexpr void swap(basic_output_archive &other) noexcept
 		{
 			base_t::swap(other);
-			std::swap(writer, other.writer);
+			std::swap(m_writer, other.m_writer);
 		}
 		friend constexpr void swap(basic_output_archive &a, basic_output_archive &b) noexcept { a.swap(b); }
 
 	private:
 		void flush_impl()
 		{
-			emitter_spec12 emitter{&writer};
+			emitter_spec12 emitter{&m_writer};
 			base_t::do_flush(emitter);
 		}
 
-		ubj_writer writer;
+		ubj_writer m_writer;
 	};
 
 	typedef basic_output_archive<fixed_type> output_archive;
