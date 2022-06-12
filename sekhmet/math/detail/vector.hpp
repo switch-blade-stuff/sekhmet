@@ -100,6 +100,19 @@ private:                                                                        
 	friend constexpr basic_vector<U, M, Sp> min(const basic_vector<U, M, Sp> &, const basic_vector<U, M, Sp> &) noexcept;       \
                                                                                                                                 \
 	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
+	friend constexpr basic_vector<U, M, Sp> round(const basic_vector<U, M, Sp> &) noexcept                                      \
+		requires std::floating_point<U>                                                                                         \
+	;                                                                                                                           \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
+	friend constexpr basic_vector<U, M, Sp> floor(const basic_vector<U, M, Sp> &) noexcept                                      \
+		requires std::floating_point<U>                                                                                         \
+	;                                                                                                                           \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
+	friend constexpr basic_vector<U, M, Sp> ceil(const basic_vector<U, M, Sp> &) noexcept                                       \
+		requires std::floating_point<U>                                                                                         \
+	;                                                                                                                           \
+                                                                                                                                \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vector<U, M, Sp> sqrt(const basic_vector<U, M, Sp> &) noexcept;                                      \
 	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vector<U, M, Sp> rsqrt(const basic_vector<U, M, Sp> &) noexcept;                                     \
@@ -883,6 +896,46 @@ namespace sek::math
 			detail::generic::vector_min(result.m_data, a.m_data, b.m_data);
 		else
 			detail::vector_min(result.m_data, a.m_data, b.m_data);
+		return result;
+	}
+
+	/** Returns a vector consisting of rounded values of `v`.
+	 * @example round({.1, .2, 2.3}) -> {0, 0, 2} */
+	template<typename T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vector<T, N, Sp> round(const basic_vector<T, N, Sp> &v) noexcept
+		requires std::floating_point<T>
+	{
+		basic_vector<T, N, Sp> result;
+		if (std::is_constant_evaluated())
+			detail::generic::vector_round(result.m_data, v.m_data);
+		else
+			detail::vector_round(result.m_data, v.m_data);
+		return result;
+	}
+	/** Returns a vector consisting of rounded-down values of `v`.
+	 * @example round({.1, .2, 2.3}) -> {0, 0, 2} */
+	template<typename T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vector<T, N, Sp> floor(const basic_vector<T, N, Sp> &v) noexcept
+		requires std::floating_point<T>
+	{
+		basic_vector<T, N, Sp> result;
+		if (std::is_constant_evaluated())
+			detail::generic::vector_floor(result.m_data, v.m_data);
+		else
+			detail::vector_floor(result.m_data, v.m_data);
+		return result;
+	}
+	/** Returns a vector consisting of rounded-up values of `v`.
+	 * @example round({.1, .2, 2.3}) -> {1, 1, 3} */
+	template<typename T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vector<T, N, Sp> ceil(const basic_vector<T, N, Sp> &v) noexcept
+		requires std::floating_point<T>
+	{
+		basic_vector<T, N, Sp> result;
+		if (std::is_constant_evaluated())
+			detail::generic::vector_ceil(result.m_data, v.m_data);
+		else
+			detail::vector_ceil(result.m_data, v.m_data);
 		return result;
 	}
 

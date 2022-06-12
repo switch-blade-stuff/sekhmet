@@ -131,6 +131,21 @@ namespace sek::math::detail
 		{
 			vector_unwrap<N>([&](auto i) { out[i] = min(l[i], r[i]); });
 		}
+		template<typename T, std::size_t N, bool UseSimd>
+		constexpr void vector_round(vector_data<T, N, UseSimd> &out, const vector_data<T, N, UseSimd> &l) noexcept
+		{
+			vector_unwrap<N>([&](auto i) { out[i] = std::round(l[i]); });
+		}
+		template<typename T, std::size_t N, bool UseSimd>
+		constexpr void vector_floor(vector_data<T, N, UseSimd> &out, const vector_data<T, N, UseSimd> &l) noexcept
+		{
+			vector_unwrap<N>([&](auto i) { out[i] = std::floor(l[i]); });
+		}
+		template<typename T, std::size_t N, bool UseSimd>
+		constexpr void vector_ceil(vector_data<T, N, UseSimd> &out, const vector_data<T, N, UseSimd> &l) noexcept
+		{
+			vector_unwrap<N>([&](auto i) { out[i] = std::ceil(l[i]); });
+		}
 
 		template<typename T, std::size_t N, bool UseSimd>
 		constexpr T vector_dot(const vector_data<T, N, UseSimd> &l, const vector_data<T, N, UseSimd> &r) noexcept

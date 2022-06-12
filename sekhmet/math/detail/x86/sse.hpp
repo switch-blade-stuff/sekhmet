@@ -136,6 +136,24 @@ namespace sek::math::detail
 		out.value = _mm_shuffle_ps(l.value, l.value, mask);
 	}
 
+#ifdef SEK_USE_SSE4_1
+	template<std::size_t N>
+	inline void x86_simd_round(simd_t<float, N> &out, const simd_t<float, N> &l) noexcept
+	{
+		out.value = _mm_round_ps(l.value, _MM_FROUND_CUR_DIRECTION | _MM_FROUND_NO_EXC);
+	}
+	template<std::size_t N>
+	inline void x86_simd_floor(simd_t<float, N> &out, const simd_t<float, N> &l) noexcept
+	{
+		out.value = _mm_floor_ps(l.value);
+	}
+	template<std::size_t N>
+	inline void x86_simd_ceil(simd_t<float, N> &out, const simd_t<float, N> &l) noexcept
+	{
+		out.value = _mm_ceil_ps(l.value);
+	}
+#endif
+
 #ifdef SEK_USE_SSE2
 	template<>
 	struct simd_t<double, 2>
@@ -195,6 +213,21 @@ namespace sek::math::detail
 		constexpr auto mask = x86_mm_shuffle2_mask(s);
 		out.value = _mm_shuffle_pd(l.value, l.value, mask);
 	}
+
+#ifdef SEK_USE_SSE4_1
+	inline void x86_simd_round(simd_t<double, 2> &out, const simd_t<double, 2> &l) noexcept
+	{
+		out.value = _mm_round_pd(l.value, _MM_FROUND_CUR_DIRECTION | _MM_FROUND_NO_EXC);
+	}
+	inline void x86_simd_floor(simd_t<double, 2> &out, const simd_t<double, 2> &l) noexcept
+	{
+		out.value = _mm_floor_pd(l.value);
+	}
+	inline void x86_simd_ceil(simd_t<double, 2> &out, const simd_t<double, 2> &l) noexcept
+	{
+		out.value = _mm_ceil_pd(l.value);
+	}
+#endif
 
 #ifndef SEK_USE_AVX
 	template<>
@@ -301,6 +334,28 @@ namespace sek::math::detail
 		out.value[0] = _mm_shuffle_pd(l.value, l.value, mask0);
 		out.value[1] = _mm_shuffle_pd(l.value, l.value, mask1);
 	}
+
+#ifdef SEK_USE_SSE4_1
+	template<std::size_t N>
+	inline void x86_simd_round(simd_t<double, N> &out, const simd_t<double, N> &l) noexcept
+	{
+		const int mask = _MM_FROUND_CUR_DIRECTION | _MM_FROUND_NO_EXC;
+		out.value[0] = _mm_round_pd(l.value[0], mask);
+		out.value[1] = _mm_round_pd(l.value[1], mask);
+	}
+	template<std::size_t N>
+	inline void x86_simd_floor(simd_t<double, N> &out, const simd_t<double, N> &l) noexcept
+	{
+		out.value[0] = _mm_floor_pd(l.value[0]);
+		out.value[1] = _mm_floor_pd(l.value[1]);
+	}
+	template<std::size_t N>
+	inline void x86_simd_ceil(simd_t<double, N> &out, const simd_t<double, N> &l) noexcept
+	{
+		out.value[0] = _mm_ceil_pd(l.value[0]);
+		out.value[1] = _mm_ceil_pd(l.value[1]);
+	}
+#endif
 #endif
 
 	template<integral_of_size<8> T>

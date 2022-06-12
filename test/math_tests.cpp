@@ -93,13 +93,22 @@ TEST(math_tests, vector_test)
 		EXPECT_EQ(sek::math::vector2d{v2dp}, v2d);
 		EXPECT_EQ(sek::math::vector2d_packed{v2d}, v2dp);
 	}
-
 	{
 		sek::math::vector4d v4d = {1, 2, 3, 4};
 		sek::math::vector3d v3d = {2, 4, 3};
 
 		EXPECT_EQ(v4d.ywz(), v3d);
 		EXPECT_EQ(v4d.argb(), (shuffle<3, 0, 1, 2>(v4d)));
+	}
+	{
+		sek::math::vector4d v4d = {.1, .2, 3.5, 2.4};
+		sek::math::vector4d v4d_round = {0, 0, 4, 2};
+		sek::math::vector4d v4d_floor = {0, 0, 3, 2};
+		sek::math::vector4d v4d_ceil = {1, 1, 4, 3};
+
+		EXPECT_EQ(round(v4d), v4d_round);
+		EXPECT_EQ(floor(v4d), v4d_floor);
+		EXPECT_EQ(ceil(v4d), v4d_ceil);
 	}
 }
 
