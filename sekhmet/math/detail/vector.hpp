@@ -152,361 +152,349 @@ public:                                                                         
 		m_data.swap(other.m_data);                                                                                              \
 	}
 
-#define SEK_VECTOR_PERMUTATION_FUNC_2(T, P, x, y)                                                                      \
-	[[nodiscard]] constexpr basic_vector<T, 2, P> x##y() const noexcept                                                \
+#define SEK_VECTOR_PERMUTATION_FUNC(T, P, name, ...)                                                                   \
+	[[nodiscard]] constexpr auto name() const noexcept                                                                 \
 	{                                                                                                                  \
-		return {x(), y()};                                                                                             \
-	}
-#define SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, y, z)                                                                   \
-	[[nodiscard]] constexpr basic_vector<T, 3, P> x##y##z() const noexcept                                             \
-	{                                                                                                                  \
-		return {x(), y(), z()};                                                                                        \
-	}
-#define SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, z, w)                                                                \
-	[[nodiscard]] constexpr basic_vector<T, 4, P> x##y##z##w() const noexcept                                          \
-	{                                                                                                                  \
-		return {x(), y(), z(), w()};                                                                                   \
+		return shuffle<__VA_ARGS__>(*this);                                                                            \
 	}
 
 #define SEK_VECTOR_PERMUTATIONS_2(T, P, x, y)                                                                          \
-	SEK_VECTOR_PERMUTATION_FUNC_2(T, P, x, x)                                                                          \
-	SEK_VECTOR_PERMUTATION_FUNC_2(T, P, x, y)                                                                          \
-	SEK_VECTOR_PERMUTATION_FUNC_2(T, P, y, x)                                                                          \
-	SEK_VECTOR_PERMUTATION_FUNC_2(T, P, y, y)
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x), 0, 0)                                                          \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y), 0, 1)                                                          \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x), 1, 0)                                                          \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y), 1, 1)
 
 #define SEK_VECTOR_PERMUTATIONS_3(T, P, x, y, z)                                                                       \
 	SEK_VECTOR_PERMUTATIONS_2(T, P, x, y)                                                                              \
-	SEK_VECTOR_PERMUTATION_FUNC_2(T, P, x, z)                                                                          \
-	SEK_VECTOR_PERMUTATION_FUNC_2(T, P, y, z)                                                                          \
-	SEK_VECTOR_PERMUTATION_FUNC_2(T, P, z, x)                                                                          \
-	SEK_VECTOR_PERMUTATION_FUNC_2(T, P, z, y)                                                                          \
-	SEK_VECTOR_PERMUTATION_FUNC_2(T, P, z, z)                                                                          \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, x, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, x, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, x, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, y, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, y, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, y, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, z, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, z, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, z, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, x, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, x, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, x, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, y, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, y, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, y, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, z, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, z, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, z, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, x, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, x, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, x, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, y, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, y, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, y, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, z, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, z, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, z, z)
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z), 0, 2)                                                          \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z), 1, 2)                                                          \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x), 2, 0)                                                          \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y), 2, 1)                                                          \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z), 2, 2)                                                          \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, x), 0, 0, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, y), 0, 0, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, z), 0, 0, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, x), 0, 1, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, y), 0, 1, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, z), 0, 1, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, x), 0, 2, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, y), 0, 2, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, z), 0, 2, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, x), 1, 0, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, y), 1, 0, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, z), 1, 0, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, x), 1, 1, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, y), 1, 1, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, z), 1, 1, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, x), 1, 2, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, y), 1, 2, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, z), 1, 2, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, x), 2, 0, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, y), 2, 0, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, z), 2, 0, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, x), 2, 1, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, y), 2, 1, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, z), 2, 1, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, x), 2, 2, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, y), 2, 2, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, z), 2, 2, 2)
 
 #define SEK_VECTOR_PERMUTATIONS_4(T, P, x, y, z, w)                                                                    \
 	SEK_VECTOR_PERMUTATIONS_3(T, P, x, y, z)                                                                           \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, x, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, y, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, z, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, x, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, y, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, z, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, x, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, y, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, z, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, w, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, w, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, w, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, x, w, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, w, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, w, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, w, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, y, w, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, w, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, w, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, w, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, z, w, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, x, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, x, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, x, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, x, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, y, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, y, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, y, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, y, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, z, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, z, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, z, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, z, w)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, w, x)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, w, y)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, w, z)                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_3(T, P, w, w, w)                                                                       \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, w), 0, 0, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, w), 0, 1, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, w), 0, 2, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, w), 1, 0, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, w), 1, 1, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, w), 1, 2, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, w), 2, 0, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, w), 2, 1, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, w), 2, 2, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, x), 0, 3, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, y), 0, 3, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, z), 0, 3, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, w), 0, 3, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, x), 1, 3, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, y), 1, 3, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, z), 1, 3, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, w), 1, 3, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, x), 2, 3, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, y), 2, 3, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, z), 2, 3, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, w), 2, 3, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, x), 3, 0, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, y), 3, 0, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, z), 3, 0, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, w), 3, 0, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, x), 3, 1, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, y), 3, 1, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, z), 3, 1, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, w), 3, 1, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, x), 3, 2, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, y), 3, 2, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, z), 3, 2, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, w), 3, 2, 3)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, x), 3, 3, 0)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, y), 3, 3, 1)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, z), 3, 3, 2)                                                    \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, w), 3, 3, 3)                                                    \
                                                                                                                        \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, x, w, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, y, w, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, z, w, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, x, w, w, w)                                                                    \
-                                                                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, x, w, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, y, w, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, z, w, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, y, w, w, w)                                                                    \
-                                                                                                                       \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, x, w, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, y, w, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, z, w, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, z, w, w, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, x, w, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, y, w, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, z, w, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, x, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, x, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, x, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, x, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, y, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, y, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, y, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, y, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, z, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, z, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, z, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, z, w)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, w, x)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, w, y)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, w, z)                                                                    \
-	SEK_VECTOR_PERMUTATION_FUNC_4(T, P, w, w, w, w)
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, x, x), 0, 0, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, x, y), 0, 0, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, x, z), 0, 0, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, x, w), 0, 0, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, y, x), 0, 0, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, y, y), 0, 0, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, y, z), 0, 0, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, y, w), 0, 0, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, z, x), 0, 0, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, z, y), 0, 0, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, z, z), 0, 0, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, z, w), 0, 0, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, w, x), 0, 0, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, w, y), 0, 0, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, w, z), 0, 0, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, x, w, w), 0, 0, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, x, x), 0, 1, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, x, y), 0, 1, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, x, z), 0, 1, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, x, w), 0, 1, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, y, x), 0, 1, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, y, y), 0, 1, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, y, z), 0, 1, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, y, w), 0, 1, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, z, x), 0, 1, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, z, y), 0, 1, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, z, z), 0, 1, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, z, w), 0, 1, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, w, x), 0, 1, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, w, y), 0, 1, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, w, z), 0, 1, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, y, w, w), 0, 1, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, x, x), 0, 2, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, x, y), 0, 2, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, x, z), 0, 2, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, x, w), 0, 2, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, y, x), 0, 2, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, y, y), 0, 2, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, y, z), 0, 2, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, y, w), 0, 2, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, z, x), 0, 2, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, z, y), 0, 2, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, z, z), 0, 2, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, z, w), 0, 2, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, w, x), 0, 2, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, w, y), 0, 2, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, w, z), 0, 2, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, z, w, w), 0, 2, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, x, x), 0, 3, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, x, y), 0, 3, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, x, z), 0, 3, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, x, w), 0, 3, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, y, x), 0, 3, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, y, y), 0, 3, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, y, z), 0, 3, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, y, w), 0, 3, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, z, x), 0, 3, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, z, y), 0, 3, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, z, z), 0, 3, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, z, w), 0, 3, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, w, x), 0, 3, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, w, y), 0, 3, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, w, z), 0, 3, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(x, w, w, w), 0, 3, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, x, x), 1, 0, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, x, y), 1, 0, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, x, z), 1, 0, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, x, w), 1, 0, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, y, x), 1, 0, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, y, y), 1, 0, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, y, z), 1, 0, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, y, w), 1, 0, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, z, x), 1, 0, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, z, y), 1, 0, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, z, z), 1, 0, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, z, w), 1, 0, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, w, x), 1, 0, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, w, y), 1, 0, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, w, z), 1, 0, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, x, w, w), 1, 0, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, x, x), 1, 1, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, x, y), 1, 1, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, x, z), 1, 1, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, x, w), 1, 1, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, y, x), 1, 1, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, y, y), 1, 1, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, y, z), 1, 1, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, y, w), 1, 1, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, z, x), 1, 1, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, z, y), 1, 1, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, z, z), 1, 1, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, z, w), 1, 1, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, w, x), 1, 1, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, w, y), 1, 1, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, w, z), 1, 1, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, y, w, w), 1, 1, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, x, x), 1, 2, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, x, y), 1, 2, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, x, z), 1, 2, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, x, w), 1, 2, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, y, x), 1, 2, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, y, y), 1, 2, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, y, z), 1, 2, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, y, w), 1, 2, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, z, x), 1, 2, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, z, y), 1, 2, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, z, z), 1, 2, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, z, w), 1, 2, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, w, x), 1, 2, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, w, y), 1, 2, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, w, z), 1, 2, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, z, w, w), 1, 2, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, x, x), 1, 3, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, x, y), 1, 3, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, x, z), 1, 3, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, x, w), 1, 3, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, y, x), 1, 3, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, y, y), 1, 3, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, y, z), 1, 3, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, y, w), 1, 3, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, z, x), 1, 3, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, z, y), 1, 3, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, z, z), 1, 3, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, z, w), 1, 3, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, w, x), 1, 3, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, w, y), 1, 3, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, w, z), 1, 3, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(y, w, w, w), 1, 3, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, x, x), 2, 0, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, x, y), 2, 0, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, x, z), 2, 0, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, x, w), 2, 0, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, y, x), 2, 0, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, y, y), 2, 0, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, y, z), 2, 0, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, y, w), 2, 0, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, z, x), 2, 0, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, z, y), 2, 0, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, z, z), 2, 0, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, z, w), 2, 0, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, w, x), 2, 0, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, w, y), 2, 0, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, w, z), 2, 0, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, x, w, w), 2, 0, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, x, x), 2, 1, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, x, y), 2, 1, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, x, z), 2, 1, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, x, w), 2, 1, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, y, x), 2, 1, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, y, y), 2, 1, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, y, z), 2, 1, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, y, w), 2, 1, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, z, x), 2, 1, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, z, y), 2, 1, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, z, z), 2, 1, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, z, w), 2, 1, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, w, x), 2, 1, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, w, y), 2, 1, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, w, z), 2, 1, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, y, w, w), 2, 1, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, x, x), 2, 2, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, x, y), 2, 2, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, x, z), 2, 2, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, x, w), 2, 2, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, y, x), 2, 2, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, y, y), 2, 2, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, y, z), 2, 2, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, y, w), 2, 2, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, z, x), 2, 2, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, z, y), 2, 2, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, z, z), 2, 2, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, z, w), 2, 2, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, w, x), 2, 2, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, w, y), 2, 2, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, w, z), 2, 2, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, z, w, w), 2, 2, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, x, x), 2, 3, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, x, y), 2, 3, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, x, z), 2, 3, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, x, w), 2, 3, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, y, x), 2, 3, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, y, y), 2, 3, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, y, z), 2, 3, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, y, w), 2, 3, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, z, x), 2, 3, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, z, y), 2, 3, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, z, z), 2, 3, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, z, w), 2, 3, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, w, x), 2, 3, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, w, y), 2, 3, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, w, z), 2, 3, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(z, w, w, w), 2, 3, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, x, x), 3, 0, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, x, y), 3, 0, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, x, z), 3, 0, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, x, w), 3, 0, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, y, x), 3, 0, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, y, y), 3, 0, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, y, z), 3, 0, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, y, w), 3, 0, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, z, x), 3, 0, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, z, y), 3, 0, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, z, z), 3, 0, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, z, w), 3, 0, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, w, x), 3, 0, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, w, y), 3, 0, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, w, z), 3, 0, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, x, w, w), 3, 0, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, x, x), 3, 1, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, x, y), 3, 1, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, x, z), 3, 1, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, x, w), 3, 1, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, y, x), 3, 1, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, y, y), 3, 1, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, y, z), 3, 1, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, y, w), 3, 1, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, z, x), 3, 1, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, z, y), 3, 1, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, z, z), 3, 1, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, z, w), 3, 1, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, w, x), 3, 1, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, w, y), 3, 1, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, w, z), 3, 1, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, y, w, w), 3, 1, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, x, x), 3, 2, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, x, y), 3, 2, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, x, z), 3, 2, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, x, w), 3, 2, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, y, x), 3, 2, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, y, y), 3, 2, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, y, z), 3, 2, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, y, w), 3, 2, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, z, x), 3, 2, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, z, y), 3, 2, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, z, z), 3, 2, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, z, w), 3, 2, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, w, x), 3, 2, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, w, y), 3, 2, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, w, z), 3, 2, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, z, w, w), 3, 2, 3, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, x, x), 3, 3, 0, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, x, y), 3, 3, 0, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, x, z), 3, 3, 0, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, x, w), 3, 3, 0, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, y, x), 3, 3, 1, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, y, y), 3, 3, 1, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, y, z), 3, 3, 1, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, y, w), 3, 3, 1, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, z, x), 3, 3, 2, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, z, y), 3, 3, 2, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, z, z), 3, 3, 2, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, z, w), 3, 3, 2, 3)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, w, x), 3, 3, 3, 0)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, w, y), 3, 3, 3, 1)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, w, z), 3, 3, 3, 2)                                              \
+	SEK_VECTOR_PERMUTATION_FUNC(T, P, SEK_CONCAT(w, w, w, w), 3, 3, 3, 3)
 
 #define SEK_VECTOR_PERMUTATIONS(T, P, x, ...)                                                                          \
 	SEK_GET_MACRO_3(__VA_ARGS__, SEK_VECTOR_PERMUTATIONS_4, SEK_VECTOR_PERMUTATIONS_3, SEK_VECTOR_PERMUTATIONS_2)      \

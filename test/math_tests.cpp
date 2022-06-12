@@ -93,6 +93,13 @@ TEST(math_tests, vector_test)
 		EXPECT_EQ(sek::math::vector2d{v2dp}, v2d);
 		EXPECT_EQ(sek::math::vector2d_packed{v2d}, v2dp);
 	}
+
+	{
+		sek::math::vector4d v4d = {1, 2, 3, 4};
+		sek::math::vector3d v3d = {2, 4, 3};
+
+		EXPECT_EQ(v4d.ywz(), v3d);
+	}
 }
 
 TEST(math_tests, matrix_test)
