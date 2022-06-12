@@ -77,8 +77,11 @@ namespace sek::detail
 		void deallocate(void *ptr) { deallocate(static_cast<T *>(ptr)); }
 		void deallocate(T *ptr)
 		{
-			auto node = std::bit_cast<node_t *>(ptr);
-			node->next = std::exchange(m_next_free, node);
+			if (ptr) [[likely]]
+			{
+				auto node = std::bit_cast<node_t *>(ptr);
+				node->next = std::exchange(m_next_free, node);
+			}
 		}
 
 		void make_page(std::size_t cap)

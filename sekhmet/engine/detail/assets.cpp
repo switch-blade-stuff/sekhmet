@@ -29,14 +29,18 @@
 
 #include "assets.hpp"
 
+#include <fstream>
+
 #include "logger.hpp"
+#include "sekhmet/serialization/binary.hpp"
 #include "sekhmet/serialization/json.hpp"
-#include "sekhmet/serialization/ubjson.hpp"
 #include "zstd_ctx.hpp"
 
 namespace sek::engine
 {
-	inline static std::string format_asset_name(const detail::asset_info *info, uuid id)
+	using namespace sek::serialization;
+
+	inline std::string format_asset_name(const detail::asset_info *info, uuid id)
 	{
 		char id_str[37] = {0};
 		id.to_string(id_str);
@@ -72,6 +76,8 @@ namespace sek::engine
 
 		constexpr std::array<char, 7> signature_str = {'\3', 'S', 'E', 'K', 'P', 'A', 'K'};
 		constexpr std::size_t signature_size_min = signature_str.size() + 1;
+		constexpr std::uint8_t manifest_ver_max = 1;
+		constexpr std::uint8_t archive_ver_max = 1;
 
 		master_package *package_fragment::get_master() noexcept
 		{
@@ -92,7 +98,7 @@ namespace sek::engine
 				master->release_impl();
 		}
 
-		inline static thread_pool &asset_zstd_pool()
+		inline thread_pool &asset_zstd_pool()
 		{
 			static thread_pool instance;
 			return instance;
@@ -112,6 +118,9 @@ namespace sek::engine
 		}
 		std::vector<std::byte> package_fragment::read_metadata(const asset_info *info) const
 		{
+			if (!info->has_metadata()) [[unlikely]]
+				return {};
+
 			std::vector<std::byte> result;
 			if (system::native_file file; is_archive())
 			{
@@ -226,103 +235,280 @@ namespace sek::engine
 				default: throw asset_package_error("Failed to open asset source - invalid package flags");
 			}
 		}
+
+		inline json::input_archive open_manifest(const std::filesystem::path &path)
+		{
+			const auto manifest_path = path / MANIFEST_FILE_NAME;
+			if (!exists(manifest_path) && !is_regular_file(manifest_path)) [[unlikely]]
+				goto invalid_manifest;
+
+			{
+				std::ifstream stream(manifest_path);
+				if (!stream.is_open()) [[unlikely]]
+					goto invalid_manifest;
+				return json::input_archive{stream};
+			}
+
+		invalid_manifest:
+			throw asset_package_error(fmt::format("Failed to open package manifest at \"{}\"", manifest_path.string()));
+		}
+		inline std::uint8_t get_manifest_version(auto &frame)
+		{
+			std::uint8_t ver = 0;
+			if (!(frame.try_read(keyed_entry("version", ver)) && ver - 1 < manifest_ver_max)) [[unlikely]]
+				throw asset_package_error("Unknown manifest version");
+			return ver;
+		}
+
+		inline void deserialize(package_fragment &, typename json::input_archive::archive_frame &, master_package &);
+		inline void deserialize(master_package &, typename json::input_archive::archive_frame &);
+
+		struct tags_deserialize_proxy
+		{
+			void deserialize(auto &archive, std::size_t n)
+			{
+				tags.reserve(n);
+				while (n-- != 0) tags.emplace(archive.read(std::in_place_type<std::string_view>));
+			}
+			void deserialize(auto &archive)
+			{
+				std::size_t size = 0;
+				archive >> container_size(size);
+				deserialize(archive, size);
+			}
+
+			dense_set<interned_string> &tags;
+		};
+
+		inline void deserialize(asset_info *info, typename json::input_archive::archive_frame &frame, package_fragment &parent)
+		{
+			std::construct_at(info, type_selector<asset_info::loose_info_t>, &parent);
+
+			for (auto iter = frame.begin(), end = frame.end(); iter != end; ++iter)
+			{
+				const auto key = iter.key();
+				if (key == "name")
+					info->name = iter->read(std::in_place_type<std::string_view>);
+				else if (key == "tags")
+					iter->read(tags_deserialize_proxy{info->tags});
+				else if (key == "data")
+					info->loose_info.asset_path = iter->read(std::in_place_type<std::string_view>);
+				else if (key == "metadata")
+					info->loose_info.meta_path = iter->read(std::in_place_type<std::string_view>);
+			}
+
+			if (!info->loose_info.asset_path.empty()) [[unlikely]]
+				throw archive_error("Missing asset data path");
+		}
+		//		inline void deserialize(asset_info *info, binary::input_archive &frame, package_fragment &parent)
+		//		{
+		//			std::construct_at(info, type_selector<asset_info::archive_info_t>, &parent);
+		//
+		//			frame >> info->archive_info.asset_offset;
+		//			frame >> info->archive_info.asset_size;
+		//			frame >> info->archive_info.asset_src_size;
+		//			frame >> info->archive_info.asset_frames;
+		//			frame >> info->archive_info.meta_offset;
+		//			frame >> info->archive_info.meta_size;
+		//
+		//			info->name = frame.read(std::in_place_type<std::string_view>);
+		//			auto tags_count = frame.read(std::in_place_type<std::size_t>);
+		//			if (tags_count != 0) frame.read(tags_deserialize_proxy{info->tags}, tags_count);
+		//
+		//			if (info->archive_info.asset_offset == 0) [[unlikely]]
+		//				throw archive_error("Invalid asset data offset");
+		//		}
+
+		struct fragments_deserialize_proxy
+		{
+			inline void deserialize(auto &archive, std::size_t n)
+			{
+				logger::info() << "Loading fragments...";
+
+				master.fragments.reserve(n);
+				for (std::unique_ptr<package_fragment> frag; n-- != 0;)
+				{
+					if (std::filesystem::path path = archive.read(std::in_place_type<std::string_view>); !exists(path))
+						logger::warn() << fmt::format("Ignoring invalid fragment path \"{}\"", path.string());
+					else
+					{
+						/* Allocate & construct next fragment. */
+						frag = std::make_unique<package_fragment>(&master, package_fragment::NO_FLAGS, std::move(path));
+
+						try
+						{
+							if (is_directory(frag->path))
+								detail::open_manifest(frag->path).read(*frag, master);
+							else
+							{ /* TODO: Load archive. */
+							}
+						}
+						catch (asset_package_error &e)
+						{
+							logger::error() << fmt::format("Failed to load fragment at path \"{}\"."
+														   " Got exception: \"{}\". Skipping...",
+														   frag->path.string(),
+														   e.what());
+
+							/* Reset invalid fragment & continue on failure.
+							 * We still want to load any valid fragments. */
+							frag.reset();
+							continue;
+						}
+
+						/* Loaded successfully, add to master's list. */
+						master.fragments.emplace_back(std::move(frag));
+					}
+				}
+			}
+			inline void deserialize(auto &archive)
+			{
+				std::size_t size = 0;
+				archive >> container_size(size);
+				deserialize(archive, size);
+			}
+
+			master_package &master;
+		};
+		struct assets_deserialize_proxy
+		{
+			struct info_deleter
+			{
+				inline void operator()(asset_info *ptr) const { master.dealloc_info(ptr); }
+				master_package &master;
+			};
+
+			uuid read_entry(std::size_t i, typename json::input_archive::archive_frame &archive, asset_info *info)
+			{
+				const auto iter = archive.begin() + static_cast<std::ptrdiff_t>(i);
+				const auto id = uuid{iter.key()};
+
+				iter->read(info, pkg);
+				return id;
+			}
+			//			uuid read_entry(std::size_t, binary::input_archive &archive, asset_info *info)
+			//			{
+			//				const auto id = uuid{archive.read(std::in_place_type<std::string_view>)};
+			//				archive.read(info, pkg);
+			//				return id;
+			//			}
+
+			void deserialize(auto &archive, master_package &master, std::size_t n)
+			{
+				auto next_info = std::unique_ptr<asset_info, info_deleter>{nullptr, info_deleter{master}};
+				for (std::size_t i = 0; i < n; ++i)
+				{
+					/* Allocate new asset before deserialization. */
+					if (!next_info) [[likely]]
+						next_info.reset(master.alloc_info());
+
+					try
+					{
+						auto id = read_entry(i, archive, next_info.get());
+						master.uuid_table.emplace(id, next_info.release());
+					}
+					catch (archive_error &e)
+					{
+						logger::error() << fmt::format("Ignoring malformed asset entry. Parse error: \"{}\"", e.what());
+
+						/* Destroy the asset, as it will be constructed by the deserialization function on next iteration. */
+						std::destroy_at(next_info.get());
+						continue;
+					}
+				}
+			}
+			void deserialize(auto &archive, master_package &master)
+			{
+				std::size_t size = 0;
+				archive >> container_size(size);
+				deserialize(archive, master, size);
+			}
+
+			package_fragment &pkg;
+		};
+
+		namespace v1
+		{
+			inline void deserialize(package_fragment &pkg, typename json::input_archive::archive_frame &frame, master_package &master)
+			{
+				logger::info() << fmt::format("Loading v1 package \"{}\"...", pkg.path.string());
+
+				/* Try to deserialize assets. */
+				frame.try_read(keyed_entry("assets", assets_deserialize_proxy{pkg}), master);
+			}
+			inline void deserialize(master_package &pkg, typename json::input_archive::archive_frame &frame)
+			{
+				/* Try to deserialize assets & fragments. */
+				v1::deserialize(pkg, frame, pkg);
+				frame.try_read(keyed_entry("fragments", fragments_deserialize_proxy{pkg}));
+			}
+		}	 // namespace v1
+
+		inline void deserialize(package_fragment &pkg, typename json::input_archive::archive_frame &frame, master_package &master)
+		{
+			switch (get_manifest_version(frame))
+			{
+				case 1: v1::deserialize(pkg, frame, master); break;
+			}
+		}
+		inline void deserialize(master_package &pkg, typename json::input_archive::archive_frame &frame)
+		{
+			if (bool flag = false; !(frame.try_read(keyed_entry("is_master", flag)) && flag)) [[unlikely]]
+				throw asset_package_error("Not a master package");
+
+			switch (get_manifest_version(frame))
+			{
+				case 1: v1::deserialize(pkg, frame); break;
+			}
+		}
 	}	 // namespace detail
 
 	asset_package::asset_package(detail::master_package *pkg) : m_ptr(pkg) { m_ptr.acquire(); }
 	void asset_package::reset() { m_ptr.reset(); }
 
-	std::ranges::subrange<typename asset_database::package_iter> asset_database::packages() const
+	std::vector<asset_package> asset_package::load_all(const std::filesystem::path &path)
 	{
-		std::shared_lock<std::shared_mutex> l(m_mtx);
-		return {m_packages.begin(), m_packages.end()};
-	}
-	void asset_database::add_package(const asset_package &pkg)
-	{
-		std::unique_lock<std::shared_mutex> l(m_mtx);
-		if (find_package(pkg) == m_packages.end()) [[likely]]
+		if (!exists(path) && !is_directory(path)) [[unlikely]]
+			throw asset_package_error(fmt::format("\"{}\" is not a valid directory", path.string()));
+
+		std::vector<asset_package> result;
 		{
-			m_packages.push_back(pkg);
-			for (auto entry : pkg.m_ptr->uuid_table)
-			{
-				const auto uuid = entry.first;
-				const auto info = entry.second;
-				auto &new_name = info->name;
-
-				/* Replace existing or add new entry to both uuid & name tables. */
-				if (auto iter = uuid_table.find(uuid); iter != uuid_table.end()) [[unlikely]]
-					iter->second = info;
-				else
-					uuid_table.emplace(uuid, info);
-
-				if (!new_name.empty()) [[likely]]
+			logger::info() << fmt::format("Loading packages in directory \"{}\"", path.string());
+			for (auto &entry : std::filesystem::directory_iterator(path)) try
 				{
-					// clang-format off
-					name_table.emplace(std::piecewise_construct,
-									   std::forward_as_tuple(new_name),
-									   std::forward_as_tuple(uuid, info));
-					// clang-format on
+					result.emplace_back(load(entry.path()));
 				}
+				catch (asset_package_error &e)
+				{
+					logger::info() << fmt::format("Skipping invalid package path \"{}\"."
+												  " Reason: \"{}\"",
+												  entry.path().string(),
+												  e.what());
+				}
+			logger::info() << fmt::format("Loaded [{}] packages", result.size());
+		}
+		return result;
+	}
+	asset_package asset_package::load(const std::filesystem::path &path)
+	{
+		if (!exists(path)) [[unlikely]]
+			throw asset_package_error(fmt::format("\"{}\" is not a valid package path", path.string()));
+
+		auto *result = new detail::master_package(std::filesystem::path{path});
+		try
+		{
+			if (is_directory(path))
+				detail::open_manifest(path).read(*result);
+			else
+			{ /* TODO: Load archive. */
 			}
 		}
-	}
-	void asset_database::remove_package(const asset_package &pkg)
-	{
-		std::unique_lock<std::shared_mutex> l(m_mtx);
-		if (auto iter = find_package(pkg); iter != m_packages.end()) [[likely]]
+		catch (...)
 		{
-			m_packages.erase(iter);
-			for (auto entry : pkg.m_ptr->uuid_table)
-			{
-				const auto uuid = entry.first;
-				const auto info = entry.second;
-				auto &old_name = info->name;
-
-				/* Ignore all conflicting assets that do not have `pkg` as their parent, those belong to other packages.
-				 * No need to check if the asset uuid is present within the database, since if the
-				 * package is present within the database, it's assets are a subset of the database's assets. */
-				auto asset_iter = uuid_table.find(uuid);
-				if (asset_iter->second->parent->get_master() != pkg.m_ptr->get_master()) [[likely]]
-					continue;
-
-				auto name_iter = old_name.empty() ? name_table.end() : name_table.find(old_name);
-				const auto update_name = name_iter->second.second == info;
-				auto need_uuid_entry = true, uuid_replaced = false;
-				auto need_name_entry = update_name, name_replaced = false;
-
-				/* Find a replacement for the old UUID and/or name among lower priority packages.
-				 * Replacement assets might not be the same for the old UUID and the name. */
-				for (auto other_iter = iter; other_iter-- != m_packages.begin();)
-				{
-					/* Stop once both entries have been replaced. */
-					if (!(need_uuid_entry || need_name_entry)) [[unlikely]]
-						break;
-
-					/* Find a replacement asset for the old UUID. */
-					if (need_uuid_entry)
-					{
-						auto &other_table = other_iter->m_ptr->uuid_table;
-						if (auto replacement_iter = other_table.find(uuid); replacement_iter != other_table.end())
-						{
-							asset_iter->second = replacement_iter->second;
-							std::swap(need_uuid_entry, uuid_replaced);
-						}
-					}
-					/* Find a replacement asset for the old name. */
-					if (need_name_entry)
-					{
-						auto &other_table = other_iter->m_ptr->name_table;
-						if (auto replacement_iter = other_table.find(old_name); replacement_iter != other_table.end())
-						{
-							name_iter->second = replacement_iter->second;
-							std::swap(need_name_entry, name_replaced);
-						}
-					}
-				}
-
-				/* Erase the old UUID and name entries if they were not replaced. */
-				if (!uuid_replaced) uuid_table.erase(asset_iter);
-				if (!name_replaced && update_name) name_table.erase(name_iter);
-			}
+			delete result;
+			throw;
 		}
+		return asset_package{result};
 	}
+
 }	 // namespace sek::engine

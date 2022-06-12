@@ -24,6 +24,7 @@
 
 #include <atomic>
 #include <filesystem>
+#include <memory>
 #include <utility>
 
 #include "sekhmet/detail/basic_pool.hpp"
@@ -92,17 +93,15 @@ namespace sek::engine
 				 * will have more overhead than reading directly from a file. */
 			};
 
-			asset_info(package_fragment *parent, interned_string name) : parent(parent), name(std::move(name)) {}
-			asset_info(type_selector_t<archive_info_t>, package_fragment *parent, interned_string name)
-				: asset_info(parent, std::move(name))
-			{
-			}
-			asset_info(type_selector_t<loose_info_t>, package_fragment *parent, interned_string name)
-				: asset_info(parent, std::move(name))
+			explicit asset_info(package_fragment *parent) : parent(parent) {}
+			asset_info(type_selector_t<archive_info_t>, package_fragment *parent) : asset_info(parent) {}
+			asset_info(type_selector_t<loose_info_t>, package_fragment *parent) : asset_info(parent)
 			{
 				std::construct_at(&loose_info);
 			}
 			~asset_info();
+
+			[[nodiscard]] constexpr bool has_metadata() const noexcept;
 
 			package_fragment *parent; /* Parent fragment of the asset. */
 
@@ -121,6 +120,7 @@ namespace sek::engine
 		{
 			enum flags_t : std::int32_t
 			{
+				NO_FLAGS = 0,
 				IS_MASTER = 1,
 #ifdef SEK_EDITOR
 				IS_PROJECT = 2 | IS_MASTER, /* Used to designate in-editor project packages. */
@@ -129,6 +129,13 @@ namespace sek::engine
 				ARCHIVE_ZSTD = 0b0010'00, /* Archive is compressed with ZSTD. */
 				ARCHIVE_MASK = 0b1111'00,
 			};
+
+			package_fragment(flags_t flags, std::filesystem::path &&path) : flags(flags), path(std::move(path)) {}
+			package_fragment(master_package *master, flags_t flags, std::filesystem::path &&path)
+				: package_fragment(flags, std::move(path))
+			{
+				this->master = master;
+			}
 
 			[[nodiscard]] constexpr bool is_master() const noexcept { return flags & IS_MASTER; }
 #ifdef SEK_EDITOR
@@ -152,8 +159,8 @@ namespace sek::engine
 
 			union
 			{
-				master_package *master = nullptr;
-				std::atomic<std::size_t> ref_count;
+				std::atomic<std::size_t> ref_count = 0;
+				master_package *master;
 			};
 			flags_t flags;
 
@@ -178,10 +185,12 @@ namespace sek::engine
 		};
 		struct master_package : package_fragment, asset_table
 		{
+			master_package(std::filesystem::path &&path) : package_fragment(IS_MASTER, std::move(path)) {}
 			~master_package()
 			{
 				for (auto p : uuid_table) std::destroy_at(p.second);
 			}
+
 			inline void acquire_impl() { ++ref_count; }
 			inline void release_impl()
 			{
@@ -189,7 +198,11 @@ namespace sek::engine
 					delete this;
 			}
 
-			std::vector<package_fragment> fragments;
+			inline asset_info *alloc_info() { return info_pool.allocate(); }
+			inline void dealloc_info(asset_info *info) { info_pool.deallocate(info); }
+
+			std::vector<std::unique_ptr<package_fragment>> fragments;
+			sek::detail::basic_pool<asset_info> info_pool;
 		};
 	}	 // namespace detail
 
@@ -359,6 +372,11 @@ namespace sek::engine
 			return asset_source{std::move(buff), size, offset};
 		}
 
+		constexpr bool asset_info::has_metadata() const noexcept
+		{
+			return parent->is_archive() ? archive_info.meta_offset : loose_info.meta_path.empty();
+		}
+
 		struct asset_info_ptr
 		{
 			constexpr explicit asset_info_ptr(asset_info *info) noexcept : info(info) {}
@@ -489,9 +507,14 @@ namespace sek::engine
 		[[nodiscard]] constexpr const interned_string &name() const noexcept { return m_ptr->name; }
 		/** Returns a handle to the parent package of the asset. */
 		[[nodiscard]] asset_package package() const;
-		/** Opens an asset source used to read asset's data. */
+		/** Opens an asset source used to read asset's data.
+		 * @throw asset_package_error On failure to open asset. */
 		[[nodiscard]] asset_source open() const { return m_ptr->parent->open_asset(m_ptr.info); }
-		/** Returns a vector of bytes containing asset's metadata. */
+		/** Checks if the asset has metadata. */
+		[[nodiscard]] bool has_metadata() const { return m_ptr->has_metadata(); }
+		/** Returns a vector of bytes containing asset's metadata.
+		 * @note If the asset does not have metadata, returns empty vector.
+		 * @throw asset_package_error On failure to open metadata or archive file. */
 		[[nodiscard]] std::vector<std::byte> metadata() const { return m_ptr->parent->read_metadata(m_ptr.info); }
 
 		constexpr void swap(asset_ref &other) noexcept
@@ -520,6 +543,16 @@ namespace sek::engine
 		friend class asset_ref;
 		friend class asset_database;
 
+	public:
+		/** Loads a package at the specified path.
+		 * @throw asset_package_error If the path does not contain a valid package or
+		 * an implementation-defined error occurred during loading. */
+		[[nodiscard]] static SEK_API asset_package load(const std::filesystem::path &path);
+		/** Load all packages in the specified directory.
+		 * @throw asset_package_error If the path is not a valid directory. */
+		[[nodiscard]] static SEK_API std::vector<asset_package> load_all(const std::filesystem::path &path);
+
+	private:
 		constexpr explicit asset_package(detail::package_ptr &&ptr) noexcept : m_ptr(std::move(ptr)) {}
 		SEK_API explicit asset_package(detail::master_package *pkg);
 
@@ -552,28 +585,8 @@ namespace sek::engine
 
 	class asset_database : detail::asset_table
 	{
-		using packages_t = std::vector<asset_package>;
-		using package_iter = typename packages_t::const_iterator;
-
 	public:
-		/** Returns a range of all packages present within the database. */
-		[[nodiscard]] SEK_API std::ranges::subrange<package_iter> packages() const;
-		/** Adds a package to the database.
-		 * @param pkg Package to add. */
-		SEK_API void add_package(const asset_package &pkg);
-		/** Removes a package from the database.
-		 * @param pkg Package to remove.
-		 * @note Removing a package will require a rebuild of the internal asset table. */
-		SEK_API void remove_package(const asset_package &pkg);
-
 	private:
-		[[nodiscard]] constexpr auto find_package(const asset_package &pkg) const noexcept
-		{
-			const auto pred = [ptr = pkg.m_ptr.pkg](auto &pkg) { return ptr == pkg.m_ptr.pkg; };
-			return std::find_if(m_packages.begin(), m_packages.end(), pred);
-		}
-
 		mutable std::shared_mutex m_mtx;
-		packages_t m_packages;
 	};
 }	 // namespace sek::engine

@@ -1033,7 +1033,8 @@ namespace sek::math
 
 	/** Produces a new vector which is the result of shuffling elements of another vector.
 	 * @tparam I Indices of elements of the source vector in the order they should be shuffled to the destination vector.
-	 * @return Result vector who's elements are specified by `I`. */
+	 * @return Result vector who's elements are specified by `I`.
+	 * @example shuffle<2, 1, 0>({3, 4, 5}) -> {5, 4, 3} */
 	template<std::size_t... I, typename U, std::size_t M, storage_policy Sp>
 	constexpr basic_vector<U, sizeof...(I), Sp> shuffle(const basic_vector<U, M, Sp> &l) noexcept
 	{
