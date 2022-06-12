@@ -99,6 +99,7 @@ TEST(math_tests, vector_test)
 		sek::math::vector3d v3d = {2, 4, 3};
 
 		EXPECT_EQ(v4d.ywz(), v3d);
+		EXPECT_EQ(v4d.argb(), (shuffle<3, 0, 1, 2>(v4d)));
 	}
 }
 
