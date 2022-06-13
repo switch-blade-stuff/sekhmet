@@ -44,9 +44,9 @@ namespace sek::system::detail
 		if ((mode & in) && (mode & out))
 			native_flags = O_RDWR;
 		else if (mode & in)
-			native_flags = O_WRONLY;
-		else if (mode & out)
 			native_flags = O_RDONLY;
+		else if (mode & out)
+			native_flags = O_WRONLY;
 		if (mode & trunc) native_flags |= O_TRUNC;
 		if (mode & append) native_flags |= O_APPEND;
 		if (mode & create) native_flags |= O_CREAT;

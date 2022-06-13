@@ -367,6 +367,18 @@ namespace sek::serialization::ubj
 		{
 		}
 		/** Reads UBJson from a file.
+		 * @param file Native file containing UBJson data. */
+		explicit basic_input_archive(system::native_file &file)
+			: basic_input_archive(file, std::pmr::get_default_resource())
+		{
+		}
+		/** @copydoc basic_input_archive
+		 * @param res Memory resource used for internal allocation. */
+		basic_input_archive(system::native_file &file, std::pmr::memory_resource *res)
+			: basic_input_archive(archive_reader<char_type>{file}, res)
+		{
+		}
+		/** Reads UBJson from a file.
 		 * @param file Pointer to the UBJson file.
 		 * @note File must be opened in binary mode. */
 		explicit basic_input_archive(FILE *file) : basic_input_archive(file, std::pmr::get_default_resource()) {}
@@ -732,6 +744,18 @@ namespace sek::serialization::ubj
 		 * @param res Memory resource used for internal allocation. */
 		basic_output_archive(archive_writer<char_type> writer, std::pmr::memory_resource *res)
 			: base_t(res), m_writer(std::move(writer))
+		{
+		}
+		/** Initializes output archive for file writing.
+		 * @param file Native file to write UBJson data to. */
+		explicit basic_output_archive(system::native_file &file)
+			: basic_output_archive(file, std::pmr::get_default_resource())
+		{
+		}
+		/** @copydoc basic_input_archive
+		 * @param res Memory resource used for internal allocation. */
+		basic_output_archive(system::native_file &file, std::pmr::memory_resource *res)
+			: basic_output_archive(archive_writer<char_type>{file}, res)
 		{
 		}
 		/** Initialized output archive for file writing.

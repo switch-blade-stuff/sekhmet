@@ -57,10 +57,8 @@ namespace sek::engine
 		 *    File offsets                  Description
 		 * 0x0000  -  0x0007                Signature ("\3SEKPAK" + version byte)
 		 * 0x0008  -  0x000b                Header flags (master, compression type, etc.)
-		 * 0x000c  -  0x000f                Total header size
-		 * 0x0010  -  0x0013                CRC32 of the header
-		 * 0x0014  -  0x0017                Number of assets of the package
-		 * 0x0018  -  end_assets            Asset info for every asset
+		 * 0x000c  -  0x000f                Number of assets of the package
+		 * 0x0010  -  end_assets            Asset info for every asset
 		 * ======================== Master package header data ========================
 		 * end_assets - end_assets + 4      Number of fragments (if any) of the package
 		 * end_assets + 5 - header_end      File names of fragments
@@ -243,21 +241,60 @@ namespace sek::engine
 				goto invalid_manifest;
 
 			{
-				std::ifstream stream(manifest_path);
-				if (!stream.is_open()) [[unlikely]]
+				system::native_file file(manifest_path, system::native_file::in);
+				if (!file.is_open()) [[unlikely]]
 					goto invalid_manifest;
-				return json::input_archive{stream};
+				return json::input_archive{file};
 			}
 
 		invalid_manifest:
 			throw asset_package_error(fmt::format("Failed to open package manifest at \"{}\"", manifest_path.string()));
 		}
-		inline std::uint8_t get_manifest_version(auto &frame)
+		inline auto open_header(const std::filesystem::path &path)
+		{
+			if (!exists(path) && !is_regular_file(path)) [[unlikely]]
+				goto invalid_header;
+
+			{
+				auto file = new system::native_file(path, system::native_file::in);
+				if (!file->is_open()) [[unlikely]]
+					goto invalid_header;
+
+				std::pair<std::unique_ptr<system::native_file>, binary::input_archive> result = {
+					std::unique_ptr<system::native_file>{file},
+					binary::input_archive{*file},
+				};
+				return result;
+			}
+
+		invalid_header:
+			throw asset_package_error(fmt::format("Failed to open archive package at \"{}\"", path.string()));
+		}
+		inline std::uint8_t get_manifest_version(typename json::input_archive::archive_frame &frame)
 		{
 			std::uint8_t ver = 0;
 			if (!(frame.try_read(keyed_entry("version", ver)) && ver - 1 < manifest_ver_max)) [[unlikely]]
 				throw asset_package_error("Unknown manifest version");
 			return ver;
+		}
+		inline std::uint8_t get_header_version(binary::input_archive &archive)
+		{
+			for (auto c_req : signature_str)
+			{
+				if (char c; !(archive.try_read(c) && c == c_req)) [[unlikely]]
+					throw asset_package_error("Invalid header signature");
+			}
+			std::uint8_t ver = 0;
+			if (!(archive.try_read(ver) && ver - 1 < manifest_ver_max)) [[unlikely]]
+				throw asset_package_error("Unknown header version");
+			return ver;
+		}
+		inline auto get_header_flags(binary::input_archive &archive)
+		{
+			std::int32_t value;
+			if (!archive.try_read(value)) [[unlikely]]
+				throw asset_package_error("Invalid header flags");
+			return static_cast<package_fragment::flags_t>(value);
 		}
 
 		inline void deserialize(package_fragment &, typename json::input_archive::archive_frame &, master_package &);
@@ -316,8 +353,7 @@ namespace sek::engine
 			archive >> info->archive_info.meta_size;
 
 			info->name = archive.read(std::in_place_type<std::string>);
-			auto tags_count = archive.read(std::in_place_type<std::uint32_t>);
-			if (tags_count != 0) archive.read(tags_deserialize_proxy{info->tags}, tags_count);
+			archive.read(tags_deserialize_proxy{info->tags});
 
 			if (info->archive_info.asset_offset == 0) [[unlikely]]
 				throw archive_error("Invalid asset data offset");
@@ -325,11 +361,11 @@ namespace sek::engine
 
 		struct fragments_deserialize_proxy
 		{
-			std::filesystem::path full_path(master_package &master, typename json::input_archive::archive_frame &archive)
+			std::filesystem::path full_path(typename json::input_archive::archive_frame &archive)
 			{
 				return master.path.parent_path() / archive.read(std::in_place_type<std::string_view>);
 			}
-			std::filesystem::path full_path(master_package &master, binary::input_archive &archive)
+			std::filesystem::path full_path(binary::input_archive &archive)
 			{
 				return master.path.parent_path() / archive.read(std::in_place_type<std::string>);
 			}
@@ -340,7 +376,7 @@ namespace sek::engine
 				master.fragments.reserve(n);
 				for (std::unique_ptr<package_fragment> frag; n-- != 0;)
 				{
-					auto path = full_path(master, archive);
+					auto path = full_path(archive);
 					if (!exists(path))
 						logger::warn() << fmt::format("Ignoring invalid fragment path \"{}\"", path.string());
 					else
@@ -353,7 +389,9 @@ namespace sek::engine
 							if (is_directory(frag->path))
 								detail::open_manifest(frag->path).read(*frag, master);
 							else
-							{ /* TODO: Load archive. */
+							{
+								auto [file, frag_archive] = detail::open_header(frag->path);
+								frag_archive.read(*frag, master);
 							}
 						}
 						catch (asset_package_error &e)
@@ -405,7 +443,7 @@ namespace sek::engine
 			}
 			uuid read_entry(std::size_t, binary::input_archive &archive, asset_info *info)
 			{
-				std::array<std::byte, 16> bytes;
+				std::array<std::byte, 16> bytes = {};
 				for (auto &byte : bytes) byte = std::byte{archive.read(std::in_place_type<std::uint8_t>)};
 
 				archive.read(info, pkg);
@@ -467,6 +505,30 @@ namespace sek::engine
 				v1::deserialize(pkg, frame, pkg);
 				frame.try_read(keyed_entry("fragments", fragments_deserialize_proxy{pkg}));
 			}
+
+			inline void deserialize(package_fragment &pkg,
+									binary::input_archive &archive,
+									package_fragment::flags_t flags,
+									master_package &master)
+			{
+				pkg.flags = flags;
+				logger::info() << fmt::format("Loading v1 archive package (compression: {}) \"{}\"",
+											  pkg.is_archive_zstd() ? "ZSTD" : "none",
+											  pkg.path.string());
+
+				/* Try to deserialize assets. */
+				archive.try_read(assets_deserialize_proxy{pkg}, master);
+			}
+			inline void deserialize(master_package &pkg, binary::input_archive &archive)
+			{
+				const auto flags = get_header_flags(archive);
+				if (!(flags & package_fragment::IS_MASTER)) [[unlikely]]
+					throw asset_package_error("Not a master package");
+
+				/* Try to deserialize assets & fragments. */
+				deserialize(pkg, archive, flags, pkg);
+				archive.try_read(fragments_deserialize_proxy{pkg});
+			}
 		}	 // namespace v1
 
 		inline void deserialize(package_fragment &pkg, typename json::input_archive::archive_frame &frame, master_package &master)
@@ -484,6 +546,21 @@ namespace sek::engine
 			switch (get_manifest_version(frame))
 			{
 				case 1: v1::deserialize(pkg, frame); break;
+			}
+		}
+
+		inline void deserialize(package_fragment &pkg, binary::input_archive &archive, master_package &master)
+		{
+			switch (get_header_version(archive))
+			{
+				case 1: v1::deserialize(pkg, archive, get_header_flags(archive), master); break;
+			}
+		}
+		inline void deserialize(master_package &pkg, binary::input_archive &archive)
+		{
+			switch (get_header_version(archive))
+			{
+				case 1: v1::deserialize(pkg, archive); break;
 			}
 		}
 
@@ -527,7 +604,9 @@ namespace sek::engine
 			if (is_directory(path))
 				detail::open_manifest(path).read(*result);
 			else
-			{ /* TODO: Load archive. */
+			{
+				auto [file, archive] = detail::open_header(path);
+				archive.read(*result);
 			}
 		}
 		catch (...)

@@ -183,7 +183,7 @@ namespace sek::serialization
 				auto *file = data.file;
 				return file->write(src, n * sizeof(char_type));
 			},
-			.tell = +[](data_t &data) { return data.file->tell(); },
+			.tell = +[](data_t &data) { return static_cast<std::size_t>(data.file->tell()); },
 			.put = +[](data_t &data, char_type c) { data.file->write(&c, sizeof(char_type)); },
 			.flush = +[](data_t &data) { data.file->flush(); },
 		};

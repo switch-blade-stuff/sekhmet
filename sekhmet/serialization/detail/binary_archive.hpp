@@ -97,6 +97,11 @@ namespace sek::serialization::binary
 		{
 		}
 		/** Initializes binary archive for file reading.
+		 * @param file Native file containing source data. */
+		explicit basic_input_archive(system::native_file &file) : basic_input_archive(archive_reader<char_type>{file})
+		{
+		}
+		/** Initializes binary archive for file reading.
 		 * @param file Pointer to the C file containing source data.
 		 * @note File must be opened in binary mode. */
 		explicit basic_input_archive(FILE *file) : basic_input_archive(archive_reader<char_type>{file}) {}

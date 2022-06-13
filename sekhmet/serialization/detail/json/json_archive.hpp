@@ -185,6 +185,18 @@ namespace sek::serialization::json
 		{
 		}
 		/** Reads Json from a file.
+		 * @param file Native file containing Json data. */
+		explicit basic_input_archive(system::native_file &file)
+			: basic_input_archive(file, std::pmr::get_default_resource())
+		{
+		}
+		/** @copydoc basic_input_archive
+		 * @param res Memory resource used for internal allocation. */
+		basic_input_archive(system::native_file &file, std::pmr::memory_resource *res)
+			: basic_input_archive(archive_reader<char_type>{file}, res)
+		{
+		}
+		/** Reads Json from a file.
 		 * @param file Pointer to the Json file. */
 		explicit basic_input_archive(FILE *file) : basic_input_archive(file, std::pmr::get_default_resource()) {}
 		/** @copydoc basic_input_archive
@@ -448,6 +460,18 @@ namespace sek::serialization::json
 		template<typename Traits = std::char_traits<char_type>, typename Alloc = std::allocator<char_type>>
 		basic_output_archive(std::basic_string<char_type, Traits, Alloc> &str, std::pmr::memory_resource *res)
 			: basic_output_archive(archive_writer<char_type>{str}, res)
+		{
+		}
+		/** Initializes output archive for file writing.
+		 * @param file Native file to write Json data to. */
+		explicit basic_output_archive(system::native_file &file)
+			: basic_output_archive(file, std::pmr::get_default_resource())
+		{
+		}
+		/** @copydoc basic_input_archive
+		 * @param res Memory resource used for internal allocation. */
+		basic_output_archive(system::native_file &file, std::pmr::memory_resource *res)
+			: basic_output_archive(archive_writer<char_type>{file}, res)
 		{
 		}
 		/** Initializes output archive for file writing.

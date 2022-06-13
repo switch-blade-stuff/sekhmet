@@ -207,7 +207,7 @@ namespace sek::serialization
 			.peek = +[](data_t &data) -> int_type
 			{
 				char_type c;
-				if (data.file->read(&c, sizeof(char_type)) != sizeof(char_type)) [[likely]]
+				if (data.file->read(&c, sizeof(char_type)) == sizeof(char_type)) [[likely]]
 				{
 					data.file->seek(-static_cast<std::int64_t>(sizeof(char_type)), system::native_file::cur);
 					return traits_type::to_int_type(c);
@@ -218,7 +218,7 @@ namespace sek::serialization
 			.take = +[](data_t &data) -> int_type
 			{
 				char_type c;
-				if (data.file->read(&c, sizeof(char_type)) != sizeof(char_type)) [[likely]]
+				if (data.file->read(&c, sizeof(char_type)) == sizeof(char_type)) [[likely]]
 					return traits_type::to_int_type(c);
 				else
 					return traits_type::eof();

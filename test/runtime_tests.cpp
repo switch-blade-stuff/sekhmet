@@ -358,5 +358,11 @@ TEST(runtime_tests, asset_test)
 	EXPECT_NO_THROW(pkg = sek::engine::asset_package::load(pkg_path));
 	EXPECT_FALSE(pkg.empty());
 	EXPECT_EQ(pkg.path(), pkg_path);
+
+	pkg_path = std::filesystem::path(TEST_DIR) / "test_archive.sekpak";
+
+	EXPECT_NO_THROW(pkg = sek::engine::asset_package::load(pkg_path));
+	EXPECT_FALSE(pkg.empty());
+	EXPECT_EQ(pkg.path(), pkg_path);
 }
 
