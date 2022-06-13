@@ -297,7 +297,7 @@ namespace sek::engine
 					info->loose_info.meta_path = iter->read(std::in_place_type<std::string_view>);
 			}
 
-			if (!info->loose_info.asset_path.empty()) [[unlikely]]
+			if (info->loose_info.asset_path.empty()) [[unlikely]]
 				throw archive_error("Missing asset data path");
 		}
 		//		inline void deserialize(asset_info *info, binary::input_archive &frame, package_fragment &parent)
@@ -328,7 +328,8 @@ namespace sek::engine
 				master.fragments.reserve(n);
 				for (std::unique_ptr<package_fragment> frag; n-- != 0;)
 				{
-					if (std::filesystem::path path = archive.read(std::in_place_type<std::string_view>); !exists(path))
+					auto path = master.path.parent_path() / archive.read(std::in_place_type<std::string_view>);
+					if (!exists(path))
 						logger::warn() << fmt::format("Ignoring invalid fragment path \"{}\"", path.string());
 					else
 					{
@@ -395,6 +396,8 @@ namespace sek::engine
 
 			void deserialize(auto &archive, master_package &master, std::size_t n)
 			{
+				logger::info() << "Loading assets...";
+
 				auto next_info = std::unique_ptr<asset_info, info_deleter>{nullptr, info_deleter{master}};
 				for (std::size_t i = 0; i < n; ++i)
 				{
@@ -431,7 +434,7 @@ namespace sek::engine
 		{
 			inline void deserialize(package_fragment &pkg, typename json::input_archive::archive_frame &frame, master_package &master)
 			{
-				logger::info() << fmt::format("Loading v1 package \"{}\"...", pkg.path.string());
+				logger::info() << fmt::format("Loading v1 package \"{}\"", pkg.path.string());
 
 				/* Try to deserialize assets. */
 				frame.try_read(keyed_entry("assets", assets_deserialize_proxy{pkg}), master);

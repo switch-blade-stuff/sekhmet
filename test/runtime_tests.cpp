@@ -76,7 +76,7 @@ SEK_PLUGIN("test_plugin")
 	};
 }
 
-TEST(utility_tests, plugin_test)
+TEST(runtime_tests, plugin_test)
 {
 	auto p = sek::engine::plugin::get("test_plugin");
 	EXPECT_FALSE(p.enabled());
@@ -99,7 +99,7 @@ TEST(utility_tests, plugin_test)
 	EXPECT_TRUE(plugin_enabled);
 }
 
-TEST(utility_tests, type_info_test)
+TEST(runtime_tests, type_info_test)
 {
 	using namespace sek::literals;
 
@@ -198,7 +198,7 @@ namespace
 	};
 }	 // namespace
 
-TEST(utility_tests, any_test)
+TEST(runtime_tests, any_test)
 {
 	{
 		using data_t = std::array<int, 4>;
@@ -347,3 +347,16 @@ TEST(utility_tests, any_test)
 
 	}
 }
+
+#include "sekhmet/engine/assets.hpp"
+
+TEST(runtime_tests, asset_test)
+{
+	sek::engine::asset_package pkg;
+	auto pkg_path = std::filesystem::path(TEST_DIR) / "test_package";
+
+	EXPECT_NO_THROW(pkg = sek::engine::asset_package::load(pkg_path));
+	EXPECT_FALSE(pkg.empty());
+	EXPECT_EQ(pkg.path(), pkg_path);
+}
+

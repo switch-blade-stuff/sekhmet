@@ -252,7 +252,7 @@ namespace sek
 		}
 		constexpr basic_interned_string &operator=(basic_interned_string &&other) noexcept
 		{
-			std::swap(m_header, other.m_header);
+			swap(other);
 			return *this;
 		}
 		constexpr ~basic_interned_string() { release(); }
