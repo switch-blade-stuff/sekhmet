@@ -563,8 +563,6 @@ namespace sek::engine
 				case 1: v1::deserialize(pkg, archive); break;
 			}
 		}
-
-		/* TODO: Implement binary archive deserialization. */
 	}	 // namespace detail
 
 	asset_package::asset_package(detail::master_package *pkg) : m_ptr(pkg) { m_ptr.acquire(); }
