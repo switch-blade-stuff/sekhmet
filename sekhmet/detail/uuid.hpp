@@ -23,6 +23,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -106,7 +107,9 @@ namespace sek
 		{
 		}
 		/** Initializes a UUID from a byte array. */
-		constexpr explicit uuid(const std::byte (&data)[16]) noexcept { std::copy_n(data, 16, m_bytes); }
+		constexpr explicit uuid(std::array<std::byte, 16> data) noexcept : m_bytes(data) {}
+		/** @copydoc uuid */
+		constexpr explicit uuid(const std::byte (&data)[16]) noexcept { std::copy_n(data, 16, m_bytes.data()); }
 
 		/** Converts the UUID to string.
 		 * @tparam C Character type of the output sequence.
@@ -138,6 +141,9 @@ namespace sek
 		{
 			return to_string<std::iter_value_t<Iter>, Iter>(out, upper);
 		}
+
+		/** Returns array of bytes of this UUID. */
+		[[nodiscard]] constexpr std::array<std::byte, 16> bytes() const noexcept { return m_bytes; }
 
 		constexpr void swap(uuid &other) noexcept { std::swap(m_bytes, other.m_bytes); }
 		friend constexpr void swap(uuid &a, uuid &b) noexcept { a.swap(b); }
@@ -177,13 +183,10 @@ namespace sek
 			}
 		}
 
-		alignas(std::uint64_t[2]) std::byte m_bytes[16] = {};
+		alignas(std::uint64_t[2]) std::array<std::byte, 16> m_bytes = {};
 	};
 
-	[[nodiscard]] constexpr hash_t hash(const uuid &id) noexcept
-	{
-		return fnv1a(id.m_bytes, SEK_ARRAY_SIZE(id.m_bytes));
-	}
+	[[nodiscard]] constexpr hash_t hash(const uuid &id) noexcept { return fnv1a(id.m_bytes.data(), id.m_bytes.size()); }
 
 	namespace literals
 	{

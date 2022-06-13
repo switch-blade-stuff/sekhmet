@@ -262,29 +262,33 @@ namespace sek::engine
 
 		inline void deserialize(package_fragment &, typename json::input_archive::archive_frame &, master_package &);
 		inline void deserialize(master_package &, typename json::input_archive::archive_frame &);
+		inline void deserialize(package_fragment &, binary::input_archive &, master_package &);
+		inline void deserialize(master_package &, binary::input_archive &);
 
 		struct tags_deserialize_proxy
 		{
-			void deserialize(auto &archive, std::size_t n)
-			{
-				tags.reserve(n);
-				while (n-- != 0) tags.emplace(archive.read(std::in_place_type<std::string_view>));
-			}
-			void deserialize(auto &archive)
+			void deserialize(typename json::input_archive::archive_frame &archive)
 			{
 				std::size_t size = 0;
 				archive >> container_size(size);
-				deserialize(archive, size);
+				tags.reserve(size);
+				while (size-- != 0) tags.emplace(archive.read(std::in_place_type<std::string_view>));
+			}
+			void deserialize(typename binary::input_archive &archive)
+			{
+				auto size = archive.read(std::in_place_type<std::uint32_t>);
+				tags.reserve(size);
+				while (size-- != 0) tags.emplace(archive.read(std::in_place_type<std::string>));
 			}
 
 			dense_set<interned_string> &tags;
 		};
 
-		inline void deserialize(asset_info *info, typename json::input_archive::archive_frame &frame, package_fragment &parent)
+		inline void deserialize(asset_info *info, typename json::input_archive::archive_frame &archive, package_fragment &parent)
 		{
 			std::construct_at(info, type_selector<asset_info::loose_info_t>, &parent);
 
-			for (auto iter = frame.begin(), end = frame.end(); iter != end; ++iter)
+			for (auto iter = archive.begin(), end = archive.end(); iter != end; ++iter)
 			{
 				const auto key = iter.key();
 				if (key == "name")
@@ -300,35 +304,43 @@ namespace sek::engine
 			if (info->loose_info.asset_path.empty()) [[unlikely]]
 				throw archive_error("Missing asset data path");
 		}
-		//		inline void deserialize(asset_info *info, binary::input_archive &frame, package_fragment &parent)
-		//		{
-		//			std::construct_at(info, type_selector<asset_info::archive_info_t>, &parent);
-		//
-		//			frame >> info->archive_info.asset_offset;
-		//			frame >> info->archive_info.asset_size;
-		//			frame >> info->archive_info.asset_src_size;
-		//			frame >> info->archive_info.asset_frames;
-		//			frame >> info->archive_info.meta_offset;
-		//			frame >> info->archive_info.meta_size;
-		//
-		//			info->name = frame.read(std::in_place_type<std::string_view>);
-		//			auto tags_count = frame.read(std::in_place_type<std::size_t>);
-		//			if (tags_count != 0) frame.read(tags_deserialize_proxy{info->tags}, tags_count);
-		//
-		//			if (info->archive_info.asset_offset == 0) [[unlikely]]
-		//				throw archive_error("Invalid asset data offset");
-		//		}
+		inline void deserialize(asset_info *info, binary::input_archive &archive, package_fragment &parent)
+		{
+			std::construct_at(info, type_selector<asset_info::archive_info_t>, &parent);
+
+			archive >> info->archive_info.asset_offset;
+			archive >> info->archive_info.asset_size;
+			archive >> info->archive_info.asset_src_size;
+			archive >> info->archive_info.asset_frames;
+			archive >> info->archive_info.meta_offset;
+			archive >> info->archive_info.meta_size;
+
+			info->name = archive.read(std::in_place_type<std::string>);
+			auto tags_count = archive.read(std::in_place_type<std::uint32_t>);
+			if (tags_count != 0) archive.read(tags_deserialize_proxy{info->tags}, tags_count);
+
+			if (info->archive_info.asset_offset == 0) [[unlikely]]
+				throw archive_error("Invalid asset data offset");
+		}
 
 		struct fragments_deserialize_proxy
 		{
-			inline void deserialize(auto &archive, std::size_t n)
+			std::filesystem::path full_path(master_package &master, typename json::input_archive::archive_frame &archive)
+			{
+				return master.path.parent_path() / archive.read(std::in_place_type<std::string_view>);
+			}
+			std::filesystem::path full_path(master_package &master, binary::input_archive &archive)
+			{
+				return master.path.parent_path() / archive.read(std::in_place_type<std::string>);
+			}
+			void deserialize(auto &archive, std::size_t n)
 			{
 				logger::info() << "Loading fragments...";
 
 				master.fragments.reserve(n);
 				for (std::unique_ptr<package_fragment> frag; n-- != 0;)
 				{
-					auto path = master.path.parent_path() / archive.read(std::in_place_type<std::string_view>);
+					auto path = full_path(master, archive);
 					if (!exists(path))
 						logger::warn() << fmt::format("Ignoring invalid fragment path \"{}\"", path.string());
 					else
@@ -362,11 +374,15 @@ namespace sek::engine
 					}
 				}
 			}
-			inline void deserialize(auto &archive)
+			void deserialize(typename json::input_archive::archive_frame &archive)
 			{
 				std::size_t size = 0;
 				archive >> container_size(size);
 				deserialize(archive, size);
+			}
+			void deserialize(typename binary::input_archive &archive)
+			{
+				deserialize(archive, archive.read(std::in_place_type<std::uint32_t>));
 			}
 
 			master_package &master;
@@ -387,12 +403,14 @@ namespace sek::engine
 				iter->read(info, pkg);
 				return id;
 			}
-			//			uuid read_entry(std::size_t, binary::input_archive &archive, asset_info *info)
-			//			{
-			//				const auto id = uuid{archive.read(std::in_place_type<std::string_view>)};
-			//				archive.read(info, pkg);
-			//				return id;
-			//			}
+			uuid read_entry(std::size_t, binary::input_archive &archive, asset_info *info)
+			{
+				std::array<std::byte, 16> bytes;
+				for (auto &byte : bytes) byte = std::byte{archive.read(std::in_place_type<std::uint8_t>)};
+
+				archive.read(info, pkg);
+				return uuid{bytes};
+			}
 
 			void deserialize(auto &archive, master_package &master, std::size_t n)
 			{
@@ -420,11 +438,15 @@ namespace sek::engine
 					}
 				}
 			}
-			void deserialize(auto &archive, master_package &master)
+			void deserialize(typename json::input_archive::archive_frame &archive, master_package &master)
 			{
 				std::size_t size = 0;
 				archive >> container_size(size);
 				deserialize(archive, master, size);
+			}
+			void deserialize(typename binary::input_archive &archive, master_package &master)
+			{
+				deserialize(archive, master, archive.read(std::in_place_type<std::uint32_t>));
 			}
 
 			package_fragment &pkg;
@@ -464,6 +486,8 @@ namespace sek::engine
 				case 1: v1::deserialize(pkg, frame); break;
 			}
 		}
+
+		/* TODO: Implement binary archive deserialization. */
 	}	 // namespace detail
 
 	asset_package::asset_package(detail::master_package *pkg) : m_ptr(pkg) { m_ptr.acquire(); }

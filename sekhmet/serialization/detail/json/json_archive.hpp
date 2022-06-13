@@ -162,7 +162,7 @@ namespace sek::serialization::json
 		/** Reads Json using the provided archive reader.
 		 * @param reader Reader used to read Json data. */
 		explicit basic_input_archive(archive_reader<char_type> reader)
-			: basic_input_archive(reader, std::pmr::get_default_resource())
+			: basic_input_archive(std::move(reader), std::pmr::get_default_resource())
 		{
 		}
 		/** @copydoc basic_input_archive
@@ -180,9 +180,9 @@ namespace sek::serialization::json
 		}
 		/** @copydoc basic_input_archive
 		 * @param res PMR memory resource used for internal allocation. */
-		basic_input_archive(const char_type *buff, std::size_t len, std::pmr::memory_resource *res) : base_t(res)
+		basic_input_archive(const char_type *buff, std::size_t len, std::pmr::memory_resource *res)
+			: basic_input_archive(archive_reader<char_type>{buff, len}, res)
 		{
-			parse(buff, len);
 		}
 		/** Reads Json from a file.
 		 * @param file Pointer to the Json file. */
@@ -270,38 +270,6 @@ namespace sek::serialization::json
 				error_msg.append(std::to_string(parser.GetErrorOffset()));
 				throw archive_error(error_msg);
 			}
-		}
-		void parse(const char_type *buff, std::size_t len)
-		{
-			using traits_t = std::char_traits<char_type>;
-			struct buffer_t
-			{
-				const char_type *data;
-				std::size_t size;
-				std::size_t pos;
-			} buffer = {buff, len, 0};
-			const typename archive_reader<char_type>::vtable_t vtable = {
-				.getn = nullptr,
-				.bump = nullptr,
-				.tell = +[](void *data) -> std::size_t { return static_cast<buffer_t *>(data)->pos; },
-				.peek = +[](void *data) -> typename traits_t::int_type
-				{
-					auto *buffer = static_cast<buffer_t *>(data);
-					if (buffer->pos < buffer->size)
-						return traits_t::to_int_type(buffer->data[buffer->pos]);
-					else
-						return traits_t::eof();
-				},
-				.take = +[](void *data) -> typename traits_t::int_type
-				{
-					auto *buffer = static_cast<buffer_t *>(data);
-					if (buffer->pos < buffer->size)
-						return traits_t::to_int_type(buffer->data[buffer->pos++]);
-					else
-						return traits_t::eof();
-				},
-			};
-			parse(rj_reader{archive_reader<char_type>{&vtable, &buffer}});
 		}
 	};
 
@@ -440,28 +408,6 @@ namespace sek::serialization::json
 			frame_t frame;
 		};
 
-		template<typename T, typename A>
-		constexpr static typename archive_writer<char_type>::vtable_t string_vtable = {
-			.putn = nullptr,
-			.tell = +[](void *data) -> std::size_t
-			{
-				auto &str = *static_cast<std::basic_string<char_type, T, A> *>(data);
-				return str.size();
-			},
-			.put = +[](void *data, char_type c) -> void
-			{
-				auto &str = *static_cast<std::basic_string<char_type, T, A> *>(data);
-				str.append(1, c);
-			},
-			.flush = +[](void *) {},
-		};
-
-		template<typename Traits = std::char_traits<char_type>, typename Alloc = std::allocator<char_type>>
-		constexpr static archive_writer<char_type> make_writer(std::basic_string<char_type, Traits, Alloc> &str) noexcept
-		{
-			return archive_writer<char_type>{&string_vtable<Traits, Alloc>, &str};
-		}
-
 	public:
 		basic_output_archive() = delete;
 		basic_output_archive(const basic_output_archive &) = delete;
@@ -481,7 +427,7 @@ namespace sek::serialization::json
 		/** Initializes output archive for writing using the provided writer.
 		 * @param writer Writer used to write Json data. */
 		explicit basic_output_archive(archive_writer<char_type> writer)
-			: basic_output_archive(writer, std::pmr::get_default_resource())
+			: basic_output_archive(std::move(writer), std::pmr::get_default_resource())
 		{
 		}
 		/** @copydoc basic_input_archive
@@ -501,7 +447,7 @@ namespace sek::serialization::json
 		 * @param res Memory resource used for internal allocation. */
 		template<typename Traits = std::char_traits<char_type>, typename Alloc = std::allocator<char_type>>
 		basic_output_archive(std::basic_string<char_type, Traits, Alloc> &str, std::pmr::memory_resource *res)
-			: base_t(res), m_writer(make_writer(str))
+			: basic_output_archive(archive_writer<char_type>{str}, res)
 		{
 		}
 		/** Initializes output archive for file writing.

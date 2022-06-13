@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <atomic>
 #include <bit>
+#include <ranges>
 #include <string>
 
 #include "contiguous_iterator.hpp"
@@ -185,6 +186,19 @@ namespace sek
 			}
 			return iter->m_header;
 		}
+		template<typename R>
+		[[nodiscard]] constexpr header_t *intern_impl(const R &r)
+			requires(std::ranges::forward_range<R> && std::is_convertible_v<std::ranges::range_value_t<R>, C>)
+		{
+			if constexpr (std::contiguous_iterator<std::ranges::iterator_t<R>>)
+				return intern_impl(sv_t{std::to_address(std::ranges::begin(r)), std::ranges::size(r)});
+			else
+			{
+				const auto temp = std::string{std::ranges::begin(r), std::ranges::end(r)};
+				return intern_impl(sv_t{temp});
+			}
+		}
+
 		constexpr void unintern(header_t *h)
 		{
 			m_data.erase(h->sv());
@@ -257,7 +271,18 @@ namespace sek
 		}
 		constexpr ~basic_interned_string() { release(); }
 
+		// clang-format off
 		/** Interns the passed string using the provided pool. */
+		template<typename R>
+		constexpr basic_interned_string(pool_type &pool, const R &r)
+			requires(std::ranges::forward_range<R> &&
+			         std::is_convertible_v<std::ranges::range_value_t<R>, C>)
+			: basic_interned_string(pool.intern_impl(r))
+		{
+		}
+		// clang-format on
+
+		/** @copydoc basic_interned_string */
 		constexpr basic_interned_string(pool_type &pool, std::basic_string_view<C, Traits> sv)
 			: basic_interned_string(pool.intern_impl(sv))
 		{
@@ -274,17 +299,18 @@ namespace sek
 		}
 
 		// clang-format off
-		/** @copydoc basic_interned_string */
-		template<typename S>
-		constexpr basic_interned_string(pool_type &pool, const S &str)
-			requires std::is_convertible_v<S, std::basic_string_view<C, Traits>>
-			: basic_interned_string(pool, std::basic_string_view<C, Traits>{str})
+		template<typename R>
+		/** Interns the passed string using the global (per-thread) pool.
+ 		 * @note Global pools are thread-specific to avoid the need for synchronization. */
+		constexpr basic_interned_string(const R &r)
+			requires(std::ranges::forward_range<R> &&
+			         std::is_convertible_v<std::ranges::range_value_t<R>, C>)
+			: basic_interned_string(pool_type::global(), r)
 		{
 		}
 		// clang-format on
 
-		/** Interns the passed string using the global (per-thread) pool.
-		 * @note Global pools are thread-specific to avoid the need for synchronization. */
+		/** @copydoc basic_interned_string */
 		constexpr basic_interned_string(std::basic_string_view<C, Traits> sv)
 			: basic_interned_string(pool_type::global(), sv)
 		{
@@ -296,16 +322,6 @@ namespace sek
 			: basic_interned_string(std::basic_string_view<C, Traits>{str, n})
 		{
 		}
-
-		// clang-format off
-		/** @copydoc basic_interned_string */
-		template<typename S, typename A>
-		constexpr basic_interned_string(const S &str)
-			requires std::is_convertible_v<S, std::basic_string_view<C, Traits>>
-			: basic_interned_string(std::basic_string_view<C, Traits>{str})
-		{
-		}
-		// clang-format on
 
 		/** Returns iterator to the start of the string. */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return iterator{data()}; }

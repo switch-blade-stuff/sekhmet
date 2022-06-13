@@ -53,7 +53,7 @@ namespace sek
 	{
 		/* Fill with random bits. */
 		for (std::size_t i = 0; i < SEK_ARRAY_SIZE(id.m_bytes) / sizeof(std::uint64_t); ++i)
-			reinterpret_cast<std::uint64_t *>(id.m_bytes)[i] = uuid_rng.next();
+			reinterpret_cast<std::uint64_t *>(id.m_bytes.data())[i] = uuid_rng.next();
 
 		/* Apply version & variant. */
 		constexpr std::uint8_t version_mask = 0b0000'1111;
