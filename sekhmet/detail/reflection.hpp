@@ -1079,9 +1079,7 @@ namespace sek
 		void reset_impl()
 		{
 			/* References are not destroyed. */
-			if (m_info & IS_REF) [[unlikely]]
-				return;
-			else if (m_vtable != nullptr) [[likely]]
+			if (!(m_flags & IS_REF) && m_vtable != nullptr) [[likely]]
 				m_vtable->destroy(*this);
 		}
 		void copy_construct(const any &from)

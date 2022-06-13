@@ -64,8 +64,12 @@ namespace sek::detail
 		}
 		~basic_pool()
 		{
-			for (auto page = last_page(); page != nullptr; page = page->next)
+			for (auto *page = last_page(); page != nullptr;)
+			{
+				auto next = page->next;
 				get_alloc().deallocate(std::bit_cast<node_t *>(page), header_nodes + page->capacity);
+				page = next;
+			}
 		}
 
 		T *allocate()
