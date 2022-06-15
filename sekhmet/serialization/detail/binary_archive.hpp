@@ -272,6 +272,31 @@ namespace sek::serialization::binary
 			return *this;
 		}
 
+		/** Attempts to read an array of bytes from the archive.
+		 * @return `true` on success, `false` on failure. Will fail on premature EOF. */
+		template<std::size_t N>
+		bool try_read(std::array<std::byte, N> &array, auto &&...) noexcept
+		{
+			return m_reader.getn(static_cast<const char *>(array.data()), array.size()) == array.size();
+		}
+		/** Reads an array of bytes from the archive.
+		 * @throw archive_error On premature EOF. */
+		template<std::size_t N>
+		basic_input_archive &read(std::array<std::byte, N> &array, auto &&...)
+		{
+			if (!try_read(array)) [[unlikely]]
+				throw_eof();
+			return *this;
+		}
+		/** @copydoc read */
+		template<std::size_t N>
+		std::array<std::byte, N> read(std::in_place_type_t<std::array<std::byte, N>>, auto &&...)
+		{
+			std::array<std::byte, N> result;
+			read(result);
+			return result;
+		}
+
 		/** Attempts to deserialize an object of type `T`.
 		 * @param value Value to deserialize.
 		 * @param args Arguments forwarded to the deserialization function.

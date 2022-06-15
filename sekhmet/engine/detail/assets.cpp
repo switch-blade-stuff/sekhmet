@@ -225,12 +225,46 @@ namespace sek::engine
 		}
 		asset_source package_fragment::open_asset(const asset_info *info) const
 		{
-			switch (flags & ARCHIVE_MASK)
+			switch (flags & (ARCHIVE_FORMAT_MASK | IS_ARCHIVE))
 			{
 				case 0: return open_asset_loose(info);
-				case ARCHIVE_FLAT: return open_asset_flat(info);
-				case ARCHIVE_ZSTD: return open_asset_zstd(info);
+				case IS_ARCHIVE: return open_asset_flat(info);
+				case IS_ARCHIVE | ARCHIVE_FORMAT_ZSTD: return open_asset_zstd(info);
 				default: throw asset_package_error("Failed to open asset source - invalid package flags");
+			}
+		}
+
+		void master_package::insert_asset(uuid id, asset_info *info)
+		{
+			if (auto existing = uuid_table.find(id); existing != uuid_table.end())
+			{
+				auto old_info = existing->second;
+				existing->second = info;
+
+				/* If the old UUID asset has a name, remove the old name entry. */
+				if (!old_info->name.empty()) [[likely]]
+					name_table.erase(old_info->name);
+
+				/* Destroy & de-allocate the old UUID asset. */
+				std::destroy_at(old_info);
+				dealloc_info(old_info);
+			}
+			else
+				uuid_table.emplace(id, info);
+
+			/* If the new asset has a name, add or replace the name entry. */
+			if (!info->name.empty()) [[likely]]
+			{
+				if (auto existing = name_table.find(info->name); existing != name_table.end())
+					existing->second = {id, info};
+				else
+				{
+					// clang-format off
+					name_table.emplace(std::piecewise_construct,
+									   std::forward_as_tuple(info->name),
+									   std::forward_as_tuple(id, info));
+					// clang-format on
+				}
 			}
 		}
 
@@ -389,10 +423,7 @@ namespace sek::engine
 							if (is_directory(frag->path))
 								detail::open_manifest(frag->path).read(*frag, master);
 							else
-							{
-								auto [file, frag_archive] = detail::open_header(frag->path);
-								frag_archive.read(*frag, master);
-							}
+								detail::open_header(frag->path).second.read(*frag, master);
 						}
 						catch (asset_package_error &e)
 						{
@@ -464,7 +495,7 @@ namespace sek::engine
 					try
 					{
 						auto id = read_entry(i, archive, next_info.get());
-						master.uuid_table.emplace(id, next_info.release());
+						master.insert_asset(id, next_info.release());
 					}
 					catch (archive_error &e)
 					{
@@ -511,7 +542,7 @@ namespace sek::engine
 									package_fragment::flags_t flags,
 									master_package &master)
 			{
-				pkg.flags = flags;
+				pkg.flags = static_cast<package_fragment::flags_t>(flags | package_fragment::IS_ARCHIVE);
 				logger::info() << fmt::format("Loading v1 archive package (compression: {}) \"{}\"",
 											  pkg.is_archive_zstd() ? "ZSTD" : "none",
 											  pkg.path.string());
@@ -602,10 +633,7 @@ namespace sek::engine
 			if (is_directory(path))
 				detail::open_manifest(path).read(*result);
 			else
-			{
-				auto [file, archive] = detail::open_header(path);
-				archive.read(*result);
-			}
+				detail::open_header(path).second.read(*result);
 		}
 		catch (...)
 		{

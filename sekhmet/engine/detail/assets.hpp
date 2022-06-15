@@ -122,12 +122,12 @@ namespace sek::engine
 			{
 				NO_FLAGS = 0,
 				IS_MASTER = 1,
+				IS_ARCHIVE = 2,
 #ifdef SEK_EDITOR
-				IS_PROJECT = 2 | IS_MASTER, /* Used to designate in-editor project packages. */
+				IS_PROJECT = 4 | IS_MASTER, /* Used to designate in-editor project packages. */
 #endif
-				ARCHIVE_FLAT = 0b0001'00, /* Archive is not compressed (flat). */
-				ARCHIVE_ZSTD = 0b0010'00, /* Archive is compressed with ZSTD. */
-				ARCHIVE_MASK = 0b1111'00,
+				ARCHIVE_FORMAT_ZSTD = 0b0010'000, /* Archive is compressed with ZSTD. */
+				ARCHIVE_FORMAT_MASK = 0b111'000,
 			};
 
 			package_fragment(flags_t flags, std::filesystem::path &&path) : flags(flags), path(std::move(path)) {}
@@ -141,9 +141,12 @@ namespace sek::engine
 #ifdef SEK_EDITOR
 			[[nodiscard]] constexpr bool is_project() const noexcept { return (flags & IS_PROJECT) == IS_PROJECT; }
 #endif
-			[[nodiscard]] constexpr bool is_archive() const noexcept { return flags & ARCHIVE_MASK; }
-			[[nodiscard]] constexpr bool is_archive_flat() const noexcept { return flags & ARCHIVE_FLAT; }
-			[[nodiscard]] constexpr bool is_archive_zstd() const noexcept { return flags & ARCHIVE_ZSTD; }
+			[[nodiscard]] constexpr bool is_archive() const noexcept { return flags & IS_ARCHIVE; }
+			[[nodiscard]] constexpr bool is_archive_flat() const noexcept
+			{
+				return (flags & (ARCHIVE_FORMAT_MASK | IS_ARCHIVE)) == IS_ARCHIVE;
+			}
+			[[nodiscard]] constexpr bool is_archive_zstd() const noexcept { return flags & ARCHIVE_FORMAT_ZSTD; }
 
 			[[nodiscard]] SEK_API master_package *get_master() noexcept;
 			SEK_API void acquire();
@@ -200,6 +203,8 @@ namespace sek::engine
 
 			inline asset_info *alloc_info() { return info_pool.allocate(); }
 			inline void dealloc_info(asset_info *info) { info_pool.deallocate(info); }
+
+			void insert_asset(uuid id, asset_info *info);
 
 			std::vector<std::unique_ptr<package_fragment>> fragments;
 			sek::detail::basic_pool<asset_info> info_pool;
