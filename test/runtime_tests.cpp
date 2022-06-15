@@ -344,7 +344,6 @@ TEST(runtime_tests, any_test)
 		EXPECT_TRUE(a2.is_const());
 		EXPECT_EQ(a2.cast<int>(), data.i);
 		EXPECT_EQ(a1.cdata(), a2.cdata());
-
 	}
 }
 
@@ -352,17 +351,11 @@ TEST(runtime_tests, any_test)
 
 TEST(runtime_tests, asset_test)
 {
-	sek::engine::asset_package pkg;
 	auto pkg_path = std::filesystem::path(TEST_DIR) / "test_package";
-
-	EXPECT_NO_THROW(pkg = sek::engine::asset_package::load(pkg_path));
-	EXPECT_FALSE(pkg.empty());
+	auto pkg = sek::engine::asset_package::load(pkg_path);
 	EXPECT_EQ(pkg.path(), pkg_path);
 
 	pkg_path = std::filesystem::path(TEST_DIR) / "test_archive.sekpak";
-
-	EXPECT_NO_THROW(pkg = sek::engine::asset_package::load(pkg_path));
-	EXPECT_FALSE(pkg.empty());
+	pkg = sek::engine::asset_package::load(pkg_path);
 	EXPECT_EQ(pkg.path(), pkg_path);
 }
-

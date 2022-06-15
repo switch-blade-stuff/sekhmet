@@ -518,7 +518,7 @@ namespace sek::engine
 		/** Checks if the asset has metadata. */
 		[[nodiscard]] bool has_metadata() const { return m_ptr->has_metadata(); }
 		/** Returns a vector of bytes containing asset's metadata.
-		 * @note If the asset does not have metadata, returns empty vector.
+		 * @note If the asset does not have metadata, returns an empty vector.
 		 * @throw asset_package_error On failure to open metadata or archive file. */
 		[[nodiscard]] std::vector<std::byte> metadata() const { return m_ptr->parent->read_metadata(m_ptr.info); }
 
@@ -551,7 +551,7 @@ namespace sek::engine
 	public:
 		/** Loads a package at the specified path.
 		 * @throw asset_package_error If the path does not contain a valid package or
-		 * an implementation-defined error occurred during loading. */
+		 * an implementation-defined error occurred during loading of package metadata. */
 		[[nodiscard]] static SEK_API asset_package load(const std::filesystem::path &path);
 		/** Load all packages in the specified directory.
 		 * @throw asset_package_error If the path is not a valid directory. */
@@ -562,8 +562,8 @@ namespace sek::engine
 		SEK_API explicit asset_package(detail::master_package *pkg);
 
 	public:
-		/** Initializes an empty package handle. */
-		constexpr asset_package() noexcept = default;
+		asset_package() = delete;
+
 		constexpr asset_package(asset_package &&) noexcept = default;
 		constexpr asset_package &operator=(asset_package &&other) noexcept
 		{
@@ -573,14 +573,8 @@ namespace sek::engine
 		asset_package(const asset_package &) = default;
 		asset_package &operator=(const asset_package &) = default;
 
-		/** Checks if the package handle is empty (does not reference any asset package). */
-		[[nodiscard]] constexpr bool empty() const noexcept { return m_ptr.empty(); }
-		/** Returns path of the asset package.
-		 * @warning Undefined behavior if the package handle is empty. */
+		/** Returns path of the asset package. */
 		[[nodiscard]] constexpr const std::filesystem::path &path() const noexcept { return m_ptr->path; }
-
-		/** Resets the package handle to an empty state. */
-		SEK_API void reset();
 
 	private:
 		detail::package_ptr m_ptr;

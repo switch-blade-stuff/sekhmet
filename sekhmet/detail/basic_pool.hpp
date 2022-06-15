@@ -83,6 +83,7 @@ namespace sek::detail
 		{
 			if (ptr) [[likely]]
 			{
+				/* Add the node to free node list. */
 				auto node = std::bit_cast<node_t *>(ptr);
 				node->next = std::exchange(m_next_free, node);
 			}
