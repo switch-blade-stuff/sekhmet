@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
@@ -33,7 +34,7 @@ namespace sek
 {
 	typedef std::size_t hash_t;
 
-	constexpr const std::uint32_t crc32_table[] = {
+	constexpr std::uint32_t crc32_table[] = {
 		0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3, 0x0edb8832,
 		0x79dcb8a4, 0xe0d5e91e, 0x97d2d988, 0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91, 0x1db71064, 0x6ab020f2,
 		0xf3b97148, 0x84be41de, 0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7, 0x136c9856, 0x646ba8c0, 0xfd62f97a,
@@ -75,7 +76,163 @@ namespace sek
 		return ~result;
 	}
 
-	[[nodiscard]] constexpr std::size_t sdbm(const uint8_t *data, std::size_t len, uint32_t seed)
+	namespace detail
+	{
+		constexpr std::uint32_t md5_a = 0x67452301;
+		constexpr std::uint32_t md5_b = 0xefcdab89;
+		constexpr std::uint32_t md5_c = 0x98badcfe;
+		constexpr std::uint32_t md5_d = 0x10325476;
+
+		constexpr int md5_s[] = {7,	 12, 17, 22, 7,	 12, 17, 22, 7,	 12, 17, 22, 7,	 12, 17, 22, 5,	 9,	 14, 20, 5,	 9,
+								 14, 20, 5,	 9,	 14, 20, 5,	 9,	 14, 20, 4,	 11, 16, 23, 4,	 11, 16, 23, 4,	 11, 16, 23,
+								 4,	 11, 16, 23, 6,	 10, 15, 21, 6,	 10, 15, 21, 6,	 10, 15, 21, 6,	 10, 15, 21};
+
+		constexpr std::uint32_t md5_k[] = {
+			0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
+			0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be, 0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821,
+			0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa, 0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8,
+			0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed, 0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a,
+			0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c, 0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70,
+			0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05, 0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665,
+			0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
+			0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1, 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391};
+
+		constexpr auto md5_f(auto X, auto Y, auto Z) { return ((X & Y) | (~X & Z)); }
+		constexpr auto md5_g(auto X, auto Y, auto Z) { return ((X & Z) | (Y & ~Z)); }
+		constexpr auto md5_h(auto X, auto Y, auto Z) { return (X ^ Y ^ Z); }
+		constexpr auto md5_i(auto X, auto Y, auto Z) { return (Y ^ (X | ~Z)); }
+
+		constexpr std::uint8_t md5_pad[] = {
+			0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+		class md5_generator
+		{
+		public:
+			[[nodiscard]] constexpr std::array<std::byte, 16> operator()(const std::byte *data, std::size_t n) noexcept
+			{
+				update(std::bit_cast<const std::uint8_t *>(data), n);
+				finalize();
+				return digest;
+			}
+
+		private:
+			constexpr void step(const std::uint32_t data[]) noexcept
+			{
+				std::uint32_t a = buffer[0], b = buffer[1], c = buffer[2], d = buffer[3];
+
+				std::uint32_t e;
+				for (std::size_t j, i = 0; i < 64; ++i)
+				{
+					switch (i / 16)
+					{
+						case 0:
+							e = md5_f(b, c, d);
+							j = i;
+							break;
+						case 1:
+							e = md5_g(b, c, d);
+							j = ((i * 5) + 1) % 16;
+							break;
+						case 2:
+							e = md5_h(b, c, d);
+							j = ((i * 3) + 5) % 16;
+							break;
+						default:
+							e = md5_i(b, c, d);
+							j = (i * 7) % 16;
+							break;
+					}
+
+					const auto temp = d;
+					d = c;
+					c = b;
+					b = b + std::rotl(a + e + md5_k[i] + data[j], md5_s[i]);
+					a = temp;
+				}
+
+				buffer[0] += a;
+				buffer[1] += b;
+				buffer[2] += c;
+				buffer[3] += d;
+			}
+			constexpr void update(const std::uint8_t data[], std::size_t n) noexcept
+			{
+				std::uint32_t work_data[16];
+
+				auto offset = size % 64;
+				size += static_cast<std::uint64_t>(n);
+				for (std::size_t i = 0; i < n; ++i)
+				{
+					input[offset++] = data[i];
+					if (offset % 64 == 0)
+					{
+						for (std::size_t j = 0; j < 16; ++j)
+						{
+							work_data[j] = static_cast<std::uint32_t>(input[(j * 4) + 3]) << 24 |
+										   static_cast<std::uint32_t>(input[(j * 4) + 2]) << 16 |
+										   static_cast<std::uint32_t>(input[(j * 4) + 1]) << 8 |
+										   static_cast<std::uint32_t>(input[(j * 4)]);
+						}
+						step(work_data);
+						offset = 0;
+					}
+				}
+			}
+			constexpr void finalize() noexcept
+			{
+				std::uint32_t work_data[16];
+				const auto offset = size % 64;
+				const auto padding_size = offset < 56 ? 56 - offset : (56 + 64) - offset;
+
+				update(md5_pad, padding_size);
+				size -= padding_size;
+
+				for (std::size_t j = 0; j < 14; ++j)
+				{
+					work_data[j] = static_cast<std::uint32_t>(input[(j * 4) + 3]) << 24 |
+								   static_cast<std::uint32_t>(input[(j * 4) + 2]) << 16 |
+								   static_cast<std::uint32_t>(input[(j * 4) + 1]) << 8 |
+								   static_cast<std::uint32_t>(input[(j * 4)]);
+				}
+
+				work_data[14] = static_cast<std::uint32_t>(size * 8);
+				work_data[15] = static_cast<std::uint32_t>((size * 8) >> 32);
+				step(work_data);
+
+				for (unsigned int i = 0; i < 4; ++i)
+				{
+					digest[(i * 4) + 0] = static_cast<std::byte>((buffer[i] & 0x000000ff));
+					digest[(i * 4) + 1] = static_cast<std::byte>((buffer[i] & 0x0000ff00) >> 8);
+					digest[(i * 4) + 2] = static_cast<std::byte>((buffer[i] & 0x00ff0000) >> 16);
+					digest[(i * 4) + 3] = static_cast<std::byte>((buffer[i] & 0xff000000) >> 24);
+				}
+			}
+
+			std::uint64_t size = 0;
+			std::uint32_t buffer[4] = {md5_a, md5_b, md5_c, md5_d};
+			std::uint8_t input[64];
+			std::array<std::byte, 16> digest;
+		};
+	}	 // namespace detail
+
+	[[nodiscard]] constexpr std::array<std::byte, 16> md5(const std::byte *data, std::size_t n) noexcept
+	{
+		return detail::md5_generator{}(data, n);
+	}
+	[[nodiscard]] constexpr std::array<std::byte, 16> md5(const void *data, std::size_t n) noexcept
+	{
+		return md5(static_cast<const std::byte *>(data), n);
+	}
+	template<typename T>
+	[[nodiscard]] constexpr std::array<std::byte, 16> md5(const T *data, std::size_t n) noexcept
+	{
+		return md5(std::bit_cast<const std::byte *>(data), n * sizeof(T));
+	}
+
+	[[nodiscard]] constexpr std::size_t sdbm(const std::uint8_t *data, std::size_t len, uint32_t seed)
 	{
 		std::size_t result = seed;
 		for (; len > 0; --len, ++data) result = *data + (result << 6) + (result << 16) - result;
@@ -83,11 +240,11 @@ namespace sek
 	}
 
 #if INTPTR_MAX < INT64_MAX
-	constexpr const hash_t fnv1a_prime = 0x01000193;
-	constexpr const hash_t fnv1a_offset = 0x811c9dc5;
+	constexpr hash_t fnv1a_prime = 0x01000193;
+	constexpr hash_t fnv1a_offset = 0x811c9dc5;
 #else
-	constexpr const hash_t fnv1a_prime = 0x00000100000001b3;
-	constexpr const hash_t fnv1a_offset = 0xcbf29ce484222325;
+	constexpr hash_t fnv1a_prime = 0x00000100000001b3;
+	constexpr hash_t fnv1a_offset = 0xcbf29ce484222325;
 #endif
 
 	namespace detail

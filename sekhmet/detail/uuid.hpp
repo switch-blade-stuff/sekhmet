@@ -54,6 +54,35 @@ namespace sek
 			}
 		};
 
+		/** @brief UUID generator used to generate MD5 hash-based (version 3 variant 1) UUID. */
+		struct version3_t final : public generator
+		{
+			/** Initializes version 3 UUID generator from a pre-calculated MD5 hash. */
+			constexpr explicit version3_t(std::array<std::byte, 16> hash) noexcept : m_hash(hash)
+			{
+				/* Apply version & variant. */
+				constexpr std::uint8_t version_mask = 0b0000'1111;
+				constexpr std::uint8_t version_bits = 0b0011'0000;
+				constexpr std::uint8_t variant_mask = 0b0011'1111;
+				constexpr std::uint8_t variant_bits = 0b1000'0000;
+
+				m_hash[6] = static_cast<std::byte>((static_cast<std::uint8_t>(m_hash[6]) & version_mask) | version_bits);
+				m_hash[8] = static_cast<std::byte>((static_cast<std::uint8_t>(m_hash[8]) & variant_mask) | variant_bits);
+			}
+			/** Initializes version 3 UUID generator from a namespace and name strings. */
+			template<typename C, typename T>
+			constexpr version3_t(std::basic_string_view<C, T> ns, std::basic_string_view<C, T> name) noexcept
+			{
+				auto full_str = std::basic_string<C, T>{ns};
+				full_str.append(name);
+				m_hash = md5(full_str.c_str(), full_str.size());
+			}
+
+			constexpr void operator()(uuid &id) const noexcept final { id.m_bytes = m_hash; }
+
+		private:
+			std::array<std::byte, 16> m_hash;
+		};
 		/** @brief UUID generator used to generate a random (version 4 variant 1) UUID.
 		 * @note Seed is based on OS-provided entropy. */
 		struct version4_t final : public generator
