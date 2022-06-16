@@ -252,6 +252,8 @@ TEST(container_tests, intern_test)
 	EXPECT_NE(is2.data(), copy.data());
 	EXPECT_EQ(is2, is1);
 	EXPECT_EQ(is2.data(), is1.data());
+
+	EXPECT_EQ(sek::interned_string{}, pool.intern(""));
 }
 
 #include "sekhmet/mkmap.hpp"

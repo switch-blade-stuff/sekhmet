@@ -247,7 +247,7 @@ namespace sek
 		using header_t = detail::intern_str_header<C, Traits>;
 
 		constexpr basic_interned_string(std::in_place_t, header_t *h) : m_header(h), m_length(h->length) {}
-		constexpr explicit basic_interned_string(header_t *h) : m_header(h), m_length(h->length) { acquire(); }
+		constexpr explicit basic_interned_string(header_t *h) : m_header(h), m_length(h ? h->length : 0) { acquire(); }
 
 	public:
 		/** Initializes an empty string. */
