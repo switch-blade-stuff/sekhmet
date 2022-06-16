@@ -22,8 +22,9 @@
 
 #include "plugin.hpp"
 
-#include "logger.hpp"
 #include "sekhmet/detail/dense_map.hpp"
+
+#include "logger.hpp"
 #include <shared_mutex>
 
 #define ENABLE_FAIL_MSG "Failed to enable plugin - "
@@ -97,11 +98,11 @@ namespace sek::engine
 
 			if (!check_version(data->info.engine_ver)) [[unlikely]]
 				logger::error() << fmt::format("Ignoring incompatible plugin \"{}\". "
-															 "Plugin engine version: \"{}\", "
-															 "actual engine version: \"{}\"",
-															 data->info.id,
-															 data->info.engine_ver.to_string(),
-															 SEK_ENGINE_VERSION);
+											   "Plugin engine version: \"{}\", "
+											   "actual engine version: \"{}\"",
+											   data->info.id,
+											   data->info.engine_ver.to_string(),
+											   SEK_ENGINE_VERSION);
 			else if (data->status != plugin_data::INITIAL) [[unlikely]]
 				logger::error() << fmt::format("Ignoring duplicate plugin \"{}\"", data->info.id);
 			else if (auto res = db.plugins.try_emplace(data->info.id, data); res.second) [[likely]]
@@ -140,8 +141,8 @@ namespace sek::engine
 			if (old_status == plugin_data::ENABLED) [[unlikely]]
 			{
 				logger::warn() << fmt::format("Disabling plugin \"{}\" on unload. "
-															"This may lead to unexpected errors",
-															data->info.id);
+											  "This may lead to unexpected errors",
+											  data->info.id);
 				disable_guarded(data);
 			}
 
@@ -209,4 +210,4 @@ namespace sek::engine
 		}
 		return false;
 	}
-}	 // namespace sek
+}	 // namespace sek::engine

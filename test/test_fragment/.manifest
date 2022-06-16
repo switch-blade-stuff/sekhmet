@@ -3,5 +3,6 @@
     "assets":
     {
         "a5bbc9f0-8eaf-4159-8332-59921fef65e1": { "name": "test_asset_2", "data": "test_asset_2.txt" }
+        "c0b16fc9-e969-4dac-97ed-eb8640a144ad": { "name": "test_asset", "data": "test_asset_replaced.txt", "tags": [ "replaced" ] }
     }
 }

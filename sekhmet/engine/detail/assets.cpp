@@ -31,9 +31,10 @@
 
 #include <fstream>
 
-#include "logger.hpp"
 #include "sekhmet/serialization/binary.hpp"
 #include "sekhmet/serialization/json.hpp"
+
+#include "logger.hpp"
 #include "zstd_ctx.hpp"
 
 namespace sek::engine
@@ -374,6 +375,14 @@ namespace sek::engine
 				}
 				void read_fragments(auto &archive, std::size_t n)
 				{
+					constexpr auto log_err = [](std::exception &e)
+					{
+						logger::error() << fmt::format("Failed to load fragment at path \"{}\"."
+													   " Got exception: \"{}\". Skipping...",
+													   frag->path.string(),
+													   e.what());
+					};
+
 					logger::info() << "Loading fragments...";
 
 					master.fragments.reserve(n);
@@ -399,17 +408,13 @@ namespace sek::engine
 								master.fragments.emplace_back(std::move(frag));
 								++total;
 							}
+							catch (archive_error &e)
+							{
+								log_err(e);
+							}
 							catch (asset_package_error &e)
 							{
-								logger::error() << fmt::format("Failed to load fragment at path \"{}\"."
-															   " Got exception: \"{}\". Skipping...",
-															   frag->path.string(),
-															   e.what());
-
-								/* Reset invalid fragment & continue on failure.
-								 * We still want to load any valid fragments. */
-								frag.reset();
-								continue;
+								log_err(e);
 							}
 						}
 					}

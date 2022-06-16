@@ -24,8 +24,9 @@
 
 #include <zstd.h>
 
-#include "logger.hpp"
 #include "sekhmet/math/utility.hpp"
+
+#include "logger.hpp"
 #include <zstd_errors.h>
 
 namespace sek::engine

@@ -22,8 +22,8 @@
 
 #include "thread_pool.hpp"
 
-#include "assert.hpp"
 #include "../engine/logger.hpp"
+#include "assert.hpp"
 
 namespace sek
 {
@@ -71,10 +71,7 @@ namespace sek
 		}
 		workers_count = n;
 	}
-	void thread_pool::control_block::terminate()
-	{
-		destroy_workers(workers_data, workers_data + workers_count);
-	}
+	void thread_pool::control_block::terminate() { destroy_workers(workers_data, workers_data + workers_count); }
 
 	void thread_pool::worker_t::thread_main(std::stop_token st, control_block *cb) noexcept
 	{

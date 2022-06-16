@@ -65,4 +65,4 @@ namespace sek::engine
 		static std::atomic<logger *> ptr = &instance;
 		return ptr;
 	}
-}	 // namespace sek
+}	 // namespace sek::engine
