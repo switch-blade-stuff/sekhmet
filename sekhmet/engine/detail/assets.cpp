@@ -375,7 +375,7 @@ namespace sek::engine
 				}
 				void read_fragments(auto &archive, std::size_t n)
 				{
-					constexpr auto log_err = [](std::exception &e)
+					constexpr auto log_err = [](std::exception &e, package_fragment *frag)
 					{
 						logger::error() << fmt::format("Failed to load fragment at path \"{}\"."
 													   " Got exception: \"{}\". Skipping...",
@@ -410,11 +410,11 @@ namespace sek::engine
 							}
 							catch (archive_error &e)
 							{
-								log_err(e);
+								log_err(e, frag.get());
 							}
 							catch (asset_package_error &e)
 							{
-								log_err(e);
+								log_err(e, frag.get());
 							}
 						}
 					}
@@ -539,7 +539,7 @@ namespace sek::engine
 						{
 							const auto id = read_entry(i, archive, next_info.get());
 							master.insert_asset(id, next_info.release());
-							++total;
+							++total; /* Increment total only after the entry was successfully inserted. */
 						}
 						catch (archive_error &e)
 						{

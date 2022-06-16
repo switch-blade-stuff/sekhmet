@@ -4,6 +4,5 @@
     "assets":
     {
         "c0b16fc9-e969-4dac-97ed-eb8640a144ac": { "name": "test_asset", "data": "test_asset.txt", "tags": [ "test" ] }
-    },
-    "fragments": [ "test_fragment" ]
+    }
 }
