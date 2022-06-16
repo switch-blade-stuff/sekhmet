@@ -57,21 +57,36 @@ namespace sek::engine
 		 * File offsets                     Description
 		 * 0x0000  -  0x0007                Signature ("\3SEKPAK" + version byte)
 		 * 0x0008  -  0x000b                Header flags (master, compression type, etc.)
-		 * 0x000c  -  0x000f                Number of assets of the package
+		 * 0x000c  -  0x000f                Number of assets of the package (may be 0)
 		 * 0x0010  -  end_assets            Asset info for every asset
 		 * ======================== Master package header data ========================
-		 * end_assets - end_assets + 4      Number of fragments (if any) of the package
-		 * end_assets + 5 - header_end      File names of fragments
+		 * n_frags + 0 - n_frags + 4        Number of fragments of the package (may be 0)
+		 * n_frags + 5 - end_frags          Null-terminated file names of fragments
 		 * =============================== Header flags ===============================
 		 * Description           Bit(s)      Values
-		 * Master flag             0         0 - Fragment
-		 *                                   1 - Master
-		 * Compression format     1-4        1 - No compression
-		 *                                   2 - ZSTD
-		 * Reserved               4-31
+		 * Master flag             0           0   - Fragment
+		 *                                     1   - Master
+		 * Archive flag            1           0   - Loose package
+		 *                                     1   - Archive package
+		 * Project flag            2           0   - Not a project (all runtime packages)
+		 *                                     1   - Editor project (editor-managed loose packages)
+		 * Compression format     3-6          0   - Not used (used for non-archive packages)
+		 *                                     1   - No compression
+		 *                                     2   - ZSTD compression
+		 *                                    3-15 - Reserved
+		 * Reserved               7-31         0
 		 * =============================== Asset entry ================================
 		 * Entry offsets                  Description
-		 * 0x00 - 0x03
+		 * 0x00 - 0x0f                    Asset UUID
+		 * 0x10 - 0x17                    Asset data offset
+		 * 0x18 - 0x1f                    Asset data size (compressed)
+		 * 0x20 - 0x27                    Asset source size (decompressed)
+		 * 0x28 - 0x2f                    Asset frame count (Always 0 if not compressed)
+		 * 0x30 - 0x37                    Asset metadata offset
+		 * 0x38 - 0x3f                    Asset metadata size (never compressed)
+		 * 0x40 - end_name                Null-terminated name string (optional)
+		 * n_tags - n_tags + 4            Number of asset tags (may be 0)
+		 * n_tags + 5 - end_tags          Null-terminated asset tag strings
 		 * ============================================================================
 		 * */
 
@@ -273,6 +288,10 @@ namespace sek::engine
 		constexpr std::uint8_t manifest_ver_max = 1;
 		constexpr std::uint8_t archive_ver_max = 1;
 
+		using json_frame = typename json::input_archive::archive_frame;
+		using binary_archive = binary::input_archive;
+		using flags_t = package_fragment::flags_t;
+
 		inline auto open_manifest(const std::filesystem::path &path)
 		{
 			const auto manifest_path = path / MANIFEST_FILE_NAME;
@@ -299,9 +318,9 @@ namespace sek::engine
 				if (!file->is_open()) [[unlikely]]
 					goto invalid_header;
 
-				std::pair<std::unique_ptr<system::native_file>, binary::input_archive> result = {
+				std::pair<std::unique_ptr<system::native_file>, binary_archive> result = {
 					std::unique_ptr<system::native_file>{file},
-					binary::input_archive{*file},
+					binary_archive{*file},
 				};
 				return result;
 			}
@@ -333,23 +352,23 @@ namespace sek::engine
 			std::int32_t value;
 			if (!archive.try_read(value)) [[unlikely]]
 				throw asset_package_error("Invalid header flags");
-			return static_cast<package_fragment::flags_t>(value);
+			return static_cast<flags_t>(value);
 		}
 
-		inline void deserialize(package_fragment &, typename json::input_archive::archive_frame &, master_package &);
-		inline void deserialize(master_package &, typename json::input_archive::archive_frame &);
-		inline void deserialize(package_fragment &, binary::input_archive &, master_package &);
-		inline void deserialize(master_package &, binary::input_archive &);
+		inline void deserialize(package_fragment &, json_frame &, master_package &);
+		inline void deserialize(master_package &, json_frame &);
+		inline void deserialize(package_fragment &, binary_archive &, master_package &);
+		inline void deserialize(master_package &, binary_archive &);
 
 		namespace v1
 		{
 			struct fragments_proxy
 			{
-				std::filesystem::path full_path(typename json::input_archive::archive_frame &archive)
+				std::filesystem::path full_path(json_frame &archive)
 				{
 					return master.path.parent_path() / archive.read(std::in_place_type<std::string_view>);
 				}
-				std::filesystem::path full_path(binary::input_archive &archive)
+				std::filesystem::path full_path(binary_archive &archive)
 				{
 					return master.path.parent_path() / archive.read(std::in_place_type<std::string>);
 				}
@@ -398,13 +417,13 @@ namespace sek::engine
 					logger::info() << fmt::format("Loaded {} fragment(s)", total);
 				}
 
-				void deserialize(typename json::input_archive::archive_frame &archive)
+				void deserialize(json_frame &archive)
 				{
 					std::size_t size = 0;
 					archive >> container_size(size);
 					read_fragments(archive, size);
 				}
-				void deserialize(typename binary::input_archive &archive)
+				void deserialize(binary_archive &archive)
 				{
 					read_fragments(archive, archive.read(std::in_place_type<std::uint32_t>));
 				}
@@ -422,14 +441,14 @@ namespace sek::engine
 				{
 					struct tags_proxy
 					{
-						void deserialize(typename json::input_archive::archive_frame &archive)
+						void deserialize(json_frame &archive)
 						{
 							std::size_t size = 0;
 							archive >> container_size(size);
 							tags.reserve(size);
 							while (size-- != 0) tags.emplace(archive.read(std::in_place_type<std::string_view>));
 						}
-						void deserialize(typename binary::input_archive &archive)
+						void deserialize(binary_archive &archive)
 						{
 							auto size = archive.read(std::in_place_type<std::uint32_t>);
 							tags.reserve(size);
@@ -439,7 +458,7 @@ namespace sek::engine
 						dense_set<interned_string> &tags;
 					};
 
-					void deserialize(typename json::input_archive::archive_frame &archive, package_fragment &parent)
+					void deserialize(json_frame &archive, package_fragment &parent)
 					{
 						std::construct_at(info, type_selector<asset_info::loose_info_t>, &parent);
 
@@ -459,7 +478,7 @@ namespace sek::engine
 						if (info->loose_info.asset_path.empty()) [[unlikely]]
 							throw archive_error("Missing asset data path");
 					}
-					void deserialize(binary::input_archive &archive, package_fragment &parent)
+					void deserialize(binary_archive &archive, package_fragment &parent)
 					{
 						std::construct_at(info, type_selector<asset_info::archive_info_t>, &parent);
 
@@ -480,7 +499,7 @@ namespace sek::engine
 					asset_info *info;
 				};
 
-				uuid read_entry(std::size_t i, typename json::input_archive::archive_frame &archive, asset_info *info)
+				uuid read_entry(std::size_t i, json_frame &archive, asset_info *info)
 				{
 					const auto iter = archive.begin() + static_cast<std::ptrdiff_t>(i);
 					const auto id = uuid{iter.key()};
@@ -488,7 +507,7 @@ namespace sek::engine
 					iter->read(info_proxy{info}, pkg);
 					return id;
 				}
-				uuid read_entry(std::size_t, binary::input_archive &archive, asset_info *info)
+				uuid read_entry(std::size_t, binary_archive &archive, asset_info *info)
 				{
 					std::array<std::byte, 16> bytes = {};
 					for (auto &byte : bytes) byte = std::byte{archive.read(std::in_place_type<std::uint8_t>)};
@@ -530,13 +549,13 @@ namespace sek::engine
 					logger::info() << fmt::format("Loaded {} asset(s)", total);
 				}
 
-				void deserialize(typename json::input_archive::archive_frame &archive, master_package &master)
+				void deserialize(json_frame &archive, master_package &master)
 				{
 					std::size_t size = 0;
 					archive >> container_size(size);
 					read_assets(archive, master, size);
 				}
-				void deserialize(typename binary::input_archive &archive, master_package &master)
+				void deserialize(binary_archive &archive, master_package &master)
 				{
 					read_assets(archive, master, archive.read(std::in_place_type<std::uint32_t>));
 				}
@@ -544,26 +563,23 @@ namespace sek::engine
 				package_fragment &pkg;
 			};
 
-			inline void deserialize(package_fragment &pkg, typename json::input_archive::archive_frame &frame, master_package &master)
+			inline void deserialize(package_fragment &pkg, json_frame &frame, master_package &master)
 			{
 				logger::info() << fmt::format("Loading v1 loose package \"{}\"", relative(pkg.path).string());
 
 				/* Try to deserialize assets. */
 				frame.try_read(keyed_entry("assets", assets_proxy{pkg}), master);
 			}
-			inline void deserialize(master_package &pkg, typename json::input_archive::archive_frame &frame)
+			inline void deserialize(master_package &pkg, json_frame &frame)
 			{
 				/* Try to deserialize assets & fragments. */
 				v1::deserialize(pkg, frame, pkg);
 				frame.try_read(keyed_entry("fragments", fragments_proxy{pkg}));
 			}
 
-			inline void deserialize(package_fragment &pkg,
-									binary::input_archive &archive,
-									package_fragment::flags_t flags,
-									master_package &master)
+			inline void deserialize(package_fragment &pkg, binary_archive &archive, flags_t flags, master_package &master)
 			{
-				pkg.flags = static_cast<package_fragment::flags_t>(flags | package_fragment::IS_ARCHIVE);
+				pkg.flags = static_cast<flags_t>(flags | package_fragment::IS_ARCHIVE);
 				logger::info() << fmt::format("Loading v1 archive package (compression: {}) \"{}\"",
 											  pkg.is_archive_zstd() ? "ZSTD" : "none",
 											  relative(pkg.path).string());
@@ -571,7 +587,7 @@ namespace sek::engine
 				/* Try to deserialize assets. */
 				archive.try_read(assets_proxy{pkg}, master);
 			}
-			inline void deserialize(master_package &pkg, binary::input_archive &archive)
+			inline void deserialize(master_package &pkg, binary_archive &archive)
 			{
 				const auto flags = get_header_flags(archive);
 				if (!(flags & package_fragment::IS_MASTER)) [[unlikely]]
@@ -583,14 +599,14 @@ namespace sek::engine
 			}
 		}	 // namespace v1
 
-		inline void deserialize(package_fragment &pkg, typename json::input_archive::archive_frame &frame, master_package &master)
+		inline void deserialize(package_fragment &pkg, json_frame &frame, master_package &master)
 		{
 			switch (get_manifest_version(frame))
 			{
 				case 1: v1::deserialize(pkg, frame, master); break;
 			}
 		}
-		inline void deserialize(master_package &pkg, typename json::input_archive::archive_frame &frame)
+		inline void deserialize(master_package &pkg, json_frame &frame)
 		{
 			if (bool flag = false; !(frame.try_read(keyed_entry("is_master", flag)) && flag)) [[unlikely]]
 				throw asset_package_error("Not a master package");
@@ -601,14 +617,14 @@ namespace sek::engine
 			}
 		}
 
-		inline void deserialize(package_fragment &pkg, binary::input_archive &archive, master_package &master)
+		inline void deserialize(package_fragment &pkg, binary_archive &archive, master_package &master)
 		{
 			switch (get_header_version(archive))
 			{
 				case 1: v1::deserialize(pkg, archive, get_header_flags(archive), master); break;
 			}
 		}
-		inline void deserialize(master_package &pkg, binary::input_archive &archive)
+		inline void deserialize(master_package &pkg, binary_archive &archive)
 		{
 			switch (get_header_version(archive))
 			{

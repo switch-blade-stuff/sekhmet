@@ -124,10 +124,12 @@ namespace sek::engine
 				IS_MASTER = 1,
 				IS_ARCHIVE = 2,
 #ifdef SEK_EDITOR
-				IS_PROJECT = 4 | IS_MASTER, /* Used to designate in-editor project packages. */
+				/* Used to designate in-editor project packages.
+				 * Project packages can not be fragments, nor be archived. */
+				IS_PROJECT = 4 | IS_MASTER,
 #endif
 				ARCHIVE_FORMAT_ZSTD = 0b0010'000, /* Archive is compressed with ZSTD. */
-				ARCHIVE_FORMAT_MASK = 0b111'000,
+				ARCHIVE_FORMAT_MASK = 0b1111'000,
 			};
 
 			package_fragment(flags_t flags, std::filesystem::path &&path) : flags(flags), path(std::move(path)) {}

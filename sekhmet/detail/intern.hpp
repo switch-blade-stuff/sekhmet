@@ -178,6 +178,9 @@ namespace sek
 		[[nodiscard]] constexpr auto resource() const { return m_data.value_allocator().resource(); }
 		[[nodiscard]] constexpr header_t *intern_impl(sv_t sv)
 		{
+			if (sv.empty()) [[unlikely]]
+				return nullptr;
+
 			auto iter = m_data.find(sv);
 			if (iter == m_data.end()) [[unlikely]]
 			{
