@@ -217,7 +217,7 @@ namespace sek::engine
 				throw asset_package_error(fmt::format(R"(Exception in "zstd_thread_ctx::decompress": "{}")", e.what()));
 			}
 
-			return make_asset_source(std::move(writer.buffer), src_size, 0);
+			return make_asset_source(std::move(writer.buffer), src_size);
 		}
 		asset_source package_fragment::open_asset(const asset_info *info) const
 		{
@@ -237,9 +237,14 @@ namespace sek::engine
 				auto old_info = existing->second;
 				existing->second = info;
 
-				/* If the old UUID asset has a name, remove the old name entry. */
-				if (!old_info->name.empty()) [[likely]]
-					name_table.erase(old_info->name);
+				if (auto &old_name = old_info->name; !old_name.empty()) [[likely]]
+				{
+					/* If the old UUID asset has a name, and that name points to the old asset's UUID,
+					 * remove the old name entry. Name entries are not removed if they point to a different asset. */
+					auto existing_name = name_table.find(old_name);
+					if (existing_name != name_table.end() && existing_name->second.first == existing->first) [[likely]]
+						name_table.erase(existing_name);
+				}
 
 				/* Destroy & de-allocate the old UUID asset. */
 				std::destroy_at(old_info);

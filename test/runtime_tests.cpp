@@ -22,7 +22,7 @@
 
 #include <gtest/gtest.h>
 
-#include "sekhmet/reflection.hpp"
+#include "sekhmet/type_info.hpp"
 
 namespace
 {

@@ -37,6 +37,38 @@ namespace sek::serialization::binary
 	/** Data is read & written in little-endian mode. */
 	constexpr config_flags little_endian = 2;
 
+	namespace detail
+	{
+		using namespace serialization::detail;
+
+		template<config_flags C, typename T>
+		constexpr T fix_endianness(T value) noexcept
+			requires(C == big_endian)
+		{
+			if constexpr (sizeof(T) == sizeof(std::uint16_t))
+				return std::bit_cast<T>(BSWAP_BE_16(std::bit_cast<std::uint16_t>(value)));
+			else if constexpr (sizeof(T) == sizeof(std::uint32_t))
+				return std::bit_cast<T>(BSWAP_BE_32(std::bit_cast<std::uint32_t>(value)));
+			else if constexpr (sizeof(T) == sizeof(std::uint64_t))
+				return std::bit_cast<T>(BSWAP_BE_64(std::bit_cast<std::uint64_t>(value)));
+			else
+				return value;
+		}
+		template<config_flags C, typename T>
+		constexpr T fix_endianness(T value) noexcept
+			requires(C == little_endian)
+		{
+			if constexpr (sizeof(T) == sizeof(std::uint16_t))
+				return std::bit_cast<T>(BSWAP_LE_16(std::bit_cast<std::uint16_t>(value)));
+			else if constexpr (sizeof(T) == sizeof(std::uint32_t))
+				return std::bit_cast<T>(BSWAP_LE_32(std::bit_cast<std::uint32_t>(value)));
+			else if constexpr (sizeof(T) == sizeof(std::uint64_t))
+				return std::bit_cast<T>(BSWAP_LE_64(std::bit_cast<std::uint64_t>(value)));
+			else
+				return value;
+		}
+	}	 // namespace detail
+
 	/** @details Archive used to read non-structured binary data. */
 	template<config_flags Config, typename C = char>
 	class basic_input_archive
@@ -48,33 +80,6 @@ namespace sek::serialization::binary
 
 	private:
 		using reader_t = archive_reader<char>;
-
-		template<typename T>
-		constexpr T fix_endianness(T value) noexcept
-			requires(Config == big_endian)
-		{
-			if constexpr (sizeof(T) == sizeof(std::uint16_t))
-				return std::bit_cast<T>(BSWAP_BE_16(std::bit_cast<std::uint16_t>(value)));
-			else if constexpr (sizeof(T) == sizeof(std::uint32_t))
-				return std::bit_cast<T>(BSWAP_BE_32(std::bit_cast<std::uint32_t>(value)));
-			else if constexpr (sizeof(T) == sizeof(std::uint64_t))
-				return std::bit_cast<T>(BSWAP_BE_64(std::bit_cast<std::uint64_t>(value)));
-			else
-				return value;
-		}
-		template<typename T>
-		constexpr T fix_endianness(T value) noexcept
-			requires(Config == little_endian)
-		{
-			if constexpr (sizeof(T) == sizeof(std::uint16_t))
-				return std::bit_cast<T>(BSWAP_LE_16(std::bit_cast<std::uint16_t>(value)));
-			else if constexpr (sizeof(T) == sizeof(std::uint32_t))
-				return std::bit_cast<T>(BSWAP_LE_32(std::bit_cast<std::uint32_t>(value)));
-			else if constexpr (sizeof(T) == sizeof(std::uint64_t))
-				return std::bit_cast<T>(BSWAP_LE_64(std::bit_cast<std::uint64_t>(value)));
-			else
-				return value;
-		}
 
 		static void throw_eof() { throw archive_error("Premature EOF"); }
 
@@ -138,7 +143,7 @@ namespace sek::serialization::binary
 		bool try_read(char_type &c, auto &&...) noexcept
 		{
 			const auto result = read_literal(&c);
-			c = fix_endianness(c);
+			c = detail::fix_endianness<Config>(c);
 			return result;
 		}
 		/** Reads a character from the archive.
@@ -164,7 +169,7 @@ namespace sek::serialization::binary
 			requires(std::integral<I> || std::floating_point<I>)
 		{
 			const auto result = read_literal(&i);
-			i = fix_endianness(i);
+			i = detail::fix_endianness<Config>(i);
 			return result;
 		}
 		/** Reads an integer or floating-point number from the archive.

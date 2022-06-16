@@ -25,7 +25,7 @@
 #include <mutex>
 
 #include "event.hpp"
-#include "reflection.hpp"
+#include "type_info.hpp"
 
 namespace sek
 {

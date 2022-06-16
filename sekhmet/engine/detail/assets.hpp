@@ -70,7 +70,7 @@ namespace sek::engine
 		};
 
 		inline asset_source make_asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset);
-		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size, std::int64_t offset);
+		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size);
 
 		struct package_fragment;
 		struct asset_info
@@ -226,22 +226,19 @@ namespace sek::engine
 		constexpr static seek_dir end = system::native_file::end;
 
 	private:
-		constexpr asset_source(std::int64_t size, std::int64_t offset) noexcept : data_size(size), file_offset(offset)
+		constexpr asset_source(std::int64_t size, std::int64_t offset) noexcept : m_size(size), m_offset(offset) {}
+		inline asset_source(detail::asset_buffer_t &&buffer, std::int64_t size) : asset_source(size, -1)
 		{
-		}
-		inline asset_source(detail::asset_buffer_t &&buffer, std::int64_t size, std::int64_t offset)
-			: asset_source(size, offset)
-		{
-			std::construct_at(&asset_buffer, std::move(buffer));
+			std::construct_at(&m_buffer, std::move(buffer));
 		}
 		inline asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset)
 			: asset_source(size, offset)
 		{
-			std::construct_at(&asset_file, std::move(file));
+			std::construct_at(&m_file, std::move(file));
 		}
 
-		friend inline asset_source detail::make_asset_source(detail::asset_buffer_t &&, std::int64_t, std::int64_t);
 		friend inline asset_source detail::make_asset_source(system::native_file &&, std::int64_t, std::int64_t);
+		friend inline asset_source detail::make_asset_source(detail::asset_buffer_t &&, std::int64_t);
 
 	public:
 		asset_source(const asset_source &) = delete;
@@ -259,9 +256,9 @@ namespace sek::engine
 		~asset_source()
 		{
 			if (has_file())
-				std::destroy_at(&asset_file);
+				std::destroy_at(&m_file);
 			else
-				std::destroy_at(&asset_buffer);
+				std::destroy_at(&m_buffer);
 		}
 
 		/** Reads asset data from the underlying file or buffer.
@@ -270,22 +267,19 @@ namespace sek::engine
 		 * @return Total amount of bytes read. */
 		std::size_t read(void *dst, std::size_t n)
 		{
-			auto new_pos = read_pos + static_cast<std::int64_t>(n);
-			if (new_pos > data_size || new_pos < 0) [[unlikely]]
-			{
-				n = static_cast<std::size_t>(data_size - read_pos);
-				new_pos = data_size;
-			}
+			auto new_pos = m_read_pos + static_cast<std::int64_t>(n);
+			if (new_pos > m_size || new_pos < 0) [[unlikely]]
+				new_pos = m_size;
 
 			if (has_file())
 			{
-				read_pos = new_pos;
+				m_read_pos = new_pos;
 				return file().read(dst, n);
 			}
 			else
 			{
-				std::copy_n(asset_buffer.data + std::exchange(read_pos, new_pos), n, static_cast<std::byte *>(dst));
-				return n;
+				std::copy_n(m_buffer.data + m_read_pos, n, static_cast<std::byte *>(dst));
+				return static_cast<std::size_t>(new_pos - std::exchange(m_read_pos, new_pos));
 			}
 		}
 		/** Seeks the asset source to the specific offset within the asset.
@@ -301,7 +295,7 @@ namespace sek::engine
 				if (dir == beg)
 					return seek_pos(base_offset() + off);
 				else if (dir == cur)
-					return seek_pos(read_pos + off);
+					return seek_pos(m_read_pos + off);
 				else if (dir == end)
 					return seek_pos(size() + off);
 			}
@@ -309,32 +303,32 @@ namespace sek::engine
 		}
 
 		/** Returns the current read position. */
-		[[nodiscard]] constexpr std::int64_t tell() const noexcept { return read_pos; }
+		[[nodiscard]] constexpr std::int64_t tell() const noexcept { return m_read_pos; }
 		/** Returns the size of the asset. */
-		[[nodiscard]] constexpr std::int64_t size() const noexcept { return data_size; }
+		[[nodiscard]] constexpr std::int64_t size() const noexcept { return m_size; }
 		/** Checks if the asset source is empty. */
 		[[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
 
 		/** Returns the base file offset of the asset.
 		 * @note If the asset is not backed by a file, returns a negative integer. */
-		[[nodiscard]] constexpr std::int64_t base_offset() const noexcept { return file_offset; }
+		[[nodiscard]] constexpr std::int64_t base_offset() const noexcept { return m_offset; }
 		/** Checks if the asset is backed by a file. */
 		[[nodiscard]] constexpr bool has_file() const noexcept { return base_offset() >= 0; }
 		/** Returns reference to the underlying native file.
 		 * @warning Undefined behavior if the asset is not backed by a file. */
-		[[nodiscard]] constexpr system::native_file &file() noexcept { return asset_file; }
+		[[nodiscard]] constexpr system::native_file &file() noexcept { return m_file; }
 		/** @copydoc file */
-		[[nodiscard]] constexpr const system::native_file &file() const noexcept { return asset_file; }
+		[[nodiscard]] constexpr const system::native_file &file() const noexcept { return m_file; }
 		/** Returns pointer to the underlying memory buffer.
 		 * @warning Undefined behavior if the asset is not backed by a buffer. */
-		[[nodiscard]] constexpr const std::byte *buffer() const noexcept { return asset_buffer.data; }
+		[[nodiscard]] constexpr const std::byte *buffer() const noexcept { return m_buffer.data; }
 
 		constexpr void swap(asset_source &other) noexcept
 		{
 			using std::swap;
-			swap(data_size, other.data_size);
-			swap(file_offset, other.file_offset);
-			swap(read_pos, other.read_pos);
+			swap(m_size, other.m_size);
+			swap(m_offset, other.m_offset);
+			swap(m_read_pos, other.m_read_pos);
 			swap(padding, other.padding);
 		}
 		friend constexpr void swap(asset_source &a, asset_source &b) noexcept { a.swap(b); }
@@ -342,27 +336,27 @@ namespace sek::engine
 	private:
 		std::int64_t seek_pos(std::int64_t new_pos)
 		{
-			if (new_pos > data_size || new_pos < 0) [[unlikely]]
+			if (new_pos > m_size || new_pos < 0) [[unlikely]]
 				return -1;
 			else if (has_file())
 			{
 				const auto file_pos = file().seek(new_pos, beg);
 				if (file_pos < 0) [[unlikely]]
 					return -1;
-				return (read_pos = file_pos - base_offset());
+				return (m_read_pos = file_pos - base_offset());
 			}
 			else
-				return read_pos = new_pos;
+				return m_read_pos = new_pos;
 		}
 
-		std::int64_t data_size = 0;	  /* Total size of the asset. */
-		std::int64_t file_offset = 0; /* Base offset within the file, -1 if not backed by a file. */
-		std::int64_t read_pos = 0;	  /* Current read position with the base offset applied. */
+		std::int64_t m_size = 0;	 /* Total size of the asset. */
+		std::int64_t m_offset = 0;	 /* Base offset within the file, -1 if not backed by a file. */
+		std::int64_t m_read_pos = 0; /* Current read position with the base offset applied. */
 		union
 		{
 			std::byte padding[sizeof(system::native_file)];
-			detail::asset_buffer_t asset_buffer;
-			system::native_file asset_file;
+			detail::asset_buffer_t m_buffer;
+			system::native_file m_file;
 		};
 	};
 
@@ -372,9 +366,9 @@ namespace sek::engine
 		{
 			return asset_source{std::move(file), size, offset};
 		}
-		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size, std::int64_t offset)
+		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size)
 		{
-			return asset_source{std::move(buff), size, offset};
+			return asset_source{std::move(buff), size};
 		}
 
 		constexpr bool asset_info::has_metadata() const noexcept

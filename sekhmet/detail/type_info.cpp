@@ -20,9 +20,8 @@
  * Created by switchblade on 16/05/22
  */
 
-#include "reflection.hpp"
-
 #include "dense_map.hpp"
+#include "type_info.hpp"
 #include <fmt/format.h>
 #include <shared_mutex>
 

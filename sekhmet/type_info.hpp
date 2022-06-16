@@ -4,4 +4,4 @@
 
 #pragma once
 
-#include "detail/reflection.hpp"
+#include "detail/type_info.hpp"
