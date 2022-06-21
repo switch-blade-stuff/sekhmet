@@ -127,6 +127,8 @@ namespace sek::engine
 			typedef asset_ref value_type;
 			typedef entry_iterator iterator;
 			typedef entry_iterator const_iterator;
+			typedef std::reverse_iterator<const_iterator> reverse_iterator;
+			typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
 			typedef asset_ref reference;
 			typedef asset_ref const_reference;
 			typedef entry_ptr pointer;
@@ -137,12 +139,14 @@ namespace sek::engine
 			[[nodiscard]] constexpr bool empty() const noexcept { return uuid_table.empty(); }
 			[[nodiscard]] constexpr size_type size() const noexcept { return uuid_table.size(); }
 
-			[[nodiscard]] constexpr entry_iterator begin() const noexcept;
-			[[nodiscard]] constexpr entry_iterator end() const noexcept;
+			[[nodiscard]] constexpr const_iterator begin() const noexcept;
+			[[nodiscard]] constexpr const_iterator end() const noexcept;
+			[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept;
+			[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept;
 
-			[[nodiscard]] constexpr entry_iterator find(uuid) const;
-			[[nodiscard]] constexpr entry_iterator find(std::string_view) const;
-			[[nodiscard]] constexpr entry_iterator match(auto &&) const;
+			[[nodiscard]] constexpr const_iterator find(uuid) const;
+			[[nodiscard]] constexpr const_iterator find(std::string_view) const;
+			[[nodiscard]] constexpr const_iterator match(auto &&) const;
 			[[nodiscard]] std::vector<reference> match_all(auto &&) const;
 
 			uuid_table_t uuid_table;
@@ -634,22 +638,39 @@ namespace sek::engine
 			uuid_iter m_iter;
 		};
 
-		constexpr asset_table::entry_iterator asset_table::begin() const noexcept { return {uuid_table.begin()}; }
-		constexpr asset_table::entry_iterator asset_table::end() const noexcept { return {uuid_table.end()}; }
+		constexpr typename asset_table::const_iterator asset_table::begin() const noexcept
+		{
+			return const_iterator{uuid_table.begin()};
+		}
+		constexpr typename asset_table::const_iterator asset_table::end() const noexcept
+		{
+			return const_iterator{uuid_table.end()};
+		}
+		constexpr typename asset_table::const_reverse_iterator asset_table::rbegin() const noexcept
+		{
+			return const_reverse_iterator{end()};
+		}
+		constexpr typename asset_table::const_reverse_iterator asset_table::rend() const noexcept
+		{
+			return const_reverse_iterator{begin()};
+		}
 
-		constexpr asset_table::entry_iterator asset_table::find(uuid id) const { return {uuid_table.find(id)}; }
-		constexpr asset_table::entry_iterator asset_table::find(std::string_view name) const
+		constexpr typename asset_table::const_iterator asset_table::find(uuid id) const
+		{
+			return const_iterator{uuid_table.find(id)};
+		}
+		constexpr typename asset_table::const_iterator asset_table::find(std::string_view name) const
 		{
 			if (auto name_iter = name_table.find(name); name_iter != name_table.end()) [[likely]]
 				return find(name_iter->second);
 			else
 				return end();
 		}
-		constexpr asset_table::entry_iterator asset_table::match(auto &&pred) const
+		constexpr typename asset_table::const_iterator asset_table::match(auto &&pred) const
 		{
 			return std::find_if(begin(), end(), pred);
 		}
-		std::vector<asset_table::reference> asset_table::match_all(auto &&pred) const
+		std::vector<typename asset_table::reference> asset_table::match_all(auto &&pred) const
 		{
 			std::vector<reference> result;
 			std::for_each(begin(),
@@ -674,6 +695,8 @@ namespace sek::engine
 		typedef typename table_t::value_type value_type;
 		typedef typename table_t::iterator iterator;
 		typedef typename table_t::const_iterator const_iterator;
+		typedef typename table_t::reverse_iterator reverse_iterator;
+		typedef typename table_t::const_reverse_iterator const_reverse_iterator;
 		typedef typename table_t::pointer pointer;
 		typedef typename table_t::const_pointer const_pointer;
 		typedef typename table_t::reference reference;
@@ -715,8 +738,16 @@ namespace sek::engine
 
 		/** Returns iterator to the first asset of the package. */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return m_ptr->begin(); }
+		/** @copydoc begin */
+		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
 		/** Returns iterator one past the last asset of the package. */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return m_ptr->end(); }
+		/** @copydoc end */
+		[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
+		/** Returns reverse iterator to the last asset of the package. */
+		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return m_ptr->rbegin(); }
+		/** Returns reverse iterator to the first asset of the package. */
+		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return m_ptr->rend(); }
 
 		/** Returns iterator to the asset with a given id. */
 		[[nodiscard]] constexpr const_iterator find(uuid id) const { return m_ptr->find(id); }
@@ -770,6 +801,8 @@ namespace sek::engine
 		typedef typename table_t::value_type value_type;
 		typedef typename table_t::iterator iterator;
 		typedef typename table_t::const_iterator const_iterator;
+		typedef typename table_t::reverse_iterator reverse_iterator;
+		typedef typename table_t::const_reverse_iterator const_reverse_iterator;
 		typedef typename table_t::pointer pointer;
 		typedef typename table_t::const_pointer const_pointer;
 		typedef typename table_t::reference reference;
@@ -790,8 +823,16 @@ namespace sek::engine
 
 		/** Returns iterator to the first asset of the database. */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return m_assets.begin(); }
+		/** @copydoc begin */
+		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
 		/** Returns iterator one past the last asset of the database. */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return m_assets.end(); }
+		/** @copydoc end */
+		[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
+		/** Returns reverse iterator to the last asset of the database. */
+		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return m_assets.rbegin(); }
+		/** Returns reverse iterator to the first asset of the database. */
+		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return m_assets.rend(); }
 
 		/** Returns iterator to the asset with a given id. */
 		[[nodiscard]] constexpr const_iterator find(uuid id) const { return m_assets.find(id); }
