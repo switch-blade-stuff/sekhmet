@@ -27,6 +27,7 @@
 #include <memory>
 #include <utility>
 
+#include "sekhmet/detail/access_guard.hpp"
 #include "sekhmet/detail/basic_pool.hpp"
 #include "sekhmet/detail/dense_map.hpp"
 #include "sekhmet/detail/dense_set.hpp"
@@ -34,6 +35,7 @@
 #include "sekhmet/detail/service.hpp"
 #include "sekhmet/detail/uuid.hpp"
 #include "sekhmet/system/native_file.hpp"
+
 #include <shared_mutex>
 
 namespace sek::engine
@@ -47,11 +49,11 @@ namespace sek::engine
 	class asset_package_error : public std::runtime_error
 	{
 	public:
-		asset_package_error() : std::runtime_error("Unknown asset package error") {}
-		explicit asset_package_error(std::string &&msg) : std::runtime_error(std::move(msg)) {}
-		explicit asset_package_error(const std::string &msg) : std::runtime_error(msg) {}
-		explicit asset_package_error(const char *msg) : std::runtime_error(msg) {}
-		~asset_package_error() override = default;
+		SEK_API asset_package_error();
+		SEK_API explicit asset_package_error(std::string &&msg);
+		SEK_API explicit asset_package_error(const std::string &msg);
+		SEK_API explicit asset_package_error(const char *msg);
+		SEK_API ~asset_package_error() override;
 	};
 
 	namespace detail
@@ -72,7 +74,7 @@ namespace sek::engine
 		inline asset_source make_asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset);
 		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size);
 
-		struct package_fragment;
+		struct package_info;
 		struct asset_info
 		{
 			struct loose_info_t
@@ -93,9 +95,9 @@ namespace sek::engine
 				 * will have more overhead than reading directly from a file. */
 			};
 
-			explicit asset_info(package_fragment *parent) : parent(parent) {}
-			asset_info(type_selector_t<archive_info_t>, package_fragment *parent) : asset_info(parent) {}
-			asset_info(type_selector_t<loose_info_t>, package_fragment *parent) : asset_info(parent)
+			explicit asset_info(package_info *parent) : parent(parent) {}
+			asset_info(type_selector_t<archive_info_t>, package_info *parent) : asset_info(parent) {}
+			asset_info(type_selector_t<loose_info_t>, package_info *parent) : asset_info(parent)
 			{
 				std::construct_at(&loose_info);
 			}
@@ -103,7 +105,7 @@ namespace sek::engine
 
 			[[nodiscard]] constexpr bool has_metadata() const noexcept;
 
-			package_fragment *parent; /* Parent fragment of the asset. */
+			package_info *parent; /* Parent package of the asset. */
 
 			interned_string name;			 /* Optional human-readable name of the asset. */
 			dense_set<interned_string> tags; /* Optional tags of the asset. */
@@ -114,34 +116,68 @@ namespace sek::engine
 				loose_info_t loose_info;
 			};
 		};
+		struct asset_table
+		{
+			using uuid_table_t = dense_map<uuid, asset_info *>;
+			using name_table_t = dense_map<std::string_view, uuid>;
 
-		struct master_package;
-		struct package_fragment
+			class entry_iterator;
+			class entry_ptr;
+
+			typedef asset_ref value_type;
+			typedef entry_iterator iterator;
+			typedef entry_iterator const_iterator;
+			typedef asset_ref reference;
+			typedef asset_ref const_reference;
+			typedef entry_ptr pointer;
+			typedef entry_ptr const_pointer;
+			typedef std::size_t size_type;
+			typedef std::ptrdiff_t difference_type;
+
+			[[nodiscard]] constexpr bool empty() const noexcept { return uuid_table.empty(); }
+			[[nodiscard]] constexpr size_type size() const noexcept { return uuid_table.size(); }
+
+			[[nodiscard]] constexpr entry_iterator begin() const noexcept;
+			[[nodiscard]] constexpr entry_iterator end() const noexcept;
+
+			[[nodiscard]] constexpr entry_iterator find(uuid) const;
+			[[nodiscard]] constexpr entry_iterator find(std::string_view) const;
+			[[nodiscard]] constexpr entry_iterator match(auto &&) const;
+			[[nodiscard]] std::vector<reference> match_all(auto &&) const;
+
+			uuid_table_t uuid_table;
+			name_table_t name_table;
+		};
+		struct package_info : asset_table
 		{
 			enum flags_t : std::int32_t
 			{
 				NO_FLAGS = 0,
-				IS_MASTER = 1,
-				IS_ARCHIVE = 2,
+				IS_ARCHIVE = 1,
+				ARCHIVE_FORMAT_ZSTD = 0b0010'0, /* Archive is compressed with ZSTD. */
+				ARCHIVE_FORMAT_MASK = 0b1111'0,
+
 #ifdef SEK_EDITOR
 				/* Used to designate in-editor project packages.
-				 * Project packages can not be fragments, nor be archived. */
-				IS_PROJECT = 4 | IS_MASTER,
+				 * Project packages can not be archived. */
+				IS_PROJECT = 1 << 31,
 #endif
-				ARCHIVE_FORMAT_ZSTD = 0b0010'000, /* Archive is compressed with ZSTD. */
-				ARCHIVE_FORMAT_MASK = 0b1111'000,
 			};
 
-			package_fragment(flags_t flags, std::filesystem::path &&path) : flags(flags), path(std::move(path)) {}
-			package_fragment(master_package *master, flags_t flags, std::filesystem::path &&path)
-				: package_fragment(flags, std::move(path))
+			package_info(std::filesystem::path &&path) : path(std::move(path)) {}
+			package_info(const std::filesystem::path &path) : path(path) {}
+			~package_info()
 			{
-				this->master = master;
+				for (auto p : uuid_table) std::destroy_at(p.second);
 			}
 
-			[[nodiscard]] constexpr bool is_master() const noexcept { return flags & IS_MASTER; }
+			inline asset_info *alloc_info() { return info_pool.allocate(); }
+			inline void dealloc_info(asset_info *info) { info_pool.deallocate(info); }
+
+			void insert_asset(uuid id, asset_info *info);
+
 #ifdef SEK_EDITOR
-			[[nodiscard]] constexpr bool is_project() const noexcept { return (flags & IS_PROJECT) == IS_PROJECT; }
+			[[nodiscard]] constexpr bool is_project() const noexcept { return flags & IS_PROJECT; }
 #endif
 			[[nodiscard]] constexpr bool is_archive() const noexcept { return flags & IS_ARCHIVE; }
 			[[nodiscard]] constexpr bool is_archive_flat() const noexcept
@@ -150,7 +186,6 @@ namespace sek::engine
 			}
 			[[nodiscard]] constexpr bool is_archive_zstd() const noexcept { return flags & ARCHIVE_FORMAT_ZSTD; }
 
-			[[nodiscard]] SEK_API master_package *get_master() noexcept;
 			SEK_API void acquire();
 			SEK_API void release();
 
@@ -162,14 +197,11 @@ namespace sek::engine
 			[[nodiscard]] SEK_API std::vector<std::byte> read_metadata(const asset_info *info) const;
 			[[nodiscard]] SEK_API asset_source open_asset(const asset_info *info) const;
 
-			union
-			{
-				std::atomic<std::size_t> ref_count = 0;
-				master_package *master;
-			};
-			flags_t flags;
+			std::atomic<std::size_t> ref_count = 0;
+			flags_t flags = NO_FLAGS;
 
-			std::filesystem::path path; /* Path to fragment's directory or archive file. */
+			std::filesystem::path path;
+			sek::detail::basic_pool<asset_info> info_pool;
 		};
 
 		asset_info::~asset_info()
@@ -179,38 +211,6 @@ namespace sek::engine
 			else
 				std::destroy_at(&loose_info);
 		}
-
-		struct asset_table
-		{
-			using uuid_table_t = dense_map<uuid, asset_info *>;
-			using name_table_t = dense_map<std::string_view, std::pair<uuid, asset_info *>>;
-
-			uuid_table_t uuid_table;
-			name_table_t name_table;
-		};
-		struct master_package : package_fragment, asset_table
-		{
-			master_package(std::filesystem::path &&path) : package_fragment(IS_MASTER, std::move(path)) {}
-			~master_package()
-			{
-				for (auto p : uuid_table) std::destroy_at(p.second);
-			}
-
-			inline void acquire_impl() { ++ref_count; }
-			inline void release_impl()
-			{
-				if (ref_count.fetch_sub(1) == 1) [[unlikely]]
-					delete this;
-			}
-
-			inline asset_info *alloc_info() { return info_pool.allocate(); }
-			inline void dealloc_info(asset_info *info) { info_pool.deallocate(info); }
-
-			void insert_asset(uuid id, asset_info *info);
-
-			std::vector<std::unique_ptr<package_fragment>> fragments;
-			sek::detail::basic_pool<asset_info> info_pool;
-		};
 	}	 // namespace detail
 
 	/** @brief Structure providing a read-only access to data of an asset.
@@ -426,29 +426,29 @@ namespace sek::engine
 
 			asset_info *info = nullptr;
 		};
-		struct package_ptr
+		struct package_info_ptr
 		{
-			constexpr explicit package_ptr(master_package *pkg) noexcept : pkg(pkg) {}
+			constexpr explicit package_info_ptr(package_info *pkg) noexcept : pkg(pkg) {}
 
-			constexpr package_ptr() noexcept = default;
-			constexpr package_ptr(package_ptr &&other) noexcept { swap(other); }
-			constexpr package_ptr &operator=(package_ptr &&other) noexcept
+			constexpr package_info_ptr() noexcept = default;
+			constexpr package_info_ptr(package_info_ptr &&other) noexcept { swap(other); }
+			constexpr package_info_ptr &operator=(package_info_ptr &&other) noexcept
 			{
 				swap(other);
 				return *this;
 			}
-			package_ptr(const package_ptr &other) noexcept : pkg(other.pkg) { acquire(); }
-			package_ptr &operator=(const package_ptr &other) noexcept
+			package_info_ptr(const package_info_ptr &other) noexcept : pkg(other.pkg) { acquire(); }
+			package_info_ptr &operator=(const package_info_ptr &other) noexcept
 			{
 				if (this != &other) reset(other.pkg);
 				return *this;
 			}
-			~package_ptr() { release(); }
+			~package_info_ptr() { release(); }
 
 			[[nodiscard]] constexpr bool empty() const noexcept { return pkg == nullptr; }
-			[[nodiscard]] constexpr master_package *operator->() const noexcept { return pkg; }
+			[[nodiscard]] constexpr package_info *operator->() const noexcept { return pkg; }
 
-			constexpr void swap(package_ptr &other) noexcept { std::swap(pkg, other.pkg); }
+			constexpr void swap(package_info_ptr &other) noexcept { std::swap(pkg, other.pkg); }
 
 			void acquire() const
 			{
@@ -460,7 +460,7 @@ namespace sek::engine
 				if (pkg != nullptr) [[likely]]
 					pkg->release();
 			}
-			void reset(master_package *new_pkg)
+			void reset(package_info *new_pkg)
 			{
 				release();
 				pkg = new_pkg;
@@ -472,14 +472,17 @@ namespace sek::engine
 				pkg = nullptr;
 			}
 
-			master_package *pkg = nullptr;
+			package_info *pkg = nullptr;
 		};
+
+		using database_guard = access_guard<asset_database, std::shared_mutex>;
 	}	 // namespace detail
 
 	/** @brief Structure used to reference an asset.
 	 * @note Asset packages are kept alive as long as any of their assets are referenced. */
 	class asset_ref
 	{
+		friend class detail::asset_table::entry_iterator;
 		friend class asset_package;
 		friend class asset_database;
 
@@ -503,9 +506,11 @@ namespace sek::engine
 
 		/** Returns the id of the asset. If the asset reference does not point to an asset, returns a nil uuid. */
 		[[nodiscard]] constexpr uuid id() const noexcept { return m_id; }
-		/** Returns reference to the name of the asset.
-		 * @warning Undefined behavior if the asset reference is empty. */
+		/** Returns reference to the name of the asset. */
 		[[nodiscard]] constexpr const interned_string &name() const noexcept { return m_ptr->name; }
+		/** Returns a set of string tags of the asset. */
+		[[nodiscard]] constexpr const dense_set<interned_string> &tags() const noexcept { return m_ptr->tags; }
+
 		/** Returns a handle to the parent package of the asset. */
 		[[nodiscard]] asset_package package() const;
 		/** Opens an asset source used to read asset's data.
@@ -538,13 +543,145 @@ namespace sek::engine
 		uuid m_id;
 		detail::asset_info_ptr m_ptr;
 	};
+
+	namespace detail
+	{
+		class asset_table::entry_ptr
+		{
+			friend class entry_iterator;
+
+			constexpr explicit entry_ptr(asset_ref &&ref) noexcept : m_ref(std::move(ref)) {}
+
+		public:
+			entry_ptr() = delete;
+			entry_ptr(const entry_ptr &) = delete;
+			entry_ptr &operator=(const entry_ptr &) = delete;
+
+			constexpr entry_ptr(entry_ptr &&other) noexcept : m_ref(std::move(other.m_ref)) {}
+			constexpr entry_ptr &operator=(entry_ptr &&other) noexcept
+			{
+				m_ref = std::move(other.m_ref);
+				return *this;
+			}
+
+			[[nodiscard]] constexpr const asset_ref *get() const noexcept { return std::addressof(m_ref); }
+			[[nodiscard]] constexpr const asset_ref *operator->() const noexcept { return get(); }
+			[[nodiscard]] constexpr const asset_ref &operator*() const noexcept { return *get(); }
+
+			constexpr void swap(entry_ptr &other) noexcept { m_ref.swap(other.m_ref); }
+			friend constexpr void swap(entry_ptr &a, entry_ptr &b) noexcept { a.swap(b); }
+
+			[[nodiscard]] constexpr bool operator==(const entry_ptr &) const noexcept = default;
+
+		private:
+			asset_ref m_ref;
+		};
+		class asset_table::entry_iterator
+		{
+			friend struct asset_table;
+
+			using uuid_iter = typename uuid_table_t::const_iterator;
+
+		public:
+			typedef asset_ref value_type;
+			typedef asset_ref reference;
+			typedef entry_ptr pointer;
+			typedef std::size_t size_type;
+			typedef std::ptrdiff_t difference_type;
+			typedef std::bidirectional_iterator_tag iterator_category;
+
+		private:
+			constexpr entry_iterator(uuid_iter iter) noexcept : m_iter(iter) {}
+
+		public:
+			constexpr entry_iterator() noexcept = default;
+			constexpr entry_iterator(const entry_iterator &) noexcept = default;
+			constexpr entry_iterator(entry_iterator &&) noexcept = default;
+			constexpr entry_iterator &operator=(const entry_iterator &) noexcept = default;
+			constexpr entry_iterator &operator=(entry_iterator &&) noexcept = default;
+
+			constexpr entry_iterator &operator++() noexcept
+			{
+				m_iter++;
+				return *this;
+			}
+			entry_iterator operator++(int) noexcept
+			{
+				auto temp = *this;
+				m_iter++;
+				return temp;
+			}
+			constexpr entry_iterator &operator--() noexcept
+			{
+				m_iter--;
+				return *this;
+			}
+			entry_iterator operator--(int) noexcept
+			{
+				auto temp = *this;
+				m_iter--;
+				return temp;
+			}
+
+			[[nodiscard]] reference operator*() const { return reference{m_iter->first, m_iter->second}; }
+			[[nodiscard]] pointer operator->() const { return pointer{operator*()}; }
+
+			[[nodiscard]] constexpr bool operator==(const entry_iterator &) const noexcept = default;
+
+			constexpr void swap(entry_iterator &other) noexcept { m_iter.swap(other.m_iter); }
+			friend constexpr void swap(entry_iterator &a, entry_iterator &b) noexcept { a.swap(b); }
+
+		private:
+			uuid_iter m_iter;
+		};
+
+		constexpr asset_table::entry_iterator asset_table::begin() const noexcept { return {uuid_table.begin()}; }
+		constexpr asset_table::entry_iterator asset_table::end() const noexcept { return {uuid_table.end()}; }
+
+		constexpr asset_table::entry_iterator asset_table::find(uuid id) const { return {uuid_table.find(id)}; }
+		constexpr asset_table::entry_iterator asset_table::find(std::string_view name) const
+		{
+			if (auto name_iter = name_table.find(name); name_iter != name_table.end()) [[likely]]
+				return find(name_iter->second);
+			else
+				return end();
+		}
+		constexpr asset_table::entry_iterator asset_table::match(auto &&pred) const
+		{
+			return std::find_if(begin(), end(), pred);
+		}
+		std::vector<asset_table::reference> asset_table::match_all(auto &&pred) const
+		{
+			std::vector<reference> result;
+			std::for_each(begin(),
+						  end(),
+						  [&result, &pred](auto entry)
+						  {
+							  if (pred(entry)) result.push_back(std::move(entry));
+						  });
+			return result;
+		}
+	}	 // namespace detail
+
 	/** @brief Reference-counted handle used to reference an asset package. */
 	class asset_package
 	{
 		friend class asset_ref;
 		friend class asset_database;
 
+		using table_t = detail::asset_table;
+
 	public:
+		typedef typename table_t::value_type value_type;
+		typedef typename table_t::iterator iterator;
+		typedef typename table_t::const_iterator const_iterator;
+		typedef typename table_t::pointer pointer;
+		typedef typename table_t::const_pointer const_pointer;
+		typedef typename table_t::reference reference;
+		typedef typename table_t::const_reference const_reference;
+		typedef typename table_t::size_type size_type;
+		typedef typename table_t::difference_type difference_type;
+
 		/** Loads a package at the specified path.
 		 * @throw asset_package_error If the path does not contain a valid package or
 		 * an implementation-defined error occurred during loading of package metadata. */
@@ -554,8 +691,8 @@ namespace sek::engine
 		[[nodiscard]] static SEK_API std::vector<asset_package> load_all(const std::filesystem::path &path);
 
 	private:
-		constexpr explicit asset_package(detail::package_ptr &&ptr) noexcept : m_ptr(std::move(ptr)) {}
-		SEK_API explicit asset_package(detail::master_package *pkg);
+		constexpr explicit asset_package(detail::package_info_ptr &&ptr) noexcept : m_ptr(std::move(ptr)) {}
+		SEK_API explicit asset_package(detail::package_info *pkg);
 
 	public:
 		asset_package() = delete;
@@ -572,16 +709,220 @@ namespace sek::engine
 		/** Returns path of the asset package. */
 		[[nodiscard]] constexpr const std::filesystem::path &path() const noexcept { return m_ptr->path; }
 
+		/** Checks if the asset package is empty (does not contain any assets). */
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_ptr->empty(); }
+		/** Returns the number of assets contained within the package. */
+		[[nodiscard]] constexpr auto size() const noexcept { return m_ptr->size(); }
+
+		/** Returns iterator to the first asset of the package. */
+		[[nodiscard]] constexpr const_iterator begin() const noexcept { return m_ptr->begin(); }
+		/** Returns iterator one past the last asset of the package. */
+		[[nodiscard]] constexpr const_iterator end() const noexcept { return m_ptr->end(); }
+
+		/** Returns iterator to the asset with a given id. */
+		[[nodiscard]] constexpr const_iterator find(uuid id) const { return m_ptr->find(id); }
+		/** Returns iterator to the asset with a given name. */
+		[[nodiscard]] constexpr const_iterator find(std::string_view name) const { return m_ptr->find(name); }
+		/** Returns iterator to the first asset that matches the predicate. */
+		template<typename P>
+		[[nodiscard]] constexpr const_iterator match(P &&pred) const
+		{
+			return m_ptr->match(std::forward<P>(pred));
+		}
+		/** Returns a vector of all assets that match the predicate. */
+		template<typename P>
+		[[nodiscard]] std::vector<reference> match_all(P &&pred) const
+		{
+			return m_ptr->match_all(std::forward<P>(pred));
+		}
+
+		constexpr void swap(asset_package &other) noexcept { m_ptr.swap(other.m_ptr); }
+		friend constexpr void swap(asset_package &a, asset_package &b) noexcept { a.swap(b); }
+
+		[[nodiscard]] constexpr bool operator==(const asset_package &other) const noexcept
+		{
+			return m_ptr.pkg == other.m_ptr.pkg;
+		}
+
 	private:
-		detail::package_ptr m_ptr;
+		detail::package_info_ptr m_ptr;
 	};
 
-	asset_package asset_ref::package() const { return asset_package{m_ptr->parent->get_master()}; }
+	asset_package asset_ref::package() const { return asset_package{m_ptr->parent}; }
 
-	class asset_database : detail::asset_table
+	/** @brief Proxy range used to manipulate load order of asset database's packages.
+	 *
+	 * @note Any modifications to the load order of the packages will trigger an update of the
+	 * parent database's asset tables.
+	 * @warning Load order may not outlive parent database. */
+	template<typename...>
+	class package_proxy;
+
+	class asset_database : public service<detail::database_guard>
 	{
+		template<typename...>
+		friend class package_proxy;
+
+	protected:
+		using packages_t = std::vector<asset_package>;
+		using table_t = detail::asset_table;
+
 	public:
-	private:
-		mutable std::shared_mutex m_mtx;
+		typedef typename table_t::value_type value_type;
+		typedef typename table_t::iterator iterator;
+		typedef typename table_t::const_iterator const_iterator;
+		typedef typename table_t::pointer pointer;
+		typedef typename table_t::const_pointer const_pointer;
+		typedef typename table_t::reference reference;
+		typedef typename table_t::const_reference const_reference;
+		typedef typename table_t::size_type size_type;
+		typedef typename table_t::difference_type difference_type;
+
+	public:
+		/** Returns a proxy range used to manipulate the load order of packages. */
+		[[nodiscard]] constexpr auto packages() noexcept;
+		/** @copydoc packages */
+		[[nodiscard]] constexpr auto packages() const noexcept;
+
+		/** Checks if the asset database is empty (does not contain any assets). */
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_assets.empty(); }
+		/** Returns the number of assets contained within the database. */
+		[[nodiscard]] constexpr auto size() const noexcept { return m_assets.size(); }
+
+		/** Returns iterator to the first asset of the database. */
+		[[nodiscard]] constexpr const_iterator begin() const noexcept { return m_assets.begin(); }
+		/** Returns iterator one past the last asset of the database. */
+		[[nodiscard]] constexpr const_iterator end() const noexcept { return m_assets.end(); }
+
+		/** Returns iterator to the asset with a given id. */
+		[[nodiscard]] constexpr const_iterator find(uuid id) const { return m_assets.find(id); }
+		/** Returns iterator to the asset with a given name. */
+		[[nodiscard]] constexpr const_iterator find(std::string_view name) const { return m_assets.find(name); }
+		/** Returns iterator to the first asset that matches the predicate. */
+		template<typename P>
+		[[nodiscard]] constexpr const_iterator match(P &&pred) const
+		{
+			return m_assets.match(std::forward<P>(pred));
+		}
+		/** Returns a vector of all assets that match the predicate. */
+		template<typename P>
+		[[nodiscard]] std::vector<reference> match_all(P &&pred) const
+		{
+			return m_assets.match_all(std::forward<P>(pred));
+		}
+
+	protected:
+		packages_t m_packages;
+		detail::asset_table m_assets;
 	};
+
+	template<>
+	class package_proxy<const asset_database>
+	{
+		friend class asset_database;
+
+	protected:
+		using packages_t = typename asset_database::packages_t;
+
+	public:
+		typedef typename packages_t::value_type value_type;
+		typedef typename packages_t::const_pointer pointer;
+		typedef typename packages_t::const_pointer const_pointer;
+		typedef typename packages_t::const_reference reference;
+		typedef typename packages_t::const_reference const_reference;
+		typedef typename packages_t::const_iterator iterator;
+		typedef typename packages_t::const_iterator const_iterator;
+		typedef typename packages_t::const_reverse_iterator reverse_iterator;
+		typedef typename packages_t::const_reverse_iterator const_reverse_iterator;
+		typedef typename packages_t::size_type size_type;
+		typedef typename packages_t::difference_type difference_type;
+
+	protected:
+		constexpr explicit package_proxy(const asset_database &parent) noexcept : m_parent(&parent) {}
+
+	public:
+		package_proxy() = delete;
+
+		constexpr package_proxy(const package_proxy &) noexcept = default;
+		constexpr package_proxy(package_proxy &&) noexcept = default;
+		constexpr package_proxy &operator=(const package_proxy &) noexcept = default;
+		constexpr package_proxy &operator=(package_proxy &&) noexcept = default;
+
+		/** Returns iterator to the first package. */
+		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return packages().cbegin(); }
+		/** @copydoc cbegin */
+		[[nodiscard]] constexpr const_iterator begin() const noexcept { return cbegin(); }
+		/** Returns iterator one past the last package. */
+		[[nodiscard]] constexpr const_iterator cend() const noexcept { return packages().cend(); }
+		/** @copydoc cend */
+		[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
+		/** Returns reverse iterator one past the last package. */
+		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return packages().crbegin(); }
+		/** @copydoc crbegin */
+		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return crbegin(); }
+		/** Returns reverse iterator to the fist package. */
+		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return packages().crend(); }
+		/** @copydoc crbegin */
+		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return crend(); }
+
+		/** Returns reference to the first package. */
+		[[nodiscard]] constexpr const_reference front() const noexcept { return packages().front(); }
+		/** Returns reference to the last package. */
+		[[nodiscard]] constexpr const_reference back() const noexcept { return packages().back(); }
+		/** Returns reference to the package at the specified index. */
+		[[nodiscard]] constexpr const_reference at(size_type i) const noexcept { return packages().at(i); }
+		/** @copydoc at */
+		[[nodiscard]] constexpr const_reference operator[](size_type i) const noexcept { return at(i); }
+
+		/** Returns the current amount of loaded packages. */
+		[[nodiscard]] constexpr size_type size() const noexcept { return packages().size(); }
+		/** Checks if no packages are loaded. */
+		[[nodiscard]] constexpr bool empty() const noexcept { return packages().empty(); }
+
+	protected:
+		const asset_database *m_parent;
+
+	private:
+		[[nodiscard]] constexpr packages_t &packages() const noexcept { return packages(); }
+	};
+	template<>
+	class package_proxy<asset_database> : public package_proxy<const asset_database>
+	{
+		friend class asset_database;
+
+		using base_t = package_proxy<const asset_database>;
+
+	public:
+		typedef typename base_t::value_type value_type;
+		typedef typename base_t::const_pointer pointer;
+		typedef typename base_t::const_pointer const_pointer;
+		typedef typename base_t::const_reference reference;
+		typedef typename base_t::const_reference const_reference;
+		typedef typename base_t::const_iterator iterator;
+		typedef typename base_t::const_iterator const_iterator;
+		typedef typename base_t::const_reverse_iterator reverse_iterator;
+		typedef typename base_t::const_reverse_iterator const_reverse_iterator;
+		typedef typename base_t::size_type size_type;
+		typedef typename base_t::difference_type difference_type;
+
+	protected:
+		constexpr explicit package_proxy(asset_database &parent) noexcept : base_t(parent) {}
+
+	public:
+		package_proxy() = delete;
+
+		constexpr package_proxy(const package_proxy &) noexcept = default;
+		constexpr package_proxy(package_proxy &&) noexcept = default;
+		constexpr package_proxy &operator=(const package_proxy &) noexcept = default;
+		constexpr package_proxy &operator=(package_proxy &&) noexcept = default;
+
+	private:
+		[[nodiscard]] constexpr auto *parent() const noexcept { return const_cast<asset_database *>(base_t::m_parent); }
+		[[nodiscard]] constexpr typename base_t::packages_t &packages() const noexcept { return parent()->m_packages; }
+	};
+
+	constexpr auto asset_database::packages() noexcept { return package_proxy<asset_database>{*this}; }
+	constexpr auto asset_database::packages() const noexcept { return package_proxy<const asset_database>{*this}; }
 }	 // namespace sek::engine
+
+extern template class SEK_API_IMPORT sek::service<sek::engine::detail::database_guard>;

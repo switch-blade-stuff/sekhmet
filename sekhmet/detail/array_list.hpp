@@ -84,59 +84,59 @@ namespace sek
 		private:
 			using node_pointer = list_node *;
 
-			constexpr explicit list_iterator(node_pointer node_ptr) noexcept : node_ptr(node_ptr) {}
+			constexpr explicit list_iterator(node_pointer node_ptr) noexcept : m_ptr(node_ptr) {}
 
 		public:
 			constexpr list_iterator() noexcept = default;
 			template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
-			constexpr list_iterator(const list_iterator<OtherConst> &other) noexcept : node_ptr(other.node_ptr)
+			constexpr list_iterator(const list_iterator<OtherConst> &other) noexcept : m_ptr(other.m_ptr)
 			{
 			}
 
 			constexpr list_iterator operator++(int) noexcept
 			{
 				auto temp = *this;
-				node_ptr++;
+				m_ptr++;
 				return temp;
 			}
 			constexpr list_iterator operator--(int) noexcept
 			{
 				auto temp = *this;
-				node_ptr--;
+				m_ptr--;
 				return temp;
 			}
 			constexpr list_iterator &operator++() noexcept
 			{
-				node_ptr++;
+				m_ptr++;
 				return *this;
 			}
 			constexpr list_iterator &operator--() noexcept
 			{
-				node_ptr--;
+				m_ptr--;
 				return *this;
 			}
 			constexpr list_iterator &operator+=(difference_type n) noexcept
 			{
-				node_ptr += n;
+				m_ptr += n;
 				return *this;
 			}
 			constexpr list_iterator &operator-=(difference_type n) noexcept
 			{
-				node_ptr -= n;
+				m_ptr -= n;
 				return *this;
 			}
 
 			[[nodiscard]] constexpr list_iterator operator+(difference_type n) const noexcept
 			{
-				return list_iterator{node_ptr + n};
+				return list_iterator{m_ptr + n};
 			}
 			[[nodiscard]] constexpr list_iterator operator-(difference_type n) const noexcept
 			{
-				return list_iterator{node_ptr - n};
+				return list_iterator{m_ptr - n};
 			}
 			[[nodiscard]] constexpr difference_type operator-(const list_iterator &other) const noexcept
 			{
-				return node_ptr - other.node_ptr;
+				return m_ptr - other.m_ptr;
 			}
 
 			[[nodiscard]] friend constexpr list_iterator operator+(difference_type n, const list_iterator &iter) noexcept
@@ -145,7 +145,7 @@ namespace sek
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return *node_ptr; }
+			[[nodiscard]] constexpr pointer get() const noexcept { return *m_ptr; }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 			/** Returns reference to the target element. */
@@ -160,12 +160,12 @@ namespace sek
 			friend constexpr void swap(list_iterator &a, list_iterator &b) noexcept
 			{
 				using std::swap;
-				swap(a.node_ptr, b.node_ptr);
+				swap(a.m_ptr, b.m_ptr);
 			}
 
 		private:
 			/** Pointer into the list's internal node array. */
-			node_pointer node_ptr;
+			node_pointer m_ptr;
 		};
 
 	public:
@@ -628,7 +628,7 @@ namespace sek
 			if (first == last) [[unlikely]]
 				return begin() + std::distance(first, last);
 			else
-				return iterator{erase_impl(first.node_ptr, last.node_ptr)};
+				return iterator{erase_impl(first.m_ptr, last.m_ptr)};
 		}
 
 		/** Extracts a single element at the specified position.
@@ -652,7 +652,7 @@ namespace sek
 		{
 			SEK_ASSERT(where >= begin() && where <= end());
 
-			auto insert_pos = where.node_ptr - data();
+			auto insert_pos = where.m_ptr - data();
 			make_space(insert_pos, 1);
 			m_begin[insert_pos] = node.reset();
 			return iterator{m_begin + insert_pos};

@@ -252,7 +252,7 @@ namespace sek
 	namespace attributes
 	{
 		/** @brief Attribute used to send messages of a specific type at runtime in a type-agnostic way. */
-		class message_source
+		class message_type
 		{
 		private:
 			struct vtable_t
@@ -266,19 +266,19 @@ namespace sek
 			};
 
 		public:
-			message_source() = delete;
+			message_type() = delete;
 
 			template<typename T>
-			constexpr explicit message_source(type_selector_t<T>) noexcept
+			constexpr explicit message_type(type_selector_t<T>) noexcept
 				: m_global(&vtable_t::instance<T, message_scope::GLOBAL>),
 				  m_thread(&vtable_t::instance<T, message_scope::THREAD>)
 			{
 			}
 
-			constexpr message_source(const message_source &) noexcept = default;
-			constexpr message_source &operator=(const message_source &) noexcept = default;
-			constexpr message_source(message_source &&) noexcept = default;
-			constexpr message_source &operator=(message_source &&) noexcept = default;
+			constexpr message_type(const message_type &) noexcept = default;
+			constexpr message_type &operator=(const message_type &) noexcept = default;
+			constexpr message_type(message_type &&) noexcept = default;
+			constexpr message_type &operator=(message_type &&) noexcept = default;
 
 			/** Queues message using the bound message queue.
 			 * @tparam Scope Scope of the message queue to queue the message on.
@@ -319,7 +319,7 @@ namespace sek
 		};
 
 		template<typename T, message_scope S>
-		constinit const message_source::vtable_t message_source::vtable_t::instance = {
+		constinit const message_type::vtable_t message_type::vtable_t::instance = {
 			.queue = +[](any a) { message_queue<T, S>::queue(a.cast<const T &>()); },
 			.dispatch = +[]() { message_queue<T, S>::dispatch(); },
 			.send = +[](any a) { message_queue<T, S>::send(a.cast<const T &>()); },
@@ -327,6 +327,6 @@ namespace sek
 
 		/** Creates an instance of message source attribute for type `T`. */
 		template<typename T>
-		constexpr static message_source make_message_source{type_selector<T>};
+		constexpr static message_type make_message_type{type_selector<T>};
 	}	 // namespace attributes
 }	 // namespace sek

@@ -366,41 +366,41 @@ namespace sek
 	class type_info_error : public std::runtime_error
 	{
 	public:
-		type_info_error() : std::runtime_error("Unknown reflection error") {}
-		explicit type_info_error(std::string &&msg) : std::runtime_error(std::move(msg)) {}
-		explicit type_info_error(const std::string &msg) : std::runtime_error(msg) {}
-		explicit type_info_error(const char *msg) : std::runtime_error(msg) {}
-		~type_info_error() override = default;
+		SEK_API type_info_error();
+		SEK_API explicit type_info_error(std::string &&msg);
+		SEK_API explicit type_info_error(const std::string &msg);
+		SEK_API explicit type_info_error(const char *msg);
+		SEK_API ~type_info_error() override;
 	};
 	/** @brief Exception thrown when the type of `any` is not as expected. */
 	class any_type_error : public type_info_error
 	{
 	public:
-		any_type_error() : type_info_error("Invalid type of `any` object") {}
-		explicit any_type_error(std::string &&msg) : type_info_error(std::move(msg)) {}
-		explicit any_type_error(const std::string &msg) : type_info_error(msg) {}
-		explicit any_type_error(const char *msg) : type_info_error(msg) {}
-		~any_type_error() override = default;
+		SEK_API any_type_error();
+		SEK_API explicit any_type_error(std::string &&msg);
+		SEK_API explicit any_type_error(const std::string &msg);
+		SEK_API explicit any_type_error(const char *msg);
+		SEK_API ~any_type_error() override;
 	};
 	/** @brief Exception thrown when the const-ness of `any` is invalid (expected non-const but got const object). */
 	class any_const_error : public type_info_error
 	{
 	public:
-		any_const_error() : type_info_error("Invalid const-ness of `any` object") {}
-		explicit any_const_error(std::string &&msg) : type_info_error(std::move(msg)) {}
-		explicit any_const_error(const std::string &msg) : type_info_error(msg) {}
-		explicit any_const_error(const char *msg) : type_info_error(msg) {}
-		~any_const_error() override = default;
+		SEK_API any_const_error();
+		SEK_API explicit any_const_error(std::string &&msg);
+		SEK_API explicit any_const_error(const std::string &msg);
+		SEK_API explicit any_const_error(const char *msg);
+		SEK_API ~any_const_error() override;
 	};
 	/** @brief Exception thrown when a reflected type does not have the specified member function/constructor. */
 	class invalid_member_error : public type_info_error
 	{
 	public:
-		invalid_member_error() : type_info_error("Unknown type member") {}
-		explicit invalid_member_error(std::string &&msg) : type_info_error(std::move(msg)) {}
-		explicit invalid_member_error(const std::string &msg) : type_info_error(msg) {}
-		explicit invalid_member_error(const char *msg) : type_info_error(msg) {}
-		~invalid_member_error() override = default;
+		SEK_API invalid_member_error();
+		SEK_API explicit invalid_member_error(std::string &&msg);
+		SEK_API explicit invalid_member_error(const std::string &msg);
+		SEK_API explicit invalid_member_error(const char *msg);
+		SEK_API ~invalid_member_error() override;
 	};
 
 	/** @brief Structure used to represent a signature of a constructor or a function. */

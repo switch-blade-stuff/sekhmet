@@ -217,6 +217,37 @@ TEST(utility_tests, logger_test)
 	}
 }
 
+#include "sekhmet/access_guard.hpp"
+
+TEST(utility_tests, access_guard_test)
+{
+	using namespace std::chrono_literals;
+
+	constexpr auto thread_func = [](sek::access_guard<int> *i)
+	{
+		std::this_thread::sleep_for(100ms);
+		EXPECT_FALSE(i->try_access_unique().has_value());
+		std::this_thread::sleep_for(100ms);
+		auto handle = i->access_unique();
+		std::this_thread::sleep_for(100ms);
+		EXPECT_EQ((*handle)++, 1);
+	};
+
+	sek::access_guard<int> i;
+	auto t1 = std::thread{thread_func, &i};
+	{
+		auto handle = i.access_unique();
+		std::this_thread::sleep_for(200ms);
+		EXPECT_EQ((*handle)++, 0);
+	}
+	{
+		std::this_thread::sleep_for(100ms);
+		auto handle = i.access_unique();
+		EXPECT_EQ(*handle, 2);
+	}
+	t1.join();
+}
+
 #include "sekhmet/event.hpp"
 
 template class sek::delegate<void(int &)>;
@@ -268,7 +299,8 @@ TEST(utility_tests, event_test)
 		sek::subscriber_handle<sek::event<void(int &)>> handle;
 		EXPECT_TRUE(handle.empty());
 
-		handle.manage(event += +[](int) {}, event);
+		handle.manage(
+			event += +[](int) {}, event);
 		EXPECT_FALSE(handle.empty());
 		EXPECT_FALSE(event.empty());
 	}
@@ -299,7 +331,7 @@ TEST(utility_tests, message_test)
 	using namespace sek::literals;
 	using namespace sek::attributes;
 
-	sek::type_info::reflect<test_message>().attribute(make_message_source<test_message>);
+	sek::type_info::reflect<test_message>().attribute(make_message_type<test_message>);
 
 	constexpr static auto msg_data = test_message{10};
 	constexpr auto filter = [](std::size_t &ctr, const test_message &msg)
@@ -343,7 +375,7 @@ TEST(utility_tests, message_test)
 	filter_ctr = 0;
 	receiver_ctr = 0;
 
-	auto attr = "test_message"_type.get_attribute<message_source>().cast<message_source>();
+	auto attr = "test_message"_type.get_attribute<message_type>().cast<message_type>();
 
 	attr.send(msg_data);
 	EXPECT_EQ(filter_ctr, 1);
@@ -357,4 +389,3 @@ TEST(utility_tests, message_test)
 	EXPECT_EQ(filter_ctr, 2);
 	EXPECT_EQ(receiver_ctr, 2);
 }
-

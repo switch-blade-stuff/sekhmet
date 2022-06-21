@@ -604,26 +604,23 @@ namespace sek
 		 * @param where Position within the underlying event's set of subscribers at which to add the new subscriber.
 		 * @param subscriber Subscriber delegate.
 		 * @return Id of the sub_id. */
-		constexpr sub_id subscribe(const_iterator where, delegate<R(Args...)> subscriber) const
+		constexpr sub_id subscribe(const_iterator where, delegate<R(Args...)> subscriber)
 		{
 			return m_event.subscribe(where, std::move(subscriber));
 		}
 		/** Adds a subscriber delegate to the underlying event and returns it's sub_id id.
 		 * @param subscriber Subscriber delegate.
 		 * @return Id of the sub_id. */
-		constexpr sub_id subscribe(delegate<R(Args...)> subscriber) const
-		{
-			return m_event.subscribe(std::move(subscriber));
-		}
+		constexpr sub_id subscribe(delegate<R(Args...)> subscriber) { return m_event.subscribe(std::move(subscriber)); }
 		/** @copydoc subscribe */
-		constexpr sub_id operator+=(delegate<R(Args...)> subscriber) const { return m_event += std::move(subscriber); }
+		constexpr sub_id operator+=(delegate<R(Args...)> subscriber) { return m_event += std::move(subscriber); }
 
 		/** @brief Adds a subscriber delegate to the underlying event after the specified subscriber.
 		 * @param id Id of the sub_id after which to subscribe.
 		 * @param subscriber Subscriber delegate.
 		 * @return Id of the sub_id.
 		 * @note If an existing subscriber does not exist, subscribes at the end. */
-		constexpr sub_id subscribe_after(sub_id id, delegate<R(Args...)> subscriber) const
+		constexpr sub_id subscribe_after(sub_id id, delegate<R(Args...)> subscriber)
 		{
 			return m_event.subscribe_after(id, std::move(subscriber));
 		}
@@ -632,7 +629,7 @@ namespace sek
 		 * @param subscriber Subscriber delegate.
 		 * @return Id of the sub_id.
 		 * @note If an existing subscriber does not exist, subscribes at the end. */
-		constexpr sub_id subscribe_after(delegate<R(Args...)> existing, delegate<R(Args...)> subscriber) const
+		constexpr sub_id subscribe_after(delegate<R(Args...)> existing, delegate<R(Args...)> subscriber)
 		{
 			return m_event.subscribe_after(std::move(existing), std::move(subscriber));
 		}
@@ -642,13 +639,13 @@ namespace sek
 		 * @return Id of the sub_id.
 		 * @note If an existing subscriber does not exist, subscribes at the end. */
 		template<typename T>
-		constexpr sub_id subscribe_after(T *value, delegate<R(Args...)> subscriber) const
+		constexpr sub_id subscribe_after(T *value, delegate<R(Args...)> subscriber)
 		{
 			return m_event.template subscribe_after<T>(value, std::move(subscriber));
 		}
 		/** @copydoc subscribe_after */
 		template<typename T>
-		constexpr sub_id subscribe_after(T &value, delegate<R(Args...)> subscriber) const
+		constexpr sub_id subscribe_after(T &value, delegate<R(Args...)> subscriber)
 		{
 			return m_event.template subscribe_after<T>(value, std::move(subscriber));
 		}
@@ -658,7 +655,7 @@ namespace sek
 		 * @param subscriber Subscriber delegate.
 		 * @return Id of the sub_id.
 		 * @note If an existing subscriber does not exist, subscribes at the start. */
-		constexpr sub_id subscribe_before(sub_id id, delegate<R(Args...)> subscriber) const
+		constexpr sub_id subscribe_before(sub_id id, delegate<R(Args...)> subscriber)
 		{
 			return m_event.subscribe_before(id, std::move(subscriber));
 		}
@@ -667,7 +664,7 @@ namespace sek
 		 * @param subscriber Subscriber delegate.
 		 * @return Id of the sub_id.
 		 * @note If an existing subscriber does not exist, subscribes at the start. */
-		constexpr sub_id subscribe_before(delegate<R(Args...)> existing, delegate<R(Args...)> subscriber) const
+		constexpr sub_id subscribe_before(delegate<R(Args...)> existing, delegate<R(Args...)> subscriber)
 		{
 			return m_event.subscribe_before(std::move(existing), std::move(subscriber));
 		}
@@ -677,13 +674,13 @@ namespace sek
 		 * @return Id of the sub_id.
 		 * @note If an existing subscriber does not exist, subscribes at the start. */
 		template<typename T>
-		constexpr sub_id subscribe_before(T *value, delegate<R(Args...)> subscriber) const
+		constexpr sub_id subscribe_before(T *value, delegate<R(Args...)> subscriber)
 		{
 			return m_event.template subscribe_before<T>(value, std::move(subscriber));
 		}
 		/** @copydoc subscribe_before */
 		template<typename T>
-		constexpr sub_id subscribe_before(T &value, delegate<R(Args...)> subscriber) const
+		constexpr sub_id subscribe_before(T &value, delegate<R(Args...)> subscriber)
 		{
 			return m_event.template subscribe_before<T>(value, std::move(subscriber));
 		}
@@ -691,22 +688,22 @@ namespace sek
 		/** Removes a subscriber delegate pointed to by the specified iterator from the underlying event.
 		 * @param where Iterator pointing to the subscriber to be removed from the underlying event.
 		 * @return true if the subscriber was unsubscribed, false otherwise. */
-		constexpr bool unsubscribe(const_iterator where) const { return m_event.unsubscribe(where); }
+		constexpr bool unsubscribe(const_iterator where) { return m_event.unsubscribe(where); }
 		/** Removes a subscriber delegate from the underlying event.
 		 * @param subscriber Delegate to remove from the underlying event.
 		 * @return true if the subscriber was unsubscribed, false otherwise. */
-		constexpr bool unsubscribe(delegate<R(Args...)> subscriber) const
+		constexpr bool unsubscribe(delegate<R(Args...)> subscriber)
 		{
 			return m_event.unsubscribe(std::move(subscriber));
 		}
 		/** @copydoc unsubscribe */
-		constexpr bool operator-=(delegate<R(Args...)> subscriber) const { return m_event -= std::move(subscriber); }
+		constexpr bool operator-=(delegate<R(Args...)> subscriber) { return m_event -= std::move(subscriber); }
 		/** Removes a subscriber delegate from the underlying event.
 		 * @param sub_id Id of the underlying event's sub_id.
 		 * @return true if the subscriber was unsubscribed, false otherwise. */
-		constexpr bool unsubscribe(sub_id sub_id) const { return m_event.unsubscribe(sub_id); }
+		constexpr bool unsubscribe(sub_id sub_id) { return m_event.unsubscribe(sub_id); }
 		/** @copydoc unsubscribe */
-		constexpr bool operator-=(sub_id sub_id) const { return m_event -= sub_id; }
+		constexpr bool operator-=(sub_id sub_id) { return m_event -= sub_id; }
 
 		/** Returns iterator to the subscriber delegate using it's sub_id id or if such subscriber is not found. */
 		[[nodiscard]] constexpr iterator find(sub_id sub_id) const noexcept { return m_event.find(sub_id); }

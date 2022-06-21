@@ -351,11 +351,29 @@ TEST(runtime_tests, any_test)
 
 TEST(runtime_tests, asset_test)
 {
-	auto pkg_path = std::filesystem::path(TEST_DIR) / "test_package";
-	auto pkg = sek::engine::asset_package::load(pkg_path);
-	EXPECT_EQ(pkg.path(), pkg_path);
+	using namespace sek::literals;
 
-	pkg_path = std::filesystem::path(TEST_DIR) / "test_archive.sekpak";
-	pkg = sek::engine::asset_package::load(pkg_path);
-	EXPECT_EQ(pkg.path(), pkg_path);
+	{
+		auto pkg_path = std::filesystem::path(TEST_DIR) / "test_package";
+		auto pkg = sek::engine::asset_package::load(pkg_path);
+		EXPECT_EQ(pkg.path(), pkg_path);
+		EXPECT_FALSE(pkg.empty());
+
+		auto asset = pkg.find("c0b16fc9-e969-4dac-97ed-eb8640a144ac"_uuid);
+		EXPECT_NE(asset, pkg.end());
+		EXPECT_EQ(asset->name(), "test_asset");
+		EXPECT_EQ(asset, pkg.find("test_asset"));
+		EXPECT_TRUE(asset->tags().contains("test"));
+
+		auto asset_file = asset->open();
+		EXPECT_TRUE(asset_file.has_file() && asset_file.file().is_open());
+		std::string data(64, '\0');
+		asset_file.read(data.data(), data.size());
+		EXPECT_EQ(data.erase(data.find_first_of('\0')), "test_asset");
+	}
+	{
+		auto pkg_path = std::filesystem::path(TEST_DIR) / "test_archive.sekpak";
+		auto pkg = sek::engine::asset_package::load(pkg_path);
+		EXPECT_EQ(pkg.path(), pkg_path);
+	}
 }

@@ -36,12 +36,12 @@ namespace sek::engine
 	class zstd_error : public std::runtime_error
 	{
 	public:
-		zstd_error() : std::runtime_error("Unknown ZSTD error") {}
-		explicit zstd_error(std::string &&msg) : std::runtime_error(std::move(msg)) {}
-		explicit zstd_error(const std::string &msg) : std::runtime_error(msg) {}
-		explicit zstd_error(const char *msg) : std::runtime_error(msg) {}
+		SEK_API zstd_error();
+		SEK_API explicit zstd_error(std::string &&msg);
+		SEK_API explicit zstd_error(const std::string &msg);
+		SEK_API explicit zstd_error(const char *msg);
 		SEK_API explicit zstd_error(std::size_t code);
-		~zstd_error() override = default;
+		SEK_API ~zstd_error() override;
 	};
 
 	/** @brief Context used to synchronize multi-threaded ZSTD (de)compression.
@@ -358,10 +358,10 @@ namespace sek::engine
 		template<typename F>
 		void spawn_workers(thread_pool &pool, std::size_t n, F &&f);
 
-		std::mutex m_in_mtx;	/* Read synchronization. */
+		std::mutex m_in_mtx;  /* Read synchronization. */
 		std::mutex m_out_mtx; /* Write synchronization. */
 
-		std::size_t m_in_frame;  /* Index of the next frame to be read. */
+		std::size_t m_in_frame;	 /* Index of the next frame to be read. */
 		std::size_t m_out_frame; /* Index of the next frame to be submitted. */
 
 		dynarray<thread_task> m_task_queue;
@@ -373,7 +373,7 @@ namespace sek::engine
 		/* Empty task buffers are cached for reuse. */
 		dynarray<buffer_t> m_reuse_list;
 
-		read_t m_read;   /* Delegate used to read source data. */
+		read_t m_read;	 /* Delegate used to read source data. */
 		write_t m_write; /* Delegate used to write result. */
 	};
 }	 // namespace sek::engine
