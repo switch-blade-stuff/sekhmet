@@ -364,6 +364,7 @@ TEST(runtime_tests, asset_test)
 		EXPECT_EQ(asset->name(), "test_asset");
 		EXPECT_EQ(asset, pkg.find("test_asset"));
 		EXPECT_TRUE(asset->tags().contains("test"));
+		EXPECT_EQ(asset, pkg.match([](auto a) { return a.tags().contains("test"); }));
 
 		auto asset_file = asset->open();
 		EXPECT_TRUE(asset_file.has_file() && asset_file.file().is_open());
@@ -381,6 +382,7 @@ TEST(runtime_tests, asset_test)
 		EXPECT_EQ(asset->name(), "test_archive_asset");
 		EXPECT_EQ(asset, pkg.find("test_archive_asset"));
 		EXPECT_TRUE(asset->tags().contains("test"));
+		EXPECT_EQ(asset, pkg.match([](auto a) { return a.tags().contains("test"); }));
 
 		auto asset_file = asset->open();
 		EXPECT_TRUE(asset_file.has_file() && asset_file.file().is_open());

@@ -236,12 +236,6 @@ namespace sek::engine
 			if (auto existing = uuid_table.find(id); existing != uuid_table.end())
 			{
 				auto old_info = std::exchange(existing->second, info);
-				if (auto &old_name = old_info->name; !old_name.empty()) [[likely]]
-				{
-					/* If the old asset has a name pointing to it, remove the name entry. */
-					if (auto existing_name = name_table.find(old_name); existing_name != name_table.end()) [[likely]]
-						name_table.erase(existing_name);
-				}
 
 				/* Destroy & de-allocate the old UUID asset. */
 				std::destroy_at(old_info);
@@ -347,13 +341,13 @@ namespace sek::engine
 				{
 					struct tags_proxy
 					{
-						void deserialize(binary_archive &archive)
+						void deserialize(binary_archive &archive) const
 						{
 							auto size = archive.read(std::in_place_type<std::uint32_t>);
 							tags.reserve(size);
 							while (size-- != 0) tags.emplace(archive.read(std::in_place_type<std::string>));
 						}
-						void deserialize(json_frame &archive)
+						void deserialize(json_frame &archive) const
 						{
 							std::size_t size = 0;
 							archive >> container_size(size);
@@ -364,7 +358,7 @@ namespace sek::engine
 						dense_set<interned_string> &tags;
 					};
 
-					void deserialize(binary_archive &archive, package_info &parent)
+					void deserialize(binary_archive &archive, package_info &parent) const
 					{
 						std::construct_at(info, type_selector<asset_info::archive_info_t>, &parent);
 
@@ -381,7 +375,7 @@ namespace sek::engine
 						if (info->archive_info.asset_offset == 0) [[unlikely]]
 							throw archive_error("Invalid asset data offset");
 					}
-					void deserialize(json_frame &archive, package_info &parent)
+					void deserialize(json_frame &archive, package_info &parent) const
 					{
 						std::construct_at(info, type_selector<asset_info::loose_info_t>, &parent);
 
@@ -405,7 +399,7 @@ namespace sek::engine
 					asset_info *info;
 				};
 
-				uuid read_entry(std::size_t, binary_archive &archive, asset_info *info)
+				uuid read_entry(std::size_t, binary_archive &archive, asset_info *info) const
 				{
 					std::array<std::byte, 16> bytes = {};
 					for (auto &byte : bytes) byte = std::byte{archive.read(std::in_place_type<std::uint8_t>)};
@@ -413,7 +407,7 @@ namespace sek::engine
 					archive.read(info_proxy{info}, pkg);
 					return uuid{bytes};
 				}
-				uuid read_entry(std::size_t i, json_frame &archive, asset_info *info)
+				uuid read_entry(std::size_t i, json_frame &archive, asset_info *info) const
 				{
 					const auto iter = archive.begin() + static_cast<std::ptrdiff_t>(i);
 					const auto id = uuid{iter.key()};
@@ -421,7 +415,7 @@ namespace sek::engine
 					iter->read(info_proxy{info}, pkg);
 					return id;
 				}
-				void read_assets(auto &archive, std::size_t n)
+				void read_assets(auto &archive, std::size_t n) const
 				{
 					logger::info() << "Loading assets...";
 
@@ -455,11 +449,11 @@ namespace sek::engine
 					logger::info() << fmt::format("Loaded {} asset(s)", total);
 				}
 
-				void deserialize(binary_archive &archive)
+				void deserialize(binary_archive &archive) const
 				{
 					read_assets(archive, archive.read(std::in_place_type<std::uint32_t>));
 				}
-				void deserialize(json_frame &archive)
+				void deserialize(json_frame &archive) const
 				{
 					std::size_t size = 0;
 					archive >> container_size(size);
@@ -546,5 +540,72 @@ namespace sek::engine
 		else
 			detail::open_header(path).second.read(*result);
 		return asset_package{result.release()};
+	}
+
+	void asset_database::clear()
+	{
+		m_assets.name_table.clear();
+		m_assets.uuid_table.clear();
+		m_packages.clear();
+	}
+
+	void asset_database::override_erase(typename packages_t::const_iterator /*first*/, typename packages_t::const_iterator /*last*/)
+	{
+		/* TODO: Implement this */
+	}
+	typename asset_database::packages_t::const_iterator asset_database::erase_pkg(typename packages_t::const_iterator first,
+																				  typename packages_t::const_iterator last)
+	{
+		override_erase(first, last);
+		return m_packages.erase(first, last);
+	}
+
+	void asset_database::override_insert(typename packages_t::const_iterator where)
+	{
+		auto can_override = [&](detail::package_info *parent)
+		{
+			auto pred = [parent](auto &ptr) { return ptr.m_ptr.pkg == parent; };
+			return std::none_of(where, m_packages.cend(), pred);
+		};
+
+		auto &uuid_table = m_assets.uuid_table;
+		auto &name_table = m_assets.name_table;
+		for (auto entry : where->m_ptr->uuid_table)
+		{
+			const auto entry_id = entry.first;
+
+			/* If the UUID entry does exist, check if it's package is higher in the load order than us.
+			 * If it is, skip the entry. Otherwise, override the entry. */
+			{
+				auto existing = uuid_table.find(entry_id);
+				if (existing == uuid_table.end() || can_override(existing->second->parent)) [[likely]]
+					uuid_table.insert(entry);
+				else
+					continue;
+			}
+
+			/* If the new entry has a name, and such name is already present within the name table,
+			 * check if we can override the name. */
+			if (auto &entry_name = entry.second->name; !entry_name.empty()) [[likely]]
+			{
+				auto existing = name_table.find(entry_name);
+				if (existing == name_table.end() || can_override(uuid_table.at(existing->second)->parent)) [[likely]]
+					name_table.insert({entry_name, entry_id});
+			}
+		}
+	}
+	typename asset_database::packages_t::const_iterator asset_database::insert_pkg(typename packages_t::const_iterator where,
+																				   const asset_package &pkg)
+	{
+		auto result = m_packages.insert(where, pkg);
+		override_insert(result);
+		return result;
+	}
+	typename asset_database::packages_t::const_iterator asset_database::insert_pkg(typename packages_t::const_iterator where,
+																				   asset_package &&pkg)
+	{
+		auto result = m_packages.insert(where, std::forward<asset_package>(pkg));
+		override_insert(result);
+		return result;
 	}
 }	 // namespace sek::engine

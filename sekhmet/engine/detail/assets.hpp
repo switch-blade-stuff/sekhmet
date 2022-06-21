@@ -146,6 +146,7 @@ namespace sek::engine
 
 			[[nodiscard]] constexpr const_iterator find(uuid) const;
 			[[nodiscard]] constexpr const_iterator find(std::string_view) const;
+			[[nodiscard]] std::vector<reference> find_all(std::string_view) const;
 			[[nodiscard]] constexpr const_iterator match(auto &&) const;
 			[[nodiscard]] std::vector<reference> match_all(auto &&) const;
 
@@ -427,6 +428,11 @@ namespace sek::engine
 				info = nullptr;
 			}
 
+			[[nodiscard]] constexpr bool operator==(const asset_info_ptr &other) const noexcept
+			{
+				return info == other.info;
+			}
+
 			asset_info *info = nullptr;
 		};
 		struct package_info_ptr
@@ -473,6 +479,11 @@ namespace sek::engine
 			{
 				release();
 				pkg = nullptr;
+			}
+
+			[[nodiscard]] constexpr bool operator==(const package_info_ptr &other) const noexcept
+			{
+				return pkg == other.pkg;
 			}
 
 			package_info *pkg = nullptr;
@@ -537,10 +548,7 @@ namespace sek::engine
 		 * @note Multiple asset references with the same id may reference different assets.
 		 * This may happen if the assets were obtained directly from packages (bypassing the database),
 		 * thus no overrides could be resolved. */
-		[[nodiscard]] constexpr bool operator==(const asset_ref &other) const noexcept
-		{
-			return m_ptr.info == other.m_ptr.info;
-		}
+		[[nodiscard]] constexpr bool operator==(const asset_ref &) const noexcept = default;
 
 	private:
 		uuid m_id;
@@ -666,6 +674,17 @@ namespace sek::engine
 			else
 				return end();
 		}
+		std::vector<typename asset_table::reference> asset_table::find_all(std::string_view name) const
+		{
+			std::vector<reference> result;
+			std::for_each(begin(),
+						  end(),
+						  [&result, &name](auto entry)
+						  {
+							  if (entry.name() == name) result.push_back(std::move(entry));
+						  });
+			return result;
+		}
 		constexpr typename asset_table::const_iterator asset_table::match(auto &&pred) const
 		{
 			return std::find_if(begin(), end(), pred);
@@ -753,6 +772,13 @@ namespace sek::engine
 		[[nodiscard]] constexpr const_iterator find(uuid id) const { return m_ptr->find(id); }
 		/** Returns iterator to the asset with a given name. */
 		[[nodiscard]] constexpr const_iterator find(std::string_view name) const { return m_ptr->find(name); }
+		/** Returns a vector of all assets with the specified name. */
+		[[nodiscard]] std::vector<reference> find_all(std::string_view name) const { return m_ptr->find_all(name); }
+		/** Checks if the package contains an asset with a given id. */
+		[[nodiscard]] constexpr bool constins(uuid id) const { return find(id) != end(); }
+		/** Checks if the package contains an asset with a given name. */
+		[[nodiscard]] constexpr bool constins(std::string_view name) const { return find(name) != end(); }
+
 		/** Returns iterator to the first asset that matches the predicate. */
 		template<typename P>
 		[[nodiscard]] constexpr const_iterator match(P &&pred) const
@@ -769,10 +795,7 @@ namespace sek::engine
 		constexpr void swap(asset_package &other) noexcept { m_ptr.swap(other.m_ptr); }
 		friend constexpr void swap(asset_package &a, asset_package &b) noexcept { a.swap(b); }
 
-		[[nodiscard]] constexpr bool operator==(const asset_package &other) const noexcept
-		{
-			return m_ptr.pkg == other.m_ptr.pkg;
-		}
+		[[nodiscard]] constexpr bool operator==(const asset_package &) const noexcept = default;
 
 	private:
 		detail::package_info_ptr m_ptr;
@@ -795,27 +818,22 @@ namespace sek::engine
 
 	protected:
 		using packages_t = std::vector<asset_package>;
-		using table_t = detail::asset_table;
+		using assets_t = detail::asset_table;
 
 	public:
-		typedef typename table_t::value_type value_type;
-		typedef typename table_t::iterator iterator;
-		typedef typename table_t::const_iterator const_iterator;
-		typedef typename table_t::reverse_iterator reverse_iterator;
-		typedef typename table_t::const_reverse_iterator const_reverse_iterator;
-		typedef typename table_t::pointer pointer;
-		typedef typename table_t::const_pointer const_pointer;
-		typedef typename table_t::reference reference;
-		typedef typename table_t::const_reference const_reference;
-		typedef typename table_t::size_type size_type;
-		typedef typename table_t::difference_type difference_type;
+		typedef typename assets_t::value_type value_type;
+		typedef typename assets_t::iterator iterator;
+		typedef typename assets_t::const_iterator const_iterator;
+		typedef typename assets_t::reverse_iterator reverse_iterator;
+		typedef typename assets_t::const_reverse_iterator const_reverse_iterator;
+		typedef typename assets_t::pointer pointer;
+		typedef typename assets_t::const_pointer const_pointer;
+		typedef typename assets_t::reference reference;
+		typedef typename assets_t::const_reference const_reference;
+		typedef typename assets_t::size_type size_type;
+		typedef typename assets_t::difference_type difference_type;
 
 	public:
-		/** Returns a proxy range used to manipulate the load order of packages. */
-		[[nodiscard]] constexpr auto packages() noexcept;
-		/** @copydoc packages */
-		[[nodiscard]] constexpr auto packages() const noexcept;
-
 		/** Checks if the asset database is empty (does not contain any assets). */
 		[[nodiscard]] constexpr bool empty() const noexcept { return m_assets.empty(); }
 		/** Returns the number of assets contained within the database. */
@@ -838,6 +856,13 @@ namespace sek::engine
 		[[nodiscard]] constexpr const_iterator find(uuid id) const { return m_assets.find(id); }
 		/** Returns iterator to the asset with a given name. */
 		[[nodiscard]] constexpr const_iterator find(std::string_view name) const { return m_assets.find(name); }
+		/** Returns a vector of all assets with the specified name. */
+		[[nodiscard]] std::vector<reference> find_all(std::string_view name) const { return m_assets.find_all(name); }
+		/** Checks if the database contains an asset with a given id. */
+		[[nodiscard]] constexpr bool constins(uuid id) const { return find(id) != end(); }
+		/** Checks if the database contains an asset with a given name. */
+		[[nodiscard]] constexpr bool constins(std::string_view name) const { return find(name) != end(); }
+
 		/** Returns iterator to the first asset that matches the predicate. */
 		template<typename P>
 		[[nodiscard]] constexpr const_iterator match(P &&pred) const
@@ -851,9 +876,34 @@ namespace sek::engine
 			return m_assets.match_all(std::forward<P>(pred));
 		}
 
+		/** Clears the contents of the asset database by removing all assets & packages. */
+		SEK_API void clear();
+
+		/** Returns a proxy range used to manipulate the load order of packages. */
+		[[nodiscard]] constexpr auto packages() noexcept;
+		/** @copydoc packages */
+		[[nodiscard]] constexpr auto packages() const noexcept;
+
 	protected:
+		SEK_API void override_erase(typename packages_t::const_iterator, typename packages_t::const_iterator);
+		SEK_API typename packages_t::const_iterator erase_pkg(typename packages_t::const_iterator,
+															  typename packages_t::const_iterator);
+		typename packages_t::const_iterator erase_pkg(typename packages_t::const_iterator where)
+		{
+			return erase_pkg(where, std::next(where));
+		}
+
+		SEK_API void override_insert(typename packages_t::const_iterator);
+		SEK_API typename packages_t::const_iterator insert_pkg(typename packages_t::const_iterator, const asset_package &);
+		SEK_API typename packages_t::const_iterator insert_pkg(typename packages_t::const_iterator, asset_package &&);
+
+		template<typename I, typename S>
+		void reorder_pkg(I, S)
+		{
+		}
+
 		packages_t m_packages;
-		detail::asset_table m_assets;
+		assets_t m_assets;
 	};
 
 	template<>
@@ -887,6 +937,11 @@ namespace sek::engine
 		constexpr package_proxy(package_proxy &&) noexcept = default;
 		constexpr package_proxy &operator=(const package_proxy &) noexcept = default;
 		constexpr package_proxy &operator=(package_proxy &&) noexcept = default;
+
+		constexpr package_proxy(const package_proxy<asset_database> &other) noexcept;
+		constexpr package_proxy(package_proxy<asset_database> &&other) noexcept;
+		constexpr package_proxy &operator=(const package_proxy<asset_database> &other) noexcept;
+		constexpr package_proxy &operator=(package_proxy<asset_database> &&other) noexcept;
 
 		/** Returns iterator to the first package. */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return packages().cbegin(); }
@@ -956,10 +1011,80 @@ namespace sek::engine
 		constexpr package_proxy &operator=(const package_proxy &) noexcept = default;
 		constexpr package_proxy &operator=(package_proxy &&) noexcept = default;
 
+		/** Removes a package at the specified position from the load order.
+		 * @return Iterator to the package after the erased one. */
+		const_iterator erase(const_iterator where) { return parent()->erase_pkg(where); }
+		/** Removes all packages between [first, last) from the load order.
+		 * @return Iterator to the package after the erased range. */
+		const_iterator erase(const_iterator first, const_iterator last) { return parent()->erase_pkg(first, last); }
+
+		/** Inserts a package at the specified position into the load order.
+		 * @return Iterator to the inserted package. */
+		const_iterator insert(const_iterator where, const asset_package &pkg)
+		{
+			return parent()->insert_pkg(where, pkg);
+		}
+		/** @copydoc insert */
+		const_iterator insert(const_iterator where, asset_package &&pkg)
+		{
+			return parent()->insert_pkg(where, std::forward<asset_package>(pkg));
+		}
+		/** Inserts a package at the end of the load order. */
+		void push_back(const asset_package &pkg) { insert(end(), pkg); }
+		/** @copydoc push_back */
+		void push_back(asset_package &&pkg) { insert(end(), std::forward<asset_package>(pkg)); }
+
+		// clang-format off
+		/** Re-orders the packages according to the new load order.
+		 * @param first Iterator to the first package iterator of the new load order.
+		 * @param last Sentinel for the first iterator. */
+		template<typename I, typename S>
+		void reorder(I first, S last) requires(std::forward_iterator<I> && std::same_as<std::iter_value_t<I>, const_iterator>)
+		{
+			parent()->reorder_pkg(first, last);
+		}
+		/** Re-orders the packages according to the new load order.
+		 * @param order Range of package iterators containing the new load order. */
+		template<typename R>
+		void reorder(const R &order) requires(std::ranges::forward_range<R> && std::same_as<std::ranges::range_value_t<R>, const_iterator>)
+		{
+			reorder(std::ranges::begin(order), std::ranges::end(order));
+		}
+		// clang-format on
+		/** Re-orders the packages according to the new load order.
+		 * @param order Initializer list of package iterators, specifying the new load order. */
+		void reorder(std::initializer_list<const_iterator> order) { return reorder(order.begin(), order.end()); }
+
 	private:
-		[[nodiscard]] constexpr auto *parent() const noexcept { return const_cast<asset_database *>(base_t::m_parent); }
+		[[nodiscard]] constexpr asset_database *parent() const noexcept
+		{
+			return const_cast<asset_database *>(base_t::m_parent);
+		}
 		[[nodiscard]] constexpr typename base_t::packages_t &packages() const noexcept { return parent()->m_packages; }
 	};
+
+	// clang-format off
+	constexpr package_proxy<const asset_database>::package_proxy(const package_proxy<asset_database> &other) noexcept
+		: m_parent(other.m_parent)
+	{
+	}
+	constexpr package_proxy<const asset_database>::package_proxy(package_proxy<asset_database> &&other) noexcept
+		: m_parent(other.m_parent)
+	{
+	}
+	constexpr package_proxy<const asset_database> &package_proxy<const asset_database>::
+	    operator=(const package_proxy<asset_database> &other) noexcept
+	{
+		m_parent = other.m_parent;
+		return *this;
+	}
+	constexpr package_proxy<const asset_database> &package_proxy<const asset_database>::
+	    operator=(package_proxy<asset_database> &&other) noexcept
+	{
+		m_parent = other.m_parent;
+		return *this;
+	}
+	// clang-format on
 
 	constexpr auto asset_database::packages() noexcept { return package_proxy<asset_database>{*this}; }
 	constexpr auto asset_database::packages() const noexcept { return package_proxy<const asset_database>{*this}; }

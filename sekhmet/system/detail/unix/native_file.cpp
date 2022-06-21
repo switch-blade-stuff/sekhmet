@@ -25,15 +25,35 @@
 #include <fcntl.h>
 #include <utility>
 
+#include <sys/mman.h>
+#include <sys/stat.h>
+
 #if (defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS >= 64) || (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L)
 #define LSEEK ::lseek
+#define MMAP ::mmap
+#define OFF_T ::off_t
 #elif defined(_LARGEFILE64_SOURCE)
 #define LSEEK ::lseek64
+#define MMAP ::mmap64
+#define OFF_T ::off64_t
 #endif
 
 namespace sek::system::detail
 {
 	constexpr auto access = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
+
+	inline static std::int64_t file_size(int fd) noexcept
+	{
+		struct stat s;
+		if (::fstat(fd, &s) < 0) [[unlikely]]
+			return -1;
+		return static_cast<std::int64_t>(s.st_size);
+	}
+	inline static std::size_t page_size() noexcept
+	{
+		const auto res = sysconf(_SC_PAGE_SIZE);
+		return res < 0 ? SEK_KB(8) : static_cast<std::size_t>(res);
+	}
 
 	bool native_file_handle::open(const char *path, openmode mode) noexcept
 	{
@@ -74,7 +94,7 @@ namespace sek::system::detail
 	}
 	std::int64_t native_file_handle::seek(std::int64_t off, int way) const noexcept
 	{
-		return LSEEK(m_descriptor, off, way < 0 ? SEEK_SET : way > 0 ? SEEK_END : SEEK_CUR);
+		return LSEEK(m_descriptor, static_cast<OFF_T>(off), way < 0 ? SEEK_SET : way > 0 ? SEEK_END : SEEK_CUR);
 	}
 	bool native_file_handle::sync() const noexcept
 	{
@@ -85,5 +105,42 @@ namespace sek::system::detail
 		::sync();
 		return true;
 #endif
+	}
+
+	bool native_filemap_handle::map(const native_file_handle &file, std::size_t off, std::size_t n, openmode mode) noexcept
+	{
+		if (is_mapped() || !(file.is_open() && (mode & (in | out))) || (mode & (copy | out)) == copy) [[unlikely]]
+			return false;
+
+		const auto fd = file.m_descriptor;
+		if (n == 0) /* If n is 0, map the entire file. */
+		{
+			const auto max_size = file_size(file.m_descriptor);
+			if (max_size < 0) [[unlikely]]
+				return false;
+			n = static_cast<std::size_t>(max_size);
+		}
+
+		/* Initialize protection mode & flags. */
+		int prot = PROT_NONE;
+		if (mode & in) prot |= PROT_READ;
+		if (mode & out) prot |= PROT_WRITE;
+		int flags = (mode & copy) ? MAP_PRIVATE : MAP_SHARED;
+		if (mode & populate) flags |= MAP_POPULATE;
+
+		const auto size_diff = off % page_size();
+		if ((m_handle = MMAP(nullptr, n + size_diff, prot, flags, fd, static_cast<OFF_T>(off - size_diff))) == MAP_FAILED)
+		{
+			m_handle = nullptr;
+			return false;
+		}
+
+		m_data_offset = size_diff;
+		m_data_size = n;
+		return true;
+	}
+	bool native_filemap_handle::unmap() noexcept
+	{
+		return is_mapped() && ::munmap(std::exchange(m_handle, nullptr), m_data_size + m_data_offset) == 0;
 	}
 }	 // namespace sek::system::detail

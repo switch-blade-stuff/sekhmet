@@ -28,6 +28,8 @@ namespace sek::system::detail
 {
 	class native_file_handle
 	{
+		friend class native_filemap_handle;
+
 	public:
 		typedef int native_handle_type;
 
@@ -47,9 +49,42 @@ namespace sek::system::detail
 		[[nodiscard]] constexpr native_handle_type native_handle() const noexcept { return m_descriptor; }
 
 		constexpr void swap(native_file_handle &other) noexcept { std::swap(m_descriptor, other.m_descriptor); }
-		friend constexpr void swap(native_file_handle &a, native_file_handle &b) noexcept { a.swap(b); }
 
 	private:
 		int m_descriptor = -1;
+	};
+
+	class native_filemap_handle
+	{
+	public:
+		typedef void *native_handle_type;
+
+	public:
+		constexpr native_filemap_handle() noexcept = default;
+
+		SEK_API bool map(const native_file_handle &file, std::size_t off, std::size_t n, mapmode mode) noexcept;
+		SEK_API bool unmap() noexcept;
+
+		[[nodiscard]] constexpr std::size_t size() const noexcept { return m_data_size; }
+		[[nodiscard]] constexpr void *data() const noexcept
+		{
+			return std::bit_cast<void *>(std::bit_cast<std::byte *>(m_handle) + m_data_offset);
+		}
+
+		[[nodiscard]] constexpr bool is_mapped() const noexcept { return m_handle != nullptr; }
+		[[nodiscard]] constexpr native_handle_type native_handle() const noexcept { return m_handle; }
+
+		constexpr void swap(native_filemap_handle &other) noexcept
+		{
+			std::swap(m_handle, other.m_handle);
+			std::swap(m_data_offset, other.m_data_offset);
+			std::swap(m_data_size, other.m_data_size);
+		}
+
+	private:
+		/* The handle and the data may point to different memory locations, since mmap requires page alignment. */
+		native_handle_type m_handle = nullptr;
+		std::size_t m_data_offset = 0; /* Offset from the handle to start of data. */
+		std::size_t m_data_size = 0;
 	};
 }	 // namespace sek::system::detail

@@ -31,7 +31,6 @@
 
 namespace sek::engine
 {
-
 	zstd_error::zstd_error() : std::runtime_error("Unknown ZSTD error") {}
 	zstd_error::zstd_error(std::string &&msg) : std::runtime_error(std::move(msg)) {}
 	zstd_error::zstd_error(const std::string &msg) : std::runtime_error(msg) {}
