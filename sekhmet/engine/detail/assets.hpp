@@ -271,18 +271,17 @@ namespace sek::engine
 		{
 			auto new_pos = m_read_pos + static_cast<std::int64_t>(n);
 			if (new_pos > m_size || new_pos < 0) [[unlikely]]
+			{
+				n = static_cast<std::size_t>(m_size - m_read_pos);
 				new_pos = m_size;
+			}
 
 			if (has_file())
-			{
-				m_read_pos = new_pos;
-				return file().read(dst, n);
-			}
+				n = file().read(dst, n);
 			else
-			{
 				std::copy_n(m_buffer.data + m_read_pos, n, static_cast<std::byte *>(dst));
-				return static_cast<std::size_t>(new_pos - std::exchange(m_read_pos, new_pos));
-			}
+			m_read_pos = new_pos;
+			return n;
 		}
 		/** Seeks the asset source to the specific offset within the asset.
 		 * @param off Offset to seek to.

@@ -375,5 +375,22 @@ TEST(runtime_tests, asset_test)
 		auto pkg_path = std::filesystem::path(TEST_DIR) / "test_archive.sekpak";
 		auto pkg = sek::engine::asset_package::load(pkg_path);
 		EXPECT_EQ(pkg.path(), pkg_path);
+
+		auto asset = pkg.find("3fa20589-5e11-4249-bdfe-4d3e8038a5b3"_uuid);
+		EXPECT_NE(asset, pkg.end());
+		EXPECT_EQ(asset->name(), "test_archive_asset");
+		EXPECT_EQ(asset, pkg.find("test_archive_asset"));
+		EXPECT_TRUE(asset->tags().contains("test"));
+
+		auto asset_file = asset->open();
+		EXPECT_TRUE(asset_file.has_file() && asset_file.file().is_open());
+		std::string data(64, '\0');
+		asset_file.read(data.data(), data.size());
+		EXPECT_EQ(data.erase(data.find_first_of('\0')), "test_archive_asset");
+
+		EXPECT_TRUE(asset->has_metadata());
+		auto metadata = asset->metadata();
+		auto metadata_str = std::string_view{std::bit_cast<const char *>(metadata.data()), metadata.size()};
+		EXPECT_EQ(metadata_str, "test_metadata");
 	}
 }
