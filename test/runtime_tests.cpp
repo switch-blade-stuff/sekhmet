@@ -353,36 +353,34 @@ TEST(runtime_tests, asset_test)
 {
 	using namespace sek::literals;
 
+	using db_guard_t = std::remove_pointer_t<decltype(sek::engine::asset_database::instance())>;
+	db_guard_t db_guard;
+
+	auto archive_path = std::filesystem::path(TEST_DIR) / "test_archive.sekpak";
+	auto archive_pkg = sek::engine::asset_package::load(archive_path);
+	EXPECT_EQ(archive_pkg.path(), archive_path);
+	auto loose_path = std::filesystem::path(TEST_DIR) / "test_package";
+	auto loose_pkg = sek::engine::asset_package::load(loose_path);
+	EXPECT_EQ(loose_pkg.path(), loose_path);
+
 	{
-		auto pkg_path = std::filesystem::path(TEST_DIR) / "test_package";
-		auto pkg = sek::engine::asset_package::load(pkg_path);
-		EXPECT_EQ(pkg.path(), pkg_path);
-		EXPECT_FALSE(pkg.empty());
+		auto db = db_guard.access_unique();
+		db->packages().push_back(archive_pkg);
+		db->packages().push_back(loose_pkg);
 
-		auto asset = pkg.find("c0b16fc9-e969-4dac-97ed-eb8640a144ac"_uuid);
-		EXPECT_NE(asset, pkg.end());
-		EXPECT_EQ(asset->name(), "test_asset");
-		EXPECT_EQ(asset, pkg.find("test_asset"));
-		EXPECT_TRUE(asset->tags().contains("test"));
-		EXPECT_EQ(asset, pkg.match([](auto a) { return a.tags().contains("test"); }));
-
-		auto asset_file = asset->open();
-		EXPECT_TRUE(asset_file.has_file() && asset_file.file().is_open());
-		std::string data(64, '\0');
-		asset_file.read(data.data(), data.size());
-		EXPECT_EQ(data.erase(data.find_first_of('\0')), "test_asset");
+		EXPECT_FALSE(db->packages().empty());
+		EXPECT_EQ(db->packages().size(), 2);
+		EXPECT_EQ(db->packages()[0], archive_pkg);
+		EXPECT_EQ(db->packages()[1], loose_pkg);
 	}
-	{
-		auto pkg_path = std::filesystem::path(TEST_DIR) / "test_archive.sekpak";
-		auto pkg = sek::engine::asset_package::load(pkg_path);
-		EXPECT_EQ(pkg.path(), pkg_path);
 
-		auto asset = pkg.find("3fa20589-5e11-4249-bdfe-4d3e8038a5b3"_uuid);
-		EXPECT_NE(asset, pkg.end());
+	{
+		auto asset = archive_pkg.find("3fa20589-5e11-4249-bdfe-4d3e8038a5b3"_uuid);
+		EXPECT_NE(asset, archive_pkg.end());
 		EXPECT_EQ(asset->name(), "test_archive_asset");
-		EXPECT_EQ(asset, pkg.find("test_archive_asset"));
+		EXPECT_EQ(asset, archive_pkg.find("test_archive_asset"));
 		EXPECT_TRUE(asset->tags().contains("test"));
-		EXPECT_EQ(asset, pkg.match([](auto a) { return a.tags().contains("test"); }));
+		EXPECT_EQ(asset, archive_pkg.match([](auto a) { return a.tags().contains("test"); }));
 
 		auto asset_file = asset->open();
 		EXPECT_TRUE(asset_file.has_file() && asset_file.file().is_open());
@@ -394,5 +392,54 @@ TEST(runtime_tests, asset_test)
 		auto metadata = asset->metadata();
 		auto metadata_str = std::string_view{std::bit_cast<const char *>(metadata.data()), metadata.size()};
 		EXPECT_EQ(metadata_str, "test_metadata");
+	}
+	{
+		auto asset = loose_pkg.find("c0b16fc9-e969-4dac-97ed-eb8640a144ac"_uuid);
+		EXPECT_NE(asset, loose_pkg.end());
+		EXPECT_EQ(asset->name(), "test_asset");
+		EXPECT_EQ(asset, loose_pkg.find("test_asset"));
+		EXPECT_TRUE(asset->tags().contains("test"));
+
+		auto asset_file = asset->open();
+		EXPECT_TRUE(asset_file.has_file() && asset_file.file().is_open());
+		std::string data(64, '\0');
+		asset_file.read(data.data(), data.size());
+		EXPECT_EQ(data.erase(data.find_first_of('\0')), "test_asset");
+	}
+	{
+		auto asset = loose_pkg.find("3fa20589-5e11-4249-bdfe-4d3e8038a5b3"_uuid);
+		EXPECT_NE(asset, loose_pkg.end());
+		EXPECT_EQ(asset->name(), "test_asset2");
+		EXPECT_EQ(asset, loose_pkg.find("test_asset2"));
+		EXPECT_TRUE(asset->tags().contains("test"));
+		auto asset_file = asset->open();
+		EXPECT_TRUE(asset_file.has_file() && asset_file.file().is_open());
+		std::string data(64, '\0');
+		asset_file.read(data.data(), data.size());
+		EXPECT_EQ(data.erase(data.find_first_of('\0')), "test_asset2");
+	}
+	{
+		auto db = db_guard.access_shared();
+		auto asset = db->find("c0b16fc9-e969-4dac-97ed-eb8640a144ac"_uuid);
+		EXPECT_NE(asset, db->end());
+		EXPECT_EQ(asset->name(), "test_asset");
+		asset = db->find("3fa20589-5e11-4249-bdfe-4d3e8038a5b3"_uuid);
+		EXPECT_NE(asset, db->end());
+		EXPECT_EQ(asset->name(), "test_asset2");
+	}
+	{
+		auto db = db_guard.access_unique();
+		auto proxy = db->packages();
+		proxy.erase(proxy.begin() + 1);
+
+		EXPECT_FALSE(proxy.empty());
+		EXPECT_EQ(proxy.size(), 1);
+	}
+	{
+		auto db = db_guard.access_shared();
+		EXPECT_EQ(db->find("c0b16fc9-e969-4dac-97ed-eb8640a144ac"_uuid), db->end());
+		auto asset = db->find("3fa20589-5e11-4249-bdfe-4d3e8038a5b3"_uuid);
+		EXPECT_NE(asset, db->end());
+		EXPECT_EQ(asset->name(), "test_archive_asset");
 	}
 }

@@ -885,7 +885,7 @@ namespace sek::engine
 		[[nodiscard]] constexpr auto packages() const noexcept;
 
 	protected:
-		SEK_API void override_erase(typename packages_t::const_iterator, typename packages_t::const_iterator);
+		void override_erase(typename packages_t::const_iterator, typename packages_t::const_iterator);
 		SEK_API typename packages_t::const_iterator erase_pkg(typename packages_t::const_iterator,
 															  typename packages_t::const_iterator);
 		typename packages_t::const_iterator erase_pkg(typename packages_t::const_iterator where)
@@ -893,14 +893,9 @@ namespace sek::engine
 			return erase_pkg(where, std::next(where));
 		}
 
-		SEK_API void override_insert(typename packages_t::const_iterator);
+		void override_insert(typename packages_t::const_iterator);
 		SEK_API typename packages_t::const_iterator insert_pkg(typename packages_t::const_iterator, const asset_package &);
 		SEK_API typename packages_t::const_iterator insert_pkg(typename packages_t::const_iterator, asset_package &&);
-
-		template<typename I, typename S>
-		void reorder_pkg(I, S)
-		{
-		}
 
 		packages_t m_packages;
 		assets_t m_assets;
@@ -974,11 +969,14 @@ namespace sek::engine
 		/** Checks if no packages are loaded. */
 		[[nodiscard]] constexpr bool empty() const noexcept { return packages().empty(); }
 
+		constexpr void swap(package_proxy &other) noexcept { std::swap(m_parent, other.m_parent); }
+		friend constexpr void swap(package_proxy &a, package_proxy &b) noexcept { a.swap(b); }
+
 	protected:
 		const asset_database *m_parent;
 
 	private:
-		[[nodiscard]] constexpr packages_t &packages() const noexcept { return packages(); }
+		[[nodiscard]] constexpr const packages_t &packages() const noexcept { return m_parent->m_packages; }
 	};
 	template<>
 	class package_proxy<asset_database> : public package_proxy<const asset_database>
@@ -1034,26 +1032,8 @@ namespace sek::engine
 		/** @copydoc push_back */
 		void push_back(asset_package &&pkg) { insert(end(), std::forward<asset_package>(pkg)); }
 
-		// clang-format off
-		/** Re-orders the packages according to the new load order.
-		 * @param first Iterator to the first package iterator of the new load order.
-		 * @param last Sentinel for the first iterator. */
-		template<typename I, typename S>
-		void reorder(I first, S last) requires(std::forward_iterator<I> && std::same_as<std::iter_value_t<I>, const_iterator>)
-		{
-			parent()->reorder_pkg(first, last);
-		}
-		/** Re-orders the packages according to the new load order.
-		 * @param order Range of package iterators containing the new load order. */
-		template<typename R>
-		void reorder(const R &order) requires(std::ranges::forward_range<R> && std::same_as<std::ranges::range_value_t<R>, const_iterator>)
-		{
-			reorder(std::ranges::begin(order), std::ranges::end(order));
-		}
-		// clang-format on
-		/** Re-orders the packages according to the new load order.
-		 * @param order Initializer list of package iterators, specifying the new load order. */
-		void reorder(std::initializer_list<const_iterator> order) { return reorder(order.begin(), order.end()); }
+		constexpr void swap(package_proxy &other) noexcept { base_t::swap(other); }
+		friend constexpr void swap(package_proxy &a, package_proxy &b) noexcept { a.swap(b); }
 
 	private:
 		[[nodiscard]] constexpr asset_database *parent() const noexcept

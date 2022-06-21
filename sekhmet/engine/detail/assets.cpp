@@ -549,9 +549,65 @@ namespace sek::engine
 		m_packages.clear();
 	}
 
-	void asset_database::override_erase(typename packages_t::const_iterator /*first*/, typename packages_t::const_iterator /*last*/)
+	void asset_database::override_erase(typename packages_t::const_iterator first, typename packages_t::const_iterator last)
 	{
-		/* TODO: Implement this */
+		auto &uuid_table = m_assets.uuid_table;
+		auto &name_table = m_assets.name_table;
+		while (last-- != first)
+		{
+			/* Go through each asset of the package. If the asset is present within the database,
+			 * check if there is a conflicting asset in packages below `first`. If there is, use that asset,
+			 * otherwise, remove the asset. */
+			for (auto &pkg_ptr = last->m_ptr; auto entry : pkg_ptr->uuid_table)
+			{
+				const auto entry_id = entry.first;
+				auto &entry_name = entry.second->name;
+
+				/* Skip the entry if it is not present within the database. */
+				auto existing_uuid = uuid_table.find(entry_id);
+				if (existing_uuid == uuid_table.end() || existing_uuid->second->parent != pkg_ptr.pkg) [[unlikely]]
+					continue;
+
+				/* Find the existing name entry. */
+				auto existing_name = entry_name.empty() ? name_table.end() : name_table.find(entry_name);
+				/* Find conflicting assets within the packages below `first`.
+				 * Name entry is replaced only if it points to the replaced asset. */
+				bool need_uuid = true, need_name = existing_name != name_table.end() && existing_name->second == entry_id;
+				for (auto pkg_iter = first;;)
+				{
+					if (!(need_uuid || need_name)) [[unlikely]]
+						break;
+					else if (pkg_iter-- == m_packages.begin()) [[unlikely]]
+					{
+						/* No replacements found, erase the entries. */
+						if (need_name) name_table.erase(existing_name);
+						if (need_uuid) uuid_table.erase(existing_uuid);
+						break;
+					}
+
+					if (need_uuid) [[likely]]
+					{
+						/* If a replacement UUID table entry is found, replace it and clear the flag. */
+						auto replacement = pkg_iter->m_ptr->uuid_table.find(entry_id);
+						if (replacement != pkg_iter->m_ptr->uuid_table.end())
+						{
+							existing_uuid->second = replacement->second;
+							need_uuid = false;
+						}
+					}
+					if (need_name) [[likely]]
+					{
+						/* If a replacement name table entry is found, replace it and clear the flag. */
+						auto replacement = pkg_iter->m_ptr->name_table.find(entry_name);
+						if (replacement != pkg_iter->m_ptr->name_table.end())
+						{
+							existing_name->second = replacement->second;
+							need_name = false;
+						}
+					}
+				}
+			}
+		}
 	}
 	typename asset_database::packages_t::const_iterator asset_database::erase_pkg(typename packages_t::const_iterator first,
 																				  typename packages_t::const_iterator last)
