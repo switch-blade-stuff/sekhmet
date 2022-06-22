@@ -25,13 +25,6 @@ namespace sek::engine
 {
 	using namespace sek::serialization;
 
-	inline std::string format_asset_name(const detail::asset_info *info, uuid id)
-	{
-		char id_str[37] = {0};
-		id.to_string(id_str);
-		return fmt::format(R"("{}" {{{}}})", info->name.sv(), id_str);
-	}
-
 	namespace detail
 	{
 		/*

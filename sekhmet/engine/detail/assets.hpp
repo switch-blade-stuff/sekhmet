@@ -792,7 +792,7 @@ namespace sek::engine
 	 *
 	 * @note Any modifications to the load order of the packages will trigger an update of the
 	 * parent database's asset tables.
-	 * @warning Load order may not outlive parent database. */
+	 * @warning Proxy may not outlive parent database. */
 	template<typename...>
 	class package_proxy;
 
