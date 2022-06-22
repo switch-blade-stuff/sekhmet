@@ -1,22 +1,4 @@
 /*
- * ============================================================================
- * Sekhmet - C++20 game engine & editor
- * Copyright (C) 2022 switchblade
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- * ============================================================================
- *
  * Created by switchblade on 2022-04-04
  */
 
@@ -325,6 +307,9 @@ namespace sek::engine
 		[[nodiscard]] constexpr system::native_file &file() noexcept { return m_file; }
 		/** @copydoc file */
 		[[nodiscard]] constexpr const system::native_file &file() const noexcept { return m_file; }
+		/** Maps the underlying file to memory.
+		 * @warning Undefined behavior if the asset is not backed by a file. */
+		[[nodiscard]] system::native_filemap map() const noexcept { return {m_file, m_offset, m_size}; }
 		/** Returns pointer to the underlying memory buffer.
 		 * @warning Undefined behavior if the asset is not backed by a buffer. */
 		[[nodiscard]] constexpr const std::byte *buffer() const noexcept { return m_buffer.data; }

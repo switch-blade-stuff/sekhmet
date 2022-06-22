@@ -1,22 +1,4 @@
 /*
- * ============================================================================
- * Sekhmet - C++20 game engine & editor
- * Copyright (C) 2022 switchblade
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- * ============================================================================
- *
  * Created by switchblade on 17/05/22
  */
 
@@ -384,12 +366,14 @@ TEST(runtime_tests, asset_test)
 
 		auto asset_file = asset->open();
 		EXPECT_TRUE(asset_file.has_file() && asset_file.file().is_open());
-		std::string data(64, '\0');
-		asset_file.read(data.data(), data.size());
-		EXPECT_EQ(data.erase(data.find_first_of('\0')), "test_archive_asset");
+		auto asset_map = asset_file.map();
+		EXPECT_TRUE(asset_map.is_mapped());
+		auto data_str = std::string_view{static_cast<char *>(asset_map.data()), static_cast<std::size_t>(asset_map.size())};
+		EXPECT_EQ(data_str, "test_archive_asset");
 
 		EXPECT_TRUE(asset->has_metadata());
 		auto metadata = asset->metadata();
+		EXPECT_FALSE(metadata.empty());
 		auto metadata_str = std::string_view{std::bit_cast<const char *>(metadata.data()), metadata.size()};
 		EXPECT_EQ(metadata_str, "test_metadata");
 	}
@@ -402,9 +386,10 @@ TEST(runtime_tests, asset_test)
 
 		auto asset_file = asset->open();
 		EXPECT_TRUE(asset_file.has_file() && asset_file.file().is_open());
-		std::string data(64, '\0');
-		asset_file.read(data.data(), data.size());
-		EXPECT_EQ(data.erase(data.find_first_of('\0')), "test_asset");
+		auto asset_map = asset_file.map();
+		EXPECT_TRUE(asset_map.is_mapped());
+		auto data_str = std::string_view{static_cast<char *>(asset_map.data()), static_cast<std::size_t>(asset_map.size())};
+		EXPECT_EQ(data_str, "test_asset");
 	}
 	{
 		auto asset = loose_pkg.find("3fa20589-5e11-4249-bdfe-4d3e8038a5b3"_uuid);
@@ -412,11 +397,13 @@ TEST(runtime_tests, asset_test)
 		EXPECT_EQ(asset->name(), "test_asset2");
 		EXPECT_EQ(asset, loose_pkg.find("test_asset2"));
 		EXPECT_TRUE(asset->tags().contains("test"));
+
 		auto asset_file = asset->open();
 		EXPECT_TRUE(asset_file.has_file() && asset_file.file().is_open());
-		std::string data(64, '\0');
-		asset_file.read(data.data(), data.size());
-		EXPECT_EQ(data.erase(data.find_first_of('\0')), "test_asset2");
+		auto asset_map = asset_file.map();
+		EXPECT_TRUE(asset_map.is_mapped());
+		auto data_str = std::string_view{static_cast<char *>(asset_map.data()), static_cast<std::size_t>(asset_map.size())};
+		EXPECT_EQ(data_str, "test_asset2");
 	}
 	{
 		auto db = db_guard.access_shared();

@@ -1,22 +1,4 @@
 /*
- * ============================================================================
- * Sekhmet - C++20 game engine & editor
- * Copyright (C) 2022 switchblade
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- * ============================================================================
- *
  * Created by switchblade on 09/06/22
  */
 
@@ -49,10 +31,10 @@ namespace sek::system::detail
 			return -1;
 		return static_cast<std::int64_t>(s.st_size);
 	}
-	inline static std::size_t page_size() noexcept
+	inline static std::int64_t page_size() noexcept
 	{
 		const auto res = sysconf(_SC_PAGE_SIZE);
-		return res < 0 ? SEK_KB(8) : static_cast<std::size_t>(res);
+		return res < 0 ? SEK_KB(8) : static_cast<std::int64_t>(res);
 	}
 
 	bool native_file_handle::open(const char *path, openmode mode) noexcept
@@ -107,19 +89,14 @@ namespace sek::system::detail
 #endif
 	}
 
-	bool native_filemap_handle::map(const native_file_handle &file, std::size_t off, std::size_t n, openmode mode) noexcept
+	bool native_filemap_handle::map(const native_file_handle &file, std::int64_t off, std::int64_t n, openmode mode) noexcept
 	{
 		if (is_mapped() || !(file.is_open() && (mode & (in | out))) || (mode & (copy | out)) == copy) [[unlikely]]
 			return false;
 
 		const auto fd = file.m_descriptor;
-		if (n == 0) /* If n is 0, map the entire file. */
-		{
-			const auto max_size = file_size(file.m_descriptor);
-			if (max_size < 0) [[unlikely]]
-				return false;
-			n = static_cast<std::size_t>(max_size);
-		}
+		if (n == 0 && (n = file_size(file.m_descriptor)) < 0) [[unlikely]] /* If n is 0, map the entire file. */
+			return false;
 
 		/* Initialize protection mode & flags. */
 		int prot = PROT_NONE;
@@ -129,7 +106,9 @@ namespace sek::system::detail
 		if (mode & populate) flags |= MAP_POPULATE;
 
 		const auto size_diff = off % page_size();
-		if ((m_handle = MMAP(nullptr, n + size_diff, prot, flags, fd, static_cast<OFF_T>(off - size_diff))) == MAP_FAILED)
+		const auto map_size = static_cast<std::size_t>(n + size_diff);
+		const auto map_off = static_cast<OFF_T>(off - size_diff);
+		if ((m_handle = MMAP(nullptr, map_size, prot, flags, fd, map_off)) == MAP_FAILED) [[unlikely]]
 		{
 			m_handle = nullptr;
 			return false;
@@ -141,6 +120,8 @@ namespace sek::system::detail
 	}
 	bool native_filemap_handle::unmap() noexcept
 	{
-		return is_mapped() && ::munmap(std::exchange(m_handle, nullptr), m_data_size + m_data_offset) == 0;
+		if (is_mapped()) [[unlikely]]
+			return false;
+		return ::munmap(std::exchange(m_handle, nullptr), static_cast<std::size_t>(m_data_size + m_data_offset)) == 0;
 	}
 }	 // namespace sek::system::detail

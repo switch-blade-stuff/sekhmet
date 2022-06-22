@@ -11,3 +11,8 @@ room for skill ceiling.
   without forking the project.
 * Follow modern (as of 2022) C++ practices.
 * Easy to follow and understand design.
+
+### License
+
+The engine is distributed under the MIT license.
+The editor and all other development tooling is distributed under the GPL license.

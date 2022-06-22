@@ -1,6 +1,6 @@
-//
-// Created by switch_blade on 2022-04-19.
-//
+/*
+ * Created by switch_blade on 2022-04-19.
+ */
 
 #pragma once
 

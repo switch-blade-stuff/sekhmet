@@ -1,22 +1,4 @@
 /*
- * ============================================================================
- * Sekhmet - C++20 game engine & editor
- * Copyright (C) 2022 switchblade
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- * ============================================================================
- *
  * Created by switchblade on 09/06/22
  */
 
@@ -215,13 +197,13 @@ namespace sek::system
 		 * @param mode Mode of the mapping. If set to 0 will use the default mode.
 		 * @note After a file has been mapped, the source file can be closed.
 		 * @note File should be open with a combination of `in` and `out` modes. */
-		inline native_filemap(const native_file &file, std::size_t off = 0, std::size_t n = 0, mapmode mode = 0)
+		inline native_filemap(const native_file &file, std::int64_t off = 0, std::int64_t n = 0, mapmode mode = 0)
 		{
 			map(file, off, n, mode);
 		}
 		/** @copydoc native_filemap
 		 * @return `true` on success, `false` on error. */
-		inline bool map(const native_file &file, std::size_t off = 0, std::size_t n = 0, mapmode mode = 0)
+		inline bool map(const native_file &file, std::int64_t off = 0, std::int64_t n = 0, mapmode mode = 0)
 		{
 			return m_handle.map(file.m_handle, off, n, mode | file.m_mode);
 		}
@@ -231,13 +213,13 @@ namespace sek::system
 		inline bool unmap() { return m_handle.unmap(); }
 
 		/** Returns size of the mapping. */
-		[[nodiscard]] constexpr std::size_t size() const noexcept { return m_handle.size(); }
+		[[nodiscard]] constexpr std::int64_t size() const noexcept { return m_handle.size(); }
 		/** Returns pointer to the mapped data. */
 		[[nodiscard]] constexpr void *data() const noexcept { return m_handle.data(); }
 		/** Returns span of bytes to the mapped data. */
 		[[nodiscard]] constexpr std::span<std::byte> bytes() const noexcept
 		{
-			return {static_cast<std::byte *>(data()), size()};
+			return {static_cast<std::byte *>(data()), static_cast<std::size_t>(size())};
 		}
 
 		/** @brief Checks if the mapping is valid. */
