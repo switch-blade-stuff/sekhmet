@@ -31,28 +31,10 @@ namespace sek
 		dense_map<std::string_view, detail::type_handle> types;
 	};
 
-	type_info_error::type_info_error() : std::runtime_error("Unknown reflection error") {}
-	type_info_error::type_info_error(std::string &&msg) : std::runtime_error(std::move(msg)) {}
-	type_info_error::type_info_error(const std::string &msg) : std::runtime_error(msg) {}
-	type_info_error::type_info_error(const char *msg) : std::runtime_error(msg) {}
+
 	type_info_error::~type_info_error() = default;
-
-	any_type_error::any_type_error() : type_info_error("Invalid type of `any` object") {}
-	any_type_error::any_type_error(std::string &&msg) : type_info_error(std::move(msg)) {}
-	any_type_error::any_type_error(const std::string &msg) : type_info_error(msg) {}
-	any_type_error::any_type_error(const char *msg) : type_info_error(msg) {}
 	any_type_error::~any_type_error() = default;
-
-	any_const_error::any_const_error() : type_info_error("Invalid const-ness of `any` object") {}
-	any_const_error::any_const_error(std::string &&msg) : type_info_error(std::move(msg)) {}
-	any_const_error::any_const_error(const std::string &msg) : type_info_error(msg) {}
-	any_const_error::any_const_error(const char *msg) : type_info_error(msg) {}
 	any_const_error::~any_const_error() = default;
-
-	invalid_member_error::invalid_member_error() : type_info_error("Unknown type member") {}
-	invalid_member_error::invalid_member_error(std::string &&msg) : type_info_error(std::move(msg)) {}
-	invalid_member_error::invalid_member_error(const std::string &msg) : type_info_error(msg) {}
-	invalid_member_error::invalid_member_error(const char *msg) : type_info_error(msg) {}
 	invalid_member_error::~invalid_member_error() = default;
 
 	type_info::data_t &type_info::register_type(handle_t handle) noexcept

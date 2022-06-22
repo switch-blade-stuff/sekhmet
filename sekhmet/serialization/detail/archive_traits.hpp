@@ -14,14 +14,14 @@
 namespace sek::serialization
 {
 	/** @brief Exception thrown by archives on (de)serialization failure. */
-	class archive_error : public std::runtime_error
+	class SEK_API archive_error : public std::runtime_error
 	{
 	public:
 		archive_error() : std::runtime_error("Unknown archive error") {}
 		explicit archive_error(std::string &&msg) : std::runtime_error(std::move(msg)) {}
 		explicit archive_error(const std::string &msg) : std::runtime_error(msg) {}
 		explicit archive_error(const char *msg) : std::runtime_error(msg) {}
-		~archive_error() override = default;
+		~archive_error() override;
 	};
 
 	/** @brief Category tag used to indicate that an archive supports input operations. */

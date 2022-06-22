@@ -478,10 +478,6 @@ namespace sek::engine
 		}
 	}	 // namespace detail
 
-	asset_package_error::asset_package_error() : std::runtime_error("Unknown asset package error") {}
-	asset_package_error::asset_package_error(std::string &&msg) : std::runtime_error(std::move(msg)) {}
-	asset_package_error::asset_package_error(const std::string &msg) : std::runtime_error(msg) {}
-	asset_package_error::asset_package_error(const char *msg) : std::runtime_error(msg) {}
 	asset_package_error::~asset_package_error() = default;
 
 	asset_package::asset_package(detail::package_info *pkg) : m_ptr(pkg) { m_ptr.acquire(); }

@@ -28,14 +28,14 @@ namespace sek::engine
 	class asset_database;
 
 	/** @brief Exception thrown when operation on an asset package fails. */
-	class asset_package_error : public std::runtime_error
+	class SEK_API asset_package_error : public std::runtime_error
 	{
 	public:
-		SEK_API asset_package_error();
-		SEK_API explicit asset_package_error(std::string &&msg);
-		SEK_API explicit asset_package_error(const std::string &msg);
-		SEK_API explicit asset_package_error(const char *msg);
-		SEK_API ~asset_package_error() override;
+		asset_package_error() : std::runtime_error("Unknown asset package error") {}
+		explicit asset_package_error(std::string &&msg) : std::runtime_error(std::move(msg)) {}
+		explicit asset_package_error(const std::string &msg) : std::runtime_error(msg) {}
+		explicit asset_package_error(const char *msg) : std::runtime_error(msg) {}
+		~asset_package_error() override;
 	};
 
 	namespace detail

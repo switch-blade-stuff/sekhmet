@@ -15,15 +15,15 @@
 namespace sek::engine
 {
 	/** @brief Exception thrown when ZSTD (de)compression worker threads encounter an error. */
-	class zstd_error : public std::runtime_error
+	class SEK_API zstd_error : public std::runtime_error
 	{
 	public:
-		SEK_API zstd_error();
-		SEK_API explicit zstd_error(std::string &&msg);
-		SEK_API explicit zstd_error(const std::string &msg);
-		SEK_API explicit zstd_error(const char *msg);
-		SEK_API explicit zstd_error(std::size_t code);
-		SEK_API ~zstd_error() override;
+		zstd_error() : std::runtime_error("Unknown ZSTD error") {}
+		explicit zstd_error(std::string &&msg) : std::runtime_error(std::move(msg)) {}
+		explicit zstd_error(const std::string &msg) : std::runtime_error(msg) {}
+		explicit zstd_error(const char *msg) : std::runtime_error(msg) {}
+		explicit zstd_error(std::size_t code);
+		~zstd_error() override;
 	};
 
 	/** @brief Context used to synchronize multi-threaded ZSTD (de)compression.

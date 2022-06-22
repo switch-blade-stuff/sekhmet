@@ -14,5 +14,5 @@ room for skill ceiling.
 
 ### License
 
-The engine is distributed under the MIT license.
-The editor and all other development tooling is distributed under the GPL license.
+Sekhmet is licensed under a dual license. The engine and all its runtime components are distributed under the MIT
+license, the editor and all other development tooling is distributed under the GPL license.

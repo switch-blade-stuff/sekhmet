@@ -13,11 +13,11 @@
 namespace sek
 {
 	/** @brief Exception thrown when a non-bound delegate is invoked. */
-	class delegate_error : public std::runtime_error
+	class SEK_API delegate_error : public std::runtime_error
 	{
 	public:
 		delegate_error() : runtime_error("Invoked an empty (non-bound) delegate") {}
-		~delegate_error() override = default;
+		~delegate_error() override;
 	};
 
 	namespace detail
