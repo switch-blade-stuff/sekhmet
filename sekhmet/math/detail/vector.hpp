@@ -1143,9 +1143,7 @@ namespace sek::math
 	/** Checks if elements of vector a equals vector b using an epsilon. */
 	template<std::floating_point T, std::size_t N, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<bool, N, Sp>
-		fcmp_eq(const basic_vec<T, N, Sp> &a,
-				const basic_vec<T, N, Sp> &b,
-				const basic_vec<T, N, Sp> &epsilon = basic_vec<T, N, Sp>{std::numeric_limits<T>::epsilon()}) noexcept
+		fcmp_eq(const basic_vec<T, N, Sp> &a, const basic_vec<T, N, Sp> &b, const basic_vec<T, N, Sp> &epsilon) noexcept
 	{
 		return abs(a - b) <= epsilon;
 	}
@@ -1160,9 +1158,7 @@ namespace sek::math
 	/** Checks if elements of vector a does not equal vector vector b using an epsilon. */
 	template<std::floating_point T, std::size_t N, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<bool, N, Sp>
-		fcmp_ne(const basic_vec<T, N, Sp> &a,
-				const basic_vec<T, N, Sp> &b,
-				const basic_vec<T, N, Sp> &epsilon = basic_vec<T, N, Sp>{std::numeric_limits<T>::epsilon()}) noexcept
+		fcmp_ne(const basic_vec<T, N, Sp> &a, const basic_vec<T, N, Sp> &b, const basic_vec<T, N, Sp> &epsilon) noexcept
 	{
 		return abs(a - b) > epsilon;
 	}
@@ -1177,9 +1173,7 @@ namespace sek::math
 	/** Checks if elements of vector a is less than or equal to vector b using an epsilon. */
 	template<std::floating_point T, std::size_t N, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<bool, N, Sp>
-		fcmp_le(const basic_vec<T, N, Sp> &a,
-				const basic_vec<T, N, Sp> &b,
-				const basic_vec<T, N, Sp> &epsilon = basic_vec<T, N, Sp>{std::numeric_limits<T>::epsilon()}) noexcept
+		fcmp_le(const basic_vec<T, N, Sp> &a, const basic_vec<T, N, Sp> &b, const basic_vec<T, N, Sp> &epsilon) noexcept
 	{
 		return a <= b || fcmp_eq(a, b, epsilon);
 	}
@@ -1194,9 +1188,7 @@ namespace sek::math
 	/** Checks if elements of vector a is greater than or equal to vector b using an epsilon. */
 	template<std::floating_point T, std::size_t N, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<bool, N, Sp>
-		fcmp_ge(const basic_vec<T, N, Sp> &a,
-				const basic_vec<T, N, Sp> &b,
-				const basic_vec<T, N, Sp> &epsilon = basic_vec<T, N, Sp>{std::numeric_limits<T>::epsilon()}) noexcept
+		fcmp_ge(const basic_vec<T, N, Sp> &a, const basic_vec<T, N, Sp> &b, const basic_vec<T, N, Sp> &epsilon) noexcept
 	{
 		return a >= b || fcmp_eq(a, b, epsilon);
 	}
@@ -1211,9 +1203,7 @@ namespace sek::math
 	/** Checks if elements of vector a is less than vector b using an epsilon. */
 	template<std::floating_point T, std::size_t N, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<bool, N, Sp>
-		fcmp_lt(const basic_vec<T, N, Sp> &a,
-				const basic_vec<T, N, Sp> &b,
-				const basic_vec<T, N, Sp> &epsilon = basic_vec<T, N, Sp>{std::numeric_limits<T>::epsilon()}) noexcept
+		fcmp_lt(const basic_vec<T, N, Sp> &a, const basic_vec<T, N, Sp> &b, const basic_vec<T, N, Sp> &epsilon) noexcept
 	{
 		return !fcmp_ge(a, b, epsilon);
 	}
@@ -1228,9 +1218,7 @@ namespace sek::math
 	/** Checks if elements of vector a is less than vector b using an epsilon. */
 	template<std::floating_point T, std::size_t N, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<bool, N, Sp>
-		fcmp_gt(const basic_vec<T, N, Sp> &a,
-				const basic_vec<T, N, Sp> &b,
-				const basic_vec<T, N, Sp> &epsilon = basic_vec<T, N, Sp>{std::numeric_limits<T>::epsilon()}) noexcept
+		fcmp_gt(const basic_vec<T, N, Sp> &a, const basic_vec<T, N, Sp> &b, const basic_vec<T, N, Sp> &epsilon) noexcept
 	{
 		return !fcmp_le(a, b, epsilon);
 	}
