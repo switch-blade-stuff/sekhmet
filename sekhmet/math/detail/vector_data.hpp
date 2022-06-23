@@ -5,6 +5,7 @@
 #pragma once
 
 #include "sekhmet/detail/define.h"
+
 #include "simd.hpp"
 
 namespace sek::math::detail

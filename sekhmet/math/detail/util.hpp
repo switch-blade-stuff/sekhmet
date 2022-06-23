@@ -9,6 +9,7 @@
 #include <numbers>
 
 #include "sekhmet/detail/define.h"
+
 #include <type_traits>
 
 namespace sek::math
@@ -16,15 +17,14 @@ namespace sek::math
 	template<typename T>
 	concept arithmetic = std::is_arithmetic_v<T>;
 
+	// clang-format off
 	template<typename T, std::size_t N>
-	concept integral_of_size = std::is_integral_v<T> && sizeof(T) ==
-	N;
+	concept integral_of_size = std::is_integral_v<T> && sizeof(T) == N;
 	template<typename T, std::size_t N>
-	concept signed_integral_of_size = std::signed_integral<T> && sizeof(T) ==
-	N;
+	concept signed_integral_of_size = std::signed_integral<T> && sizeof(T) == N;
 	template<typename T, std::size_t N>
-	concept unsigned_integral_of_size = std::unsigned_integral<T> && sizeof(T) ==
-	N;
+	concept unsigned_integral_of_size = std::unsigned_integral<T> && sizeof(T) == N;
+	// clang-format on
 
 	namespace detail
 	{
@@ -39,8 +39,8 @@ namespace sek::math
 		}
 	}	 // namespace detail
 
-	/** Aligns a positive number to be the read power of two. */
-	template<typename T>
+	/** Aligns an integer to the next power of two. */
+	template<std::integral T>
 	[[nodiscard]] constexpr T next_pow_2(T num) noexcept
 	{
 		if constexpr (std::numeric_limits<T>::is_signed)
@@ -64,17 +64,6 @@ namespace sek::math
 			while (!((i >> bit) & 1)) ++bit;
 			return bit;
 		}
-
-#if defined(_MSC_VER) && defined(SEK_ARCH_x86_32)
-		inline static std::uint32_t __cdecl fast_log2_x86(std::uint32_t num)
-		{
-			__asm
-			{
-				bsr eax, num
-				ret
-			}
-		}
-#endif
 	}	 // namespace detail
 
 	/** Finds the MSB of the passed integer. */
@@ -168,6 +157,19 @@ namespace sek::math
 		return num - rem + (rem ? mult : 0);
 	}
 
+	/** Converts degrees to radians. */
+	template<std::floating_point T>
+	[[nodiscard]] constexpr T rad(T d) noexcept
+	{
+		return d * std::numbers::pi_v<T> / static_cast<T>(180.0);
+	}
+	/** Converts radians to degrees. */
+	template<std::floating_point T>
+	[[nodiscard]] constexpr T deg(T r) noexcept
+	{
+		return r * static_cast<T>(180.0) / std::numbers::pi_v<T>;
+	}
+
 	template<arithmetic T>
 	[[nodiscard]] constexpr T max(T a, T b) noexcept
 	{
@@ -177,19 +179,6 @@ namespace sek::math
 	[[nodiscard]] constexpr T min(T a, T b) noexcept
 	{
 		return a < b ? a : b;
-	}
-
-	/** Converts degrees to radians. */
-	template<std::floating_point T>
-	[[nodiscard]] constexpr T rad(T d) noexcept
-	{
-		return d * std::numbers::pi_v<T> / 180.0;
-	}
-	/** Converts radians to degrees. */
-	template<std::floating_point T>
-	[[nodiscard]] constexpr T deg(T r) noexcept
-	{
-		return r * 180.0 / std::numbers::pi_v<T>;
 	}
 
 	namespace detail
@@ -233,5 +222,11 @@ namespace sek::math
 		requires(sizeof...(Ts) > 1)
 	{
 		return detail::min_unwrap(vals...);
+	}
+
+	template<typename T>
+	[[nodiscard]] constexpr T clamp(T value, T min_val, T max_val) noexcept
+	{
+		return max(min_val, min(max_val, value));
 	}
 }	 // namespace sek::math

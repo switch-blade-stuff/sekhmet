@@ -796,10 +796,13 @@ namespace sek::engine
 	template<typename...>
 	class package_proxy;
 
+	/** @brief Service used to manage global database of assets and asset packages. */
 	class asset_database : public service<detail::database_guard>
 	{
 		template<typename...>
 		friend class package_proxy;
+
+		friend detail::database_guard;
 
 	protected:
 		using packages_t = std::vector<asset_package>;
@@ -817,6 +820,9 @@ namespace sek::engine
 		typedef typename assets_t::const_reference const_reference;
 		typedef typename assets_t::size_type size_type;
 		typedef typename assets_t::difference_type difference_type;
+
+	protected:
+		constexpr asset_database() = default;
 
 	public:
 		/** Checks if the asset database is empty (does not contain any assets). */

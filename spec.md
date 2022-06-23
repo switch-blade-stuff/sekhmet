@@ -11,9 +11,7 @@
         -> external_pack.sekpak     (External asset package which is not a sub-project, but is still loaded by the engine accorging to the project config)
         -> my_package_a             (Each package receives it's own sub-directory)
             -> .manifest            (Json config file containing information about the package. If the package is a sub-project, will contain extra info about said sub-project)
-            -> .editor              (Directory containing editor-specific assets)
-                -> assets...
-            -> .import           (Directory containing asset import cache, used to store asset format handler settings)
+            -> .import              (Directory containing asset import cache, used to store asset format handler settings)
                 -> my_resource.ubj.imp
                 -> my_image.png.imp
             -> .artifacts           (Directory containing asset artifacts)
