@@ -25,23 +25,18 @@ namespace sek::math::detail
 		x86_simd_sub(out.simd, l.simd, r.simd);
 	}
 	template<typename T, std::size_t N>
-	inline void vector_mul(vector_data<T, N, true> &out, const vector_data<T, N, true> &l, T r) noexcept
-		SEK_REQUIRES_OVERLOAD(x86_simd_mul_s, out.simd, l.simd, r)
+	inline void vector_mul(vector_data<T, N, true> &out, const vector_data<T, N, true> &l, const vector_data<T, N, true> &r) noexcept
+		SEK_REQUIRES_OVERLOAD(x86_simd_mul_s, out.simd, l.simd, r.simd)
 	{
-		x86_simd_mul_s(out.simd, l.simd, r);
+		x86_simd_mul_s(out.simd, l.simd, r.simd);
 	}
 	template<typename T, std::size_t N>
-	inline void vector_div(vector_data<T, N, true> &out, const vector_data<T, N, true> &l, T r) noexcept
-		SEK_REQUIRES_OVERLOAD(x86_simd_div_s, out.simd, l.simd, r)
+	inline void vector_div(vector_data<T, N, true> &out, const vector_data<T, N, true> &l, const vector_data<T, N, true> &r) noexcept
+		SEK_REQUIRES_OVERLOAD(x86_simd_div_s, out.simd, l.simd, r.simd)
 	{
-		x86_simd_div_s(out.simd, l.simd, r);
+		x86_simd_div_s(out.simd, l.simd, r.simd);
 	}
-	template<typename T, std::size_t N>
-	inline void vector_div(vector_data<T, N, true> &out, T l, const vector_data<T, N, true> &r) noexcept
-		SEK_REQUIRES_OVERLOAD(x86_simd_div_s, out.simd, l, r.simd)
-	{
-		x86_simd_div_s(out.simd, l, r.simd);
-	}
+
 	template<typename T, std::size_t N>
 	inline void vector_neg(vector_data<T, N, true> &out, const vector_data<T, N, true> &l) noexcept
 		SEK_REQUIRES_OVERLOAD(x86_simd_neg, out.simd, l.simd)
@@ -66,6 +61,7 @@ namespace sek::math::detail
 	{
 		x86_simd_min(out.simd, l.simd, r.simd);
 	}
+
 	template<typename T, std::size_t N>
 	inline void vector_round(vector_data<T, N, true> &out, const vector_data<T, N, true> &l) noexcept
 		SEK_REQUIRES_OVERLOAD(x86_simd_round, out.simd, l.simd)
@@ -84,6 +80,7 @@ namespace sek::math::detail
 	{
 		x86_simd_ceil(out.simd, l.simd);
 	}
+
 	template<typename T, std::size_t N>
 	inline void vector_sqrt(vector_data<T, N, true> &out, const vector_data<T, N, true> &l) noexcept
 		SEK_REQUIRES_OVERLOAD(x86_simd_sqrt, out.simd, l.simd)
@@ -96,6 +93,7 @@ namespace sek::math::detail
 	{
 		x86_simd_rsqrt(out.simd, l.simd);
 	}
+
 	template<typename T, std::size_t N>
 	inline void vector_and(vector_data<T, N, true> &out, const vector_data<T, N, true> &l, const vector_data<T, N, true> &r) noexcept
 		SEK_REQUIRES_OVERLOAD(x86_simd_and, out.simd, l.simd, r.simd)
@@ -120,6 +118,7 @@ namespace sek::math::detail
 	{
 		x86_simd_inv(out.simd, l.simd);
 	}
+
 	template<typename T, std::size_t N>
 	inline T vector_dot(const vector_data<T, N, true> &l, const vector_data<T, N, true> &r) noexcept
 		SEK_REQUIRES_OVERLOAD(x86_simd_dot, l.simd, r.simd)
