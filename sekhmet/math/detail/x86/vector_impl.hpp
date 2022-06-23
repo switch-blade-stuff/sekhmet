@@ -80,6 +80,12 @@ namespace sek::math::detail
 	{
 		x86_simd_ceil(out.simd, l.simd);
 	}
+	template<typename T, std::size_t N>
+	inline void vector_trunc(vector_data<T, N, true> &out, const vector_data<T, N, true> &l) noexcept
+		SEK_REQUIRES_OVERLOAD(x86_simd_trunc, out.simd, l.simd)
+	{
+		x86_simd_trunc(out.simd, l.simd);
+	}
 
 	template<typename T, std::size_t N>
 	inline void vector_sqrt(vector_data<T, N, true> &out, const vector_data<T, N, true> &l) noexcept
@@ -143,5 +149,42 @@ namespace sek::math::detail
 		SEK_REQUIRES_OVERLOAD(x86_simd_shuffle, out.simd, l.simd, s)
 	{
 		x86_simd_shuffle(out.simd, l.simd, s);
+	}
+
+	template<typename T, std::size_t N, bool S>
+	inline void vector_eq(vector_data<bool, N, S> &out, const vector_data<T, N, true> &l, const vector_data<T, N, true> &r) noexcept
+		SEK_REQUIRES_OVERLOAD(x86_simd_cmp_eq, out, l.simd, r.simd)
+	{
+		x86_simd_cmp_eq(out, l.simd, r.simd);
+	}
+	template<typename T, std::size_t N, bool S>
+	inline void vector_ne(vector_data<bool, N, S> &out, const vector_data<T, N, true> &l, const vector_data<T, N, true> &r) noexcept
+		SEK_REQUIRES_OVERLOAD(x86_simd_cmp_ne, out, l.simd, r.simd)
+	{
+		x86_simd_cmp_ne(out, l.simd, r.simd);
+	}
+	template<typename T, std::size_t N, bool S>
+	inline void vector_lt(vector_data<bool, N, S> &out, const vector_data<T, N, true> &l, const vector_data<T, N, true> &r) noexcept
+		SEK_REQUIRES_OVERLOAD(x86_simd_cmp_lt, out, l.simd, r.simd)
+	{
+		x86_simd_cmp_lt(out, l.simd, r.simd);
+	}
+	template<typename T, std::size_t N, bool S>
+	inline void vector_le(vector_data<bool, N, S> &out, const vector_data<T, N, true> &l, const vector_data<T, N, true> &r) noexcept
+		SEK_REQUIRES_OVERLOAD(x86_simd_cmp_le, out, l.simd, r.simd)
+	{
+		x86_simd_cmp_le(out, l.simd, r.simd);
+	}
+	template<typename T, std::size_t N, bool S>
+	inline void vector_gt(vector_data<bool, N, S> &out, const vector_data<T, N, true> &l, const vector_data<T, N, true> &r) noexcept
+		SEK_REQUIRES_OVERLOAD(x86_simd_cmp_gt, out, l.simd, r.simd)
+	{
+		x86_simd_cmp_gt(out, l.simd, r.simd);
+	}
+	template<typename T, std::size_t N, bool S>
+	inline void vector_ge(vector_data<bool, N, S> &out, const vector_data<T, N, true> &l, const vector_data<T, N, true> &r) noexcept
+		SEK_REQUIRES_OVERLOAD(x86_simd_cmp_ge, out, l.simd, r.simd)
+	{
+		x86_simd_cmp_ge(out, l.simd, r.simd);
 	}
 }	 // namespace sek::math::detail

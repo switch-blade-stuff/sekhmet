@@ -83,6 +83,38 @@ namespace sek::math::detail
 	{
 		return x86_mm_shuffle2_unwrap<0>(s);
 	}
+
+#ifdef SEK_USE_SSE2
+	template<std::size_t N>
+	inline void x86_simd_cmp32_pack(bool *out, __m128i value) noexcept
+		requires(sizeof(bool) == sizeof(char))
+	{
+		value = _mm_packs_epi32(value, value);
+		value = _mm_packs_epi16(value, value);
+#ifdef SEK_USE_SSSE3
+		value = _mm_abs_epi8(value);
+#else
+		value = _mm_and_si128(value, _mm_set1_epi8(1));
+#endif
+		const auto mask = _mm_srli_si128(_mm_set1_epi32(-1), 16 - N);
+		_mm_maskmoveu_si128(value, mask, reinterpret_cast<char *>(out));
+	}
+	template<std::size_t N>
+	inline void x86_simd_cmp64_pack(bool *out, __m128i value) noexcept
+		requires(sizeof(bool) == sizeof(char))
+	{
+		value = _mm_packs_epi32(value, value);
+		value = _mm_packs_epi16(value, value);
+		value = _mm_packs_epi16(value, value);
+#ifdef SEK_USE_SSSE3
+		value = _mm_abs_epi8(value);
+#else
+		value = _mm_and_si128(value, _mm_set1_epi8(1));
+#endif
+		const auto mask = _mm_srli_si128(_mm_set1_epi32(-1), 16 - N);
+		_mm_maskmoveu_si128(value, mask, reinterpret_cast<char *>(out));
+	}
+#endif
 }	 // namespace sek::math::detail
 
 #endif

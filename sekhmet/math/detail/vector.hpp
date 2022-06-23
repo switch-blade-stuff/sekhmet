@@ -459,7 +459,7 @@ namespace sek::math
 			detail::vector_abs(result.m_data, v.m_data);
 		return result;
 	}
-	/** Returns a vector consisting of maximum data of a and b.
+	/** Returns a vector consisting of maximum elements of a and b.
 	 * @example max({0, 1, 3}, {-1, 2, 2}) -> {0, 2, 3} */
 	template<typename T, std::size_t N, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<T, N, Sp> max(const basic_vec<T, N, Sp> &a, const basic_vec<T, N, Sp> &b) noexcept
@@ -471,7 +471,7 @@ namespace sek::math
 			detail::vector_max(result.m_data, a.m_data, b.m_data);
 		return result;
 	}
-	/** Returns a vector consisting of minimum data of a and b.
+	/** Returns a vector consisting of minimum elements of a and b.
 	 * @example min({0, 1, 3}, {-1, 2, 2}) -> {-1, 1, 2} */
 	template<typename T, std::size_t N, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<T, N, Sp> min(const basic_vec<T, N, Sp> &a, const basic_vec<T, N, Sp> &b) noexcept
@@ -481,46 +481,6 @@ namespace sek::math
 			detail::generic::vector_min(result.m_data, a.m_data, b.m_data);
 		else
 			detail::vector_min(result.m_data, a.m_data, b.m_data);
-		return result;
-	}
-
-	/** Returns a vector consisting of rounded values of `v`.
-	 * @example round({.1, .2, 2.3}) -> {0, 0, 2} */
-	template<typename T, std::size_t N, storage_policy Sp>
-	[[nodiscard]] constexpr basic_vec<T, N, Sp> round(const basic_vec<T, N, Sp> &v) noexcept
-		requires std::floating_point<T>
-	{
-		basic_vec<T, N, Sp> result;
-		if (std::is_constant_evaluated())
-			detail::generic::vector_round(result.m_data, v.m_data);
-		else
-			detail::vector_round(result.m_data, v.m_data);
-		return result;
-	}
-	/** Returns a vector consisting of rounded-down values of `v`.
-	 * @example round({.1, .2, 2.3}) -> {0, 0, 2} */
-	template<typename T, std::size_t N, storage_policy Sp>
-	[[nodiscard]] constexpr basic_vec<T, N, Sp> floor(const basic_vec<T, N, Sp> &v) noexcept
-		requires std::floating_point<T>
-	{
-		basic_vec<T, N, Sp> result;
-		if (std::is_constant_evaluated())
-			detail::generic::vector_floor(result.m_data, v.m_data);
-		else
-			detail::vector_floor(result.m_data, v.m_data);
-		return result;
-	}
-	/** Returns a vector consisting of rounded-up values of `v`.
-	 * @example round({.1, .2, 2.3}) -> {1, 1, 3} */
-	template<typename T, std::size_t N, storage_policy Sp>
-	[[nodiscard]] constexpr basic_vec<T, N, Sp> ceil(const basic_vec<T, N, Sp> &v) noexcept
-		requires std::floating_point<T>
-	{
-		basic_vec<T, N, Sp> result;
-		if (std::is_constant_evaluated())
-			detail::generic::vector_ceil(result.m_data, v.m_data);
-		else
-			detail::vector_ceil(result.m_data, v.m_data);
 		return result;
 	}
 
@@ -668,6 +628,192 @@ namespace sek::math
 		return result;
 	}
 
+	/** Calculates a sine of the elements of the vector. */
+	template<typename T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<T, N, Sp> sin(const basic_vec<T, N, Sp> &v) noexcept
+	{
+		basic_vec<T, N, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_sin(result.m_data, v.m_data);
+		else
+			detail::vector_sin(result.m_data, v.m_data);
+		return result;
+	}
+	/** Calculates a cosine of the elements of the vector. */
+	template<typename T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<T, N, Sp> cos(const basic_vec<T, N, Sp> &v) noexcept
+	{
+		basic_vec<T, N, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_cos(result.m_data, v.m_data);
+		else
+			detail::vector_cos(result.m_data, v.m_data);
+		return result;
+	}
+	/** Calculates a tangent of the elements of the vector. */
+	template<typename T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<T, N, Sp> tan(const basic_vec<T, N, Sp> &v) noexcept
+	{
+		basic_vec<T, N, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_tan(result.m_data, v.m_data);
+		else
+			detail::vector_tan(result.m_data, v.m_data);
+		return result;
+	}
+	/** Calculates a arc sine of the elements of the vector. */
+	template<typename T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<T, N, Sp> asin(const basic_vec<T, N, Sp> &v) noexcept
+	{
+		basic_vec<T, N, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_asin(result.m_data, v.m_data);
+		else
+			detail::vector_asin(result.m_data, v.m_data);
+		return result;
+	}
+	/** Calculates a arc cosine of the elements of the vector. */
+	template<typename T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<T, N, Sp> acos(const basic_vec<T, N, Sp> &v) noexcept
+	{
+		basic_vec<T, N, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_acos(result.m_data, v.m_data);
+		else
+			detail::vector_acos(result.m_data, v.m_data);
+		return result;
+	}
+	/** Calculates a arc tangent of the elements of the vector. */
+	template<typename T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<T, N, Sp> atan(const basic_vec<T, N, Sp> &v) noexcept
+	{
+		basic_vec<T, N, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_atan(result.m_data, v.m_data);
+		else
+			detail::vector_atan(result.m_data, v.m_data);
+		return result;
+	}
+	/** Calculates a hyperbolic sine of the elements of the vector. */
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp> sinh(const basic_vec<U, M, Sp> &v) noexcept
+	{
+		basic_vec<U, M, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_sinh(result.m_data, v.m_data);
+		else
+			detail::vector_sinh(result.m_data, v.m_data);
+		return result;
+	}
+	/** Calculates a hyperbolic cosine of the elements of the vector. */
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp> cosh(const basic_vec<U, M, Sp> &v) noexcept
+	{
+		basic_vec<U, M, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_cosh(result.m_data, v.m_data);
+		else
+			detail::vector_cosh(result.m_data, v.m_data);
+		return result;
+	}
+	/** Calculates a hyperbolic tangent of the elements of the vector. */
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp> tanh(const basic_vec<U, M, Sp> &v) noexcept
+	{
+		basic_vec<U, M, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_tanh(result.m_data, v.m_data);
+		else
+			detail::vector_tanh(result.m_data, v.m_data);
+		return result;
+	}
+	/** Calculates a hyperbolic arc sine of the elements of the vector. */
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp> asinh(const basic_vec<U, M, Sp> &v) noexcept
+	{
+		basic_vec<U, M, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_asinh(result.m_data, v.m_data);
+		else
+			detail::vector_asinh(result.m_data, v.m_data);
+		return result;
+	}
+	/** Calculates a hyperbolic arc cosine of the elements of the vector. */
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp> acosh(const basic_vec<U, M, Sp> &v) noexcept
+	{
+		basic_vec<U, M, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_acosh(result.m_data, v.m_data);
+		else
+			detail::vector_acosh(result.m_data, v.m_data);
+		return result;
+	}
+	/** Calculates a hyperbolic arc tangent of the elements of the vector. */
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp> atanh(const basic_vec<U, M, Sp> &v) noexcept
+	{
+		basic_vec<U, M, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_atanh(result.m_data, v.m_data);
+		else
+			detail::vector_atanh(result.m_data, v.m_data);
+		return result;
+	}
+
+	/** Returns a vector consisting of rounded values of `v`.
+	 * @example round({.1, .2, 2.3}) -> {0, 0, 2} */
+	template<typename T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<T, N, Sp> round(const basic_vec<T, N, Sp> &v) noexcept
+		requires std::floating_point<T>
+	{
+		basic_vec<T, N, Sp> result;
+		if (std::is_constant_evaluated())
+			detail::generic::vector_round(result.m_data, v.m_data);
+		else
+			detail::vector_round(result.m_data, v.m_data);
+		return result;
+	}
+	/** Returns a vector consisting of rounded-down values of `v`.
+	 * @example round({.1, .2, 2.3}) -> {0, 0, 2} */
+	template<typename T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<T, N, Sp> floor(const basic_vec<T, N, Sp> &v) noexcept
+		requires std::floating_point<T>
+	{
+		basic_vec<T, N, Sp> result;
+		if (std::is_constant_evaluated())
+			detail::generic::vector_floor(result.m_data, v.m_data);
+		else
+			detail::vector_floor(result.m_data, v.m_data);
+		return result;
+	}
+	/** Returns a vector consisting of rounded-up values of `v`.
+	 * @example round({.1, .2, 2.3}) -> {1, 1, 3} */
+	template<typename T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<T, N, Sp> ceil(const basic_vec<T, N, Sp> &v) noexcept
+		requires std::floating_point<T>
+	{
+		basic_vec<T, N, Sp> result;
+		if (std::is_constant_evaluated())
+			detail::generic::vector_ceil(result.m_data, v.m_data);
+		else
+			detail::vector_ceil(result.m_data, v.m_data);
+		return result;
+	}
+	/** Returns a vector consisting of truncated values of `v`.
+	 * @example round({.1, .2, 2.3}) -> {0, 0, 2} */
+	template<typename T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<T, N, Sp> trunc(const basic_vec<T, N, Sp> &v) noexcept
+		requires std::floating_point<T>
+	{
+		basic_vec<T, N, Sp> result;
+		if (std::is_constant_evaluated())
+			detail::generic::vector_trunc(result.m_data, v.m_data);
+		else
+			detail::vector_trunc(result.m_data, v.m_data);
+		return result;
+	}
+
 	/** Preforms a bitwise AND on two vectors. */
 	template<std::integral T, std::size_t N, storage_policy Sp>
 	constexpr basic_vec<T, N, Sp> &operator&=(basic_vec<T, N, Sp> &l, const basic_vec<T, N, Sp> &r) noexcept
@@ -793,90 +939,13 @@ namespace sek::math
 	template<typename T, std::size_t N, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<T, N, Sp> rad(const basic_vec<T, N, Sp> &v) noexcept
 	{
-		basic_vec<T, N, Sp> result = {};
-		if (std::is_constant_evaluated())
-			detail::generic::vector_rad(result.m_data, v.m_data);
-		else
-			detail::vector_rad(result.m_data, v.m_data);
-		return result;
+		return v * basic_vec<T, N, Sp>{std::numbers::pi_v<T> / static_cast<T>(180.0)};
 	}
 	/** Converts a radian angle vector to degree angle vector. */
 	template<typename T, std::size_t N, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<T, N, Sp> deg(const basic_vec<T, N, Sp> &v) noexcept
 	{
-		basic_vec<T, N, Sp> result = {};
-		if (std::is_constant_evaluated())
-			detail::generic::vector_deg(result.m_data, v.m_data);
-		else
-			detail::vector_deg(result.m_data, v.m_data);
-		return result;
-	}
-
-	/** Calculates a sine of the elements of the vector. */
-	template<typename T, std::size_t N, storage_policy Sp>
-	[[nodiscard]] constexpr basic_vec<T, N, Sp> sin(const basic_vec<T, N, Sp> &v) noexcept
-	{
-		basic_vec<T, N, Sp> result = {};
-		if (std::is_constant_evaluated())
-			detail::generic::vector_sin(result.m_data, v.m_data);
-		else
-			detail::vector_sin(result.m_data, v.m_data);
-		return result;
-	}
-	/** Calculates a cosine of the elements of the vector. */
-	template<typename T, std::size_t N, storage_policy Sp>
-	[[nodiscard]] constexpr basic_vec<T, N, Sp> cos(const basic_vec<T, N, Sp> &v) noexcept
-	{
-		basic_vec<T, N, Sp> result = {};
-		if (std::is_constant_evaluated())
-			detail::generic::vector_cos(result.m_data, v.m_data);
-		else
-			detail::vector_cos(result.m_data, v.m_data);
-		return result;
-	}
-	/** Calculates a tangent of the elements of the vector. */
-	template<typename T, std::size_t N, storage_policy Sp>
-	[[nodiscard]] constexpr basic_vec<T, N, Sp> tan(const basic_vec<T, N, Sp> &v) noexcept
-	{
-		basic_vec<T, N, Sp> result = {};
-		if (std::is_constant_evaluated())
-			detail::generic::vector_tan(result.m_data, v.m_data);
-		else
-			detail::vector_tan(result.m_data, v.m_data);
-		return result;
-	}
-	/** Calculates a arc sine of the elements of the vector. */
-	template<typename T, std::size_t N, storage_policy Sp>
-	[[nodiscard]] constexpr basic_vec<T, N, Sp> asin(const basic_vec<T, N, Sp> &v) noexcept
-	{
-		basic_vec<T, N, Sp> result = {};
-		if (std::is_constant_evaluated())
-			detail::generic::vector_asin(result.m_data, v.m_data);
-		else
-			detail::vector_asin(result.m_data, v.m_data);
-		return result;
-	}
-	/** Calculates a arc cosine of the elements of the vector. */
-	template<typename T, std::size_t N, storage_policy Sp>
-	[[nodiscard]] constexpr basic_vec<T, N, Sp> acos(const basic_vec<T, N, Sp> &v) noexcept
-	{
-		basic_vec<T, N, Sp> result = {};
-		if (std::is_constant_evaluated())
-			detail::generic::vector_acos(result.m_data, v.m_data);
-		else
-			detail::vector_acos(result.m_data, v.m_data);
-		return result;
-	}
-	/** Calculates a arc tangent of the elements of the vector. */
-	template<typename T, std::size_t N, storage_policy Sp>
-	[[nodiscard]] constexpr basic_vec<T, N, Sp> atan(const basic_vec<T, N, Sp> &v) noexcept
-	{
-		basic_vec<T, N, Sp> result = {};
-		if (std::is_constant_evaluated())
-			detail::generic::vector_atan(result.m_data, v.m_data);
-		else
-			detail::vector_atan(result.m_data, v.m_data);
-		return result;
+		return v * basic_vec<T, N, Sp>{static_cast<T>(180.0) / std::numbers::pi_v<T>};
 	}
 
 	/** Gets the Ith element of the vector. */
@@ -1040,9 +1109,8 @@ namespace sek::math
 		return result;
 	}
 
-	template<std::integral U, std::size_t N, storage_policy Sp>
+	template<std::convertible_to<bool> U, std::size_t N, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<bool, N, Sp> &operator&&(const basic_vec<U, N, Sp> &l, const basic_vec<U, N, Sp> &r) noexcept
-		requires std::convertible_to<U, bool>
 	{
 		basic_vec<bool, N, Sp> result = {};
 		if (std::is_constant_evaluated())
@@ -1053,7 +1121,6 @@ namespace sek::math
 	}
 	template<std::integral U, std::size_t N, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<bool, N, Sp> &operator||(const basic_vec<U, N, Sp> &l, const basic_vec<U, N, Sp> &r) noexcept
-		requires std::convertible_to<U, bool>
 	{
 		basic_vec<bool, N, Sp> result = {};
 		if (std::is_constant_evaluated())
@@ -1064,7 +1131,6 @@ namespace sek::math
 	}
 	template<std::integral U, std::size_t N, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<bool, N, Sp> &operator!(const basic_vec<U, N, Sp> &v) noexcept
-		requires std::convertible_to<U, bool>
 	{
 		basic_vec<bool, N, Sp> result = {};
 		if (std::is_constant_evaluated())
@@ -1072,6 +1138,109 @@ namespace sek::math
 		else
 			detail::vector_neg_bool(result.m_data, v.m_data);
 		return result;
+	}
+
+	/** Checks if elements of vector a equals vector b using an epsilon. */
+	template<std::floating_point T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<bool, N, Sp>
+		fcmp_eq(const basic_vec<T, N, Sp> &a,
+				const basic_vec<T, N, Sp> &b,
+				const basic_vec<T, N, Sp> &epsilon = basic_vec<T, N, Sp>{std::numeric_limits<T>::epsilon()}) noexcept
+	{
+		return abs(a - b) <= epsilon;
+	}
+	/** @copydoc fcmp_eq */
+	template<std::floating_point T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<bool, N, Sp> fcmp_eq(const basic_vec<T, N, Sp> &a,
+														   const basic_vec<T, N, Sp> &b,
+														   T epsilon = std::numeric_limits<T>::epsilon()) noexcept
+	{
+		return fcmp_eq(a, b, basic_vec<T, N, Sp>{epsilon});
+	}
+	/** Checks if elements of vector a does not equal vector vector b using an epsilon. */
+	template<std::floating_point T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<bool, N, Sp>
+		fcmp_ne(const basic_vec<T, N, Sp> &a,
+				const basic_vec<T, N, Sp> &b,
+				const basic_vec<T, N, Sp> &epsilon = basic_vec<T, N, Sp>{std::numeric_limits<T>::epsilon()}) noexcept
+	{
+		return abs(a - b) > epsilon;
+	}
+	/** @copydoc fcmp_ne */
+	template<std::floating_point T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<bool, N, Sp> fcmp_ne(const basic_vec<T, N, Sp> &a,
+														   const basic_vec<T, N, Sp> &b,
+														   T epsilon = std::numeric_limits<T>::epsilon()) noexcept
+	{
+		return fcmp_ne(a, b, basic_vec<T, N, Sp>{epsilon});
+	}
+	/** Checks if elements of vector a is less than or equal to vector b using an epsilon. */
+	template<std::floating_point T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<bool, N, Sp>
+		fcmp_le(const basic_vec<T, N, Sp> &a,
+				const basic_vec<T, N, Sp> &b,
+				const basic_vec<T, N, Sp> &epsilon = basic_vec<T, N, Sp>{std::numeric_limits<T>::epsilon()}) noexcept
+	{
+		return a <= b || fcmp_eq(a, b, epsilon);
+	}
+	/** @copydoc fcmp_le */
+	template<std::floating_point T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<bool, N, Sp> fcmp_le(const basic_vec<T, N, Sp> &a,
+														   const basic_vec<T, N, Sp> &b,
+														   T epsilon = std::numeric_limits<T>::epsilon()) noexcept
+	{
+		return fcmp_le(a, b, basic_vec<T, N, Sp>{epsilon});
+	}
+	/** Checks if elements of vector a is greater than or equal to vector b using an epsilon. */
+	template<std::floating_point T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<bool, N, Sp>
+		fcmp_ge(const basic_vec<T, N, Sp> &a,
+				const basic_vec<T, N, Sp> &b,
+				const basic_vec<T, N, Sp> &epsilon = basic_vec<T, N, Sp>{std::numeric_limits<T>::epsilon()}) noexcept
+	{
+		return a >= b || fcmp_eq(a, b, epsilon);
+	}
+	/** @copydoc fcmp_ge */
+	template<std::floating_point T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<bool, N, Sp> fcmp_ge(const basic_vec<T, N, Sp> &a,
+														   const basic_vec<T, N, Sp> &b,
+														   T epsilon = std::numeric_limits<T>::epsilon()) noexcept
+	{
+		return fcmp_ge(a, b, basic_vec<T, N, Sp>{epsilon});
+	}
+	/** Checks if elements of vector a is less than vector b using an epsilon. */
+	template<std::floating_point T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<bool, N, Sp>
+		fcmp_lt(const basic_vec<T, N, Sp> &a,
+				const basic_vec<T, N, Sp> &b,
+				const basic_vec<T, N, Sp> &epsilon = basic_vec<T, N, Sp>{std::numeric_limits<T>::epsilon()}) noexcept
+	{
+		return !fcmp_ge(a, b, epsilon);
+	}
+	/** @copydoc fcmp_lt */
+	template<std::floating_point T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<bool, N, Sp> fcmp_lt(const basic_vec<T, N, Sp> &a,
+														   const basic_vec<T, N, Sp> &b,
+														   T epsilon = std::numeric_limits<T>::epsilon()) noexcept
+	{
+		return fcmp_lt(a, b, basic_vec<T, N, Sp>{epsilon});
+	}
+	/** Checks if elements of vector a is less than vector b using an epsilon. */
+	template<std::floating_point T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<bool, N, Sp>
+		fcmp_gt(const basic_vec<T, N, Sp> &a,
+				const basic_vec<T, N, Sp> &b,
+				const basic_vec<T, N, Sp> &epsilon = basic_vec<T, N, Sp>{std::numeric_limits<T>::epsilon()}) noexcept
+	{
+		return !fcmp_le(a, b, epsilon);
+	}
+	/** @copydoc fcmp_gt */
+	template<std::floating_point T, std::size_t N, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<bool, N, Sp> fcmp_gt(const basic_vec<T, N, Sp> &a,
+														   const basic_vec<T, N, Sp> &b,
+														   T epsilon = std::numeric_limits<T>::epsilon()) noexcept
+	{
+		return fcmp_gt(a, b, basic_vec<T, N, Sp>{epsilon});
 	}
 }	 // namespace sek::math
 

@@ -215,6 +215,11 @@ namespace sek::math::detail
 		{
 			vector_unwrap<N>([&](auto i) { out[i] = static_cast<T>(std::ceil(l[i])); });
 		}
+		template<typename T, std::size_t N, bool UseSimd>
+		constexpr void vector_trunc(vector_data<T, N, UseSimd> &out, const vector_data<T, N, UseSimd> &l) noexcept
+		{
+			vector_unwrap<N>([&](auto i) { out[i] = static_cast<T>(std::trunc(l[i])); });
+		}
 
 		template<typename T, std::size_t N, bool UseSimd>
 		constexpr T vector_dot(const vector_data<T, N, UseSimd> &l, const vector_data<T, N, UseSimd> &r) noexcept
@@ -270,16 +275,35 @@ namespace sek::math::detail
 		{
 			vector_unwrap<N>([&](auto i) { out[i] = static_cast<T>(std::atan(l[i])); });
 		}
-
 		template<typename T, std::size_t N, bool UseSimd>
-		constexpr void vector_rad(vector_data<T, N, UseSimd> &out, const vector_data<T, N, UseSimd> &l) noexcept
+		constexpr void vector_sinh(vector_data<T, N, UseSimd> &out, const vector_data<T, N, UseSimd> &l) noexcept
 		{
-			vector_unwrap<N>([&](auto i) { out[i] = rad(l[i]); });
+			vector_unwrap<N>([&](auto i) { out[i] = static_cast<T>(std::sinh(l[i])); });
 		}
 		template<typename T, std::size_t N, bool UseSimd>
-		constexpr void vector_deg(vector_data<T, N, UseSimd> &out, const vector_data<T, N, UseSimd> &l) noexcept
+		constexpr void vector_cosh(vector_data<T, N, UseSimd> &out, const vector_data<T, N, UseSimd> &l) noexcept
 		{
-			vector_unwrap<N>([&](auto i) { out[i] = deg(l[i]); });
+			vector_unwrap<N>([&](auto i) { out[i] = static_cast<T>(std::cosh(l[i])); });
+		}
+		template<typename T, std::size_t N, bool UseSimd>
+		constexpr void vector_tanh(vector_data<T, N, UseSimd> &out, const vector_data<T, N, UseSimd> &l) noexcept
+		{
+			vector_unwrap<N>([&](auto i) { out[i] = static_cast<T>(std::tanh(l[i])); });
+		}
+		template<typename T, std::size_t N, bool UseSimd>
+		constexpr void vector_asinh(vector_data<T, N, UseSimd> &out, const vector_data<T, N, UseSimd> &l) noexcept
+		{
+			vector_unwrap<N>([&](auto i) { out[i] = static_cast<T>(std::asinh(l[i])); });
+		}
+		template<typename T, std::size_t N, bool UseSimd>
+		constexpr void vector_acosh(vector_data<T, N, UseSimd> &out, const vector_data<T, N, UseSimd> &l) noexcept
+		{
+			vector_unwrap<N>([&](auto i) { out[i] = static_cast<T>(std::acosh(l[i])); });
+		}
+		template<typename T, std::size_t N, bool UseSimd>
+		constexpr void vector_atanh(vector_data<T, N, UseSimd> &out, const vector_data<T, N, UseSimd> &l) noexcept
+		{
+			vector_unwrap<N>([&](auto i) { out[i] = static_cast<T>(std::atanh(l[i])); });
 		}
 
 		template<typename T, std::size_t N, bool S1, bool S2>
@@ -294,61 +318,32 @@ namespace sek::math::detail
 		template<typename T, std::size_t N, bool S1, bool S2>
 		constexpr void vector_eq(vector_data<bool, N, S1> &out, const vector_data<T, N, S2> &l, const vector_data<T, N, S2> &r) noexcept
 		{
-			constexpr auto pred = [](T a, T b) noexcept
-			{
-				if constexpr (std::floating_point<T>)
-					return a == b || std::abs(a - b) <= std::numeric_limits<T>::epsilon();
-				else
-					return a == b;
-			};
-			vector_cmp(out, l, r, pred);
+			vector_cmp(out, l, r, [](T a, T b) { return a == b; });
 		}
 		template<typename T, std::size_t N, bool S1, bool S2>
 		constexpr void vector_ne(vector_data<bool, N, S1> &out, const vector_data<T, N, S2> &l, const vector_data<T, N, S2> &r) noexcept
 		{
-			constexpr auto pred = [](T a, T b) noexcept
-			{
-				if constexpr (std::floating_point<T>)
-					return std::abs(a - b) > std::numeric_limits<T>::epsilon();
-				else
-					return a != b;
-			};
-			vector_cmp(out, l, r, pred);
+			vector_cmp(out, l, r, [](T a, T b) { return a != b; });
 		}
 		template<typename T, std::size_t N, bool S1, bool S2>
 		constexpr void vector_lt(vector_data<bool, N, S1> &out, const vector_data<T, N, S2> &l, const vector_data<T, N, S2> &r) noexcept
 		{
-			vector_cmp(out, l, r, [](T a, T b) noexcept { return a < b; });
+			vector_cmp(out, l, r, [](T a, T b) { return a < b; });
 		}
 		template<typename T, std::size_t N, bool S1, bool S2>
 		constexpr void vector_le(vector_data<bool, N, S1> &out, const vector_data<T, N, S2> &l, const vector_data<T, N, S2> &r) noexcept
 		{
-			constexpr auto pred = [](T a, T b) noexcept
-			{
-				if constexpr (std::floating_point<T>)
-					return a <= b || std::abs(a - b) <= std::numeric_limits<T>::epsilon();
-				else
-					return a <= b;
-			};
-			vector_cmp(out, l, r, pred);
+			vector_cmp(out, l, r, [](T a, T b) { return a <= b; });
 		}
 		template<typename T, std::size_t N, bool S1, bool S2>
 		constexpr void vector_gt(vector_data<bool, N, S1> &out, const vector_data<T, N, S2> &l, const vector_data<T, N, S2> &r) noexcept
 		{
-			constexpr auto pred = [](T a, T b) noexcept { return a > b; };
-			vector_cmp(out, l, r, pred);
+			vector_cmp(out, l, r, [](T a, T b) { return a > b; });
 		}
 		template<typename T, std::size_t N, bool S1, bool S2>
 		constexpr void vector_ge(vector_data<bool, N, S1> &out, const vector_data<T, N, S2> &l, const vector_data<T, N, S2> &r) noexcept
 		{
-			constexpr auto pred = [](T a, T b) noexcept
-			{
-				if constexpr (std::floating_point<T>)
-					return a >= b || std::abs(a - b) <= std::numeric_limits<T>::epsilon();
-				else
-					return a >= b;
-			};
-			vector_cmp(out, l, r, pred);
+			vector_cmp(out, l, r, [](T a, T b) { return a >= b; });
 		}
 
 		template<typename T, std::size_t N, bool S1, bool S2>

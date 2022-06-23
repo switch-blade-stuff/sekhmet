@@ -11,6 +11,16 @@ static_assert(std::is_trivially_copyable_v<sek::math::dvec4>);
 TEST(math_tests, vector_test)
 {
 	{
+		const sek::math::dvec4 v4d_1 = {1, 0, 1, 0};
+		const sek::math::dvec4 v4d_2 = {1, 1, 1, 1};
+
+		const auto cmp = v4d_1 == v4d_2;
+		EXPECT_EQ(cmp, sek::math::vec4<bool>(true, false, true, false));
+		EXPECT_TRUE(any(cmp));
+		EXPECT_FALSE(all(cmp));
+		EXPECT_FALSE(none(cmp));
+	}
+	{
 		sek::math::dvec4 v4_1 = {0, 0, 0, 0}, v4_2 = {1, 2, 3, 4};
 		auto v4_3 = v4_1 + v4_2;
 		EXPECT_EQ(v4_3, v4_2);

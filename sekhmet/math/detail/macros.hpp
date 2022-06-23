@@ -71,19 +71,6 @@ private:                                                                        
 	friend constexpr basic_vec<U, M, Sp> min(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;           \
                                                                                                                            \
 	template<typename U, std::size_t M, storage_policy Sp>                                                                 \
-	friend constexpr basic_vec<U, M, Sp> round(const basic_vec<U, M, Sp> &) noexcept                                       \
-		requires std::floating_point<U>                                                                                    \
-	;                                                                                                                      \
-	template<typename U, std::size_t M, storage_policy Sp>                                                                 \
-	friend constexpr basic_vec<U, M, Sp> floor(const basic_vec<U, M, Sp> &) noexcept                                       \
-		requires std::floating_point<U>                                                                                    \
-	;                                                                                                                      \
-	template<typename U, std::size_t M, storage_policy Sp>                                                                 \
-	friend constexpr basic_vec<U, M, Sp> ceil(const basic_vec<U, M, Sp> &) noexcept                                        \
-		requires std::floating_point<U>                                                                                    \
-	;                                                                                                                      \
-                                                                                                                           \
-	template<typename U, std::size_t M, storage_policy Sp>                                                                 \
 	friend constexpr basic_vec<U, M, Sp> lerp(                                                                             \
 		const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;                   \
                                                                                                                            \
@@ -141,11 +128,21 @@ private:                                                                        
 	friend constexpr basic_vec<U, M, Sp> atanh(const basic_vec<U, M, Sp> &) noexcept;                                      \
                                                                                                                            \
 	template<typename U, std::size_t M, storage_policy Sp>                                                                 \
-	friend constexpr basic_vec<U, M, Sp> asinh(const basic_vec<U, M, Sp> &) noexcept;                                      \
+	friend constexpr basic_vec<U, M, Sp> round(const basic_vec<U, M, Sp> &) noexcept                                       \
+		requires std::floating_point<U>                                                                                    \
+	;                                                                                                                      \
 	template<typename U, std::size_t M, storage_policy Sp>                                                                 \
-	friend constexpr basic_vec<U, M, Sp> acosh(const basic_vec<U, M, Sp> &) noexcept;                                      \
+	friend constexpr basic_vec<U, M, Sp> floor(const basic_vec<U, M, Sp> &) noexcept                                       \
+		requires std::floating_point<U>                                                                                    \
+	;                                                                                                                      \
 	template<typename U, std::size_t M, storage_policy Sp>                                                                 \
-	friend constexpr basic_vec<U, M, Sp> atanh(const basic_vec<U, M, Sp> &) noexcept;                                      \
+	friend constexpr basic_vec<U, M, Sp> ceil(const basic_vec<U, M, Sp> &) noexcept                                        \
+		requires std::floating_point<U>                                                                                    \
+	;                                                                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                 \
+	friend constexpr basic_vec<U, M, Sp> trunc(const basic_vec<U, M, Sp> &) noexcept                                        \
+		requires std::floating_point<U>                                                                                    \
+	;                                                                                                                      \
                                                                                                                            \
 	template<typename U, storage_policy Sp>                                                                                \
 	friend constexpr basic_vec<U, 3, Sp> cross(const basic_vec<U, 3, Sp> &, const basic_vec<U, 3, Sp> &) noexcept          \
@@ -180,17 +177,11 @@ private:                                                                        
 	friend constexpr basic_vec<bool, M, Sp> operator>=(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept; \
                                                                                                                            \
 	template<std::integral U, std::size_t M, storage_policy Sp>                                                            \
-	friend constexpr basic_vec<bool, M, Sp> &operator&&(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept \
-		requires std::convertible_to<U, bool>                                                                              \
-	;                                                                                                                      \
+	friend constexpr basic_vec<bool, M, Sp> &operator&&(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;\
 	template<std::integral U, std::size_t M, storage_policy Sp>                                                            \
-	friend constexpr basic_vec<bool, M, Sp> &operator||(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept \
-		requires std::convertible_to<U, bool>                                                                              \
-	;                                                                                                                      \
+	friend constexpr basic_vec<bool, M, Sp> &operator||(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;\
 	template<std::integral U, std::size_t M, storage_policy Sp>                                                            \
-	friend constexpr basic_vec<bool, M, Sp> &operator!(const basic_vec<U, M, Sp> &) noexcept                               \
-		requires std::convertible_to<U, bool>                                                                              \
-	;                                                                                                                      \
+	friend constexpr basic_vec<bool, M, Sp> &operator!(const basic_vec<U, M, Sp> &) noexcept;                              \
                                                                                                                            \
 public:                                                                                                                    \
 	typedef T value_type;                                                                                                  \
