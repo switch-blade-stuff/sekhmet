@@ -58,9 +58,13 @@ namespace sek::math
 		}
 
 		/** Casts quaternion to the underlying vector type. */
+		[[nodiscard]] constexpr vector_type &vector() noexcept { return m_data; }
+		/** @copydoc vector */
+		[[nodiscard]] constexpr operator vector_type &() noexcept { return vector(); }
+		/** @copydoc vector */
 		[[nodiscard]] constexpr const vector_type &vector() const noexcept { return m_data; }
 		/** @copydoc vector */
-		[[nodiscard]] constexpr operator const vector_type &() noexcept { return vector(); }
+		[[nodiscard]] constexpr operator const vector_type &() const noexcept { return vector(); }
 
 		[[nodiscard]] constexpr decltype(auto) x() noexcept { return m_data.x(); }
 		[[nodiscard]] constexpr decltype(auto) x() const noexcept { return m_data.x(); }

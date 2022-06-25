@@ -127,16 +127,6 @@ namespace sek::math
 		a.swap(b);
 	}
 
-	/** Returns a transposed copy of a matrix. */
-	template<typename T, std::size_t N, std::size_t M, storage_policy Sp>
-	[[nodiscard]] constexpr basic_mat<T, M, N, Sp> transpose(const basic_mat<T, N, M, Sp> &m) noexcept
-	{
-		basic_mat<T, M, N, Sp> result;
-		for (std::size_t c = 0; c < N; ++c)
-			for (std::size_t r = 0; r < M; ++r) result[r][c] = m[c][r];
-		return result;
-	}
-
 	/** Returns a matrix which is the result of addition of two matrices. */
 	template<typename T, std::size_t N, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_mat<T, N, M, Sp> operator+(const basic_mat<T, N, M, Sp> &l,
@@ -289,17 +279,6 @@ namespace sek::math
 		return result;
 	}
 
-	/** Returns a matrix which is the result of multiplying two matrices. */
-	template<typename T, std::size_t C0, std::size_t R0, std::size_t C1, storage_policy Sp>
-	[[nodiscard]] constexpr basic_mat<T, C1, R0, Sp> operator*(const basic_mat<T, C0, R0, Sp> &l,
-															   const basic_mat<T, C1, C0, Sp> &r) noexcept
-	{
-		basic_mat<T, C1, R0, Sp> result = {};
-		for (std::size_t c1 = 0; c1 != C1; ++c1)
-			for (std::size_t r0 = 0; r0 != R0; ++r0)
-				for (std::size_t c0 = 0; c0 < C0; ++c0) result[c1][r0] += l[c0][r0] * r[c1][c0];
-		return result;
-	}
 	/** Returns a vector which is the result of multiplying matrix by a vector. */
 	template<typename T, std::size_t N, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<T, M> operator*(const basic_mat<T, N, M, Sp> &m, const basic_vec<T, N, Sp> &v) noexcept
