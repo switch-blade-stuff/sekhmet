@@ -29,10 +29,6 @@ namespace sek::math::detail
 		{
 			for (std::size_t i = 0; i < min(3, M); ++i) operator[](i) = data[i];
 		}
-		template<typename... Args>
-		constexpr mask_data(Args &&...args) noexcept : mask_data({std::forward<Args>(args)...})
-		{
-		}
 
 		constexpr element_t operator[](std::size_t i) noexcept { return {values[i]}; }
 		constexpr const_element_t operator[](std::size_t i) const noexcept { return {values[i]}; }
@@ -59,10 +55,6 @@ namespace sek::math::detail
 		constexpr mask_data(const bool (&data)[M]) noexcept : values{}
 		{
 			for (std::size_t i = 0; i < min(4, M); ++i) operator[](i) = data[i];
-		}
-		template<typename... Args>
-		constexpr mask_data(Args &&...args) noexcept : mask_data({std::forward<Args>(args)...})
-		{
 		}
 
 		constexpr element_t operator[](std::size_t i) noexcept { return {values[i]}; }

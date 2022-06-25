@@ -15,73 +15,85 @@ TEST(math_tests, vector_test)
 		const sek::math::dvec4 v4d_2 = {1, 1, 1, 1};
 
 		const auto cmp = v4d_1 == v4d_2;
-		EXPECT_EQ(cmp, sek::math::vec_mask<sek::math::dvec4>(true, false, true, false));
+		EXPECT_TRUE(all(cmp == sek::math::dvec4_mask(true, false, true, false)));
 		EXPECT_TRUE(any(cmp));
 		EXPECT_FALSE(all(cmp));
 		EXPECT_FALSE(none(cmp));
 	}
 	{
-		sek::math::dvec4 v4_1 = {0, 0, 0, 0}, v4_2 = {1, 2, 3, 4};
-		auto v4_3 = v4_1 + v4_2;
-		EXPECT_EQ(v4_3, v4_2);
+		const sek::math::dvec2_packed v2dp = {1, 2};
+		const sek::math::dvec2 v2d = {1, 2};
+		EXPECT_TRUE(all(sek::math::dvec2{v2dp} == v2d));
+		EXPECT_TRUE(all(sek::math::dvec2_packed{v2d} == v2dp));
+	}
+	{
+		const sek::math::ivec4_mask mask = {true, false, true, false};
+		const sek::math::ivec4 v4d_1 = {0xaa, 0xaa, 0xbb, 0xbb};
+		const sek::math::ivec4 v4d_2 = {0xcc, 0xcc, 0xdd, 0xdd};
+		const auto v4d_3 = interleave(v4d_1, v4d_2, mask);
+
+		EXPECT_FALSE(all(v4d_1 == v4d_3));
+		EXPECT_FALSE(all(v4d_2 == v4d_3));
+		EXPECT_TRUE(all(v4d_3 == sek::math::ivec4{0xaa, 0xcc, 0xbb, 0xdd}));
+	}
+	{
+		const sek::math::dvec4 v4_1 = {0, 0, 0, 0}, v4_2 = {1, 2, 3, 4};
+		const auto v4_3 = v4_1 + v4_2;
+		EXPECT_TRUE(all(v4_3 == v4_2));
 		EXPECT_EQ(sek::math::dot(v4_3, v4_2), 1 + 2 * 2 + 3 * 3 + 4 * 4);
-		EXPECT_EQ(abs(sek::math::dvec4{-1.0, 2.0, 3.0, 4.0}), (sek::math::dvec4{1.0, 2.0, 3.0, 4.0}));
-		EXPECT_EQ(max(v4_3, v4_1), v4_2);
+
+		const auto v4_4 = abs(sek::math::dvec4{-1.0, 2.0, 3.0, 4.0});
+		const auto v4_5 = max(v4_3, v4_1);
+
+		EXPECT_TRUE(all(v4_4 == sek::math::dvec4{1.0, 2.0, 3.0, 4.0}));
+		EXPECT_TRUE(all(v4_5 == v4_2));
 	}
 	{
 		constexpr sek::math::ivec2 v2i_1 = {1, 0}, v2i_2 = {0, -1};
-		EXPECT_EQ(v2i_1 + v2i_2, sek::math::ivec2(1, -1));
-		EXPECT_EQ(abs(v2i_1 + v2i_2), sek::math::ivec2(1, 1));
+		EXPECT_TRUE(all(v2i_1 + v2i_2 == sek::math::ivec2(1, -1)));
+		EXPECT_TRUE(all(abs(v2i_1 + v2i_2) == sek::math::ivec2(1, 1)));
 	}
 	{
-		sek::math::dvec3 v3d_1 = {1, 2, 3};
-		EXPECT_EQ(sek::math::dot(v3d_1, v3d_1), 1 + 2 * 2 + 3 * 3);
-		auto v3d_2 = sek::math::cross(v3d_1, {4, 5, 6});
-		EXPECT_EQ(v3d_2, (sek::math::dvec3{-3, 6, -3}));
+		const sek::math::dvec3 v3d_1 = {1, 2, 3};
+		EXPECT_EQ(dot(v3d_1, v3d_1), 1 + 2 * 2 + 3 * 3);
+		const auto v3d_2 = cross(v3d_1, {4, 5, 6});
+		EXPECT_TRUE(all(v3d_2 == (sek::math::dvec3{-3, 6, -3})));
 	}
 	{
 		sek::math::fvec3 v3f_1 = {1, 2, 3};
-		auto n1 = sek::math::norm(v3f_1);
-		auto n2 = v3f_1 / sek::math::magn(v3f_1);
-		EXPECT_EQ(n1, n2);
+		const auto n1 = norm(v3f_1);
+		const auto n2 = v3f_1 / magn(v3f_1);
+		EXPECT_TRUE(all(n1 == n2));
 
-		auto v3f_2 = sek::math::cross(v3f_1, {4, 5, 6});
-		EXPECT_EQ(v3f_2, (sek::math::fvec3{-3, 6, -3}));
+		const auto v3f_2 = cross(v3f_1, {4, 5, 6});
+		EXPECT_TRUE(all(v3f_2 == sek::math::fvec3{-3, 6, -3}));
 	}
 	{
-		sek::math::fvec3 v3f = {1, 2, 3};
-
-		EXPECT_EQ((sek::math::shuffle<2, 1>(v3f)), (sek::math::fvec2{3, 2}));
-		EXPECT_EQ((sek::math::shuffle<0, 1, 2, 2>(v3f)), (sek::math::fvec4{1, 2, 3, 3}));
+		const sek::math::fvec3 v3f = {1, 2, 3};
+		EXPECT_TRUE(all(shuffle<2, 1>(v3f) == sek::math::fvec2{3, 2}));
+		EXPECT_TRUE(all(shuffle<0, 1, 2, 2>(v3f) == sek::math::fvec4{1, 2, 3, 3}));
 	}
 	{
-		sek::math::dvec2 v2d = {1, 2};
-		EXPECT_EQ((sek::math::shuffle<1, 0>(v2d)), (sek::math::dvec2{2, 1}));
-		EXPECT_EQ((sek::math::shuffle<1, 0, 0>(v2d)), (sek::math::dvec3{2, 1, 1}));
+		const sek::math::dvec2 v2d = {1, 2};
+		EXPECT_TRUE(all(shuffle<1, 0>(v2d) == sek::math::dvec2{2, 1}));
+		EXPECT_TRUE(all(shuffle<1, 0, 0>(v2d) == sek::math::dvec3{2, 1, 1}));
 	}
 	{
-		sek::math::dvec2_packed v2dp = {1, 2};
-		sek::math::dvec2 v2d = {1, 2};
+		const sek::math::dvec4 v4d = {1, 2, 3, 4};
+		const sek::math::dvec3 v3d = {2, 4, 3};
 
-		EXPECT_EQ(sek::math::dvec2{v2dp}, v2d);
-		EXPECT_EQ(sek::math::dvec2_packed{v2d}, v2dp);
+		EXPECT_TRUE(all(v4d.ywz() == v3d));
+		EXPECT_TRUE(all(v4d.argb() == shuffle<3, 0, 1, 2>(v4d)));
 	}
 	{
-		sek::math::dvec4 v4d = {1, 2, 3, 4};
-		sek::math::dvec3 v3d = {2, 4, 3};
+		const sek::math::dvec4 v4d = {.1, .2, 3.5, 2.4};
+		const sek::math::dvec4 v4d_round = {0, 0, 4, 2};
+		const sek::math::dvec4 v4d_floor = {0, 0, 3, 2};
+		const sek::math::dvec4 v4d_ceil = {1, 1, 4, 3};
 
-		EXPECT_EQ(v4d.ywz(), v3d);
-		EXPECT_EQ(v4d.argb(), (shuffle<3, 0, 1, 2>(v4d)));
-	}
-	{
-		sek::math::dvec4 v4d = {.1, .2, 3.5, 2.4};
-		sek::math::dvec4 v4d_round = {0, 0, 4, 2};
-		sek::math::dvec4 v4d_floor = {0, 0, 3, 2};
-		sek::math::dvec4 v4d_ceil = {1, 1, 4, 3};
-
-		EXPECT_EQ(round(v4d), v4d_round);
-		EXPECT_EQ(floor(v4d), v4d_floor);
-		EXPECT_EQ(ceil(v4d), v4d_ceil);
+		EXPECT_TRUE(all(round(v4d) == v4d_round));
+		EXPECT_TRUE(all(floor(v4d) == v4d_floor));
+		EXPECT_TRUE(all(ceil(v4d) == v4d_ceil));
 	}
 }
 
@@ -115,7 +127,7 @@ TEST(math_tests, matrix_test)
 		auto v3f = sek::math::fvec3{2, 1, 0};
 		auto v2f = m3x2f * v3f;
 
-		EXPECT_EQ(v2f, (sek::math::fvec2{1, -3}));
+		EXPECT_TRUE(all(v2f == sek::math::fvec2{1, -3}));
 	}
 }
 

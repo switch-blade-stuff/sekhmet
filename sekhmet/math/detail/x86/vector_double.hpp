@@ -24,10 +24,6 @@ namespace sek::math::detail
 		{
 			std::copy_n(data, min<std::size_t>(2, M), values);
 		}
-		template<typename... Args>
-		constexpr explicit vector_data(Args &&...args) noexcept : vector_data({std::forward<Args>(args)...})
-		{
-		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
 		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
@@ -143,10 +139,6 @@ namespace sek::math::detail
 		{
 			std::copy_n(data, min<std::size_t>(3, M), values);
 		}
-		template<typename... Args>
-		constexpr explicit vector_data(Args &&...args) noexcept : vector_data({std::forward<Args>(args)...})
-		{
-		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
 		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
@@ -164,10 +156,6 @@ namespace sek::math::detail
 		constexpr explicit vector_data(const double (&data)[M]) noexcept
 		{
 			std::copy_n(data, min<std::size_t>(4, M), values);
-		}
-		template<typename... Args>
-		constexpr explicit vector_data(Args &&...args) noexcept : vector_data({std::forward<Args>(args)...})
-		{
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }

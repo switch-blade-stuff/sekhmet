@@ -20,7 +20,7 @@
 #endif
 #endif
 
-#include "generic/mask_impl.hpp"
+#include "generic/mask.hpp"
 
 #define SEK_DETAIL_VECTOR_MASK_COMMON(T, N, P)                                                                                    \
 private:                                                                                                                          \
@@ -42,14 +42,18 @@ private:                                                                        
 	friend constexpr vec_mask<basic_vec<U, M, Sp>> operator!=(const vec_mask<basic_vec<U, M, Sp>> &,                              \
 															  const vec_mask<basic_vec<U, M, Sp>> &) noexcept;                    \
                                                                                                                                   \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr vec_mask<basic_vec<U, M, Sp>> &operator&&(const vec_mask<basic_vec<U, M, Sp>> &,                             \
-															   const vec_mask<basic_vec<U, M, Sp>> &) noexcept;                   \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr vec_mask<basic_vec<U, M, Sp>> &operator||(const vec_mask<basic_vec<U, M, Sp>> &,                             \
-															   const vec_mask<basic_vec<U, M, Sp>> &) noexcept;                   \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr vec_mask<basic_vec<U, M, Sp>> &operator!(const vec_mask<basic_vec<U, M, Sp>> &) noexcept;                    \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                        \
+	friend constexpr vec_mask<basic_vec<U, M, Sp>> operator&&(const vec_mask<basic_vec<U, M, Sp>> &,                              \
+															  const vec_mask<basic_vec<U, M, Sp>> &) noexcept;                    \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                        \
+	friend constexpr vec_mask<basic_vec<U, M, Sp>> operator||(const vec_mask<basic_vec<U, M, Sp>> &,                              \
+															  const vec_mask<basic_vec<U, M, Sp>> &) noexcept;                    \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                        \
+	friend constexpr vec_mask<basic_vec<U, M, Sp>> operator!(const vec_mask<basic_vec<U, M, Sp>> &) noexcept;                     \
+                                                                                                                                  \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                        \
+	friend constexpr basic_vec<U, M, Sp> interleave(                                                                              \
+		const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;                \
                                                                                                                                   \
 	template<typename U, std::size_t M, storage_policy Sp>                                                                        \
 	friend constexpr vec_mask<basic_vec<U, M, Sp>> operator==(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept; \
@@ -79,12 +83,8 @@ public:                                                                         
 		for (std::size_t i = 0; i < min(M, N); ++i) m_data[i] = other.m_data[i];                                                  \
 	}                                                                                                                             \
                                                                                                                                   \
-	template<std::size_t M = N>                                                                                                   \
+	template<std::size_t M>                                                                                                       \
 	constexpr explicit vec_mask(const value_type(&vals)[N]) noexcept : m_data(vals)                                               \
-	{                                                                                                                             \
-	}                                                                                                                             \
-	template<std::convertible_to<bool>... Args>                                                                                   \
-	constexpr vec_mask(Args &&...args) noexcept : m_data(static_cast<bool>(std::forward<Args>(args))...)                          \
 	{                                                                                                                             \
 	}                                                                                                                             \
                                                                                                                                   \
@@ -132,8 +132,8 @@ namespace sek::math
 		SEK_DETAIL_VECTOR_MASK_COMMON(T, 2, Policy)
 
 	public:
-		constexpr vec_mask(T x, T y) noexcept : m_data(x, y) {}
-		constexpr explicit vec_mask(T x) noexcept : vec_mask(x, x) {}
+		constexpr vec_mask(bool x, bool y) noexcept : m_data(x, y) {}
+		constexpr explicit vec_mask(bool x) noexcept : vec_mask(x, x) {}
 
 		[[nodiscard]] constexpr decltype(auto) x() noexcept { return m_data[0]; }
 		[[nodiscard]] constexpr decltype(auto) x() const noexcept { return m_data[0]; }
@@ -141,8 +141,6 @@ namespace sek::math
 		[[nodiscard]] constexpr decltype(auto) y() const noexcept { return m_data[1]; }
 
 		SEK_VECTOR_MASK_GENERATE_SHUFFLE(x, y)
-
-		[[nodiscard]] constexpr operator bool() const noexcept { return x() && y(); }
 	};
 	template<typename T, storage_policy Policy>
 	class vec_mask<basic_vec<T, 3, Policy>>
@@ -154,9 +152,9 @@ namespace sek::math
 		SEK_DETAIL_VECTOR_MASK_COMMON(T, 3, Policy)
 
 	public:
-		constexpr vec_mask(T x, T y, T z) noexcept : m_data(x, y, z) {}
-		constexpr vec_mask(T x, T y) noexcept : vec_mask(x, y, y) {}
-		constexpr explicit vec_mask(T x) noexcept : vec_mask(x, x, x) {}
+		constexpr vec_mask(bool x, bool y, bool z) noexcept : m_data(x, y, z) {}
+		constexpr vec_mask(bool x, bool y) noexcept : vec_mask(x, y, y) {}
+		constexpr explicit vec_mask(bool x) noexcept : vec_mask(x, x, x) {}
 
 		[[nodiscard]] constexpr decltype(auto) x() noexcept { return m_data[0]; }
 		[[nodiscard]] constexpr decltype(auto) x() const noexcept { return m_data[0]; }
@@ -166,8 +164,6 @@ namespace sek::math
 		[[nodiscard]] constexpr decltype(auto) z() const noexcept { return m_data[2]; }
 
 		SEK_VECTOR_MASK_GENERATE_SHUFFLE(x, y, z)
-
-		[[nodiscard]] constexpr operator bool() const noexcept { return x() && y() && z(); }
 	};
 	template<typename T, storage_policy Policy>
 	class vec_mask<basic_vec<T, 4, Policy>>
@@ -179,10 +175,10 @@ namespace sek::math
 		SEK_DETAIL_VECTOR_MASK_COMMON(T, 4, Policy)
 
 	public:
-		constexpr vec_mask(T x, T y, T z, T w) noexcept : m_data(x, y, z, w) {}
-		constexpr vec_mask(T x, T y, T z) noexcept : vec_mask(x, y, z, z) {}
-		constexpr vec_mask(T x, T y) noexcept : vec_mask(x, y, y, y) {}
-		constexpr explicit vec_mask(T x) noexcept : vec_mask(x, x) {}
+		constexpr vec_mask(bool x, bool y, bool z, bool w) noexcept : m_data(x, y, z, w) {}
+		constexpr vec_mask(bool x, bool y, bool z) noexcept : vec_mask(x, y, z, z) {}
+		constexpr vec_mask(bool x, bool y) noexcept : vec_mask(x, y, y, y) {}
+		constexpr explicit vec_mask(bool x) noexcept : vec_mask(x, x) {}
 
 		[[nodiscard]] constexpr decltype(auto) x() noexcept { return m_data[0]; }
 		[[nodiscard]] constexpr decltype(auto) x() const noexcept { return m_data[0]; }
@@ -194,8 +190,6 @@ namespace sek::math
 		[[nodiscard]] constexpr decltype(auto) w() const noexcept { return m_data[3]; }
 
 		SEK_VECTOR_MASK_GENERATE_SHUFFLE(x, y, z, w)
-
-		[[nodiscard]] constexpr operator bool() const noexcept { return x() && y() && z() && w(); }
 	};
 
 	template<typename U, std::size_t M, storage_policy Sp>
@@ -317,32 +311,32 @@ namespace sek::math
 		return result;
 	}
 
-	template<std::integral U, std::size_t M, storage_policy Sp>
-	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> &operator&&(const vec_mask<basic_vec<U, M, Sp>> &l,
-																	  const vec_mask<basic_vec<U, M, Sp>> &r) noexcept
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> operator&&(const vec_mask<basic_vec<U, M, Sp>> &l,
+																	 const vec_mask<basic_vec<U, M, Sp>> &r) noexcept
 	{
-		basic_vec<bool, M, Sp> result = {};
+		vec_mask<basic_vec<U, M, Sp>> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::mask_and(result.m_data, l.m_data, r.m_data);
 		else
 			detail::mask_and(result.m_data, l.m_data, r.m_data);
 		return result;
 	}
-	template<std::integral U, std::size_t M, storage_policy Sp>
-	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> &operator||(const vec_mask<basic_vec<U, M, Sp>> &l,
-																	  const vec_mask<basic_vec<U, M, Sp>> &r) noexcept
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> operator||(const vec_mask<basic_vec<U, M, Sp>> &l,
+																	 const vec_mask<basic_vec<U, M, Sp>> &r) noexcept
 	{
-		basic_vec<bool, M, Sp> result = {};
+		vec_mask<basic_vec<U, M, Sp>> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::mask_or(result.m_data, l.m_data, r.m_data);
 		else
 			detail::mask_or(result.m_data, l.m_data, r.m_data);
 		return result;
 	}
-	template<std::integral U, std::size_t M, storage_policy Sp>
-	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> &operator!(const vec_mask<basic_vec<U, M, Sp>> &v) noexcept
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> operator!(const vec_mask<basic_vec<U, M, Sp>> &v) noexcept
 	{
-		basic_vec<bool, M, Sp> result = {};
+		vec_mask<basic_vec<U, M, Sp>> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::mask_neg(result.m_data, v.m_data);
 		else
@@ -350,3 +344,13 @@ namespace sek::math
 		return result;
 	}
 }	 // namespace sek::math
+
+template<typename U, std::size_t M, sek::math::storage_policy Sp>
+struct std::tuple_size<sek::math::vec_mask<sek::math::basic_vec<U, M, Sp>>> : std::integral_constant<std::size_t, M>
+{
+};
+template<std::size_t I, typename U, std::size_t M, sek::math::storage_policy Sp>
+struct std::tuple_element<I, sek::math::vec_mask<sek::math::basic_vec<U, M, Sp>>>
+{
+	using type = bool;
+};

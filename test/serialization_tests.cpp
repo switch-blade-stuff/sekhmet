@@ -251,7 +251,7 @@ TEST(serialization_tests, math_test)
 			json::basic_input_archive<json::extended_fp> archive{json_string.data(), json_string.size()};
 			EXPECT_TRUE(archive.try_read(deserialized));
 		}
-		EXPECT_EQ(v, deserialized);
+		EXPECT_TRUE(all(v == deserialized));
 	}
 
 	{

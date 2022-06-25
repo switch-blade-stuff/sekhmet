@@ -21,7 +21,7 @@
 #endif
 #endif
 
-#include "generic/vector_impl.hpp"
+#include "generic/vector.hpp"
 
 #define SEK_DETAIL_VECTOR_COMMON(T, N, P)                                                                                         \
 private:                                                                                                                          \
@@ -34,26 +34,26 @@ private:                                                                        
 	template<typename U, std::size_t M, storage_policy Sp>                                                                        \
 	friend constexpr void swap(basic_vec<U, M, Sp> &, basic_vec<U, M, Sp> &) noexcept;                                            \
                                                                                                                                   \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> operator+(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;            \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> &operator+=(basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;                \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> operator-(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;            \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> &operator-=(basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;                \
                                                                                                                                   \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> operator*(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;            \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> &operator*=(basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;                \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> operator/(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;            \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> &operator/=(basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;                \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> operator%(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;            \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> &operator%=(basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;                \
 	template<std::floating_point U, std::size_t M, storage_policy Sp>                                                             \
 	friend constexpr basic_vec<U, M, Sp> fmod(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;                 \
@@ -73,78 +73,78 @@ private:                                                                        
 	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
 	friend constexpr basic_vec<U, M, Sp> operator~(const basic_vec<U, M, Sp> &) noexcept;                                         \
                                                                                                                                   \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> operator+(const basic_vec<U, M, Sp> &) noexcept                                          \
 		requires std::is_signed_v<U>                                                                                              \
 	;                                                                                                                             \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> operator-(const basic_vec<U, M, Sp> &) noexcept                                          \
 		requires std::is_signed_v<U>                                                                                              \
 	;                                                                                                                             \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> abs(const basic_vec<U, M, Sp> &) noexcept                                                \
 		requires std::is_signed_v<U>                                                                                              \
 	;                                                                                                                             \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> max(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;                  \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> min(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;                  \
                                                                                                                                   \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> lerp(                                                                                    \
 		const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;                          \
                                                                                                                                   \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> exp(const basic_vec<U, M, Sp> &) noexcept;                                               \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> exp2(const basic_vec<U, M, Sp> &) noexcept;                                              \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> expm1(const basic_vec<U, M, Sp> &) noexcept;                                             \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> log(const basic_vec<U, M, Sp> &) noexcept;                                               \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> log10(const basic_vec<U, M, Sp> &) noexcept;                                             \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> log2(const basic_vec<U, M, Sp> &) noexcept;                                              \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> log1p(const basic_vec<U, M, Sp> &) noexcept;                                             \
                                                                                                                                   \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> pow(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;                  \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> sqrt(const basic_vec<U, M, Sp> &) noexcept;                                              \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> rsqrt(const basic_vec<U, M, Sp> &) noexcept;                                             \
                                                                                                                                   \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> rad(const basic_vec<U, M, Sp> &) noexcept;                                               \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> deg(const basic_vec<U, M, Sp> &) noexcept;                                               \
                                                                                                                                   \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> sin(const basic_vec<U, M, Sp> &) noexcept;                                               \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> cos(const basic_vec<U, M, Sp> &) noexcept;                                               \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> tan(const basic_vec<U, M, Sp> &) noexcept;                                               \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> asin(const basic_vec<U, M, Sp> &) noexcept;                                              \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> acos(const basic_vec<U, M, Sp> &) noexcept;                                              \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> atan(const basic_vec<U, M, Sp> &) noexcept;                                              \
                                                                                                                                   \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> sinh(const basic_vec<U, M, Sp> &) noexcept;                                              \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> cosh(const basic_vec<U, M, Sp> &) noexcept;                                              \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> tanh(const basic_vec<U, M, Sp> &) noexcept;                                              \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> asinh(const basic_vec<U, M, Sp> &) noexcept;                                             \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> acosh(const basic_vec<U, M, Sp> &) noexcept;                                             \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> atanh(const basic_vec<U, M, Sp> &) noexcept;                                             \
                                                                                                                                   \
 	template<std::floating_point U, std::size_t M, storage_policy Sp>                                                             \
@@ -156,19 +156,22 @@ private:                                                                        
 	template<std::floating_point U, std::size_t M, storage_policy Sp>                                                             \
 	friend constexpr basic_vec<U, M, Sp> trunc(const basic_vec<U, M, Sp> &) noexcept;                                             \
                                                                                                                                   \
-	template<arithmetic U, storage_policy Sp>                                                                                     \
+	template<typename U, storage_policy Sp>                                                                                     \
 	friend constexpr basic_vec<U, 3, Sp> cross(const basic_vec<U, 3, Sp> &, const basic_vec<U, 3, Sp> &) noexcept                 \
 		requires std::is_signed_v<U>                                                                                              \
 	;                                                                                                                             \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr U dot(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;                                    \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr basic_vec<U, M, Sp> norm(const basic_vec<U, M, Sp> &) noexcept;                                              \
-	template<arithmetic U, std::size_t M, storage_policy Sp>                                                                      \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                      \
 	friend constexpr U magn(const basic_vec<U, M, Sp> &) noexcept;                                                                \
                                                                                                                                   \
 	template<std::size_t... I, typename U, std::size_t M, storage_policy Sp>                                                      \
 	friend constexpr basic_vec<U, sizeof...(I), Sp> shuffle(const basic_vec<U, M, Sp> &) noexcept;                                \
+	template<typename U, std::size_t M, storage_policy Sp>                                                                        \
+	friend constexpr basic_vec<U, M, Sp> interleave(                                                                              \
+		const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;                \
                                                                                                                                   \
 	template<typename U, std::size_t M, storage_policy Sp>                                                                        \
 	friend constexpr vec_mask<basic_vec<U, M, Sp>> operator==(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept; \
@@ -199,12 +202,8 @@ public:                                                                         
 		for (std::size_t i = 0; i < min(M, N); ++i) m_data[i] = other.m_data[i];                                                  \
 	}                                                                                                                             \
                                                                                                                                   \
-	template<std::size_t M = N>                                                                                                   \
+	template<std::size_t M>                                                                                                       \
 	constexpr explicit basic_vec(const value_type(&vals)[N]) noexcept : m_data(vals)                                              \
-	{                                                                                                                             \
-	}                                                                                                                             \
-	template<std::convertible_to<T>... Args>                                                                                      \
-	constexpr basic_vec(Args &&...args) noexcept : m_data(static_cast<T>(std::forward<Args>(args))...)                            \
 	{                                                                                                                             \
 	}                                                                                                                             \
                                                                                                                                   \
@@ -356,7 +355,7 @@ namespace sek::math
 	}
 
 	/** Returns a vector which is the result of addition of two vectors. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator+(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		basic_vec<U, M, Sp> result;
@@ -367,7 +366,7 @@ namespace sek::math
 		return result;
 	}
 	/** Adds a vector to a vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	constexpr basic_vec<U, M, Sp> &operator+=(basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		if (std::is_constant_evaluated())
@@ -377,7 +376,7 @@ namespace sek::math
 		return l;
 	}
 	/** Returns a vector which is the result of subtraction of two vectors. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator-(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		basic_vec<U, M, Sp> result;
@@ -388,7 +387,7 @@ namespace sek::math
 		return result;
 	}
 	/** Subtracts a vector from a vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	constexpr basic_vec<U, M, Sp> &operator-=(basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		if (std::is_constant_evaluated())
@@ -399,14 +398,14 @@ namespace sek::math
 	}
 
 	/** Returns a copy of the vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator+(const basic_vec<U, M, Sp> &v) noexcept
 		requires std::is_signed_v<U>
 	{
 		return v;
 	}
 	/** Returns a negated copy of the vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator-(const basic_vec<U, M, Sp> &v) noexcept
 		requires std::is_signed_v<U>
 	{
@@ -419,7 +418,7 @@ namespace sek::math
 	}
 
 	/** Returns a copy of a vector multiplied by another vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator*(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		basic_vec<U, M, Sp> result;
@@ -430,7 +429,7 @@ namespace sek::math
 		return result;
 	}
 	/** Multiplies vector by another vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	constexpr basic_vec<U, M, Sp> &operator*=(basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		if (std::is_constant_evaluated())
@@ -440,7 +439,7 @@ namespace sek::math
 		return l;
 	}
 	/** Returns a copy of a vector divided by another vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator/(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		basic_vec<U, M, Sp> result;
@@ -451,7 +450,7 @@ namespace sek::math
 		return result;
 	}
 	/** Divides vector by another vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	constexpr basic_vec<U, M, Sp> &operator/=(basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		if (std::is_constant_evaluated())
@@ -461,37 +460,37 @@ namespace sek::math
 		return l;
 	}
 	/** Returns a copy of a vector multiplied by a scalar. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator*(const basic_vec<U, M, Sp> &l, U r) noexcept
 	{
 		return l * basic_vec<U, M, Sp>{r};
 	}
 	/** @copydoc operator* */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator*(U l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		return l * basic_vec<U, M, Sp>{r};
 	}
 	/** Multiplies vector by a scalar. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	constexpr basic_vec<U, M, Sp> &operator*=(basic_vec<U, M, Sp> &l, U r) noexcept
 	{
 		return l *= basic_vec<U, M, Sp>{r};
 	}
 	/** Returns a copy of a vector divided by a scalar. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator/(const basic_vec<U, M, Sp> &l, U r) noexcept
 	{
 		return l / basic_vec<U, M, Sp>{r};
 	}
 	/** Returns a vector produced by dividing a scalar by a vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator/(U l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		return basic_vec<U, M, Sp>{l} / r;
 	}
 	/** Divides vector by a scalar. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	constexpr basic_vec<U, M, Sp> &operator/=(basic_vec<U, M, Sp> &l, U r) noexcept
 	{
 		return l /= basic_vec<U, M, Sp>{r};
@@ -550,7 +549,7 @@ namespace sek::math
 
 	/** Calculates absolute value of a vector.
 	 * @example abs({-1, 2, 0}) -> {1, 2, 0} */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> abs(const basic_vec<U, M, Sp> &v) noexcept
 		requires std::is_signed_v<U>
 	{
@@ -563,7 +562,7 @@ namespace sek::math
 	}
 	/** Returns a vector consisting of maximum elements of a and b.
 	 * @example max({0, 1, 3}, {-1, 2, 2}) -> {0, 2, 3} */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> max(const basic_vec<U, M, Sp> &a, const basic_vec<U, M, Sp> &b) noexcept
 	{
 		basic_vec<U, M, Sp> result;
@@ -575,7 +574,7 @@ namespace sek::math
 	}
 	/** Returns a vector consisting of minimum elements of a and b.
 	 * @example min({0, 1, 3}, {-1, 2, 2}) -> {-1, 1, 2} */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> min(const basic_vec<U, M, Sp> &a, const basic_vec<U, M, Sp> &b) noexcept
 	{
 		basic_vec<U, M, Sp> result;
@@ -697,7 +696,7 @@ namespace sek::math
 		return pow(l, basic_vec<U, M, Sp>{r});
 	}
 	/** Calculates square root of a vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> sqrt(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		basic_vec<U, M, Sp> result;
@@ -708,7 +707,7 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates cubic root of a vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> cbrt(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		basic_vec<U, M, Sp> result;
@@ -719,7 +718,7 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates reciprocal square root of a vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> rsqrt(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		basic_vec<U, M, Sp> result;
@@ -731,7 +730,7 @@ namespace sek::math
 	}
 
 	/** Calculates a sine of the elements of the vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> sin(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		basic_vec<U, M, Sp> result = {};
@@ -742,7 +741,7 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a cosine of the elements of the vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> cos(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		basic_vec<U, M, Sp> result = {};
@@ -753,7 +752,7 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a tangent of the elements of the vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> tan(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		basic_vec<U, M, Sp> result = {};
@@ -764,7 +763,7 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a arc sine of the elements of the vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> asin(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		basic_vec<U, M, Sp> result = {};
@@ -775,7 +774,7 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a arc cosine of the elements of the vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> acos(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		basic_vec<U, M, Sp> result = {};
@@ -786,7 +785,7 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a arc tangent of the elements of the vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> atan(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		basic_vec<U, M, Sp> result = {};
@@ -988,7 +987,7 @@ namespace sek::math
 	}
 
 	/** Calculates dot product of two vectors. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr U dot(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		if (std::is_constant_evaluated())
@@ -997,7 +996,7 @@ namespace sek::math
 			return detail::vector_dot(l.m_data, r.m_data);
 	}
 	/** Calculates cross product of two vectors. */
-	template<arithmetic T, storage_policy Sp>
+	template<typename T, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<T, 3, Sp> cross(const basic_vec<T, 3, Sp> &l, const basic_vec<T, 3, Sp> &r) noexcept
 		requires std::is_signed_v<T>
 	{
@@ -1009,20 +1008,20 @@ namespace sek::math
 		return result;
 	}
 	/** Returns a length of the vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr U magn(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		/* Magnitude of a vector A=XYZ is sqrt(X*X + Y*Y + Z*Z) = sqrt(dot(A, A)). */
 		return std::sqrt(dot(v, v));
 	}
 	/** Returns a dist between two vectors. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr U dist(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		return magn(l - r);
 	}
 	/** Returns a normalized copy of the vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> norm(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		basic_vec<U, M, Sp> result = {};
@@ -1034,13 +1033,13 @@ namespace sek::math
 	}
 
 	/** Converts a degree angle vector to radian angle vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> rad(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		return v * basic_vec<U, M, Sp>{std::numbers::pi_v<U> / static_cast<U>(180.0)};
 	}
 	/** Converts a radian angle vector to degree angle vector. */
-	template<arithmetic U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> deg(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		return v * basic_vec<U, M, Sp>{static_cast<U>(180.0) / std::numbers::pi_v<U>};
@@ -1086,7 +1085,7 @@ namespace sek::math
 		detail::vectorize_impl(std::make_index_sequence<M>{}, v, std::forward<F>(f));
 	}
 
-	/** Produces a new vector which is the result of shuffling elements of another vector.
+	/** Shuffles elements of a vector according to the provided indices.
 	 * @tparam I Indices of elements of the source vector in the order they should be shuffled to the destination vector.
 	 * @return Result vector who's elements are specified by `I`.
 	 * @example shuffle<2, 1, 0>({3, 4, 5}) -> {5, 4, 3} */
@@ -1105,6 +1104,25 @@ namespace sek::math
 				detail::vector_shuffle(result.m_data, v.m_data, Idx{});
 			return result;
 		}
+	}
+
+	/** Interleaves elements of two vectors according to the provided mask.
+	 * @param l Left-hand vector.
+	 * @param r Right-hand vector.
+	 * @param mask Mask used to select vector elements.
+	 * `true` will select the left-hand element, `false` will select the right-hand element.
+	 * @return Result of the interleave operation. */
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp> interleave(const basic_vec<U, M, Sp> &l,
+														   const basic_vec<U, M, Sp> &r,
+														   const vec_mask<basic_vec<U, M, Sp>> &mask) noexcept
+	{
+		basic_vec<U, M, Sp> result;
+		if (std::is_constant_evaluated())
+			detail::generic::vector_interleave(result.m_data, l.m_data, r.m_data, mask.m_data);
+		else
+			detail::vector_interleave(result.m_data, l.m_data, r.m_data, mask.m_data);
+		return result;
 	}
 
 	template<typename U, std::size_t M, storage_policy Sp>

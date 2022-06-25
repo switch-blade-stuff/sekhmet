@@ -40,6 +40,15 @@ namespace sek::math::detail
 		}
 
 		template<typename T, std::size_t N, storage_policy P>
+		constexpr void vector_interleave(vector_data<T, N, P> &out,
+										 const vector_data<T, N, P> &l,
+										 const vector_data<T, N, P> &r,
+										 const mask_data<T, N, P> &m) noexcept
+		{
+			vector_unwrap<N>([&](auto i) { out[i] = m[i] ? l[i] : r[i]; });
+		}
+
+		template<typename T, std::size_t N, storage_policy P>
 		constexpr void vector_add(vector_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r) noexcept
 		{
 			vector_unwrap<N>([&](auto i) { out[i] = l[i] + r[i]; });

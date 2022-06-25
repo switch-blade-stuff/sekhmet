@@ -355,5 +355,3 @@
 	SEK_DETAIL_SHUFFLE_FUNC(SHUFFLE, T(4), SEK_CONCAT(w, w, w, z), 3, 3, 3, 2)                                         \
 	SEK_DETAIL_SHUFFLE_FUNC(SHUFFLE, T(4), SEK_CONCAT(w, w, w, w), 3, 3, 3, 3)
 
-#define SEK_QUATERNION_GENERATE_SHUFFLE(x, y, z, w)                                                                    \
-	SEK_DETAIL_SHUFFLE_4(SEK_DETAIL_Q_SHUFFLE, SEK_DETAIL_V_TYPE, x, y, z, w)

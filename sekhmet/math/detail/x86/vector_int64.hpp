@@ -22,10 +22,6 @@ namespace sek::math::detail
 		{
 			std::copy_n(data, min<std::size_t>(2, M), values);
 		}
-		template<typename... Args>
-		constexpr explicit vector_data(Args &&...args) noexcept : vector_data({std::forward<Args>(args)...})
-		{
-		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
 		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
@@ -59,27 +55,8 @@ namespace sek::math::detail
 	template<integral_of_size<8> T>
 	inline void vector_ne(simd_mask<T, 2> &out, const simd_vector<T, 2> &l, const simd_vector<T, 2> &r) noexcept
 	{
-		out.simd = _mm_cmpneq_epi64(l.simd, r.simd);
-	}
-	template<integral_of_size<8> T>
-	inline void vector_lt(simd_mask<T, 2> &out, const simd_vector<T, 2> &l, const simd_vector<T, 2> &r) noexcept
-	{
-		out.simd = _mm_cmplt_epi64(l.simd, r.simd);
-	}
-	template<integral_of_size<8> T>
-	inline void vector_le(simd_mask<T, 2> &out, const simd_vector<T, 2> &l, const simd_vector<T, 2> &r) noexcept
-	{
-		out.simd = _mm_cmple_epi64(l.simd, r.simd);
-	}
-	template<integral_of_size<8> T>
-	inline void vector_gt(simd_mask<T, 2> &out, const simd_vector<T, 2> &l, const simd_vector<T, 2> &r) noexcept
-	{
-		out.simd = _mm_cmpgt_epi64(l.simd, r.simd);
-	}
-	template<integral_of_size<8> T>
-	inline void vector_ge(simd_mask<T, 2> &out, const simd_vector<T, 2> &l, const simd_vector<T, 2> &r) noexcept
-	{
-		out.simd = _mm_cmpge_epi64(l.simd, r.simd);
+		vector_eq(out, l, r);
+		mask_neg(out, out);
 	}
 #endif
 
@@ -94,10 +71,6 @@ namespace sek::math::detail
 		constexpr explicit vector_data(const T (&data)[M]) noexcept
 		{
 			std::copy_n(data, min<std::size_t>(3, M), values);
-		}
-		template<typename... Args>
-		constexpr explicit vector_data(Args &&...args) noexcept : vector_data({std::forward<Args>(args)...})
-		{
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
@@ -116,10 +89,6 @@ namespace sek::math::detail
 		constexpr explicit vector_data(const double (&data)[M]) noexcept
 		{
 			std::copy_n(data, min<std::size_t>(4, M), values);
-		}
-		template<typename... Args>
-		constexpr explicit vector_data(Args &&...args) noexcept : vector_data({std::forward<Args>(args)...})
-		{
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
@@ -144,7 +113,8 @@ namespace sek::math::detail
 		out.simd[1] = _mm_sub_epi64(l.simd[1], r.simd[1]);
 	}
 	template<integral_of_size<8> T, std::size_t N>
-	inline void vector_neg(simd_vector<T, N> &out, const simd_vector<T, N> &l) noexcept requires(SEK_DETAIL_IS_SIMD(out))
+	inline void vector_neg(simd_vector<T, N> &out, const simd_vector<T, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out))
 	{
 		const auto z = _mm_setzero_si128();
 		out.simd[0] = _mm_sub_epi64(z, l.simd[0]);
@@ -173,7 +143,8 @@ namespace sek::math::detail
 		out.simd[1] = _mm_or_si128(l.simd[1], r.simd[1]);
 	}
 	template<integral_of_size<8> T, std::size_t N>
-	inline void vector_inv(simd_vector<T, N> &out, const simd_vector<T, N> &l) noexcept requires(SEK_DETAIL_IS_SIMD(out))
+	inline void vector_inv(simd_vector<T, N> &out, const simd_vector<T, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out))
 	{
 		const auto m = _mm_set1_epi8((int8_t) 0xff);
 		out.simd[0] = _mm_xor_si128(l.simd[0], m);
@@ -192,36 +163,8 @@ namespace sek::math::detail
 	inline void vector_ne(simd_mask<T, N> &out, const simd_vector<T, N> &l, const simd_vector<T, N> &r) noexcept
 		requires(SEK_DETAIL_IS_SIMD(out))
 	{
-		out.simd[0] = _mm_cmpneq_epi64(l.simd[0], r.simd[0]);
-		out.simd[1] = _mm_cmpneq_epi64(l.simd[1], r.simd[1]);
-	}
-	template<integral_of_size<8> T, std::size_t N>
-	inline void vector_lt(simd_mask<T, N> &out, const simd_vector<T, N> &l, const simd_vector<T, N> &r) noexcept
-		requires(SEK_DETAIL_IS_SIMD(out))
-	{
-		out.simd[0] = _mm_cmplt_epi64(l.simd[0], r.simd[0]);
-		out.simd[1] = _mm_cmplt_epi64(l.simd[1], r.simd[1]);
-	}
-	template<integral_of_size<8> T, std::size_t N>
-	inline void vector_le(simd_mask<T, N> &out, const simd_vector<T, N> &l, const simd_vector<T, N> &r) noexcept
-		requires(SEK_DETAIL_IS_SIMD(out))
-	{
-		out.simd[0] = _mm_cmple_epi64(l.simd[0], r.simd[0]);
-		out.simd[1] = _mm_cmple_epi64(l.simd[1], r.simd[1]);
-	}
-	template<integral_of_size<8> T, std::size_t N>
-	inline void vector_gt(simd_mask<T, N> &out, const simd_vector<T, N> &l, const simd_vector<T, N> &r) noexcept
-		requires(SEK_DETAIL_IS_SIMD(out))
-	{
-		out.simd[0] = _mm_cmpgt_epi64(l.simd[0], r.simd[0]);
-		out.simd[1] = _mm_cmpgt_epi64(l.simd[1], r.simd[1]);
-	}
-	template<integral_of_size<8> T, std::size_t N>
-	inline void vector_ge(simd_mask<T, N> &out, const simd_vector<T, N> &l, const simd_vector<T, N> &r) noexcept
-		requires(SEK_DETAIL_IS_SIMD(out))
-	{
-		out.simd[0] = _mm_cmpge_epi64(l.simd[0], r.simd[0]);
-		out.simd[1] = _mm_cmpge_epi64(l.simd[1], r.simd[1]);
+		vector_eq(out, l, r);
+		mask_neg(out, out);
 	}
 #endif
 #endif
