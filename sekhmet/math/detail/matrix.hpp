@@ -5,9 +5,10 @@
 #pragma once
 
 #include "sekhmet/detail/hash.hpp"
+
+#include "matrix_macros.hpp"
 #include "util.hpp"
 #include "vector.hpp"
-
 
 namespace sek::math
 {
@@ -50,7 +51,7 @@ namespace sek::math
 	/** Returns a matrix which is the result of addition of two matrices. */
 	template<typename T, std::size_t N, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_mat<T, N, M, Sp> operator+(const basic_mat<T, N, M, Sp> &l,
-																const basic_mat<T, N, M, Sp> &r) noexcept
+															 const basic_mat<T, N, M, Sp> &r) noexcept
 	{
 		basic_mat<T, N, M, Sp> result;
 		for (std::size_t i = 0; i < N; ++i) result[i] = l[i] + r[i];
@@ -66,7 +67,7 @@ namespace sek::math
 	/** Returns a matrix which is the result of subtraction of two matrices. */
 	template<typename T, std::size_t N, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_mat<T, N, M, Sp> operator-(const basic_mat<T, N, M, Sp> &l,
-																const basic_mat<T, N, M, Sp> &r) noexcept
+															 const basic_mat<T, N, M, Sp> &r) noexcept
 	{
 		basic_mat<T, N, M, Sp> result;
 		for (std::size_t i = 0; i < N; ++i) result[i] = l[i] - r[i];
@@ -135,7 +136,7 @@ namespace sek::math
 	/** Returns a matrix which is the result of bitwise AND of two matrices. */
 	template<typename T, std::size_t N, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_mat<T, N, M, Sp> operator&(const basic_mat<T, N, M, Sp> &l,
-																const basic_mat<T, N, M, Sp> &r) noexcept
+															 const basic_mat<T, N, M, Sp> &r) noexcept
 	{
 		basic_mat<T, N, M, Sp> result;
 		for (std::size_t i = 0; i < N; ++i) result[i] = l[i] & r[i];
@@ -151,7 +152,7 @@ namespace sek::math
 	/** Returns a matrix which is the result of bitwise OR of two matrices. */
 	template<typename T, std::size_t N, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_mat<T, N, M, Sp> operator|(const basic_mat<T, N, M, Sp> &l,
-																const basic_mat<T, N, M, Sp> &r) noexcept
+															 const basic_mat<T, N, M, Sp> &r) noexcept
 	{
 		basic_mat<T, N, M, Sp> result;
 		for (std::size_t i = 0; i < N; ++i) result[i] = l[i] | r[i];
@@ -160,7 +161,7 @@ namespace sek::math
 	/** Returns a matrix which is the result of bitwise XOR of two matrices. */
 	template<typename T, std::size_t N, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_mat<T, N, M, Sp> operator^(const basic_mat<T, N, M, Sp> &l,
-																const basic_mat<T, N, M, Sp> &r) noexcept
+															 const basic_mat<T, N, M, Sp> &r) noexcept
 	{
 		basic_mat<T, N, M, Sp> result;
 		for (std::size_t i = 0; i < N; ++i) result[i] = l[i] ^ r[i];
@@ -202,7 +203,7 @@ namespace sek::math
 	/** Returns a matrix which is the result of multiplying two matrices. */
 	template<typename T, std::size_t C0, std::size_t R0, std::size_t C1, storage_policy Sp>
 	[[nodiscard]] constexpr basic_mat<T, C1, R0, Sp> operator*(const basic_mat<T, C0, R0, Sp> &l,
-																  const basic_mat<T, C1, C0, Sp> &r) noexcept
+															   const basic_mat<T, C1, C0, Sp> &r) noexcept
 	{
 		basic_mat<T, C1, R0, Sp> result = {};
 		for (std::size_t c1 = 0; c1 != C1; ++c1)
@@ -220,8 +221,7 @@ namespace sek::math
 	}
 	/** Returns a vector which is the result of multiplying vector by a matrix. */
 	template<typename T, std::size_t C0, std::size_t C1, storage_policy Sp>
-	[[nodiscard]] constexpr basic_vec<T, C1, Sp> operator*(const basic_vec<T, C0, Sp> &v,
-															  const basic_mat<T, C1, C0, Sp> &m) noexcept
+	[[nodiscard]] constexpr basic_vec<T, C1, Sp> operator*(const basic_vec<T, C0, Sp> &v, const basic_mat<T, C1, C0, Sp> &m) noexcept
 	{
 		basic_vec<T, C1> result = {};
 		for (std::size_t i = 0; i < C1; ++i) result[i] = dot(v, m[i]);

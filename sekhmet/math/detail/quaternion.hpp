@@ -60,14 +60,14 @@ namespace sek::math
 		/** @copydoc vector */
 		[[nodiscard]] constexpr operator const vector_type &() noexcept { return vector(); }
 
-		[[nodiscard]] constexpr T &x() noexcept { return m_data.x(); }
-		[[nodiscard]] constexpr const T &x() const noexcept { return m_data.x(); }
-		[[nodiscard]] constexpr T &y() noexcept { return m_data.y(); }
-		[[nodiscard]] constexpr const T &y() const noexcept { return m_data.y(); }
-		[[nodiscard]] constexpr T &z() noexcept { return m_data.z(); }
-		[[nodiscard]] constexpr const T &z() const noexcept { return m_data.z(); }
-		[[nodiscard]] constexpr T &w() noexcept { return m_data.w(); }
-		[[nodiscard]] constexpr const T &w() const noexcept { return m_data.w(); }
+		[[nodiscard]] constexpr decltype(auto) x() noexcept { return m_data.x(); }
+		[[nodiscard]] constexpr decltype(auto) x() const noexcept { return m_data.x(); }
+		[[nodiscard]] constexpr decltype(auto) y() noexcept { return m_data.y(); }
+		[[nodiscard]] constexpr decltype(auto) y() const noexcept { return m_data.y(); }
+		[[nodiscard]] constexpr decltype(auto) z() noexcept { return m_data.z(); }
+		[[nodiscard]] constexpr decltype(auto) z() const noexcept { return m_data.z(); }
+		[[nodiscard]] constexpr decltype(auto) w() noexcept { return m_data.w(); }
+		[[nodiscard]] constexpr decltype(auto) w() const noexcept { return m_data.w(); }
 
 		SEK_QUATERNION_GENERATE_SHUFFLE(x, y, z, w)
 

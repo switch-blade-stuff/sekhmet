@@ -11,7 +11,7 @@ namespace sek::math
 	template<arithmetic T, storage_policy P>
 	class basic_mat<T, 3, 2, P>
 	{
-		SEK_MATH_MATRIX_COMMON(T, 3, 2, P)
+		SEK_DETAIL_MATRIX_COMMON(T, 3, 2, P)
 
 	public:
 		constexpr basic_mat(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : m_data{c0, c1, c2}
@@ -143,7 +143,7 @@ namespace sek::math
 	template<arithmetic T, storage_policy P>
 	class basic_mat<T, 3, 3, P>
 	{
-		SEK_MATH_MATRIX_COMMON(T, 3, 3, P)
+		SEK_DETAIL_MATRIX_COMMON(T, 3, 3, P)
 
 	public:
 		constexpr basic_mat(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : m_data{c0, c1, c2}
@@ -278,7 +278,7 @@ namespace sek::math
 	template<arithmetic T, storage_policy P>
 	class basic_mat<T, 3, 4, P>
 	{
-		SEK_MATH_MATRIX_COMMON(T, 3, 4, P)
+		SEK_DETAIL_MATRIX_COMMON(T, 3, 4, P)
 
 	public:
 		constexpr basic_mat(const col_type &c0, const col_type &c1, const col_type &c2) noexcept : m_data{c0, c1, c2}

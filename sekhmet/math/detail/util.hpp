@@ -253,27 +253,31 @@ namespace sek::math
 		template<typename T0, typename T1, typename... Ts>
 		[[nodiscard]] constexpr std::common_type_t<T0, T1, Ts...> max_unwrap(T0 a, T1 b, Ts... vals) noexcept
 		{
-			if (a > b)
-				return a;
+			using T = std::common_type_t<T0, T1, Ts...>;
+			using U = std::common_type_t<T0, T1>;
+			if (static_cast<U>(a) > static_cast<U>(b))
+				return static_cast<T>(a);
 			else
 			{
 				if constexpr (sizeof...(vals) == 0)
-					return b;
+					return static_cast<T>(b);
 				else
-					return max_unwrap(b, vals...);
+					return static_cast<T>(max_unwrap(b, vals...));
 			}
 		}
 		template<arithmetic T0, arithmetic T1, arithmetic... Ts>
-		[[nodiscard]] constexpr std::common_type_t<T0, T1, Ts...> min_unwrap(T0 a, T1 b, Ts... vals) noexcept
+		[[nodiscard]] constexpr auto min_unwrap(T0 a, T1 b, Ts... vals) noexcept
 		{
-			if (a < b)
-				return a;
+			using T = std::common_type_t<T0, T1, Ts...>;
+			using U = std::common_type_t<T0, T1>;
+			if (static_cast<U>(a) < static_cast<U>(b))
+				return static_cast<T>(a);
 			else
 			{
 				if constexpr (sizeof...(vals) == 0)
-					return b;
+					return static_cast<T>(b);
 				else
-					return min_unwrap(b, vals...);
+					return static_cast<T>(min_unwrap(b, vals...));
 			}
 		}
 	}	 // namespace detail

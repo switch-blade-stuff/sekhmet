@@ -4,15 +4,22 @@
 
 #pragma once
 
+#include <bit>
+
 #include "sekhmet/detail/define.h"
+
+#include "../util.hpp"
 
 #ifdef SEK_ARCH_x86
 
 #include <emmintrin.h>
 #include <immintrin.h>
 #include <mmintrin.h>
+#include <nmmintrin.h>
 #include <pmmintrin.h>
 #include <smmintrin.h>
+#include <tmmintrin.h>
+#include <xmmintrin.h>
 
 #ifdef SEK_NO_SIMD
 #ifdef SEK_USE_SSE
@@ -52,69 +59,80 @@
 #undef SEK_USE_AVX2
 #endif
 
+// clang-format off
+#define SEK_DETAIL_IS_SIMD_1(a) (requires{ a.simd; })
+#define SEK_DETAIL_IS_SIMD_2(a, b) (requires{ a.simd; } && requires{ b.simd; })
+#define SEK_DETAIL_IS_SIMD_3(a, b, c) (requires{ a.simd; } && requires{ b.simd; } && requires{ c.simd; })
+// clang-format on
+
+#define SEK_DETAIL_IS_SIMD(...)                                                                                        \
+	SEK_GET_MACRO_3(__VA_ARGS__, SEK_DETAIL_IS_SIMD_3, SEK_DETAIL_IS_SIMD_2, SEK_DETAIL_IS_SIMD_1)(__VA_ARGS__)
+
 namespace sek::math::detail
 {
+	template<typename T, std::size_t N>
+	using simd_vector = vector_data<T, N, storage_policy::OPTIMAL>;
+	template<typename T, std::size_t N>
+	using simd_mask = mask_data<T, N, storage_policy::OPTIMAL>;
+
+	template<>
+	struct mask_set<std::uint32_t>
+	{
+		template<typename U>
+		constexpr void operator()(std::uint32_t &to, U &&from) const noexcept
+		{
+			to = from ? std::numeric_limits<std::uint32_t>::max() : 0;
+		}
+	};
+	template<>
+	struct mask_get<std::uint32_t>
+	{
+		constexpr bool operator()(std::uint32_t &v) const noexcept { return v; }
+	};
+	template<>
+	struct mask_set<std::uint64_t>
+	{
+		template<typename U>
+		constexpr void operator()(std::uint64_t &to, U &&from) const noexcept
+		{
+			to = from ? std::numeric_limits<std::uint64_t>::max() : 0;
+		}
+	};
+	template<>
+	struct mask_get<std::uint64_t>
+	{
+		constexpr bool operator()(std::uint64_t &v) const noexcept { return v; }
+	};
+
 	template<std::size_t J, std::size_t I, std::size_t... Is>
-	constexpr std::uint8_t x86_mm_shuffle4_unwrap(std::index_sequence<I, Is...>) noexcept
+	constexpr std::uint8_t x86_128_shuffle4_unwrap(std::index_sequence<I, Is...>) noexcept
 	{
 		constexpr auto bit = static_cast<std::uint8_t>(I) << J;
 		if constexpr (sizeof...(Is) != 0)
-			return bit | x86_mm_shuffle4_unwrap<J + 2>(std::index_sequence<Is...>{});
+			return bit | x86_128_shuffle4_unwrap<J + 2>(std::index_sequence<Is...>{});
 		else
 			return bit;
 	}
 	template<std::size_t... Is>
-	constexpr std::uint8_t x86_mm_shuffle4_mask(std::index_sequence<Is...> s) noexcept
+	constexpr std::uint8_t x86_128_shuffle4_mask(std::index_sequence<Is...> s) noexcept
 	{
-		return x86_mm_shuffle4_unwrap<0>(s);
+		return x86_128_shuffle4_unwrap<0>(s);
 	}
 
 	template<std::size_t J, std::size_t I, std::size_t... Is>
-	constexpr std::uint8_t x86_mm_shuffle2_unwrap(std::index_sequence<I, Is...>) noexcept
+	constexpr std::uint8_t x86_128_shuffle2_unwrap(std::index_sequence<I, Is...>) noexcept
 	{
 		constexpr auto bit = static_cast<std::uint8_t>(I) << J;
 		if constexpr (sizeof...(Is) != 0)
-			return bit | x86_mm_shuffle2_unwrap<J + 1>(std::index_sequence<Is...>{});
+			return bit | x86_128_shuffle2_unwrap<J + 1>(std::index_sequence<Is...>{});
 		else
 			return bit;
 	}
 	template<std::size_t... Is>
-	constexpr std::uint8_t x86_mm_shuffle2_mask(std::index_sequence<Is...> s) noexcept
+	constexpr std::uint8_t x86_128_shuffle2_mask(std::index_sequence<Is...> s) noexcept
 	{
-		return x86_mm_shuffle2_unwrap<0>(s);
+		return x86_128_shuffle2_unwrap<0>(s);
 	}
-
-#ifdef SEK_USE_SSE2
-	template<std::size_t N>
-	inline void x86_simd_cmp32_pack(bool *out, __m128i value) noexcept
-		requires(sizeof(bool) == sizeof(char))
-	{
-		value = _mm_packs_epi32(value, value);
-		value = _mm_packs_epi16(value, value);
-#ifdef SEK_USE_SSSE3
-		value = _mm_abs_epi8(value);
-#else
-		value = _mm_and_si128(value, _mm_set1_epi8(1));
-#endif
-		const auto mask = _mm_srli_si128(_mm_set1_epi32(-1), 16 - N);
-		_mm_maskmoveu_si128(value, mask, reinterpret_cast<char *>(out));
-	}
-	template<std::size_t N>
-	inline void x86_simd_cmp64_pack(bool *out, __m128i value) noexcept
-		requires(sizeof(bool) == sizeof(char))
-	{
-		value = _mm_packs_epi32(value, value);
-		value = _mm_packs_epi16(value, value);
-		value = _mm_packs_epi16(value, value);
-#ifdef SEK_USE_SSSE3
-		value = _mm_abs_epi8(value);
-#else
-		value = _mm_and_si128(value, _mm_set1_epi8(1));
-#endif
-		const auto mask = _mm_srli_si128(_mm_set1_epi32(-1), 16 - N);
-		_mm_maskmoveu_si128(value, mask, reinterpret_cast<char *>(out));
-	}
-#endif
 }	 // namespace sek::math::detail
 
 #endif

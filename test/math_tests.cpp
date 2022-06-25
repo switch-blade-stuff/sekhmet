@@ -15,7 +15,7 @@ TEST(math_tests, vector_test)
 		const sek::math::dvec4 v4d_2 = {1, 1, 1, 1};
 
 		const auto cmp = v4d_1 == v4d_2;
-		EXPECT_EQ(cmp, sek::math::vec4<bool>(true, false, true, false));
+		EXPECT_EQ(cmp, sek::math::vec_mask<sek::math::dvec4>(true, false, true, false));
 		EXPECT_TRUE(any(cmp));
 		EXPECT_FALSE(all(cmp));
 		EXPECT_FALSE(none(cmp));
@@ -122,22 +122,22 @@ TEST(math_tests, matrix_test)
 TEST(math_tests, quaternion_test)
 {
 	{
-//		const auto rot1 = sek::math::fvec3{60, 30, 90};
-//
-//		const auto q1 = sek::math::fquat::from_euler(rad(rot1));
-//		EXPECT_EQ(sek::math::deg(q1.pitch()), rot1.x());
-//		EXPECT_EQ(sek::math::deg(q1.yaw()), rot1.y());
-//		EXPECT_EQ(sek::math::deg(q1.roll()), rot1.z());
-//
-//		const auto m1 = q1.to_matrix();
-//		const auto q2 = sek::math::fquat::from_matrix(m1);
-//		EXPECT_EQ(q1, q2);
-//
-//		const auto rot2 = q1.to_euler();
-//		const auto rot3 = q2.to_euler();
-//
-//		EXPECT_EQ(rot2, rot1);
-//		EXPECT_EQ(rot3, rot1);
+		//		const auto rot1 = sek::math::fvec3{60, 30, 90};
+		//
+		//		const auto q1 = sek::math::fquat::from_euler(rad(rot1));
+		//		EXPECT_EQ(sek::math::deg(q1.pitch()), rot1.x());
+		//		EXPECT_EQ(sek::math::deg(q1.yaw()), rot1.y());
+		//		EXPECT_EQ(sek::math::deg(q1.roll()), rot1.z());
+		//
+		//		const auto m1 = q1.to_matrix();
+		//		const auto q2 = sek::math::fquat::from_matrix(m1);
+		//		EXPECT_EQ(q1, q2);
+		//
+		//		const auto rot2 = q1.to_euler();
+		//		const auto rot3 = q2.to_euler();
+		//
+		//		EXPECT_EQ(rot2, rot1);
+		//		EXPECT_EQ(rot3, rot1);
 	}
 }
 
