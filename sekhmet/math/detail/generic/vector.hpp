@@ -169,16 +169,6 @@ namespace sek::math::detail
 		}
 
 		template<typename T, std::size_t N, storage_policy P>
-		constexpr void vector_max(vector_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r) noexcept
-		{
-			vector_unwrap<N>([&](auto i) { out[i] = max(l[i], r[i]); });
-		}
-		template<typename T, std::size_t N, storage_policy P>
-		constexpr void vector_min(vector_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r) noexcept
-		{
-			vector_unwrap<N>([&](auto i) { out[i] = min(l[i], r[i]); });
-		}
-		template<typename T, std::size_t N, storage_policy P>
 		constexpr void vector_round(vector_data<T, N, P> &out, const vector_data<T, N, P> &l) noexcept
 		{
 			vector_unwrap<N>([&](auto i) { out[i] = static_cast<T>(std::round(l[i])); });
@@ -317,6 +307,21 @@ namespace sek::math::detail
 		constexpr void vector_ge(mask_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r) noexcept
 		{
 			vector_cmp(out, l, r, [](T a, T b) { return a >= b; });
+		}
+
+		template<typename T, std::size_t N, storage_policy P>
+		constexpr void vector_max(vector_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r) noexcept
+		{
+			mask_data<T, N, P> mask;
+			vector_ge(mask, l, r);
+			vector_interleave(out, l, r, mask);
+		}
+		template<typename T, std::size_t N, storage_policy P>
+		constexpr void vector_min(vector_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r) noexcept
+		{
+			mask_data<T, N, P> mask;
+			vector_le(mask, l, r);
+			vector_interleave(out, l, r, mask);
 		}
 	}	 // namespace generic
 }	 // namespace sek::math::detail

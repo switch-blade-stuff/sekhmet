@@ -95,6 +95,14 @@ TEST(math_tests, vector_test)
 		EXPECT_TRUE(all(floor(v4d) == v4d_floor));
 		EXPECT_TRUE(all(ceil(v4d) == v4d_ceil));
 	}
+	{
+		const sek::math::dvec4 v4d_val = {0.1, 2.1, 3.1, -4};
+		const sek::math::dvec4 v4d_min = {0, 0, 1, -10};
+		const sek::math::dvec4 v4d_max = {1, 1, 2, 0};
+		const auto res = fclamp(v4d_val, v4d_min, v4d_max);
+
+		EXPECT_TRUE(all(fcmp_eq(res, sek::math::dvec4{0.1, 1, 2, -4})));
+	}
 }
 
 TEST(math_tests, matrix_test)
