@@ -131,8 +131,9 @@ namespace sek::math::detail
 	{
 		constexpr auto mask0 = x86_128_shuffle2_mask(std::index_sequence<I0, I1>{});
 		constexpr auto mask1 = x86_128_shuffle2_mask(std::index_sequence<Is...>{});
-		out.simd[0] = _mm_castpd_si128(_mm_shuffle_pd(_mm_castsi128_pd(l.simd), _mm_castsi128_pd(l.simd), mask0));
-		out.simd[1] = _mm_castpd_si128(_mm_shuffle_pd(_mm_castsi128_pd(l.simd), _mm_castsi128_pd(l.simd), mask1));
+		const auto a = _mm_castsi128_pd(l.simd);
+		out.simd[0] = _mm_castpd_si128(_mm_shuffle_pd(a, a, mask0));
+		out.simd[1] = _mm_castpd_si128(_mm_shuffle_pd(a, a, mask1));
 	}
 
 	template<integral_of_size<8> T, std::size_t N>

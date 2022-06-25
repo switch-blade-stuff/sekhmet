@@ -109,6 +109,27 @@ namespace sek::math::detail
 		out.simd = _mm_min_epi32(l.simd, r.simd);
 	}
 
+	template<integral_of_size<4> T, std::size_t N, std::size_t M, std::size_t... Is>
+	inline void vector_shuffle(simd_vector<float, N> &out, const simd_vector<float, M> &l, std::index_sequence<Is...> s) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, l))
+	{
+		constexpr auto mask = x86_128_shuffle4_mask(s);
+		out.simd = _mm_shuffle_epi32(l.simd, mask);
+	}
+	template<integral_of_size<4> T, std::size_t N>
+	inline void vector_interleave(simd_vector<T, N> &out,
+								  const simd_vector<T, N> &l,
+								  const simd_vector<T, N> &r,
+								  const simd_mask<T, N> &m) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, m))
+	{
+#ifdef SEK_USE_SSE4_1
+		out.simd = _mm_blendv_epi8(r.simd, l.simd, m.simd);
+#else
+		out.simd = _mm_or_si128(_mm_and_si128(m.simd, l.simd), _mm_andnot_si128(m.simd, r.simd));
+#endif
+	}
+
 	template<integral_of_size<4> T, std::size_t N>
 	inline void vector_eq(simd_mask<T, N> &out, const simd_vector<T, N> &l, const simd_vector<T, N> &r) noexcept
 		requires(SEK_DETAIL_IS_SIMD(out))

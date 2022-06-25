@@ -40,10 +40,10 @@ namespace sek::math
 		}
 		// clang-format on
 
-		constexpr explicit basic_quat(T x) noexcept : m_data(x) {}
-		constexpr basic_quat(T x, T y) noexcept : m_data(x, y) {}
-		constexpr basic_quat(T x, T y, T z) noexcept : m_data(x, y, z) {}
 		constexpr basic_quat(T x, T y, T z, T w) noexcept : m_data(x, y, z, w) {}
+		constexpr basic_quat(T x, T y, T z) noexcept : m_data(x, y, z) {}
+		constexpr basic_quat(T x, T y) noexcept : m_data(x, y) {}
+		constexpr explicit basic_quat(T x) noexcept : m_data(x) {}
 
 		[[nodiscard]] constexpr value_type &operator[](std::size_t i) noexcept { return m_data[i]; }
 		[[nodiscard]] constexpr const value_type &operator[](std::size_t i) const noexcept { return m_data[i]; }
@@ -57,7 +57,7 @@ namespace sek::math
 		{
 		}
 
-		/** Casts basic_quat to the underlying vector type. */
+		/** Casts quaternion to the underlying vector type. */
 		[[nodiscard]] constexpr const vector_type &vector() const noexcept { return m_data; }
 		/** @copydoc vector */
 		[[nodiscard]] constexpr operator const vector_type &() noexcept { return vector(); }
@@ -73,7 +73,24 @@ namespace sek::math
 
 		SEK_QUATERNION_GENERATE_SHUFFLE(x, y, z, w)
 
-		[[nodiscard]] constexpr bool operator==(const basic_quat &) const noexcept = default;
+		[[nodiscard]] constexpr auto operator==(const basic_quat &other) const noexcept
+		{
+			return m_data == other.m_data;
+		}
+		[[nodiscard]] constexpr auto operator!=(const basic_quat &other) const noexcept
+		{
+			return m_data != other.m_data;
+		}
+		[[nodiscard]] constexpr auto operator<(const basic_quat &other) const noexcept { return m_data < other.m_data; }
+		[[nodiscard]] constexpr auto operator<=(const basic_quat &other) const noexcept
+		{
+			return m_data <= other.m_data;
+		}
+		[[nodiscard]] constexpr auto operator>(const basic_quat &other) const noexcept { return m_data > other.m_data; }
+		[[nodiscard]] constexpr auto operator>=(const basic_quat &other) const noexcept
+		{
+			return m_data >= other.m_data;
+		}
 
 		constexpr void swap(basic_quat &other) noexcept { m_data.swap(other.m_data); }
 		friend constexpr void swap(basic_quat &a, basic_quat &b) noexcept { a.swap(b); }
@@ -82,7 +99,7 @@ namespace sek::math
 		basic_vec<T, 4, Policy> m_data;
 	};
 
-	/** Gets the Ith element of the basic_quat. */
+	/** Gets the Ith element of the quaternion. */
 	template<std::size_t I, typename T, storage_policy Sp>
 	[[nodiscard]] constexpr T &get(basic_quat<T, Sp> &q) noexcept
 	{

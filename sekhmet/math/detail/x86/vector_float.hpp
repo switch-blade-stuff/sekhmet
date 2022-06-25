@@ -74,12 +74,14 @@ namespace sek::math::detail
 	}
 
 	template<std::size_t N>
-	inline void vector_neg(simd_vector<float, N> &out, const simd_vector<float, N> &l) noexcept requires(SEK_DETAIL_IS_SIMD(out))
+	inline void vector_neg(simd_vector<float, N> &out, const simd_vector<float, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out))
 	{
 		out.simd = _mm_sub_ps(_mm_setzero_ps(), l.simd);
 	}
 	template<std::size_t N>
-	inline void vector_abs(simd_vector<float, N> &out, const simd_vector<float, N> &l) noexcept requires(SEK_DETAIL_IS_SIMD(out))
+	inline void vector_abs(simd_vector<float, N> &out, const simd_vector<float, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out))
 	{
 		constexpr auto mask = std::bit_cast<float>(0x7fff'ffff);
 		out.simd = _mm_and_ps(_mm_set1_ps(mask), l.simd);
@@ -98,7 +100,8 @@ namespace sek::math::detail
 	}
 
 	template<std::size_t N>
-	inline void vector_sqrt(simd_vector<float, N> &out, const simd_vector<float, N> &l) noexcept requires(SEK_DETAIL_IS_SIMD(out))
+	inline void vector_sqrt(simd_vector<float, N> &out, const simd_vector<float, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out))
 	{
 		out.simd = _mm_sqrt_ps(l.simd);
 	}
@@ -153,6 +156,19 @@ namespace sek::math::detail
 		constexpr auto mask = x86_128_shuffle4_mask(s);
 		out.simd = _mm_shuffle_ps(l.simd, l.simd, mask);
 	}
+	template<std::size_t N>
+	inline void vector_interleave(simd_vector<float, N> &out,
+								  const simd_vector<float, N> &l,
+								  const simd_vector<float, N> &r,
+								  simd_mask<float, N> &m) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, m))
+	{
+#ifdef SEK_USE_SSE4_1
+		out.simd = _mm_blendv_ps(r.simd, l.simd, m.simd);
+#else
+		out.simd = _mm_or_ps(_mm_and_ps(m.simd, l.simd), _mm_andnot_ps(m.simd, r.simd));
+#endif
+	}
 
 	inline void vector_cross(simd_vector<float, 3> &out, const simd_vector<float, 3> &l, const simd_vector<float, 3> &r) noexcept
 	{
@@ -176,7 +192,8 @@ namespace sek::math::detail
 		out.simd = _mm_floor_ps(l.simd);
 	}
 	template<std::size_t N>
-	inline void vector_ceil(simd_vector<float, N> &out, const simd_vector<float, N> &l) noexcept requires(SEK_DETAIL_IS_SIMD(out))
+	inline void vector_ceil(simd_vector<float, N> &out, const simd_vector<float, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out))
 	{
 		out.simd = _mm_ceil_ps(l.simd);
 	}

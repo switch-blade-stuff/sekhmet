@@ -82,6 +82,17 @@ namespace sek::math::detail
 		constexpr auto mask = x86_128_shuffle2_mask(s);
 		out.simd = _mm_shuffle_pd(l.simd, l.simd, mask);
 	}
+	inline void vector_interleave(simd_vector<double, 2> &out,
+								  const simd_vector<double, 2> &l,
+								  const simd_vector<double, 2> &r,
+								  simd_mask<double, 2> &m) noexcept
+	{
+#ifdef SEK_USE_SSE4_1
+		out.simd = _mm_blendv_pd(r.simd, l.simd, m.simd);
+#else
+		out.simd = _mm_or_pd(_mm_and_pd(m.simd, l.simd), _mm_andnot_pd(m.simd, r.simd));
+#endif
+	}
 
 	inline void vector_eq(simd_mask<double, 2> &out, const simd_vector<double, 2> &l, const simd_vector<double, 2> &r) noexcept
 	{
@@ -254,15 +265,28 @@ namespace sek::math::detail
 	}
 
 	template<std::size_t N, std::size_t I0, std::size_t I1, std::size_t... Is>
-	inline void vector_shuffle(simd_vector<double, N> &out,
-							   const simd_vector<double, 2> &l,
-							   std::index_sequence<I0, I1, Is...>) noexcept
+	inline void vector_shuffle(simd_vector<double, N> &out, const simd_vector<double, 2> &l, std::index_sequence<I0, I1, Is...>) noexcept
 		requires(N != 2 && SEK_DETAIL_IS_SIMD(out, l))
 	{
 		constexpr auto mask0 = x86_128_shuffle2_mask(std::index_sequence<I0, I1>{});
 		constexpr auto mask1 = x86_128_shuffle2_mask(std::index_sequence<Is...>{});
 		out.simd[0] = _mm_shuffle_pd(l.simd, l.simd, mask0);
 		out.simd[1] = _mm_shuffle_pd(l.simd, l.simd, mask1);
+	}
+	template<std::size_t N>
+	inline void vector_interleave(simd_vector<double, N> &out,
+								  const simd_vector<double, N> &l,
+								  const simd_vector<double, N> &r,
+								  simd_mask<double, N> &m) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, m))
+	{
+#ifdef SEK_USE_SSE4_1
+		out.simd[0] = _mm_blendv_pd(r.simd[0], l.simd[0], m.simd[0]);
+		out.simd[1] = _mm_blendv_pd(r.simd[1], l.simd[1], m.simd[1]);
+#else
+		out.simd[0] = _mm_or_pd(_mm_and_pd(m.simd[0], l.simd[0]), _mm_andnot_pd(m.simd[0], r.simd[0]));
+		out.simd[1] = _mm_or_pd(_mm_and_pd(m.simd[1], l.simd[1]), _mm_andnot_pd(m.simd[1], r.simd[1]));
+#endif
 	}
 
 	template<std::size_t N>
