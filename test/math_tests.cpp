@@ -188,6 +188,34 @@ TEST(math_tests, vector_test)
 		EXPECT_TRUE(all(is_norm(v4d_mone)));
 		EXPECT_TRUE(all(is_norm(v4f_mone)));
 	}
+	{
+		constexpr auto x = 2.0f;
+		const auto v4f_0 = sek::math::fvec4{std::exp(x)};
+		const auto v4f_1 = exp(sek::math::fvec4{x});
+
+		EXPECT_TRUE(all(v4f_0 == v4f_1));
+	}
+	{
+		const auto x = std::exp(2.0f);
+		const auto v4f_0 = sek::math::fvec4{std::log(x)};
+		const auto v4f_1 = log(sek::math::fvec4{x});
+
+		EXPECT_TRUE(all(v4f_0 == v4f_1));
+	}
+	{
+		constexpr auto angle = sek::math::rad(180.0f);
+		const auto v4f_0 = sek::math::fvec4{std::sin(angle)};
+		const auto v4f_1 = sin(sek::math::fvec4{angle});
+
+		EXPECT_TRUE(all(v4f_0 == v4f_1));
+	}
+	{
+		constexpr auto angle = sek::math::rad(180.0f);
+		const auto v4f_0 = sek::math::fvec4{std::cos(angle)};
+		const auto v4f_1 = cos(sek::math::fvec4{angle});
+
+		EXPECT_TRUE(all(v4f_0 == v4f_1));
+	}
 }
 
 TEST(math_tests, matrix_test)

@@ -63,6 +63,15 @@ namespace sek::math::detail
 	{
 		out.simd = _mm_round_ps(v.simd, _MM_FROUND_TRUNC);
 	}
+#elif defined(SEK_USE_SSE2)
+	template<std::size_t N>
+	inline void vector_floor(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
+		requires simd_enabled<simd_vector<float, N>>
+	{
+		/* Convert to int and subtract 1 to round down. */
+		const auto tmp = _mm_cvtepi32_ps(_mm_cvtps_epi32(v.simd));
+		out.simd = _mm_sub_ps(tmp, _mm_and_ps(_mm_cmpgt_ps(tmp, v.simd), _mm_set1_ps(1.0f)));
+	}
 #endif
 
 #ifdef SEK_USE_SSE2

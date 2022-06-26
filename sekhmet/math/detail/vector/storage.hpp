@@ -18,7 +18,7 @@ namespace sek::math::detail
 		template<std::size_t M = N>
 		constexpr vector_data(const T (&data)[M]) noexcept : values{}
 		{
-			std::copy_n(data, min(N, M), values);
+			for (std::size_t i = 0; i < min(N, M); ++i) values[i] = data[i];
 		}
 		template<std::convertible_to<T>... Args>
 		constexpr vector_data(Args &&...args) noexcept : vector_data({static_cast<T>(std::forward<Args>(args))...})
@@ -38,7 +38,7 @@ namespace sek::math::detail
 		template<std::convertible_to<bool> B, std::size_t M = N>
 		constexpr mask_data(const B (&data)[M]) noexcept : values{}
 		{
-			std::copy_n(data, min(N, M), values);
+			for (std::size_t i = 0; i < min(N, M); ++i) values[i] = static_cast<bool>(data[i]);
 		}
 		template<std::convertible_to<bool>... Args>
 		constexpr mask_data(Args &&...args) noexcept : mask_data({static_cast<bool>(std::forward<Args>(args))...})

@@ -23,6 +23,22 @@ namespace sek::math::detail
 	}
 
 #ifdef SEK_USE_SSE2
+	SEK_API __m128 x86_exp_ps(__m128 v) noexcept;
+	SEK_API __m128 x86_log_ps(__m128 v) noexcept;
+
+	template<std::size_t N>
+	inline void vector_exp(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
+		requires simd_enabled<simd_vector<float, N>>
+	{
+		out.simd = x86_exp_ps(v.simd);
+	}
+	template<std::size_t N>
+	inline void vector_log(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
+		requires simd_enabled<simd_vector<float, N>>
+	{
+		out.simd = x86_log_ps(v.simd);
+	}
+
 	inline void vector_sqrt(simd_vector<double, 2> &out, const simd_vector<double, 2> &v) noexcept
 	{
 		out.simd = _mm_sqrt_pd(v.simd);

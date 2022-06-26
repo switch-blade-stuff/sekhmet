@@ -57,15 +57,6 @@
 #undef SEK_USE_AVX2
 #endif
 
-// clang-format off
-#define SEK_DETAIL_IS_SIMD_1(a) (requires{ (a).simd; })
-#define SEK_DETAIL_IS_SIMD_2(a, b) (requires{ (a).simd; } && requires{ (b).simd; })
-#define SEK_DETAIL_IS_SIMD_3(a, b, c) (requires{ (a).simd; } && requires{ (b).simd; } && requires{ (c).simd; })
-// clang-format on
-
-#define SEK_DETAIL_IS_SIMD(...)                                                                                        \
-	SEK_GET_MACRO_3(__VA_ARGS__, SEK_DETAIL_IS_SIMD_3, SEK_DETAIL_IS_SIMD_2, SEK_DETAIL_IS_SIMD_1)(__VA_ARGS__)
-
 namespace sek::math::detail
 {
 	template<typename T, std::size_t N>
@@ -184,7 +175,7 @@ namespace sek::math::detail
 		template<std::size_t M>
 		constexpr explicit vector_data(const float (&data)[M]) noexcept
 		{
-			std::copy_n(data, min<std::size_t>(3, M), values);
+			for (std::size_t i = 0; i < min<std::size_t>(3, M); ++i) values[i] = data[i];
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
@@ -202,7 +193,7 @@ namespace sek::math::detail
 		template<std::size_t M>
 		constexpr explicit vector_data(const float (&data)[M]) noexcept
 		{
-			std::copy_n(data, min<std::size_t>(4, M), values);
+			for (std::size_t i = 0; i < min<std::size_t>(4, M); ++i) values[i] = data[i];
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
@@ -291,7 +282,7 @@ namespace sek::math::detail
 		template<std::size_t M>
 		constexpr explicit vector_data(const T (&data)[M]) noexcept
 		{
-			std::copy_n(data, min<std::size_t>(3, M), values);
+			for (std::size_t i = 0; i < min<std::size_t>(3, M); ++i) values[i] = data[i];
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
@@ -307,9 +298,9 @@ namespace sek::math::detail
 		constexpr vector_data(T x, T y, T z, T w) noexcept : values{x, y, z, w} {}
 
 		template<std::size_t M>
-		constexpr explicit vector_data(const double (&data)[M]) noexcept
+		constexpr explicit vector_data(const T (&data)[M]) noexcept
 		{
-			std::copy_n(data, min<std::size_t>(4, M), values);
+			for (std::size_t i = 0; i < min<std::size_t>(4, M); ++i) values[i] = data[i];
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
@@ -353,7 +344,7 @@ namespace sek::math::detail
 		template<std::size_t M>
 		constexpr explicit vector_data(const T (&data)[M]) noexcept
 		{
-			std::copy_n(data, min<std::size_t>(2, M), values);
+			for (std::size_t i = 0; i < min<std::size_t>(2, M); ++i) values[i] = data[i];
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
@@ -397,7 +388,7 @@ namespace sek::math::detail
 		template<std::size_t M>
 		constexpr explicit vector_data(const double (&data)[M]) noexcept
 		{
-			std::copy_n(data, min<std::size_t>(2, M), values);
+			for (std::size_t i = 0; i < min<std::size_t>(2, M); ++i) values[i] = data[i];
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
@@ -470,7 +461,7 @@ namespace sek::math::detail
 		template<std::size_t M>
 		constexpr explicit vector_data(const double (&data)[M]) noexcept
 		{
-			std::copy_n(data, min<std::size_t>(3, M), values);
+			for (std::size_t i = 0; i < min<std::size_t>(3, M); ++i) values[i] = data[i];
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
@@ -488,7 +479,7 @@ namespace sek::math::detail
 		template<std::size_t M>
 		constexpr explicit vector_data(const double (&data)[M]) noexcept
 		{
-			std::copy_n(data, min<std::size_t>(4, M), values);
+			for (std::size_t i = 0; i < min<std::size_t>(4, M); ++i) values[i] = data[i];
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
@@ -561,7 +552,7 @@ namespace sek::math::detail
 		template<std::size_t M>
 		constexpr explicit vector_data(const T (&data)[M]) noexcept
 		{
-			std::copy_n(data, min<std::size_t>(3, M), values);
+			for (std::size_t i = 0; i < min<std::size_t>(3, M); ++i) values[i] = data[i];
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
@@ -577,9 +568,9 @@ namespace sek::math::detail
 		constexpr vector_data(T x, T y, T z, T w) noexcept : values{x, y, z, w} {}
 
 		template<std::size_t M>
-		constexpr explicit vector_data(const double (&data)[M]) noexcept
+		constexpr explicit vector_data(const T (&data)[M]) noexcept
 		{
-			std::copy_n(data, min<std::size_t>(4, M), values);
+			for (std::size_t i = 0; i < min<std::size_t>(4, M); ++i) values[i] = data[i];
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }

@@ -4,9 +4,10 @@
 
 #pragma once
 
+/* Type definition & function declarations. */
 #include "vector/type.hpp"
 
-/* vector & mask function definitions. */
+/* Function definitions. */
 #include "vector/func/arithmetic.hpp"
 #include "vector/func/bitwise.hpp"
 #include "vector/func/category.hpp"
