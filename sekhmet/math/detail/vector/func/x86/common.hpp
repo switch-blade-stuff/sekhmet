@@ -119,7 +119,7 @@ namespace sek::math::detail
 	template<>
 	struct mask_get<std::uint32_t>
 	{
-		constexpr bool operator()(std::uint32_t &v) const noexcept { return v; }
+		constexpr bool operator()(auto &v) const noexcept { return v; }
 	};
 
 	template<>
@@ -225,7 +225,7 @@ namespace sek::math::detail
 	template<>
 	struct mask_get<std::uint64_t>
 	{
-		constexpr bool operator()(std::uint64_t &v) const noexcept { return v; }
+		constexpr bool operator()(auto &v) const noexcept { return v; }
 	};
 
 	template<integral_of_size<4> T>

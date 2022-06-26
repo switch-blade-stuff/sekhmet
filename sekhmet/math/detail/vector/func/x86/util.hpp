@@ -169,7 +169,7 @@ namespace sek::math::detail
 #ifndef SEK_USE_AVX
 	template<std::size_t N, std::size_t I0, std::size_t I1, std::size_t... Is>
 	inline void mask_shuffle(simd_mask<double, N> &out, const simd_mask<double, 2> &m, std::index_sequence<I0, I1, Is...>) noexcept
-		requires simd_enabled<simd_mask<double, N>>
+		requires(N != 2 && simd_enabled<simd_mask<double, N>> && simd_enabled<simd_mask<double, 2>>)
 	{
 		constexpr auto mask0 = x86_128_shuffle2_mask(std::index_sequence<I0, I1>{});
 		constexpr auto mask1 = x86_128_shuffle2_mask(std::index_sequence<Is...>{});
@@ -179,7 +179,7 @@ namespace sek::math::detail
 
 	template<std::size_t N, std::size_t I0, std::size_t I1, std::size_t... Is>
 	inline void vector_shuffle(simd_vector<double, N> &out, const simd_vector<double, 2> &v, std::index_sequence<I0, I1, Is...>) noexcept
-		requires simd_enabled<simd_vector<double, N>>
+		requires(N != 2 && simd_enabled<simd_vector<double, N>> && simd_enabled<simd_vector<double, 2>>)
 	{
 		constexpr auto mask0 = x86_128_shuffle2_mask(std::index_sequence<I0, I1>{});
 		constexpr auto mask1 = x86_128_shuffle2_mask(std::index_sequence<Is...>{});

@@ -86,6 +86,7 @@ namespace sek::math::detail
 
 		template<typename U>
 		constexpr mask_element &operator=(U value) noexcept
+			requires(!std::is_const_v<T>)
 		{
 			set(*m_ref, std::move(value));
 			return *this;

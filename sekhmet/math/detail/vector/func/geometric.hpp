@@ -22,7 +22,7 @@ namespace sek::math
 			constexpr T vector_dot(const vector_data<T, N, P> &l, const vector_data<T, N, P> &r) noexcept
 			{
 				T result = {};
-				vector_unwrap<N>([&](auto i) { result += l[i] * r[i]; });
+				for (std::size_t i = 0; i < N; ++i) result += l[i] * r[i];
 				return result;
 			}
 			template<typename T, storage_policy P>
@@ -36,10 +36,10 @@ namespace sek::math
 			constexpr void vector_norm(vector_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
 			{
 				const auto r = static_cast<T>(std::sqrt(vector_dot(v, v)));
-				vector_unwrap<N>([&](auto i) { out[i] = v[i] / r; });
+				for (std::size_t i = 0; i < N; ++i) out[i] = v[i] / r;
 			}
-		}
-	}
+		}	 // namespace generic
+	}		 // namespace detail
 
 	// clang-format off
 	/** Calculates linear interpolation or extrapolation between two vectors. Equivalent to `l + t * (r - l)`. */
