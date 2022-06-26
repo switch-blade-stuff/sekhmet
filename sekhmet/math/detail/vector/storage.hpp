@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "sekhmet/detail/define.h"
 #include "sekhmet/detail/hash.hpp"
 
 #include "fwd.hpp"

@@ -8,8 +8,7 @@
 #include <limits>
 #include <numbers>
 
-#include "sekhmet/detail/define.h"
-
+#include "define.hpp"
 #include <type_traits>
 
 namespace sek::math
