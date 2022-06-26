@@ -14,7 +14,7 @@
 #include "func/geometric.hpp"
 #include "func/relational.hpp"
 #include "func/trigonometric.hpp"
-#include "func/utility.hpp"
+#include "func/util.hpp"
 
 #define SEK_DETAIL_VECTOR_MASK_COMMON(T, N, P)                                                                         \
 private:                                                                                                               \

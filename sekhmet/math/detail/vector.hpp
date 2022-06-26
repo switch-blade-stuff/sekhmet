@@ -32,4 +32,4 @@
 #include "vector/func/geometric_impl.hpp"
 #include "vector/func/relational_impl.hpp"
 #include "vector/func/trigonometric_impl.hpp"
-#include "vector/func/utility_impl.hpp"
+#include "vector/func/util_impl.hpp"
