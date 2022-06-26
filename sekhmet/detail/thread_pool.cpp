@@ -31,9 +31,31 @@ namespace sek
 	thread_pool::control_block::~control_block()
 	{
 		/* Workers should be terminated by now, no need to destroy them again. */
-		task_alloc.upstream_resource()->deallocate(workers_data, workers_capacity * sizeof(worker_t), alignof(worker_t));
+		::operator delete[](static_cast<void *>(workers_data), workers_capacity * sizeof(worker_t));
 		for (auto task = queue_head.front, end = queue_head.back; task != end;)
 			delete_task(static_cast<task_base *>(std::exchange(task, task->next)));	   // NOLINT
+	}
+
+	void thread_pool::control_block::destroy_workers(worker_t *first, worker_t *last)
+	{
+		std::destroy(first, last);
+		cv.notify_all();
+	}
+	void thread_pool::control_block::realloc_workers(std::size_t n)
+	{
+		auto new_workers = static_cast<worker_t *>(::operator new[](n * sizeof(worker_t)));
+		if (workers_data)
+		{
+			for (auto src = workers_data, end = workers_data + workers_count, dst = new_workers; src < end; ++src, ++dst)
+			{
+				std::construct_at(dst, std::move(*src));
+				std::destroy_at(src);
+			}
+			::operator delete[](static_cast<void *>(workers_data), n * sizeof(worker_t));
+		}
+
+		workers_data = new_workers;
+		workers_capacity = n;
 	}
 
 	void thread_pool::control_block::resize(std::size_t n)
@@ -54,6 +76,12 @@ namespace sek
 		workers_count = n;
 	}
 	void thread_pool::control_block::terminate() { destroy_workers(workers_data, workers_data + workers_count); }
+	void thread_pool::control_block::acquire() { ref_count++; }
+	void thread_pool::control_block::release()
+	{
+		if (ref_count-- == 1) [[unlikely]]
+			delete this;
+	}
 
 	void thread_pool::worker_t::thread_main(std::stop_token st, control_block *cb) noexcept
 	{

@@ -15,7 +15,6 @@
 
 #ifdef SEK_GETRANDOM
 
-#include <linux/random.h>
 #include <sys/syscall.h>
 
 ssize_t sek::math::sys_random(void *dst, std::size_t len) noexcept { return syscall(SYS_getrandom, dst, len, 0); }

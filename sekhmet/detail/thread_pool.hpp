@@ -183,6 +183,8 @@ namespace sek
 
 			SEK_API void resize(std::size_t n);
 			SEK_API void terminate();
+			SEK_API void acquire();
+			SEK_API void release();
 
 			template<typename T, typename F>
 			std::future<T> schedule(std::promise<T> &&promise, F &&task)
@@ -204,33 +206,8 @@ namespace sek
 				return result;
 			}
 
-			void realloc_workers(std::size_t n)
-			{
-				auto alloc = task_alloc.upstream_resource();
-
-				auto new_workers = static_cast<worker_t *>(alloc->allocate(n * sizeof(worker_t), alignof(worker_t)));
-				if (!new_workers) [[unlikely]]
-					throw std::bad_alloc();
-
-				/* Move old workers if there are any. */
-				if (workers_data)
-				{
-					for (auto src = workers_data, end = workers_data + workers_count, dst = new_workers; src < end; ++src, ++dst)
-					{
-						std::construct_at(dst, std::move(*src));
-						std::destroy_at(src);
-					}
-					alloc->deallocate(workers_data, workers_capacity * sizeof(worker_t), alignof(worker_t));
-				}
-
-				workers_data = new_workers;
-				workers_capacity = n;
-			}
-			void destroy_workers(worker_t *first, worker_t *last)
-			{
-				std::destroy(first, last);
-				cv.notify_all();
-			}
+			void destroy_workers(worker_t *first, worker_t *last);
+			void realloc_workers(std::size_t n);
 
 			task_base *pop_task() noexcept
 			{
@@ -238,16 +215,6 @@ namespace sek
 				return static_cast<task_base *>((dispatch_mode == fifo ? queue_head.back : queue_head.front)->unlink());
 			}
 			void delete_task(task_base *task) { task->destroy(&task_alloc); }
-
-			void acquire() { ref_count++; }
-			void release()
-			{
-				if (ref_count-- == 1) [[unlikely]]
-				{
-					std::destroy_at(this);
-					task_alloc.upstream_resource()->deallocate(this, sizeof(control_block), alignof(control_block));
-				}
-			}
 
 			std::pmr::unsynchronized_pool_resource task_alloc;
 			std::atomic<std::size_t> ref_count = 1;
@@ -279,7 +246,7 @@ namespace sek
 		{
 		}
 		/** @copydoc thread_pool
-		 * @param res Memory resource used to allocate internal state. */
+		 * @param res Memory resource used to allocate tasks. */
 		thread_pool(std::pmr::memory_resource *res, std::size_t n, queue_mode mode = fifo)
 			: m_cb(control_block::make_control_block(res, n, mode))
 		{
