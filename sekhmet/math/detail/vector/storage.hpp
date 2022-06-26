@@ -73,6 +73,9 @@ namespace sek::math::detail
 
 		constexpr mask_element(T &ref) noexcept : m_ref(&ref) {}
 
+		constexpr static void set(auto &ref, auto &&value) { mask_set<std::remove_const_t<T>>{}(ref, value); }
+		constexpr static bool get(auto &ref) { return mask_get<std::remove_const_t<T>>{}(ref); }
+
 	public:
 		mask_element() = delete;
 		mask_element &operator=(const mask_element &) = delete;
@@ -84,11 +87,11 @@ namespace sek::math::detail
 		template<typename U>
 		constexpr mask_element &operator=(U value) noexcept
 		{
-			detail::mask_set<T>{}(*m_ref, std::move(value));
+			set(*m_ref, std::move(value));
 			return *this;
 		}
 
-		[[nodiscard]] constexpr operator bool() const noexcept { return detail::mask_get<T>{}(*m_ref); }
+		[[nodiscard]] constexpr operator bool() const noexcept { return get(*m_ref); }
 
 	private:
 		T *m_ref;

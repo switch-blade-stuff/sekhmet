@@ -8,13 +8,14 @@
 #include "storage.hpp"
 
 /* vector & mask function declarations. */
-#include "func/arithmetic.hpp"
-#include "func/bitwise.hpp"
-#include "func/category.hpp"
-#include "func/geometric.hpp"
-#include "func/relational.hpp"
-#include "func/trigonometric.hpp"
-#include "func/util.hpp"
+#include "func/arithmetic_fwd.hpp"
+#include "func/bitwise_fwd.hpp"
+#include "func/category_fwd.hpp"
+#include "func/exponential_fwd.hpp"
+#include "func/geometric_fwd.hpp"
+#include "func/relational_fwd.hpp"
+#include "func/trigonometric_fwd.hpp"
+#include "func/util_fwd.hpp"
 
 #define SEK_DETAIL_VECTOR_MASK_COMMON(T, N, P)                                                                         \
 private:                                                                                                               \
@@ -90,6 +91,7 @@ private:                                                                        
 	SEK_DETAIL_FRIEND_TRIGONOMETRIC                                                                                    \
 	SEK_DETAIL_FRIEND_BITWISE                                                                                          \
 	SEK_DETAIL_FRIEND_GEOMETRIC                                                                                        \
+	SEK_DETAIL_FRIEND_EXPONENTIAL                                                                                      \
                                                                                                                        \
 public:                                                                                                                \
 	typedef T value_type;                                                                                              \
