@@ -55,19 +55,6 @@ private:                                                                        
 	friend constexpr basic_vec<U, M, Sp> interleave(                                                                              \
 		const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;                \
                                                                                                                                   \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr basic_vec<U, M, Sp> &operator&=(basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;      \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr basic_vec<U, M, Sp> operator&(const basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;  \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr basic_vec<U, M, Sp> &operator|=(basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;      \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr basic_vec<U, M, Sp> operator|(const basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;  \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr basic_vec<U, M, Sp> operator^(const basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;  \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr basic_vec<U, M, Sp> &operator^=(basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;      \
-                                                                                                                                  \
 	template<typename U, std::size_t M, storage_policy Sp>                                                                        \
 	friend constexpr vec_mask<basic_vec<U, M, Sp>> operator==(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept; \
 	template<typename U, std::size_t M, storage_policy Sp>                                                                        \

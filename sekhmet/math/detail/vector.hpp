@@ -73,19 +73,6 @@ private:                                                                        
 	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
 	friend constexpr basic_vec<U, M, Sp> operator~(const basic_vec<U, M, Sp> &) noexcept;                                         \
                                                                                                                                   \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr basic_vec<U, M, Sp> &operator&=(basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;      \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr basic_vec<U, M, Sp> operator&(const basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;  \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr basic_vec<U, M, Sp> &operator|=(basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;      \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr basic_vec<U, M, Sp> operator|(const basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;  \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr basic_vec<U, M, Sp> operator^(const basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;  \
-	template<std::integral U, std::size_t M, storage_policy Sp>                                                                   \
-	friend constexpr basic_vec<U, M, Sp> &operator^=(basic_vec<U, M, Sp> &, const vec_mask<basic_vec<U, M, Sp>> &) noexcept;      \
-                                                                                                                                  \
 	template<typename U, std::size_t M, storage_policy Sp>                                                                        \
 	friend constexpr basic_vec<U, M, Sp> operator+(const basic_vec<U, M, Sp> &) noexcept                                          \
 		requires std::is_signed_v<U>                                                                                              \
@@ -1011,73 +998,6 @@ namespace sek::math
 		else
 			detail::vector_inv(result.m_data, v.m_data);
 		return result;
-	}
-
-	/** Preforms a bitwise AND on a vector and a mask. */
-	template<std::integral U, std::size_t M, storage_policy Sp>
-	constexpr basic_vec<U, M, Sp> &operator&=(basic_vec<U, M, Sp> &l, const vec_mask<basic_vec<U, M, Sp>> &r) noexcept
-	{
-		if (std::is_constant_evaluated())
-			detail::generic::vector_and(l.m_data, l.m_data, r.m_data);
-		else
-			detail::vector_and(l.m_data, l.m_data, r.m_data);
-		return l;
-	}
-	/** Returns a vector which is the result of bitwise AND of a vector and a mask. */
-	template<std::integral U, std::size_t M, storage_policy Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator&(const basic_vec<U, M, Sp> &l,
-														  const vec_mask<basic_vec<U, M, Sp>> &r) noexcept
-	{
-		basic_vec<U, M, Sp> result;
-		if (std::is_constant_evaluated())
-			detail::generic::vector_and(result.m_data, l.m_data, r.m_data);
-		else
-			detail::vector_and(result.m_data, l.m_data, r.m_data);
-		return result;
-	}
-	/** Preforms a bitwise OR on a vector and a mask. */
-	template<std::integral U, std::size_t M, storage_policy Sp>
-	constexpr basic_vec<U, M, Sp> &operator|=(basic_vec<U, M, Sp> &l, const vec_mask<basic_vec<U, M, Sp>> &r) noexcept
-	{
-		if (std::is_constant_evaluated())
-			detail::generic::vector_or(l.m_data, l.m_data, r.m_data);
-		else
-			detail::vector_or(l.m_data, l.m_data, r.m_data);
-		return l;
-	}
-	/** Returns a vector which is the result of bitwise OR of a vector and a mask. */
-	template<std::integral U, std::size_t M, storage_policy Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator|(const basic_vec<U, M, Sp> &l,
-														  const vec_mask<basic_vec<U, M, Sp>> &r) noexcept
-	{
-		basic_vec<U, M, Sp> result;
-		if (std::is_constant_evaluated())
-			detail::generic::vector_or(result.m_data, l.m_data, r.m_data);
-		else
-			detail::vector_or(result.m_data, l.m_data, r.m_data);
-		return result;
-	}
-	/** Returns a vector which is the result of bitwise XOR of a vector and a mask. */
-	template<std::integral U, std::size_t M, storage_policy Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator^(const basic_vec<U, M, Sp> &l,
-														  const vec_mask<basic_vec<U, M, Sp>> &r) noexcept
-	{
-		basic_vec<U, M, Sp> result;
-		if (std::is_constant_evaluated())
-			detail::generic::vector_xor(result.m_data, l.m_data, r.m_data);
-		else
-			detail::vector_xor(result.m_data, l.m_data, r.m_data);
-		return result;
-	}
-	/** Preforms a bitwise XOR on a vector and a mask. */
-	template<std::integral U, std::size_t M, storage_policy Sp>
-	constexpr basic_vec<U, M, Sp> &operator^=(basic_vec<U, M, Sp> &l, const vec_mask<basic_vec<U, M, Sp>> &r) noexcept
-	{
-		if (std::is_constant_evaluated())
-			detail::generic::vector_xor(l.m_data, l.m_data, r.m_data);
-		else
-			detail::vector_xor(l.m_data, l.m_data, r.m_data);
-		return l;
 	}
 
 	/** Calculates dot product of two vectors. */
