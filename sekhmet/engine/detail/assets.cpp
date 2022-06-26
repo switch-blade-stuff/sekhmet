@@ -518,7 +518,7 @@ namespace sek::engine
 		m_packages.clear();
 	}
 
-	void asset_database::override_erase(typename packages_t::const_iterator first, typename packages_t::const_iterator last)
+	void asset_database::restore_overrides(typename packages_t::const_iterator first, typename packages_t::const_iterator last)
 	{
 		auto &uuid_table = m_assets.uuid_table;
 		auto &name_table = m_assets.name_table;
@@ -581,11 +581,11 @@ namespace sek::engine
 	typename asset_database::packages_t::const_iterator asset_database::erase_pkg(typename packages_t::const_iterator first,
 																				  typename packages_t::const_iterator last)
 	{
-		override_erase(first, last);
+		restore_overrides(first, last);
 		return m_packages.erase(first, last);
 	}
 
-	void asset_database::override_insert(typename packages_t::const_iterator where)
+	void asset_database::insert_overrides(typename packages_t::const_iterator where)
 	{
 		auto can_override = [&](detail::package_info *parent)
 		{
@@ -623,14 +623,14 @@ namespace sek::engine
 																				   const asset_package &pkg)
 	{
 		auto result = m_packages.insert(where, pkg);
-		override_insert(result);
+		insert_overrides(result);
 		return result;
 	}
 	typename asset_database::packages_t::const_iterator asset_database::insert_pkg(typename packages_t::const_iterator where,
 																				   asset_package &&pkg)
 	{
 		auto result = m_packages.insert(where, std::forward<asset_package>(pkg));
-		override_insert(result);
+		insert_overrides(result);
 		return result;
 	}
 }	 // namespace sek::engine

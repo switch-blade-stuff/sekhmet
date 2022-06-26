@@ -793,13 +793,13 @@ namespace sek::engine
 	 * @note Any modifications to the load order of the packages will trigger an update of the
 	 * parent database's asset tables.
 	 * @warning Proxy may not outlive parent database. */
-	template<typename...>
+	template<bool Mutable>
 	class package_proxy;
 
 	/** @brief Service used to manage global database of assets and asset packages. */
 	class asset_database : public service<detail::database_guard>
 	{
-		template<typename...>
+		template<bool>
 		friend class package_proxy;
 
 		friend detail::database_guard;
@@ -876,7 +876,7 @@ namespace sek::engine
 		[[nodiscard]] constexpr auto packages() const noexcept;
 
 	protected:
-		void override_erase(typename packages_t::const_iterator, typename packages_t::const_iterator);
+		void restore_overrides(typename packages_t::const_iterator, typename packages_t::const_iterator);
 		SEK_API typename packages_t::const_iterator erase_pkg(typename packages_t::const_iterator,
 															  typename packages_t::const_iterator);
 		typename packages_t::const_iterator erase_pkg(typename packages_t::const_iterator where)
@@ -884,7 +884,7 @@ namespace sek::engine
 			return erase_pkg(where, std::next(where));
 		}
 
-		void override_insert(typename packages_t::const_iterator);
+		void insert_overrides(typename packages_t::const_iterator);
 		SEK_API typename packages_t::const_iterator insert_pkg(typename packages_t::const_iterator, const asset_package &);
 		SEK_API typename packages_t::const_iterator insert_pkg(typename packages_t::const_iterator, asset_package &&);
 
@@ -893,7 +893,7 @@ namespace sek::engine
 	};
 
 	template<>
-	class package_proxy<const asset_database>
+	class package_proxy<false>
 	{
 		friend class asset_database;
 
@@ -924,10 +924,10 @@ namespace sek::engine
 		constexpr package_proxy &operator=(const package_proxy &) noexcept = default;
 		constexpr package_proxy &operator=(package_proxy &&) noexcept = default;
 
-		constexpr package_proxy(const package_proxy<asset_database> &other) noexcept;
-		constexpr package_proxy(package_proxy<asset_database> &&other) noexcept;
-		constexpr package_proxy &operator=(const package_proxy<asset_database> &other) noexcept;
-		constexpr package_proxy &operator=(package_proxy<asset_database> &&other) noexcept;
+		constexpr package_proxy(const package_proxy<true> &other) noexcept;
+		constexpr package_proxy(package_proxy<true> &&other) noexcept;
+		constexpr package_proxy &operator=(const package_proxy<true> &other) noexcept;
+		constexpr package_proxy &operator=(package_proxy<true> &&other) noexcept;
 
 		/** Returns iterator to the first package. */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return packages().cbegin(); }
@@ -970,11 +970,11 @@ namespace sek::engine
 		[[nodiscard]] constexpr const packages_t &packages() const noexcept { return m_parent->m_packages; }
 	};
 	template<>
-	class package_proxy<asset_database> : public package_proxy<const asset_database>
+	class package_proxy<true> : public package_proxy<false>
 	{
 		friend class asset_database;
 
-		using base_t = package_proxy<const asset_database>;
+		using base_t = package_proxy<false>;
 
 	public:
 		typedef typename base_t::value_type value_type;
@@ -1034,31 +1034,23 @@ namespace sek::engine
 		[[nodiscard]] constexpr typename base_t::packages_t &packages() const noexcept { return parent()->m_packages; }
 	};
 
-	// clang-format off
-	constexpr package_proxy<const asset_database>::package_proxy(const package_proxy<asset_database> &other) noexcept
-		: m_parent(other.m_parent)
+	constexpr package_proxy<false>::package_proxy(const package_proxy<true> &other) noexcept : m_parent(other.m_parent)
 	{
 	}
-	constexpr package_proxy<const asset_database>::package_proxy(package_proxy<asset_database> &&other) noexcept
-		: m_parent(other.m_parent)
-	{
-	}
-	constexpr package_proxy<const asset_database> &package_proxy<const asset_database>::
-	    operator=(const package_proxy<asset_database> &other) noexcept
+	constexpr package_proxy<false>::package_proxy(package_proxy<true> &&other) noexcept : m_parent(other.m_parent) {}
+	constexpr package_proxy<false> &package_proxy<false>::operator=(const package_proxy<true> &other) noexcept
 	{
 		m_parent = other.m_parent;
 		return *this;
 	}
-	constexpr package_proxy<const asset_database> &package_proxy<const asset_database>::
-	    operator=(package_proxy<asset_database> &&other) noexcept
+	constexpr package_proxy<false> &package_proxy<false>::operator=(package_proxy<true> &&other) noexcept
 	{
 		m_parent = other.m_parent;
 		return *this;
 	}
-	// clang-format on
 
-	constexpr auto asset_database::packages() noexcept { return package_proxy<asset_database>{*this}; }
-	constexpr auto asset_database::packages() const noexcept { return package_proxy<const asset_database>{*this}; }
+	constexpr auto asset_database::packages() noexcept { return package_proxy<true>{*this}; }
+	constexpr auto asset_database::packages() const noexcept { return package_proxy<false>{*this}; }
 }	 // namespace sek::engine
 
 extern template class SEK_API_IMPORT sek::service<sek::engine::detail::database_guard>;
