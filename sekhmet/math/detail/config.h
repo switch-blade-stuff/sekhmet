@@ -13,6 +13,9 @@
 #ifdef SEK_USE_AVX
 #undef SEK_USE_AVX
 #endif
+#ifdef SEK_USE_FMA
+#undef SEK_USE_FMA
+#endif
 #endif
 
 #if defined(SEK_USE_SSE) && (!defined(__SSE__))
@@ -42,4 +45,8 @@
 #endif
 #if defined(SEK_USE_AVX2) && (!defined(__AVX2__) || !defined(SEK_USE_AVX))
 #undef SEK_USE_AVX2
+#endif
+
+#if defined(SEK_USE_FMA) && !defined(__FMA__)
+#undef SEK_USE_FMA
 #endif

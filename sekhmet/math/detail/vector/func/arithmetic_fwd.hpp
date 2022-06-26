@@ -6,7 +6,7 @@
 
 #include "../fwd.hpp"
 
-#define SEK_DETAIL_FRIEND_ARITHMETIC                                                                                 \
+#define SEK_DETAIL_FRIEND_ARITHMETIC                                                                                   \
 	template<typename U, std::size_t M, storage_policy Sp>                                                             \
 	friend constexpr basic_vec<U, M, Sp> operator+(const basic_vec<U, M, Sp> &) noexcept                               \
 		requires std::is_signed_v<U>                                                                                   \
@@ -42,7 +42,14 @@
 	template<typename U, std::size_t M, storage_policy Sp>                                                             \
 	friend constexpr basic_vec<U, M, Sp> &operator%=(basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;     \
 	template<std::floating_point U, std::size_t M, storage_policy Sp>                                                  \
-	friend constexpr basic_vec<U, M, Sp> fmod(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;
+	friend constexpr basic_vec<U, M, Sp> fmod(const basic_vec<U, M, Sp> &, const basic_vec<U, M, Sp> &) noexcept;      \
+                                                                                                                       \
+	template<typename U, std::size_t M, storage_policy Sp>                                                             \
+	friend constexpr basic_vec<U, M, Sp> fmadd(                                                                        \
+		const basic_vec<U, M, Sp> &a, const basic_vec<U, M, Sp> &b, const basic_vec<U, M, Sp> &c) noexcept;            \
+	template<typename U, std::size_t M, storage_policy Sp>                                                             \
+	friend constexpr basic_vec<U, M, Sp> fmsub(                                                                        \
+		const basic_vec<U, M, Sp> &a, const basic_vec<U, M, Sp> &b, const basic_vec<U, M, Sp> &c) noexcept;
 
 namespace sek::math
 {
@@ -97,4 +104,11 @@ namespace sek::math
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> fmod(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept;
 	template<std::floating_point U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> fmod(const basic_vec<U, M, Sp> &l, U r) noexcept;
+
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp>
+		fmadd(const basic_vec<U, M, Sp> &a, const basic_vec<U, M, Sp> &b, const basic_vec<U, M, Sp> &c) noexcept;
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp>
+		fmsub(const basic_vec<U, M, Sp> &a, const basic_vec<U, M, Sp> &b, const basic_vec<U, M, Sp> &c) noexcept;
 }	 // namespace sek::math

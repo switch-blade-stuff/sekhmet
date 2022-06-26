@@ -60,6 +60,25 @@ namespace sek::math
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = static_cast<T>(std::abs(v[i]));
 			}
+
+			template<typename T, std::size_t N, storage_policy P>
+			constexpr void vector_fmadd(vector_data<T, N, P> &out,
+										const vector_data<T, N, P> &a,
+										const vector_data<T, N, P> &b,
+										const vector_data<T, N, P> &c) noexcept
+			{
+				vector_mul(out, a, b);
+				vector_add(out, out, c);
+			}
+			template<typename T, std::size_t N, storage_policy P>
+			constexpr void vector_fmsub(vector_data<T, N, P> &out,
+										const vector_data<T, N, P> &a,
+										const vector_data<T, N, P> &b,
+										const vector_data<T, N, P> &c) noexcept
+			{
+				vector_mul(out, a, b);
+				vector_sub(out, out, c);
+			}
 		}	 // namespace generic
 	}		 // namespace detail
 
@@ -266,6 +285,31 @@ namespace sek::math
 			detail::generic::vector_abs(result.m_data, v.m_data);
 		else
 			detail::vector_abs(result.m_data, v.m_data);
+		return result;
+	}
+
+	/** Preforms a multiply-add operation on elements of vectors `a`, `b` and `c`. Equivalent to `(a * b) + c`. */
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp>
+		fmadd(const basic_vec<U, M, Sp> &a, const basic_vec<U, M, Sp> &b, const basic_vec<U, M, Sp> &c) noexcept
+	{
+		basic_vec<U, M, Sp> result;
+		if (std::is_constant_evaluated())
+			detail::generic::vector_fmadd(result.m_data, a.m_data, b.m_data, c.m_data);
+		else
+			detail::vector_fmadd(result.m_data, a.m_data, b.m_data, c.m_data);
+		return result;
+	}
+	/** Preforms a multiply-subtract operation on elements of vectors `a`, `b` and `c`. Equivalent to `(a * b) - c`. */
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp>
+		fmsub(const basic_vec<U, M, Sp> &a, const basic_vec<U, M, Sp> &b, const basic_vec<U, M, Sp> &c) noexcept
+	{
+		basic_vec<U, M, Sp> result;
+		if (std::is_constant_evaluated())
+			detail::generic::vector_fmsub(result.m_data, a.m_data, b.m_data, c.m_data);
+		else
+			detail::vector_fmsub(result.m_data, a.m_data, b.m_data, c.m_data);
 		return result;
 	}
 }	 // namespace sek::math

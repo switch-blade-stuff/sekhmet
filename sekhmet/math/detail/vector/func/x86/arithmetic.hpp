@@ -47,6 +47,27 @@ namespace sek::math::detail
 		out.simd = _mm_and_ps(_mm_set1_ps(mask), v.simd);
 	}
 
+#ifdef SEK_USE_FMA
+	template<std::size_t N>
+	inline void vector_fmadd(simd_vector<float, N> &out,
+							 const simd_vector<float, N> &a,
+							 const simd_vector<float, N> &b,
+							 const simd_vector<float, N> &c) noexcept
+		requires simd_enabled<simd_vector<float, N>>
+	{
+		out.simd = _mm_fmadd_ps(a.simd, b.simd, c.simd);
+	}
+	template<std::size_t N>
+	inline void vector_fmsub(simd_vector<float, N> &out,
+							 const simd_vector<float, N> &a,
+							 const simd_vector<float, N> &b,
+							 const simd_vector<float, N> &c) noexcept
+		requires simd_enabled<simd_vector<float, N>>
+	{
+		out.simd = _mm_fmsub_ps(a.simd, b.simd, c.simd);
+	}
+#endif
+
 #ifdef SEK_USE_SSE2
 	inline void vector_add(simd_vector<double, 2> &out, const simd_vector<double, 2> &l, const simd_vector<double, 2> &r) noexcept
 	{
@@ -73,6 +94,23 @@ namespace sek::math::detail
 		constexpr auto mask = std::bit_cast<double>(0x7fff'ffff'ffff'ffff);
 		out.simd = _mm_and_pd(_mm_set1_pd(mask), v.simd);
 	}
+
+#ifdef SEK_USE_FMA
+	inline void vector_fmadd(simd_vector<double, 2> &out,
+							 const simd_vector<double, 2> &a,
+							 const simd_vector<double, 2> &b,
+							 const simd_vector<double, 2> &c) noexcept
+	{
+		out.simd = _mm_fmadd_pd(a.simd, b.simd, c.simd);
+	}
+	inline void vector_fmsub(simd_vector<double, 2> &out,
+							 const simd_vector<double, 2> &a,
+							 const simd_vector<double, 2> &b,
+							 const simd_vector<double, 2> &c) noexcept
+	{
+		out.simd = _mm_fmsub_pd(a.simd, b.simd, c.simd);
+	}
+#endif
 
 	template<integral_of_size<4> T, std::size_t N>
 	inline void vector_add(simd_vector<T, N> &out, const simd_vector<T, N> &l, const simd_vector<T, N> &r) noexcept
@@ -163,6 +201,29 @@ namespace sek::math::detail
 		out.simd[0] = _mm_and_pd(m, v.simd[0]);
 		out.simd[1] = _mm_and_pd(m, v.simd[1]);
 	}
+
+#ifdef SEK_USE_FMA
+	template<std::size_t N>
+	inline void vector_fmadd(simd_vector<double, N> &out,
+							 const simd_vector<double, N> &a,
+							 const simd_vector<double, N> &b,
+							 const simd_vector<double, N> &c) noexcept
+		requires simd_enabled<simd_vector<double, N>>
+	{
+		out.simd[0] = _mm_fmadd_ps(a.simd[0], b.simd[0], c.simd[0]);
+		out.simd[1] = _mm_fmadd_ps(a.simd[1], b.simd[1], c.simd[1]);
+	}
+	template<std::size_t N>
+	inline void vector_fmsub(simd_vector<double, N> &out,
+							 const simd_vector<double, N> &a,
+							 const simd_vector<double, N> &b,
+							 const simd_vector<double, N> &c) noexcept
+		requires simd_enabled<simd_vector<double, N>>
+	{
+		out.simd[0] = _mm_fmsub_ps(a.simd[0], b.simd[0], c.simd[0]);
+		out.simd[1] = _mm_fmsub_ps(a.simd[1], b.simd[1], c.simd[1]);
+	}
+#endif
 
 #ifndef SEK_USE_AVX2
 	template<integral_of_size<8> T, std::size_t N>
