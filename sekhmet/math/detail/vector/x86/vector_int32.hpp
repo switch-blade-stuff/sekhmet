@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "../util.hpp"
 #include "common.hpp"
 #include "mask_int32.hpp"
 

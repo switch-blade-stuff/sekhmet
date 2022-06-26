@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "../util.hpp"
 #include "common.hpp"
 
 #ifdef SEK_USE_SSE

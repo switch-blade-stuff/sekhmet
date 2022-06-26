@@ -8,7 +8,7 @@
 
 #include "sekhmet/detail/define.h"
 
-#include "../util.hpp"
+#include "../storage.hpp"
 
 #ifdef SEK_ARCH_x86
 

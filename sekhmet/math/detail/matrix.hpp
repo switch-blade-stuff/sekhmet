@@ -4,9 +4,6 @@
 
 #pragma once
 
-#include "sekhmet/detail/hash.hpp"
-
-#include "util.hpp"
 #include "vector.hpp"
 
 #define SEK_DETAIL_MATRIX_COMMON(T, N, M, P)                                                                           \

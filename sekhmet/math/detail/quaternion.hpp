@@ -11,7 +11,7 @@
 #include "matrix3x.hpp"
 #include "vector.hpp"
 
-#define SEK_QUATERNION_GENERATE_SHUFFLE(...) SEK_DETAIL_SHUFFLE_4(SEK_DETAIL_Q_SHUFFLE, SEK_DETAIL_V_TYPE, __VA_ARGS__)
+#define SEK_QUATERNION_GENERATE_SHUFFLE(...) SEK_DETAIL_SHUFFLE_4(SEK_DETAIL_V_TYPE, __VA_ARGS__)
 
 namespace sek::math
 {

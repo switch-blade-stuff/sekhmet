@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "../storage.hpp"
-#include "../util.hpp"
+#include "sekhmet/math/detail/util.hpp"
+#include "sekhmet/math/detail/vector/storage.hpp"
 
 namespace sek::math::detail
 {

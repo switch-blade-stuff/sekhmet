@@ -4,9 +4,6 @@
 
 #pragma once
 
-#include <bit>
-
-#include "../util.hpp"
 #include "common.hpp"
 #include "mask_double.hpp"
 
