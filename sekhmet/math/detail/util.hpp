@@ -73,7 +73,7 @@ namespace sek::math
 			return detail::slow_msb(i);
 		else
 		{
-			i |= 1;
+			i |= 1; /* Avoid UB with 0. */
 #if defined(__clang__) || defined(__GNUC__)
 			if constexpr (sizeof(I) <= sizeof(unsigned int))
 				return static_cast<std::size_t>(__builtin_clz(static_cast<unsigned int>(i)));
@@ -107,7 +107,7 @@ namespace sek::math
 			return detail::slow_lsb(i);
 		else
 		{
-			i |= 1;
+			i |= 1; /* Avoid UB with 0. */
 #if defined(__clang__) || defined(__GNUC__)
 			if constexpr (sizeof(I) <= sizeof(unsigned int))
 				return static_cast<std::size_t>(__builtin_ctz(static_cast<unsigned int>(i)));
@@ -250,7 +250,7 @@ namespace sek::math
 	namespace detail
 	{
 		template<typename T0, typename T1, typename... Ts>
-		[[nodiscard]] constexpr std::common_type_t<T0, T1, Ts...> max_unwrap(T0 a, T1 b, Ts... vals) noexcept
+		[[nodiscard]] constexpr auto max_unwrap(T0 a, T1 b, Ts... vals) noexcept
 		{
 			using T = std::common_type_t<T0, T1, Ts...>;
 			using U = std::common_type_t<T0, T1>;
@@ -264,7 +264,7 @@ namespace sek::math
 					return static_cast<T>(max_unwrap(b, vals...));
 			}
 		}
-		template<arithmetic T0, arithmetic T1, arithmetic... Ts>
+		template<typename T0, typename T1, typename... Ts>
 		[[nodiscard]] constexpr auto min_unwrap(T0 a, T1 b, Ts... vals) noexcept
 		{
 			using T = std::common_type_t<T0, T1, Ts...>;
