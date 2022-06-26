@@ -189,6 +189,19 @@ TEST(math_tests, vector_test)
 		EXPECT_TRUE(all(is_norm(v4f_mone)));
 	}
 	{
+		const auto v4f_0 = sek::math::fvec4{2};
+		const auto v4f_1 = sek::math::fvec4{4};
+		const auto v4f_2 = sek::math::fvec4{1};
+
+		auto v4f_3 = fmadd(v4f_0, v4f_1, v4f_2);
+		auto v4f_4 = (v4f_0 * v4f_1) + v4f_2;
+		EXPECT_TRUE(all(v4f_3 == v4f_4));
+
+		v4f_3 = fmsub(v4f_0, v4f_1, v4f_2);
+		v4f_4 = (v4f_0 * v4f_1) - v4f_2;
+		EXPECT_TRUE(all(v4f_3 == v4f_4));
+	}
+	{
 		constexpr auto x = 2.0f;
 		const auto v4f_0 = sek::math::fvec4{std::exp(x)};
 		const auto v4f_1 = exp(sek::math::fvec4{x});

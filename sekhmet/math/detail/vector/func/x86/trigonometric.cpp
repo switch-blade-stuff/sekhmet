@@ -4,8 +4,8 @@
 
 #include "trigonometric.hpp"
 
-/* Implementations of trigonometric functions derived from netlib's cephes library (http://www.netlib.org/cephes/).
- * Refactoring of http://gruntthepeon.free.fr/ssemath implementation for SSE1 & SSE2. */
+/* Implementations of trigonometric functions derived from netlib's cephes library (http://www.netlib.org/cephes/)
+ * Inspired by http://gruntthepeon.free.fr/ssemath */
 
 #ifdef SEK_USE_SSE2
 namespace sek::math::detail
@@ -42,29 +42,55 @@ namespace sek::math::detail
 		c = _mm_cmpeq_epi32(c, _mm_setzero_si128());
 		const auto select_mask = _mm_castsi128_ps(c);
 
-		/* a = ((a - b * DP1) - b * DP2) - b * DP3 */
-		a = _mm_add_ps(a, _mm_mul_ps(b, _mm_set1_ps(dp1_f)));
-		a = _mm_add_ps(a, _mm_mul_ps(b, _mm_set1_ps(dp2_f)));
-		a = _mm_add_ps(a, _mm_mul_ps(b, _mm_set1_ps(dp3_f)));
+#ifdef SEK_USE_FMA
+		a = _mm_fmadd_ps(_mm_set1_ps(dp1_f), b, a); /* a = (dp1_f * b) + a */
+		a = _mm_fmadd_ps(_mm_set1_ps(dp2_f), b, a); /* a = (dp2_f * b) + a */
+		a = _mm_fmadd_ps(_mm_set1_ps(dp3_f), b, a); /* a = (dp3_f * b) + a */
+#else
+		a = _mm_add_ps(_mm_mul_ps(_mm_set1_ps(dp1_f), b), a);
+		a = _mm_add_ps(_mm_mul_ps(_mm_set1_ps(dp2_f), b), a);
+		a = _mm_add_ps(_mm_mul_ps(_mm_set1_ps(dp3_f), b), a);
+#endif
 		const auto a2 = _mm_mul_ps(a, a);
 
 		/* P1 (0 <= a <= Pi/4) */
 		auto p1 = _mm_set1_ps(coscof0_f);
+#ifdef SEK_USE_FMA
+		p1 = _mm_fmadd_ps(p1, a2, _mm_set1_ps(coscof1_f)); /* p1 = (p1 * a2) + coscof1_f */
+		p1 = _mm_fmadd_ps(p1, a2, _mm_set1_ps(coscof2_f)); /* p1 = (p1 * a2) + coscof2_f */
+#else
 		p1 = _mm_add_ps(_mm_mul_ps(p1, a2), _mm_set1_ps(coscof1_f));
 		p1 = _mm_add_ps(_mm_mul_ps(p1, a2), _mm_set1_ps(coscof2_f));
+#endif
+
 		p1 = _mm_mul_ps(_mm_mul_ps(p1, a2), a2);
-		p1 = _mm_add_ps(_mm_sub_ps(p1, _mm_mul_ps(a2, _mm_set1_ps(0.5f))), _mm_set1_ps(1.0f));
+
+#ifdef SEK_USE_FMA
+		p1 = _mm_fmadd_ps(a2, _mm_set1_ps(-0.5f), p1); /* p1 = (a2 * -0.5) + p1 */
+#else
+		p1 = _mm_sub_ps(p1, _mm_mul_ps(a2, _mm_set1_ps(0.5f))); /* p1 = p1 - (a2 * 0.5) */
+#endif
+		p1 = _mm_add_ps(p1, _mm_set1_ps(1.0f));
 
 		/* P2  (Pi/4 <= a <= 0) */
 		auto p2 = _mm_set1_ps(sincof0_f);
+#ifdef SEK_USE_FMA
+		p2 = _mm_fmadd_ps(p2, a2, _mm_set1_ps(sincof1_f)); /* p2 = (p2 * a2) + sincof1_f */
+		p2 = _mm_fmadd_ps(p2, a2, _mm_set1_ps(sincof2_f)); /* p2 = (p2 * a2) + sincof2_f */
+		p2 = _mm_fmadd_ps(_mm_mul_ps(p2, a2), a, a);	   /* p2 = ((p2 * a2) * a) + a */
+#else
 		p2 = _mm_add_ps(_mm_mul_ps(p2, a2), _mm_set1_ps(sincof1_f));
 		p2 = _mm_add_ps(_mm_mul_ps(p2, a2), _mm_set1_ps(sincof2_f));
 		p2 = _mm_add_ps(_mm_mul_ps(_mm_mul_ps(p2, a2), a), a);
+#endif
 
 		/* Choose between P1 and P2 */
-		p1 = _mm_andnot_ps(select_mask, p1);
-		p2 = _mm_and_ps(select_mask, p2);
-		return _mm_xor_ps(_mm_add_ps(p1, p2), sign);
+#ifdef SEK_USE_SSE4_1
+		const auto result = _mm_blendv_ps(p1, p2, select_mask);
+#else
+		const auto result = _mm_add_ps(_mm_and_ps(select_mask, p2), _mm_andnot_ps(select_mask, p1));
+#endif
+		return _mm_xor_ps(result, sign);
 	}
 	__m128 x86_cos_ps(__m128 v) noexcept
 	{
@@ -87,29 +113,54 @@ namespace sek::math::detail
 		c = _mm_cmpeq_epi32(c, _mm_setzero_si128());
 		const auto select_mask = _mm_castsi128_ps(c);
 
-		/* a = ((a - b * DP1) - b * DP2) - b * DP3 */
-		a = _mm_add_ps(a, _mm_mul_ps(b, _mm_set1_ps(dp1_f)));
-		a = _mm_add_ps(a, _mm_mul_ps(b, _mm_set1_ps(dp2_f)));
-		a = _mm_add_ps(a, _mm_mul_ps(b, _mm_set1_ps(dp3_f)));
-		const auto x2 = _mm_mul_ps(a, a);
+#ifdef SEK_USE_FMA
+		a = _mm_fmadd_ps(_mm_set1_ps(dp1_f), b, a); /* a = (dp1_f * b) + a */
+		a = _mm_fmadd_ps(_mm_set1_ps(dp2_f), b, a); /* a = (dp2_f * b) + a */
+		a = _mm_fmadd_ps(_mm_set1_ps(dp3_f), b, a); /* a = (dp3_f * b) + a */
+#else
+		a = _mm_add_ps(_mm_mul_ps(_mm_set1_ps(dp1_f), b), a);
+		a = _mm_add_ps(_mm_mul_ps(_mm_set1_ps(dp2_f), b), a);
+		a = _mm_add_ps(_mm_mul_ps(_mm_set1_ps(dp3_f), b), a);
+#endif
+		const auto a2 = _mm_mul_ps(a, a);
 
 		/* P1 (0 <= a <= Pi/4) */
 		auto p1 = _mm_set1_ps(coscof0_f);
-		p1 = _mm_add_ps(_mm_mul_ps(p1, x2), _mm_set1_ps(coscof1_f));
-		p1 = _mm_add_ps(_mm_mul_ps(p1, x2), _mm_set1_ps(coscof2_f));
-		p1 = _mm_mul_ps(_mm_mul_ps(p1, x2), x2);
-		p1 = _mm_add_ps(_mm_sub_ps(p1, _mm_mul_ps(x2, _mm_set1_ps(0.5f))), _mm_set1_ps(1.0f));
+#ifdef SEK_USE_FMA
+		p1 = _mm_fmadd_ps(p1, a2, _mm_set1_ps(coscof1_f)); /* p1 = (p1 * a2) + coscof1_f */
+		p1 = _mm_fmadd_ps(p1, a2, _mm_set1_ps(coscof2_f)); /* p1 = (p1 * a2) + coscof2_f */
+#else
+		p1 = _mm_add_ps(_mm_mul_ps(p1, a2), _mm_set1_ps(coscof1_f));
+		p1 = _mm_add_ps(_mm_mul_ps(p1, a2), _mm_set1_ps(coscof2_f));
+#endif
+		p1 = _mm_mul_ps(_mm_mul_ps(p1, a2), a2);
+
+#ifdef SEK_USE_FMA
+		p1 = _mm_fmadd_ps(a2, _mm_set1_ps(-0.5f), p1); /* p1 = (a2 * -0.5) + p1 */
+#else
+		p1 = _mm_sub_ps(p1, _mm_mul_ps(a2, _mm_set1_ps(0.5f))); /* p1 = p1 - (a2 * 0.5) */
+#endif
+		p1 = _mm_add_ps(p1, _mm_set1_ps(1.0f));
 
 		/* P2 (Pi/4 <= a <= 0) */
 		auto p2 = _mm_set1_ps(sincof0_f);
-		p2 = _mm_add_ps(_mm_mul_ps(p2, x2), _mm_set1_ps(sincof1_f));
-		p2 = _mm_add_ps(_mm_mul_ps(p2, x2), _mm_set1_ps(sincof2_f));
-		p2 = _mm_add_ps(_mm_mul_ps(_mm_mul_ps(p2, x2), a), a);
+#ifdef SEK_USE_FMA
+		p2 = _mm_fmadd_ps(p2, a2, _mm_set1_ps(sincof1_f)); /* p2 = (p2 * a2) + sincof1_f */
+		p2 = _mm_fmadd_ps(p2, a2, _mm_set1_ps(sincof2_f)); /* p2 = (p2 * a2) + sincof2_f */
+		p2 = _mm_fmadd_ps(_mm_mul_ps(p2, a2), a, a);	   /* p2 = ((p2 * a2) * a) + a */
+#else
+		p2 = _mm_add_ps(_mm_mul_ps(p2, a2), _mm_set1_ps(sincof1_f));
+		p2 = _mm_add_ps(_mm_mul_ps(p2, a2), _mm_set1_ps(sincof2_f));
+		p2 = _mm_add_ps(_mm_mul_ps(_mm_mul_ps(p2, a2), a), a);
+#endif
 
 		/* Choose between P1 and P2 */
-		p1 = _mm_andnot_ps(select_mask, p1);
-		p2 = _mm_and_ps(select_mask, p2);
-		return _mm_xor_ps(_mm_add_ps(p1, p2), sign);
+#ifdef SEK_USE_SSE4_1
+		const auto result = _mm_blendv_ps(p1, p2, select_mask);
+#else
+		const auto result = _mm_add_ps(_mm_and_ps(select_mask, p2), _mm_andnot_ps(select_mask, p1));
+#endif
+		return _mm_xor_ps(result, sign);
 	}
 }	 // namespace sek::math::detail
 #endif

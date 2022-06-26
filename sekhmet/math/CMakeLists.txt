@@ -44,6 +44,11 @@ if (ENABLE_SIMD)
             add_compile_definitions(SEK_USE_AVX2)
         endif ()
     endif ()
+
+    option(ENABLE_FMA "Enable FMA instruction set support" ON)
+    if (ENABLE_FMA)
+        add_compile_definitions(SEK_USE_FMA)
+    endif ()
 endif ()
 
 target_sources(${PROJECT_NAME} INTERFACE
