@@ -46,6 +46,43 @@ namespace sek::math::detail
 		out.simd = _mm_sub_epi64(_mm_setzero_si128(), l.simd);
 	}
 
+	template<integral_of_size<8> T>
+	inline void vector_and(simd_vector<T, 2> &out, const simd_vector<T, 2> &l, const simd_vector<T, 2> &r) noexcept
+	{
+		out.simd = _mm_and_si128(l.simd, r.simd);
+	}
+	template<integral_of_size<8> T>
+	inline void vector_xor(simd_vector<T, 2> &out, const simd_vector<T, 2> &l, const simd_vector<T, 2> &r) noexcept
+	{
+		out.simd = _mm_xor_si128(l.simd, r.simd);
+	}
+	template<integral_of_size<8> T>
+	inline void vector_or(simd_vector<T, 2> &out, const simd_vector<T, 2> &l, const simd_vector<T, 2> &r) noexcept
+	{
+		out.simd = _mm_or_si128(l.simd, r.simd);
+	}
+	template<integral_of_size<8> T>
+	inline void vector_inv(simd_vector<T, 2> &out, const simd_vector<T, 2> &l) noexcept
+	{
+		out.simd = _mm_xor_si128(l.simd, _mm_set1_epi8((int8_t) 0xff));
+	}
+
+	template<integral_of_size<8> T>
+	inline void vector_and(simd_vector<T, 2> &out, const simd_vector<T, 2> &l, const simd_mask<T, 2> &r) noexcept
+	{
+		out.simd = _mm_and_si128(l.simd, r.simd);
+	}
+	template<integral_of_size<8> T>
+	inline void vector_xor(simd_vector<T, 2> &out, const simd_vector<T, 2> &l, const simd_mask<T, 2> &r) noexcept
+	{
+		out.simd = _mm_xor_si128(l.simd, r.simd);
+	}
+	template<integral_of_size<8> T>
+	inline void vector_or(simd_vector<T, 2> &out, const simd_vector<T, 2> &l, const simd_mask<T, 2> &r) noexcept
+	{
+		out.simd = _mm_or_si128(l.simd, r.simd);
+	}
+
 	template<integral_of_size<8> T, std::size_t... Is>
 	inline void vector_shuffle(simd_vector<T, 2> &out, const simd_vector<T, 2> &l, std::index_sequence<Is...> s) noexcept
 		requires(SEK_DETAIL_IS_SIMD(out))
@@ -170,6 +207,28 @@ namespace sek::math::detail
 		const auto m = _mm_set1_epi8((int8_t) 0xff);
 		out.simd[0] = _mm_xor_si128(l.simd[0], m);
 		out.simd[1] = _mm_xor_si128(l.simd[1], m);
+	}
+
+	template<integral_of_size<8> T, std::size_t N>
+	inline void vector_and(simd_vector<T, N> &out, const simd_vector<T, N> &l, const simd_mask<T, N> &r) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, r))
+	{
+		out.simd[0] = _mm_and_si128(l.simd[0], r.simd[0]);
+		out.simd[1] = _mm_and_si128(l.simd[1], r.simd[1]);
+	}
+	template<integral_of_size<8> T, std::size_t N>
+	inline void vector_xor(simd_vector<T, N> &out, const simd_vector<T, N> &l, const simd_mask<T, N> &r) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, r))
+	{
+		out.simd[0] = _mm_xor_si128(l.simd[0], r.simd[0]);
+		out.simd[1] = _mm_xor_si128(l.simd[1], r.simd[1]);
+	}
+	template<integral_of_size<8> T, std::size_t N>
+	inline void vector_or(simd_vector<T, N> &out, const simd_vector<T, N> &l, const simd_mask<T, N> &r) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, r))
+	{
+		out.simd[0] = _mm_or_si128(l.simd[0], r.simd[0]);
+		out.simd[1] = _mm_or_si128(l.simd[1], r.simd[1]);
 	}
 
 	template<integral_of_size<8> T, std::size_t N, std::size_t I0, std::size_t I1, std::size_t... Is>

@@ -103,6 +103,91 @@ TEST(math_tests, vector_test)
 
 		EXPECT_TRUE(all(fcmp_eq(res, sek::math::dvec4{0.1, 1, 2, -4})));
 	}
+	{
+		const auto v4d_nan = sek::math::dvec4{std::numeric_limits<double>::quiet_NaN()};
+		const auto v4f_nan = sek::math::fvec4{std::numeric_limits<float>::quiet_NaN()};
+
+		EXPECT_TRUE(all(is_nan(v4d_nan)));
+		EXPECT_TRUE(all(is_nan(v4f_nan)));
+		EXPECT_FALSE(all(is_inf(v4d_nan)));
+		EXPECT_FALSE(all(is_inf(v4f_nan)));
+		EXPECT_FALSE(all(is_fin(v4d_nan)));
+		EXPECT_FALSE(all(is_fin(v4f_nan)));
+		EXPECT_FALSE(all(is_neg(v4f_nan)));
+		EXPECT_FALSE(all(is_neg(v4f_nan)));
+		EXPECT_FALSE(all(is_norm(v4f_nan)));
+		EXPECT_FALSE(all(is_norm(v4f_nan)));
+
+		const auto v4d_inf = sek::math::dvec4{std::numeric_limits<double>::infinity()};
+		const auto v4f_inf = sek::math::fvec4{std::numeric_limits<float>::infinity()};
+
+		EXPECT_FALSE(all(is_nan(v4d_inf)));
+		EXPECT_FALSE(all(is_nan(v4f_inf)));
+		EXPECT_TRUE(all(is_inf(v4d_inf)));
+		EXPECT_TRUE(all(is_inf(v4f_inf)));
+		EXPECT_FALSE(all(is_fin(v4d_inf)));
+		EXPECT_FALSE(all(is_fin(v4f_inf)));
+		EXPECT_FALSE(all(is_neg(v4f_inf)));
+		EXPECT_FALSE(all(is_neg(v4f_inf)));
+		EXPECT_FALSE(all(is_norm(v4f_inf)));
+		EXPECT_FALSE(all(is_norm(v4f_inf)));
+
+		const auto v4d_zero = sek::math::dvec4{0};
+		const auto v4f_zero = sek::math::fvec4{0};
+
+		EXPECT_FALSE(all(is_nan(v4d_zero)));
+		EXPECT_FALSE(all(is_nan(v4f_zero)));
+		EXPECT_FALSE(all(is_inf(v4d_zero)));
+		EXPECT_FALSE(all(is_inf(v4f_zero)));
+		EXPECT_TRUE(all(is_fin(v4d_zero)));
+		EXPECT_TRUE(all(is_fin(v4f_zero)));
+		EXPECT_FALSE(all(is_neg(v4d_zero)));
+		EXPECT_FALSE(all(is_neg(v4f_zero)));
+		EXPECT_FALSE(all(is_norm(v4d_zero)));
+		EXPECT_FALSE(all(is_norm(v4f_zero)));
+
+		const auto v4d_mzero = sek::math::dvec4{-0.};
+		const auto v4f_mzero = sek::math::fvec4{-0.};
+
+		EXPECT_FALSE(all(is_nan(v4d_mzero)));
+		EXPECT_FALSE(all(is_nan(v4f_mzero)));
+		EXPECT_FALSE(all(is_inf(v4d_mzero)));
+		EXPECT_FALSE(all(is_inf(v4f_mzero)));
+		EXPECT_TRUE(all(is_fin(v4d_mzero)));
+		EXPECT_TRUE(all(is_fin(v4f_mzero)));
+		EXPECT_TRUE(all(is_neg(v4d_mzero)));
+		EXPECT_TRUE(all(is_neg(v4f_mzero)));
+		EXPECT_FALSE(all(is_norm(v4d_mzero)));
+		EXPECT_FALSE(all(is_norm(v4f_mzero)));
+
+		const auto v4d_one = sek::math::dvec4{1.};
+		const auto v4f_one = sek::math::fvec4{1.};
+
+		EXPECT_FALSE(all(is_nan(v4d_one)));
+		EXPECT_FALSE(all(is_nan(v4f_one)));
+		EXPECT_FALSE(all(is_inf(v4d_one)));
+		EXPECT_FALSE(all(is_inf(v4f_one)));
+		EXPECT_TRUE(all(is_fin(v4d_one)));
+		EXPECT_TRUE(all(is_fin(v4f_one)));
+		EXPECT_FALSE(all(is_neg(v4d_one)));
+		EXPECT_FALSE(all(is_neg(v4f_one)));
+		EXPECT_TRUE(all(is_norm(v4d_one)));
+		EXPECT_TRUE(all(is_norm(v4f_one)));
+
+		const auto v4d_mone = sek::math::dvec4{-1.};
+		const auto v4f_mone = sek::math::fvec4{-1.};
+
+		EXPECT_FALSE(all(is_nan(v4d_mone)));
+		EXPECT_FALSE(all(is_nan(v4f_mone)));
+		EXPECT_FALSE(all(is_inf(v4d_mone)));
+		EXPECT_FALSE(all(is_inf(v4f_mone)));
+		EXPECT_TRUE(all(is_fin(v4d_mone)));
+		EXPECT_TRUE(all(is_fin(v4f_mone)));
+		EXPECT_TRUE(all(is_neg(v4d_mone)));
+		EXPECT_TRUE(all(is_neg(v4f_mone)));
+		EXPECT_TRUE(all(is_norm(v4d_mone)));
+		EXPECT_TRUE(all(is_norm(v4f_mone)));
+	}
 }
 
 TEST(math_tests, matrix_test)
@@ -120,8 +205,8 @@ TEST(math_tests, matrix_test)
 		EXPECT_EQ(m2f_3, (sek::math::fmat2{2, 2, 2, 2}));
 	}
 	{
-		EXPECT_EQ(sek::math::transpose(sek::math::fmat3{1}), (sek::math::fmat3{1}));
-		EXPECT_EQ(sek::math::transpose(sek::math::fmat3x2{1, 4, 0, 5, 1, 0}), (sek::math::fmat2x3{1, 5, 4, 1, 0, 0}));
+		EXPECT_EQ(transpose(sek::math::fmat3{1}), (sek::math::fmat3{1}));
+		EXPECT_EQ(transpose(sek::math::fmat3x2{1, 4, 0, 5, 1, 0}), (sek::math::fmat2x3{1, 5, 4, 1, 0, 0}));
 	}
 	{
 		auto m3x2f = sek::math::fmat3x2{0, 4, -2, -4, -3, 0};

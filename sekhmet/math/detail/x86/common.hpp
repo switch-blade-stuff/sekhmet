@@ -60,9 +60,9 @@
 #endif
 
 // clang-format off
-#define SEK_DETAIL_IS_SIMD_1(a) (requires{ a.simd; })
-#define SEK_DETAIL_IS_SIMD_2(a, b) (requires{ a.simd; } && requires{ b.simd; })
-#define SEK_DETAIL_IS_SIMD_3(a, b, c) (requires{ a.simd; } && requires{ b.simd; } && requires{ c.simd; })
+#define SEK_DETAIL_IS_SIMD_1(a) (requires{ (a).simd; })
+#define SEK_DETAIL_IS_SIMD_2(a, b) (requires{ (a).simd; } && requires{ (b).simd; })
+#define SEK_DETAIL_IS_SIMD_3(a, b, c) (requires{ (a).simd; } && requires{ (b).simd; } && requires{ (c).simd; })
 // clang-format on
 
 #define SEK_DETAIL_IS_SIMD(...)                                                                                        \

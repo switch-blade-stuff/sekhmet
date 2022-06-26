@@ -138,6 +138,36 @@ namespace sek::math::detail
 	}
 #endif
 
+	inline void vector_is_nan(simd_mask<double, 2> &out, const simd_vector<double, 2> &l) noexcept
+	{
+		out.simd = _mm_cmpunord_pd(l.simd, l.simd);
+	}
+	inline void vector_is_inf(simd_mask<double, 2> &out, const simd_vector<double, 2> &l) noexcept
+	{
+		const auto mask = _mm_set1_pd(std::bit_cast<double>(0x7fff'ffff'ffff'ffff));
+		const auto inf = _mm_set1_pd(std::bit_cast<double>(0x7ff0'0000'0000'0000));
+		out.simd = _mm_cmpeq_pd(_mm_and_pd(l.simd, mask), inf);
+	}
+	inline void vector_is_fin(simd_mask<double, 2> &out, const simd_vector<double, 2> &l) noexcept
+	{
+		const auto mask = _mm_set1_pd(std::bit_cast<double>(0x7fff'ffff'ffff'ffff));
+		const auto inf = _mm_set1_pd(std::bit_cast<double>(0x7ff0'0000'0000'0000));
+		out.simd = _mm_cmplt_pd(_mm_and_pd(l.simd, mask), inf);
+	}
+	inline void vector_is_neg(simd_mask<double, 2> &out, const simd_vector<double, 2> &l) noexcept
+	{
+		const auto mask = _mm_set1_pd(std::bit_cast<double>(0x8000'0000'0000'0000));
+		out.simd = _mm_and_pd(l.simd, mask);
+	}
+	inline void vector_is_norm(simd_mask<double, 2> &out, const simd_vector<double, 2> &l) noexcept
+	{
+		const auto mask = _mm_set1_pd(std::bit_cast<double>(0x7ff0'0000'0000'0000));
+		const auto a = _mm_and_pd(l.simd, mask);
+		const auto b = _mm_cmpneq_pd(a, _mm_setzero_pd());
+		const auto c = _mm_cmplt_pd(a, mask);
+		out.simd = _mm_and_pd(b, c);
+	}
+
 #ifndef SEK_USE_AVX
 	template<>
 	union vector_data<double, 3, storage_policy::OPTIMAL>
@@ -443,5 +473,52 @@ namespace sek::math::detail
 	}
 #endif
 #endif
+
+	template<std::size_t N>
+	inline void vector_is_nan(simd_mask<double, N> &out, const simd_vector<double, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, l))
+	{
+		out.simd[0] = _mm_cmpunord_pd(l.simd[0], l.simd[0]);
+		out.simd[1] = _mm_cmpunord_pd(l.simd[1], l.simd[1]);
+	}
+	template<std::size_t N>
+	inline void vector_is_inf(simd_mask<double, N> &out, const simd_vector<double, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, l))
+	{
+		const auto mask = _mm_set1_pd(std::bit_cast<double>(0x7fff'ffff'ffff'ffff));
+		const auto inf = _mm_set1_pd(std::bit_cast<double>(0x7ff0'0000'0000'0000));
+		out.simd[0] = _mm_cmpeq_pd(_mm_and_pd(l.simd[0], mask), inf);
+		out.simd[1] = _mm_cmpeq_pd(_mm_and_pd(l.simd[1], mask), inf);
+	}
+	template<std::size_t N>
+	inline void vector_is_fin(simd_mask<double, N> &out, const simd_vector<double, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, l))
+	{
+		const auto mask = _mm_set1_pd(std::bit_cast<double>(0x7fff'ffff'ffff'ffff));
+		const auto inf = _mm_set1_pd(std::bit_cast<double>(0x7ff0'0000'0000'0000));
+		out.simd[0] = _mm_cmplt_pd(_mm_and_pd(l.simd[0], mask), inf);
+		out.simd[1] = _mm_cmplt_pd(_mm_and_pd(l.simd[1], mask), inf);
+	}
+	template<std::size_t N>
+	inline void vector_is_neg(simd_mask<double, N> &out, const simd_vector<double, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, l))
+	{
+		const auto mask = _mm_set1_pd(std::bit_cast<double>(0x8000'0000'0000'0000));
+		out.simd[0] = _mm_and_pd(l.simd[0], mask);
+		out.simd[1] = _mm_and_pd(l.simd[1], mask);
+	}
+	template<std::size_t N>
+	inline void vector_is_norm(simd_mask<double, N> &out, const simd_vector<double, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, l))
+	{
+		const auto mask = _mm_set1_pd(std::bit_cast<double>(0x7ff0'0000'0000'0000));
+		const auto zero = _mm_setzero_pd();
+
+		const __m128d a[2] = {_mm_and_pd(l.simd[0], mask), _mm_and_pd(l.simd[1], mask)};
+		const __m128d b[2] = {_mm_cmpneq_pd(a[0], zero), _mm_cmpneq_pd(a[1], zero)};
+		const __m128d c[2] = {_mm_cmplt_pd(a[0], mask), _mm_cmplt_pd(a[1], mask)};
+		out.simd[0] = _mm_and_pd(b[0], c[0]);
+		out.simd[1] = _mm_and_pd(b[1], c[1]);
+	}
 }	 // namespace sek::math::detail
 #endif

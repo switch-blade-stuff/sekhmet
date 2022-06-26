@@ -237,5 +237,45 @@ namespace sek::math::detail
 		out.simd = _mm_div_ps(l.simd, _mm_sqrt_ps(_mm_set1_ps(vector_dot(l, l))));
 	}
 #endif
+
+	template<std::size_t N>
+	inline void vector_is_nan(simd_mask<float, N> &out, const simd_vector<float, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, l))
+	{
+		out.simd = _mm_cmpunord_ps(l.simd, l.simd);
+	}
+	template<std::size_t N>
+	inline void vector_is_inf(simd_mask<float, N> &out, const simd_vector<float, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, l))
+	{
+		const auto mask = _mm_set1_ps(std::bit_cast<float>(0x7fff'ffff));
+		const auto inf = _mm_set1_ps(std::bit_cast<float>(0x7f80'0000));
+		out.simd = _mm_cmpeq_ps(_mm_and_ps(l.simd, mask), inf);
+	}
+	template<std::size_t N>
+	inline void vector_is_fin(simd_mask<float, N> &out, const simd_vector<float, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, l))
+	{
+		const auto mask = _mm_set1_ps(std::bit_cast<float>(0x7fff'ffff));
+		const auto inf = _mm_set1_ps(std::bit_cast<float>(0x7f80'0000));
+		out.simd = _mm_cmplt_ps(_mm_and_ps(l.simd, mask), inf);
+	}
+	template<std::size_t N>
+	inline void vector_is_neg(simd_mask<float, N> &out, const simd_vector<float, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, l))
+	{
+		const auto mask = _mm_set1_ps(std::bit_cast<float>(0x8000'0000));
+		out.simd = _mm_and_ps(l.simd, mask);
+	}
+	template<std::size_t N>
+	inline void vector_is_norm(simd_mask<float, N> &out, const simd_vector<float, N> &l) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, l))
+	{
+		const auto mask = _mm_set1_ps(std::bit_cast<float>(0x7f80'0000));
+		const auto a = _mm_and_ps(l.simd, mask);
+		const auto b = _mm_cmpneq_ps(a, _mm_setzero_ps());
+		const auto c = _mm_cmplt_ps(a, mask);
+		out.simd = _mm_and_ps(b, c);
+	}
 }	 // namespace sek::math::detail
 #endif

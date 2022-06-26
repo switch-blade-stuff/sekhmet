@@ -323,5 +323,31 @@ namespace sek::math::detail
 			vector_le(mask, l, r);
 			vector_interleave(out, l, r, mask);
 		}
+
+		template<typename T, std::size_t N, storage_policy P>
+		constexpr void vector_is_nan(mask_data<T, N, P> &out, const vector_data<T, N, P> &l) noexcept
+		{
+			vector_unwrap<N>([&](auto i) { out[i] = static_cast<bool>(std::isnan(l[i])); });
+		}
+		template<typename T, std::size_t N, storage_policy P>
+		constexpr void vector_is_inf(mask_data<T, N, P> &out, const vector_data<T, N, P> &l) noexcept
+		{
+			vector_unwrap<N>([&](auto i) { out[i] = static_cast<bool>(std::isinf(l[i])); });
+		}
+		template<typename T, std::size_t N, storage_policy P>
+		constexpr void vector_is_fin(mask_data<T, N, P> &out, const vector_data<T, N, P> &l) noexcept
+		{
+			vector_unwrap<N>([&](auto i) { out[i] = static_cast<bool>(std::isfinite(l[i])); });
+		}
+		template<typename T, std::size_t N, storage_policy P>
+		constexpr void vector_is_neg(mask_data<T, N, P> &out, const vector_data<T, N, P> &l) noexcept
+		{
+			vector_unwrap<N>([&](auto i) { out[i] = static_cast<bool>(std::signbit(l[i])); });
+		}
+		template<typename T, std::size_t N, storage_policy P>
+		constexpr void vector_is_norm(mask_data<T, N, P> &out, const vector_data<T, N, P> &l) noexcept
+		{
+			vector_unwrap<N>([&](auto i) { out[i] = static_cast<bool>(std::isnormal(l[i])); });
+		}
 	}	 // namespace generic
 }	 // namespace sek::math::detail

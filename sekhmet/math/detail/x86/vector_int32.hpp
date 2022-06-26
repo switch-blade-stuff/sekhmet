@@ -194,5 +194,24 @@ namespace sek::math::detail
 	{
 		out.simd = _mm_xor_si128(l.simd, _mm_set1_epi8((int8_t) 0xff));
 	}
+
+	template<std::integral T, std::size_t N>
+	inline void vector_and(simd_vector<T, N> &out, const simd_vector<T, N> &l, const simd_mask<T, N> &r) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, r))
+	{
+		out.simd = _mm_and_si128(l.simd, r.simd);
+	}
+	template<std::integral T, std::size_t N>
+	inline void vector_xor(simd_vector<T, N> &out, const simd_vector<T, N> &l, const simd_mask<T, N> &r) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, r))
+	{
+		out.simd = _mm_xor_si128(l.simd, r.simd);
+	}
+	template<std::integral T, std::size_t N>
+	inline void vector_or(simd_vector<T, N> &out, const simd_vector<T, N> &l, const simd_mask<T, N> &r) noexcept
+		requires(SEK_DETAIL_IS_SIMD(out, r))
+	{
+		out.simd = _mm_or_si128(l.simd, r.simd);
+	}
 }	 // namespace sek::math::detail
 #endif
