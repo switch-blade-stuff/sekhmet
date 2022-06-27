@@ -224,6 +224,9 @@ TEST(math_tests, trig_float_test)
 		auto v4f_0 = sek::math::fvec4{std::sin(angle)};
 		auto v4f_1 = sin(sek::math::fvec4{angle});
 		EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.0001f)));
+		auto v2f_0 = sek::math::fvec2{std::sin(angle)};
+		auto v2f_1 = sin(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
 
 		angle = sek::math::rad(90.0f);
 		v4f_0 = sek::math::fvec4{std::sin(angle)};

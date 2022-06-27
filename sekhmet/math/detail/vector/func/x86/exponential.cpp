@@ -10,17 +10,18 @@
 #ifdef SEK_USE_SSE2
 namespace sek::math::detail
 {
-	constexpr static float exphi_f = 88.3762626647949f;
-	constexpr static float explo_f = -88.3762626647949f;
-	constexpr static float log2e_f = 1.44269504088896341f;
-	constexpr static float expc1_f = 0.693359375f;
-	constexpr static float expc2_f = -2.12194440e-4f;
-	constexpr static float expp0_f = 1.9875691500E-4f;
-	constexpr static float expp1_f = 1.3981999507E-3f;
-	constexpr static float expp2_f = 8.3334519073E-3f;
-	constexpr static float expp3_f = 4.1665795894E-2f;
-	constexpr static float expp4_f = 1.6666665459E-1f;
-	constexpr static float expp5_f = 5.0000001201E-1f;
+	static const float expp_f[6] = {
+		1.9875691500E-4f,
+		1.3981999507E-3f,
+		8.3334519073E-3f,
+		4.1665795894E-2f,
+		1.6666665459E-1f,
+		5.0000001201E-1f,
+	};
+	static const float expc_f[2] = {0.693359375f, -2.12194440e-4f};
+	static const float exphi_f = 88.3762626647949f;
+	static const float explo_f = -88.3762626647949f;
+	static const float log2e_f = 1.44269504088896341f;
 
 	__m128 x86_exp_ps(__m128 v) noexcept
 	{
@@ -37,25 +38,25 @@ namespace sek::math::detail
 		b = _mm_floor_ps(b);
 #endif
 
-		const auto tmp = _mm_mul_ps(b, _mm_set1_ps(expc1_f));
-		auto c = _mm_mul_ps(b, _mm_set1_ps(expc2_f));
+		const auto tmp = _mm_mul_ps(b, _mm_set1_ps(expc_f[0]));
+		auto c = _mm_mul_ps(b, _mm_set1_ps(expc_f[1]));
 		a = _mm_sub_ps(_mm_sub_ps(a, tmp), c);
 		c = _mm_mul_ps(a, a);
 
-		auto poly = _mm_set1_ps(expp0_f);
+		auto poly = _mm_set1_ps(expp_f[0]);
 #ifdef SEK_USE_FMA
-		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(expp1_f)); /* poly = (poly * a) + expp1_f */
-		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(expp2_f)); /* poly = (poly * a) + expp2_f */
-		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(expp3_f)); /* poly = (poly * a) + expp3_f */
-		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(expp4_f)); /* poly = (poly * a) + expp4_f */
-		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(expp5_f)); /* poly = (poly * a) + expp5_f */
-		poly = _mm_fmadd_ps(poly, c, a);					/* poly = (poly * c) + a */
+		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(expp_f[1])); /* poly = (poly * a) + expp_f[1] */
+		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(expp_f[2])); /* poly = (poly * a) + expp_f[2] */
+		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(expp_f[3])); /* poly = (poly * a) + expp_f[3] */
+		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(expp_f[4])); /* poly = (poly * a) + expp_f[4] */
+		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(expp_f[5])); /* poly = (poly * a) + expp_f[5] */
+		poly = _mm_fmadd_ps(poly, c, a);					  /* poly = (poly * c) + a */
 #else
-		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(expp1_f));
-		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(expp2_f));
-		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(expp3_f));
-		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(expp4_f));
-		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(expp5_f));
+		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(expp_f[1]));
+		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(expp_f[2]));
+		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(expp_f[3]));
+		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(expp_f[4]));
+		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(expp_f[5]));
 		poly = _mm_add_ps(_mm_mul_ps(poly, c), a);
 #endif
 		poly = _mm_add_ps(poly, _mm_set1_ps(1.0f));
@@ -65,18 +66,19 @@ namespace sek::math::detail
 		return _mm_mul_ps(poly, _mm_castsi128_ps(pow2n));
 	}
 
-	constexpr static float sqrth_f = 0.707106781186547524f;
-	constexpr static float logp0_f = 7.0376836292E-2f;
-	constexpr static float logp1_f = -1.1514610310E-1f;
-	constexpr static float logp2_f = 1.1676998740E-1f;
-	constexpr static float logp3_f = -1.2420140846E-1f;
-	constexpr static float logp4_f = +1.4249322787E-1f;
-	constexpr static float logp5_f = -1.6668057665E-1f;
-	constexpr static float logp6_f = +2.0000714765E-1f;
-	constexpr static float logp7_f = -2.4999993993E-1f;
-	constexpr static float logp8_f = +3.3333331174E-1f;
-	constexpr static float logq1_f = -2.12194440e-4f;
-	constexpr static float logq2_f = 0.693359375f;
+	static const float logp_f[9] = {
+		7.0376836292E-2f,
+		-1.1514610310E-1f,
+		1.1676998740E-1f,
+		-1.2420140846E-1f,
+		+1.4249322787E-1f,
+		-1.6668057665E-1f,
+		+2.0000714765E-1f,
+		-2.4999993993E-1f,
+		+3.3333331174E-1f,
+	};
+	static const float logq_f[2] = {-2.12194440e-4f, 0.693359375f};
+	static const float sqrth_f = 0.707106781186547524f;
 
 	__m128 x86_log_ps(__m128 v) noexcept
 	{
@@ -98,36 +100,36 @@ namespace sek::math::detail
 		a = _mm_add_ps(_mm_sub_ps(a, one), tmp);
 		auto a2 = _mm_mul_ps(a, a);
 
-		auto poly = _mm_set1_ps(logp0_f);
+		auto poly = _mm_set1_ps(logp_f[0]);
 #ifdef SEK_USE_FMA
-		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp1_f)); /* poly = (poly * a) + logp1_f */
-		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp2_f)); /* poly = (poly * a) + logp2_f */
-		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp3_f)); /* poly = (poly * a) + logp3_f */
-		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp4_f)); /* poly = (poly * a) + logp4_f */
-		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp5_f)); /* poly = (poly * a) + logp5_f */
-		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp6_f)); /* poly = (poly * a) + logp6_f */
-		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp7_f)); /* poly = (poly * a) + logp7_f */
-		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp8_f)); /* poly = (poly * a) + logp8_f */
+		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp_f[1])); /* poly = (poly * a) + logp_f[1] */
+		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp_f[2])); /* poly = (poly * a) + logp_f[2] */
+		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp_f[3])); /* poly = (poly * a) + logp_f[3] */
+		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp_f[4])); /* poly = (poly * a) + logp_f[4] */
+		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp_f[5])); /* poly = (poly * a) + logp_f[5] */
+		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp_f[6])); /* poly = (poly * a) + logp_f[6] */
+		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp_f[7])); /* poly = (poly * a) + logp_f[7] */
+		poly = _mm_fmadd_ps(poly, a, _mm_set1_ps(logp_f[8])); /* poly = (poly * a) + logp_f[8] */
 #else
-		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp1_f));
-		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp2_f));
-		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp3_f));
-		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp4_f));
-		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp5_f));
-		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp6_f));
-		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp7_f));
-		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp8_f));
+		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp_f[1]));
+		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp_f[2]));
+		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp_f[3]));
+		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp_f[4]));
+		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp_f[5]));
+		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp_f[6]));
+		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp_f[7]));
+		poly = _mm_add_ps(_mm_mul_ps(poly, a), _mm_set1_ps(logp_f[8]));
 #endif
 		poly = _mm_mul_ps(_mm_mul_ps(poly, a), a2);
 
 #ifdef SEK_USE_FMA
-		poly = _mm_fmadd_ps(c, _mm_set1_ps(logq1_f), poly);				/* poly = (c * logq1_f) + poly */
-		poly = _mm_fmadd_ps(a2, _mm_set1_ps(-0.5f), poly);				/* poly = (a2 * -0.5) + poly */
-		a = _mm_fmadd_ps(c, _mm_set1_ps(logq2_f), _mm_add_ps(a, poly)); /* a = (c * logq2_f) + (a + poly) */
+		poly = _mm_fmadd_ps(c, _mm_set1_ps(logq_f[0]), poly);			  /* poly = (c * logq_f[0]) + poly */
+		poly = _mm_fmadd_ps(a2, _mm_set1_ps(-0.5f), poly);				  /* poly = (a2 * -0.5) + poly */
+		a = _mm_fmadd_ps(c, _mm_set1_ps(logq_f[1]), _mm_add_ps(a, poly)); /* a = (c * logq_f[1]) + (a + poly) */
 #else
-		poly = _mm_add_ps(_mm_mul_ps(c, _mm_set1_ps(logq1_f)), poly);
+		poly = _mm_add_ps(_mm_mul_ps(c, _mm_set1_ps(logq_f[0])), poly);
 		poly = _mm_sub_ps(poly, _mm_mul_ps(a2, _mm_set1_ps(0.5f)));
-		a = _mm_add_ps(_mm_mul_ps(c, _mm_set1_ps(logq2_f)), _mm_add_ps(a, poly));
+		a = _mm_add_ps(_mm_mul_ps(c, _mm_set1_ps(logq_f[1])), _mm_add_ps(a, poly));
 #endif
 
 		return _mm_or_ps(a, nan_mask);
