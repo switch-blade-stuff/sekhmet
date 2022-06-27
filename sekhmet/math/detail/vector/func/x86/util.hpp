@@ -75,6 +75,11 @@ namespace sek::math::detail
 #endif
 
 #ifdef SEK_USE_SSE2
+	SEK_API __m128i x86_cvtpd_epu64(__m128d v) noexcept;
+	SEK_API __m128i x86_cvtpd_epi64(__m128d v) noexcept;
+	SEK_API __m128d x86_cvtepu64_pd(__m128i x) noexcept;
+	SEK_API __m128d x86_cvtepi64_pd(__m128i x) noexcept;
+
 	template<std::size_t I0, std::size_t I1>
 	inline void mask_shuffle(simd_mask<double, 2> &out, const simd_mask<double, 2> &m, std::index_sequence<I0, I1>) noexcept
 	{
@@ -116,6 +121,13 @@ namespace sek::math::detail
 	inline void vector_trunc(simd_vector<double, 2> &out, const simd_vector<double, 2> &v) noexcept
 	{
 		out.simd = _mm_round_pd(v.simd, _MM_FROUND_TRUNC);
+	}
+#else
+	SEK_API __m128d x86_floor_pd(__m128d v) noexcept;
+
+	inline void vector_floor(simd_vector<double, 2> &out, const simd_vector<double, 2> &v) noexcept
+	{
+		out.simd = x86_floor_pd(v.simd);
 	}
 #endif
 
@@ -241,6 +253,14 @@ namespace sek::math::detail
 		const int mask = _MM_FROUND_TRUNC;
 		out.simd[0] = _mm_round_pd(v.simd[0], mask);
 		out.simd[1] = _mm_round_pd(v.simd[1], mask);
+	}
+#else
+	template<std::size_t N>
+	inline void vector_floor(simd_vector<double, N> &out, const simd_vector<double, N> &v) noexcept
+		requires simd_enabled<simd_vector<double, N>>
+	{
+		out.simd[0] = x86_floor_pd(v.simd[0]);
+		out.simd[1] = x86_floor_pd(v.simd[1]);
 	}
 #endif
 

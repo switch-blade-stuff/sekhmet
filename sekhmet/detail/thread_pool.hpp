@@ -107,6 +107,7 @@ namespace sek
 				{
 					auto task = static_cast<task_t *>(ptr);
 					task->do_destroy(pool);
+					pool->deallocate(ptr, sizeof(task_t), alignof(task_t));
 				};
 			}
 
@@ -138,7 +139,6 @@ namespace sek
 				}
 
 				std::destroy_at(this);
-				pool->deallocate(this, sizeof(task_t), alignof(task_t));
 			}
 
 			std::promise<T> promise;
