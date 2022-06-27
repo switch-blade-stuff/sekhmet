@@ -12,21 +12,9 @@
 #ifdef SEK_USE_SSE2
 namespace sek::math::detail
 {
-	static const float sincof_f[3] = {
-		-1.9515295891E-4f,
-		8.3321608736E-3f,
-		-1.6666654611E-1f,
-	};
-	static const float coscof_f[3] = {
-		2.443315711809948E-005f,
-		-1.388731625493765E-003f,
-		4.166664568298827E-002f,
-	};
-	static const float dp_f[3] = {
-		-0.78515625f,
-		-2.4187564849853515625e-4f,
-		-3.77489497744594108e-8f,
-	};
+	static const float sincof_f[3] = {-1.9515295891E-4f, 8.3321608736E-3f, -1.6666654611E-1f};
+	static const float coscof_f[3] = {2.443315711809948E-005f, -1.388731625493765E-003f, 4.166664568298827E-002f};
+	static const float dp_f[3] = {-0.78515625f, -2.4187564849853515625e-4f, -3.77489497744594108e-8f};
 	static const float pi4_f = 1.2732395447351626861510701069801148962756771659236515899813387524f;
 
 	__m128 x86_sin_ps(__m128 v) noexcept
@@ -105,13 +93,12 @@ namespace sek::math::detail
 		auto a = _mm_and_ps(v, abs_mask);			/* a = |v| */
 		auto b = _mm_mul_ps(a, _mm_set1_ps(pi4_f)); /* b = a * (4 / PI) */
 		auto c = _mm_cvttps_epi32(b);				/* c = (int32) b */
-
 		/* j = (j + 1) & (~1) */
 		c = _mm_add_epi32(c, _mm_set1_epi32(1));
 		c = _mm_and_si128(c, _mm_set1_epi32(~1));
 		b = _mm_cvtepi32_ps(c);
-		c = _mm_sub_epi32(c, _mm_set1_epi32(2));
 
+		c = _mm_sub_epi32(c, _mm_set1_epi32(2));
 		const auto sign = _mm_castsi128_ps(_mm_slli_epi32(_mm_andnot_si128(c, _mm_set1_epi32(4)), 29)); /* Extract sign bit */
 
 		/* Calculate polynomial selection mask */
@@ -169,27 +156,19 @@ namespace sek::math::detail
 		return _mm_xor_ps(result, sign);
 	}
 
-	static const double sincof_d[6] = {
-		1.58962301576546568060E-10,
-		-2.50507477628578072866E-8,
-		2.75573136213857245213E-6,
-		-1.98412698295895385996E-4,
-		8.33333333332211858878E-3,
-		-1.66666666666666307295E-1,
-	};
-	static const double coscof_d[6] = {
-		-1.13585365213876817300E-11,
-		2.08757008419747316778E-9,
-		-2.75573141792967388112E-7,
-		2.48015872888517045348E-5,
-		-1.38888888888730564116E-3,
-		4.16666666666665929218E-2,
-	};
-	static const double dp_d[3] = {
-		-7.85398125648498535156E-1,
-		-3.77489470793079817668E-8,
-		-2.69515142907905952645E-15,
-	};
+	static const double sincof_d[6] = {1.58962301576546568060E-10,
+									   -2.50507477628578072866E-8,
+									   2.75573136213857245213E-6,
+									   -1.98412698295895385996E-4,
+									   8.33333333332211858878E-3,
+									   -1.66666666666666307295E-1};
+	static const double coscof_d[6] = {-1.13585365213876817300E-11,
+									   2.08757008419747316778E-9,
+									   -2.75573141792967388112E-7,
+									   2.48015872888517045348E-5,
+									   -1.38888888888730564116E-3,
+									   4.16666666666665929218E-2};
+	static const double dp_d[3] = {-7.85398125648498535156E-1, -3.77489470793079817668E-8, -2.69515142907905952645E-15};
 	static const double pi4_d = 1.2732395447351626861510701069801148962756771659236515899813387524;
 
 	__m128d x86_sin_pd(__m128d v) noexcept
@@ -292,6 +271,7 @@ namespace sek::math::detail
 #endif
 		return _mm_xor_pd(result, sign);
 	}
+	//__m128d x86_cos_pd(__m128d v) noexcept {}
 }	 // namespace sek::math::detail
 #endif
 //
@@ -301,24 +281,10 @@ namespace sek::math::detail
 //	long i;
 //	int j, sign;
 //
-//#ifdef NANS
-//	if (isnan(x)) return x;
-//	if (!isfinite(x))
-//	{
-//		mtherr("cos", DOMAIN);
-//		return (NAN);
-//	}
-//#endif
 //
 //	/* make argument positive */
 //	sign = 1;
 //	if (x < 0) x = -x;
-//
-//	if (x > lossth)
-//	{
-//		mtherr("cos", TLOSS);
-//		return (0.0);
-//	}
 //
 //	y = floor(x / PIO4);
 //	z = ldexp(y, -4);
@@ -347,7 +313,8 @@ namespace sek::math::detail
 //
 //	if ((j == 1) || (j == 2))
 //		y = z + z * z * z * polevl(zz, sincof, 5);
-//	else { y = 1.0 - ldexp(zz, -1) + zz * zz * polevl(zz, coscof, 5); }
+//	else
+//  	y = 1.0 - ldexp(zz, -1) + zz * zz * polevl(zz, coscof, 5);
 //
 //	if (sign < 0) y = -y;
 //	return y;
