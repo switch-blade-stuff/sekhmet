@@ -17,68 +17,6 @@ namespace sek::math::detail
 	static const float dp_f[3] = {-0.78515625f, -2.4187564849853515625e-4f, -3.77489497744594108e-8f};
 	static const float pi4_f = 1.2732395447351626861510701069801148962756771659236515899813387524f;
 
-	//	static float tancotf( float xx, int cotflg )
-	//	{
-	//		float x, y, z, zz;
-	//		long j;
-	//		int sign;
-	//
-	//		/* make argument positive but save the sign */
-	//		if( xx < 0.0 )
-	//		{
-	//			x = -xx;
-	//			sign = -1;
-	//		}
-	//		else
-	//		{
-	//			x = xx;
-	//			sign = 1;
-	//		}
-	//
-	//		/* compute x mod PIO4 */
-	//		j = FOPI * x; /* integer part of x/(PI/4) */
-	//		y = j;
-	//
-	//		/* map zeros and singularities to origin */
-	//		if( j & 1 )
-	//		{
-	//			j += 1;
-	//			y += 1.0;
-	//		}
-	//
-	//		z = ((x - y * DP1) - y * DP2) - y * DP3;
-	//		zz = z * z;
-	//
-	//		if( x > 1.0e-4 )
-	//		{
-	//			/* 1.7e-8 relative error in [-pi/4, +pi/4] */
-	//			y =
-	//				((((( 9.38540185543E-3 * zz
-	//					 + 3.11992232697E-3) * zz
-	//					+ 2.44301354525E-2) * zz
-	//				   + 5.34112807005E-2) * zz
-	//				  + 1.33387994085E-1) * zz
-	//				 + 3.33331568548E-1) * zz * z
-	//				+ z;
-	//		}
-	//		else
-	//			y = z;
-	//
-	//		if( j & 2 )
-	//		{
-	//			if( cotflg )
-	//				y = -y;
-	//			else
-	//				y = -1.0/y;
-	//		}
-	//		else if( cotflg )
-	//			y = 1.0/y;
-	//
-	//		if( sign < 0 )
-	//			y = -y;
-	//		return( y );
-	//	}
-
 	__m128 x86_sin_ps(__m128 v) noexcept
 	{
 		const auto sign_mask = _mm_set1_ps(std::bit_cast<float>(0x8000'0000));
@@ -227,7 +165,7 @@ namespace sek::math::detail
 		3.33331568548E-1f,
 	};
 
-	__m128 x86_tan_cot_ps(__m128 v, __m128i cot_mask) noexcept
+	__m128 x86_tancot_ps(__m128 v, __m128i cot_mask) noexcept
 	{
 		const auto sign_mask = _mm_set1_ps(std::bit_cast<float>(0x8000'0000));
 		const auto abs_mask = _mm_set1_ps(std::bit_cast<float>(0x7fff'ffff));
@@ -298,8 +236,8 @@ namespace sek::math::detail
 #endif
 		return _mm_xor_ps(result, sign);
 	}
-	__m128 x86_tan_ps(__m128 v) noexcept { return x86_tan_cot_ps(v, _mm_setzero_si128()); }
-	__m128 x86_cot_ps(__m128 v) noexcept { return x86_tan_cot_ps(v, _mm_set1_epi32(-1)); }
+	__m128 x86_tan_ps(__m128 v) noexcept { return x86_tancot_ps(v, _mm_setzero_si128()); }
+	__m128 x86_cot_ps(__m128 v) noexcept { return x86_tancot_ps(v, _mm_set1_epi32(-1)); }
 
 	static const double sincof_d[6] = {1.58962301576546568060E-10,
 									   -2.50507477628578072866E-8,

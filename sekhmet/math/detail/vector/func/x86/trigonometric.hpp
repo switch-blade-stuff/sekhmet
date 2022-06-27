@@ -11,6 +11,8 @@ namespace sek::math::detail
 {
 	SEK_API __m128 x86_sin_ps(__m128 v) noexcept;
 	SEK_API __m128 x86_cos_ps(__m128 v) noexcept;
+
+	SEK_API __m128 x86_tancot_ps(__m128 v, __m128i m) noexcept;
 	SEK_API __m128 x86_tan_ps(__m128 v) noexcept;
 	SEK_API __m128 x86_cot_ps(__m128 v) noexcept;
 
