@@ -4,6 +4,7 @@
 
 #include "trigonometric.hpp"
 
+#include "exponential.hpp"
 #include "util.hpp"
 
 /* Implementations of trigonometric functions derived from netlib's cephes library (http://www.netlib.org/cephes/)
@@ -171,7 +172,7 @@ namespace sek::math::detail
 		const auto abs_mask = _mm_set1_ps(std::bit_cast<float>(0x7fff'ffff));
 		const auto sign = _mm_and_ps(v, sign_mask);
 
-		auto a = _mm_and_ps(v, abs_mask);			/* abs = |v| */
+		auto a = _mm_and_ps(v, abs_mask);			/* a = |v| */
 		auto b = _mm_mul_ps(a, _mm_set1_ps(pi4_f)); /* b = abs * (4 / PI) */
 		auto c = _mm_cvttps_epi32(b);				/* c = (int32) b */
 
@@ -238,6 +239,48 @@ namespace sek::math::detail
 	}
 	__m128 x86_tan_ps(__m128 v) noexcept { return x86_tancot_ps(v, _mm_setzero_si128()); }
 	__m128 x86_cot_ps(__m128 v) noexcept { return x86_tancot_ps(v, _mm_set1_epi32(-1)); }
+
+	static const float sinhcof_f[3] = {
+		2.03721912945E-4f,
+		8.33028376239E-3f,
+		1.66667160211E-1f,
+	};
+
+	__m128 x86_sinh_ps(__m128 v) noexcept
+	{
+		const auto abs_mask = _mm_set1_ps(std::bit_cast<float>(0x7fff'ffff));
+		const auto a = _mm_and_ps(v, abs_mask); /* a = |v| */
+
+		/* P1 (a > 1.0) */
+		auto p1 = x86_exp_ps(a);
+
+		const auto tmp = _mm_div_ps(_mm_set1_ps(0.5f), p1);
+#ifdef SEK_USE_FMA
+		p1 = _mm_fmadd_ps(_mm_set1_ps(-0.5f), p1, tmp); /* p1 = (-0.5 * p1) + (0.5 / p1) */
+#else
+		/* TODO: Implement this */
+#endif
+		p1 = _mm_and_ps(p1, abs_mask); /* p1 = |p1| */
+
+		/* P2 (a <= 1.0) */
+		const auto v2 = _mm_mul_ps(v, v);
+		auto p2 = _mm_set1_ps(sinhcof_f[0]);
+#ifdef SEK_USE_FMA
+		p2 = _mm_fmadd_ps(p2, v2, _mm_set1_ps(sinhcof_f[1]));
+		p2 = _mm_fmadd_ps(p2, v2, _mm_set1_ps(sinhcof_f[2]));
+		p2 = _mm_fmadd_ps(_mm_mul_ps(p2, v2), v, v);
+#else
+		/* TODO: Implement this */
+#endif
+
+		/* return (a > 1.0) ? p1 : p2 */
+		const auto select_mask = _mm_cmpngt_ps(a, _mm_set1_ps(1.0f));
+#ifdef SEK_USE_SSE4_1
+		return _mm_blendv_ps(p1, p2, select_mask);
+#else
+		/* TODO: Implement this */
+#endif
+	}
 
 	static const double sincof_d[6] = {
 		1.58962301576546568060E-10,
