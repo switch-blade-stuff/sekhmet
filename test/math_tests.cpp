@@ -217,16 +217,13 @@ TEST(math_tests, vector_test)
 	}
 }
 
-TEST(math_tests, trig_float_test)
+TEST(math_tests, sin_test)
 {
 	{
 		auto angle = sek::math::rad(45.0f);
 		auto v4f_0 = sek::math::fvec4{std::sin(angle)};
 		auto v4f_1 = sin(sek::math::fvec4{angle});
 		EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.0001f)));
-		auto v2f_0 = sek::math::fvec2{std::sin(angle)};
-		auto v2f_1 = sin(sek::math::fvec2{angle});
-		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
 
 		angle = sek::math::rad(90.0f);
 		v4f_0 = sek::math::fvec4{std::sin(angle)};
@@ -263,6 +260,132 @@ TEST(math_tests, trig_float_test)
 		v4f_1 = sin(sek::math::fvec4{angle});
 		EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.0001f)));
 	}
+	{
+		auto angle = sek::math::rad(45.0f);
+		auto v2f_0 = sek::math::fvec2{std::sin(angle)};
+		auto v2f_1 = sin(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+
+		angle = sek::math::rad(90.0f);
+		v2f_0 = sek::math::fvec2{std::sin(angle)};
+		v2f_1 = sin(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+
+		angle = sek::math::rad(135.0f);
+		v2f_0 = sek::math::fvec2{std::sin(angle)};
+		v2f_1 = sin(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+
+		angle = sek::math::rad(180.0f);
+		v2f_0 = sek::math::fvec2{std::sin(angle)};
+		v2f_1 = sin(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+
+		angle = sek::math::rad(225.0f);
+		v2f_0 = sek::math::fvec2{std::sin(angle)};
+		v2f_1 = sin(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+
+		angle = sek::math::rad(270.0f);
+		v2f_0 = sek::math::fvec2{std::sin(angle)};
+		v2f_1 = sin(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+
+		angle = sek::math::rad(315.0f);
+		v2f_0 = sek::math::fvec2{std::sin(angle)};
+		v2f_1 = sin(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+
+		angle = sek::math::rad(360.0f);
+		v2f_0 = sek::math::fvec2{std::sin(angle)};
+		v2f_1 = sin(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+	}
+	{
+		auto angle = sek::math::rad(45.0);
+		auto v4d_0 = sek::math::dvec4{std::sin(angle)};
+		auto v4d_1 = sin(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(90.0);
+		v4d_0 = sek::math::dvec4{std::sin(angle)};
+		v4d_1 = sin(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(135.0);
+		v4d_0 = sek::math::dvec4{std::sin(angle)};
+		v4d_1 = sin(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(180.0);
+		v4d_0 = sek::math::dvec4{std::sin(angle)};
+		v4d_1 = sin(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(225.0);
+		v4d_0 = sek::math::dvec4{std::sin(angle)};
+		v4d_1 = sin(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(270.0);
+		v4d_0 = sek::math::dvec4{std::sin(angle)};
+		v4d_1 = sin(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(315.0);
+		v4d_0 = sek::math::dvec4{std::sin(angle)};
+		v4d_1 = sin(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(360.0);
+		v4d_0 = sek::math::dvec4{std::sin(angle)};
+		v4d_1 = sin(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+	}
+	{
+		auto angle = sek::math::rad(45.0);
+		auto v4d_0 = sek::math::dvec2{std::sin(angle)};
+		auto v4d_1 = sin(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(90.0);
+		v4d_0 = sek::math::dvec2{std::sin(angle)};
+		v4d_1 = sin(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(135.0);
+		v4d_0 = sek::math::dvec2{std::sin(angle)};
+		v4d_1 = sin(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(180.0);
+		v4d_0 = sek::math::dvec2{std::sin(angle)};
+		v4d_1 = sin(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(225.0);
+		v4d_0 = sek::math::dvec2{std::sin(angle)};
+		v4d_1 = sin(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(270.0);
+		v4d_0 = sek::math::dvec2{std::sin(angle)};
+		v4d_1 = sin(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(315.0);
+		v4d_0 = sek::math::dvec2{std::sin(angle)};
+		v4d_1 = sin(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(360.0);
+		v4d_0 = sek::math::dvec2{std::sin(angle)};
+		v4d_1 = sin(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+	}
+}
+TEST(math_tests, cos_test)
+{
 	{
 		auto angle = sek::math::rad(45.0f);
 		auto v4f_0 = sek::math::fvec4{std::cos(angle)};
@@ -304,6 +427,133 @@ TEST(math_tests, trig_float_test)
 		v4f_1 = cos(sek::math::fvec4{angle});
 		EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.0001f)));
 	}
+	{
+		auto angle = sek::math::rad(45.0f);
+		auto v2f_0 = sek::math::fvec2{std::cos(angle)};
+		auto v2f_1 = cos(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+
+		angle = sek::math::rad(90.0f);
+		v2f_0 = sek::math::fvec2{std::cos(angle)};
+		v2f_1 = cos(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+
+		angle = sek::math::rad(135.0f);
+		v2f_0 = sek::math::fvec2{std::cos(angle)};
+		v2f_1 = cos(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+
+		angle = sek::math::rad(180.0f);
+		v2f_0 = sek::math::fvec2{std::cos(angle)};
+		v2f_1 = cos(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+
+		angle = sek::math::rad(225.0f);
+		v2f_0 = sek::math::fvec2{std::cos(angle)};
+		v2f_1 = cos(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+
+		angle = sek::math::rad(270.0f);
+		v2f_0 = sek::math::fvec2{std::cos(angle)};
+		v2f_1 = cos(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+
+		angle = sek::math::rad(315.0f);
+		v2f_0 = sek::math::fvec2{std::cos(angle)};
+		v2f_1 = cos(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+
+		angle = sek::math::rad(360.0f);
+		v2f_0 = sek::math::fvec2{std::cos(angle)};
+		v2f_1 = cos(sek::math::fvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+	}
+	{
+		auto angle = sek::math::rad(45.0);
+		auto v4d_0 = sek::math::dvec4{std::cos(angle)};
+		auto v4d_1 = cos(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(90.0);
+		v4d_0 = sek::math::dvec4{std::cos(angle)};
+		v4d_1 = cos(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(135.0);
+		v4d_0 = sek::math::dvec4{std::cos(angle)};
+		v4d_1 = cos(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(180.0);
+		v4d_0 = sek::math::dvec4{std::cos(angle)};
+		v4d_1 = cos(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(225.0);
+		v4d_0 = sek::math::dvec4{std::cos(angle)};
+		v4d_1 = cos(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(270.0);
+		v4d_0 = sek::math::dvec4{std::cos(angle)};
+		v4d_1 = cos(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(315.0);
+		v4d_0 = sek::math::dvec4{std::cos(angle)};
+		v4d_1 = cos(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(360.0);
+		v4d_0 = sek::math::dvec4{std::cos(angle)};
+		v4d_1 = cos(sek::math::dvec4{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+	}
+	{
+		auto angle = sek::math::rad(45.0);
+		auto v4d_0 = sek::math::dvec2{std::cos(angle)};
+		auto v4d_1 = cos(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(90.0);
+		v4d_0 = sek::math::dvec2{std::cos(angle)};
+		v4d_1 = cos(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(135.0);
+		v4d_0 = sek::math::dvec2{std::cos(angle)};
+		v4d_1 = cos(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(180.0);
+		v4d_0 = sek::math::dvec2{std::cos(angle)};
+		v4d_1 = cos(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(225.0);
+		v4d_0 = sek::math::dvec2{std::cos(angle)};
+		v4d_1 = cos(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(270.0);
+		v4d_0 = sek::math::dvec2{std::cos(angle)};
+		v4d_1 = cos(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(315.0);
+		v4d_0 = sek::math::dvec2{std::cos(angle)};
+		v4d_1 = cos(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+
+		angle = sek::math::rad(360.0);
+		v4d_0 = sek::math::dvec2{std::cos(angle)};
+		v4d_1 = cos(sek::math::dvec2{angle});
+		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+	}
+}
+
+TEST(math_tests, trig_float_test)
+{
 	{
 		auto angle = sek::math::rad(45.0f);
 		auto v4f_0 = sek::math::fvec4{std::tan(angle)};
@@ -365,91 +615,6 @@ TEST(math_tests, trig_float_test)
 		v4f_0 = sek::math::fvec4{1 / std::tan(angle)};
 		v4f_1 = cot(sek::math::fvec4{angle});
 		EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.0001f)));
-	}
-}
-TEST(math_tests, trig_double_test)
-{
-	{
-		auto angle = sek::math::rad(45.0);
-		auto v4d_0 = sek::math::dvec4{std::sin(angle)};
-		auto v4d_1 = sin(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-
-		angle = sek::math::rad(90.0);
-		v4d_0 = sek::math::dvec4{std::sin(angle)};
-		v4d_1 = sin(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-
-		angle = sek::math::rad(135.0);
-		v4d_0 = sek::math::dvec4{std::sin(angle)};
-		v4d_1 = sin(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-
-		angle = sek::math::rad(180.0);
-		v4d_0 = sek::math::dvec4{std::sin(angle)};
-		v4d_1 = sin(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-
-		angle = sek::math::rad(225.0);
-		v4d_0 = sek::math::dvec4{std::sin(angle)};
-		v4d_1 = sin(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-
-		angle = sek::math::rad(270.0);
-		v4d_0 = sek::math::dvec4{std::sin(angle)};
-		v4d_1 = sin(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-
-		angle = sek::math::rad(315.0);
-		v4d_0 = sek::math::dvec4{std::sin(angle)};
-		v4d_1 = sin(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-
-		angle = sek::math::rad(360.0);
-		v4d_0 = sek::math::dvec4{std::sin(angle)};
-		v4d_1 = sin(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-	}
-	{
-		auto angle = sek::math::rad(45.0);
-		auto v4d_0 = sek::math::dvec4{std::cos(angle)};
-		auto v4d_1 = cos(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-
-		angle = sek::math::rad(90.0);
-		v4d_0 = sek::math::dvec4{std::cos(angle)};
-		v4d_1 = cos(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-
-		angle = sek::math::rad(135.0);
-		v4d_0 = sek::math::dvec4{std::cos(angle)};
-		v4d_1 = cos(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-
-		angle = sek::math::rad(180.0);
-		v4d_0 = sek::math::dvec4{std::cos(angle)};
-		v4d_1 = cos(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-
-		angle = sek::math::rad(225.0);
-		v4d_0 = sek::math::dvec4{std::cos(angle)};
-		v4d_1 = cos(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-
-		angle = sek::math::rad(270.0);
-		v4d_0 = sek::math::dvec4{std::cos(angle)};
-		v4d_1 = cos(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-
-		angle = sek::math::rad(315.0);
-		v4d_0 = sek::math::dvec4{std::cos(angle)};
-		v4d_1 = cos(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
-
-		angle = sek::math::rad(360.0);
-		v4d_0 = sek::math::dvec4{std::cos(angle)};
-		v4d_1 = cos(sek::math::dvec4{angle});
-		EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
 	}
 }
 
