@@ -165,6 +165,43 @@ namespace sek::math::detail
 		__m128 simd;
 	};
 
+	template<std::size_t N, storage_policy P>
+	inline __m128 x86_pack_ps(const vector_data<float, N, P> &v) noexcept
+	{
+		if constexpr (N == 2)
+			return _mm_set_ps(0, v[0], 0, v[1]);
+		else if constexpr (N == 3)
+			return _mm_set_ps(v[0], v[1], 0, v[2]);
+		else
+			return _mm_set_ps(v[0], v[1], v[2], v[3]);
+	}
+	template<std::size_t N, storage_policy P>
+	inline void x86_unpack_ps(vector_data<float, N, P> &out, __m128 v) noexcept
+	{
+		if constexpr (N == 2)
+		{
+			out[0] = _mm_cvtss_f32(_mm_unpackhi_ps(v, v));
+			out[1] = _mm_cvtss_f32(v);
+		}
+		else if constexpr (N == 3)
+		{
+			const auto h = _mm_unpackhi_ps(v, v);
+			const auto l = _mm_unpacklo_ps(v, v);
+			out[0] = _mm_cvtss_f32(_mm_unpackhi_ps(h, h));
+			out[1] = _mm_cvtss_f32(h);
+			out[2] = _mm_cvtss_f32(l);
+		}
+		else
+		{
+			const auto h = _mm_unpackhi_ps(v, v);
+			const auto l = _mm_unpacklo_ps(v, v);
+			out[0] = _mm_cvtss_f32(_mm_unpackhi_ps(h, h));
+			out[1] = _mm_cvtss_f32(h);
+			out[2] = _mm_cvtss_f32(_mm_unpackhi_ps(l, l));
+			out[3] = _mm_cvtss_f32(l);
+		}
+	}
+
 #ifdef SEK_USE_SSE2
 	template<>
 	struct mask_set<std::uint64_t>
@@ -234,7 +271,6 @@ namespace sek::math::detail
 		std::uint32_t values[4];
 		__m128i simd;
 	};
-
 	template<integral_of_size<4> T>
 	union vector_data<T, 3, storage_policy::OPTIMAL>
 	{
@@ -271,6 +307,102 @@ namespace sek::math::detail
 		T values[4];
 		__m128i simd;
 	};
+
+	template<integral_of_size<4> T, std::size_t N, storage_policy P>
+	inline __m128i x86_pack_ps(const vector_data<T, N, P> &v) noexcept
+	{
+		if constexpr (N == 2)
+			return _mm_set_epi32(0, static_cast<std::int32_t>(v[0]), 0, static_cast<std::int32_t>(v[1]));
+		else if constexpr (N == 3)
+			return _mm_set_epi32(
+				static_cast<std::int32_t>(v[0]), static_cast<std::int32_t>(v[1]), 0, static_cast<std::int32_t>(v[2]));
+		else
+			return _mm_set_epi32(static_cast<std::int32_t>(v[0]),
+								 static_cast<std::int32_t>(v[1]),
+								 static_cast<std::int32_t>(v[2]),
+								 static_cast<std::int32_t>(v[3]));
+	}
+	template<integral_of_size<4> T, std::size_t N, storage_policy P>
+	inline void x86_unpack_ps(vector_data<T, N, P> &out, __m128i v) noexcept
+	{
+		if constexpr (N == 2)
+		{
+			out[0] = static_cast<T>(_mm_cvtsi128_si32(_mm_unpackhi_epi32(v, v)));
+			out[1] = static_cast<T>(_mm_cvtsi128_si32(v));
+		}
+		else if constexpr (N == 3)
+		{
+			const auto h = _mm_unpackhi_epi32(v, v);
+			const auto l = _mm_unpacklo_epi32(v, v);
+			out[0] = static_cast<T>(_mm_cvtsi128_si32(_mm_unpackhi_epi32(h, h)));
+			out[1] = static_cast<T>(_mm_cvtsi128_si32(h));
+			out[2] = static_cast<T>(_mm_cvtsi128_si32(l));
+		}
+		else
+		{
+			const auto h = _mm_unpackhi_epi32(v, v);
+			const auto l = _mm_unpacklo_epi32(v, v);
+			out[0] = static_cast<T>(_mm_cvtsi128_si32(_mm_unpackhi_epi32(h, h)));
+			out[1] = static_cast<T>(_mm_cvtsi128_si32(h));
+			out[2] = static_cast<T>(_mm_cvtsi128_si32(_mm_unpackhi_epi32(l, l)));
+			out[3] = static_cast<T>(_mm_cvtsi128_si32(l));
+		}
+	}
+	template<>
+	union mask_data<double, 2, storage_policy::OPTIMAL>
+	{
+		using element_t = mask_element<std::uint64_t>;
+		using const_element_t = mask_element<const std::uint64_t>;
+
+		constexpr mask_data() noexcept : values{} {}
+		constexpr mask_data(bool x, bool y) noexcept
+		{
+			operator[](0) = x;
+			operator[](1) = y;
+		}
+
+		template<std::size_t M>
+		constexpr mask_data(const bool (&data)[M]) noexcept : values{}
+		{
+			for (std::size_t i = 0; i < min(2, M); ++i) operator[](i) = data[i];
+		}
+
+		constexpr element_t operator[](std::size_t i) noexcept { return {values[i]}; }
+		constexpr const_element_t operator[](std::size_t i) const noexcept { return {values[i]}; }
+
+		std::uint64_t values[2];
+		__m128d simd;
+	};
+	template<>
+	union vector_data<double, 2, storage_policy::OPTIMAL>
+	{
+		constexpr vector_data() noexcept : values{} {}
+		constexpr vector_data(double x, double y) noexcept : values{x, y} {}
+
+		template<std::size_t M>
+		constexpr explicit vector_data(const double (&data)[M]) noexcept
+		{
+			for (std::size_t i = 0; i < min<std::size_t>(2, M); ++i) values[i] = data[i];
+		}
+
+		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
+		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
+
+		double values[2];
+		__m128d simd;
+	};
+
+	template<std::size_t N, storage_policy P>
+	inline __m128d x86_pack_pd(const vector_data<double, 2, P> &v) noexcept
+	{
+		return _mm_set_pd(v[0], v[1]);
+	}
+	template<std::size_t N, storage_policy P>
+	inline void x86_unpack_pd(vector_data<double, 2, P> &out, __m128d v) noexcept
+	{
+		out[0] = _mm_cvtsd_f64(_mm_unpackhi_pd(v, v));
+		out[1] = _mm_cvtsd_f64(v);
+	}
 
 	template<integral_of_size<8> T>
 	union mask_data<T, 2, storage_policy::OPTIMAL>
@@ -316,49 +448,17 @@ namespace sek::math::detail
 		__m128i simd;
 	};
 
-	template<>
-	union mask_data<double, 2, storage_policy::OPTIMAL>
+	template<integral_of_size<8> T, std::size_t N, storage_policy P>
+	inline __m128i x86_pack_pd(const vector_data<T, 2, P> &v) noexcept
 	{
-		using element_t = mask_element<std::uint64_t>;
-		using const_element_t = mask_element<const std::uint64_t>;
-
-		constexpr mask_data() noexcept : values{} {}
-		constexpr mask_data(bool x, bool y) noexcept
-		{
-			operator[](0) = x;
-			operator[](1) = y;
-		}
-
-		template<std::size_t M>
-		constexpr mask_data(const bool (&data)[M]) noexcept : values{}
-		{
-			for (std::size_t i = 0; i < min(2, M); ++i) operator[](i) = data[i];
-		}
-
-		constexpr element_t operator[](std::size_t i) noexcept { return {values[i]}; }
-		constexpr const_element_t operator[](std::size_t i) const noexcept { return {values[i]}; }
-
-		std::uint64_t values[2];
-		__m128d simd;
-	};
-	template<>
-	union vector_data<double, 2, storage_policy::OPTIMAL>
+		return _mm_set_epi64x(static_cast<std::int64_t>(v[0]), static_cast<std::int64_t>(v[1]));
+	}
+	template<integral_of_size<8> T, std::size_t N, storage_policy P>
+	inline void x86_unpack_pd(vector_data<T, 2, P> &out, __m128i v) noexcept
 	{
-		constexpr vector_data() noexcept : values{} {}
-		constexpr vector_data(double x, double y) noexcept : values{x, y} {}
-
-		template<std::size_t M>
-		constexpr explicit vector_data(const double (&data)[M]) noexcept
-		{
-			for (std::size_t i = 0; i < min<std::size_t>(2, M); ++i) values[i] = data[i];
-		}
-
-		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
-		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
-
-		double values[2];
-		__m128d simd;
-	};
+		out[0] = static_cast<T>(_mm_cvtsi128_si64x(_mm_unpackhi_epi64(v, v)));
+		out[1] = static_cast<T>(_mm_cvtsi128_si64x(v));
+	}
 
 #ifndef SEK_USE_AVX
 	template<>

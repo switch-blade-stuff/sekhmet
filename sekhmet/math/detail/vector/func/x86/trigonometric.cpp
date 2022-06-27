@@ -258,7 +258,7 @@ namespace sek::math::detail
 #ifdef SEK_USE_FMA
 		p1 = _mm_fmadd_ps(_mm_set1_ps(-0.5f), p1, tmp); /* p1 = (-0.5 * p1) + (0.5 / p1) */
 #else
-		/* TODO: Implement this */
+		p1 = _mm_add_ps(_mm_mul_ps(_mm_set1_ps(-0.5f), p1), tmp);
 #endif
 		p1 = _mm_and_ps(p1, abs_mask); /* p1 = |p1| */
 
@@ -266,11 +266,13 @@ namespace sek::math::detail
 		const auto v2 = _mm_mul_ps(v, v);
 		auto p2 = _mm_set1_ps(sinhcof_f[0]);
 #ifdef SEK_USE_FMA
-		p2 = _mm_fmadd_ps(p2, v2, _mm_set1_ps(sinhcof_f[1]));
-		p2 = _mm_fmadd_ps(p2, v2, _mm_set1_ps(sinhcof_f[2]));
-		p2 = _mm_fmadd_ps(_mm_mul_ps(p2, v2), v, v);
+		p2 = _mm_fmadd_ps(p2, v2, _mm_set1_ps(sinhcof_f[1])); /* p2 = (p2 * v2) + sinhcof_f[1] */
+		p2 = _mm_fmadd_ps(p2, v2, _mm_set1_ps(sinhcof_f[2])); /* p2 = (p2 * v2) + sinhcof_f[2] */
+		p2 = _mm_fmadd_ps(_mm_mul_ps(p2, v2), v, v);		  /* p2 = ((p2 * v2) * v) + v */
 #else
-		/* TODO: Implement this */
+		p1 = _mm_add_ps(_mm_mul_ps(p2, v2), sinhcof_f[1]);
+		p1 = _mm_add_ps(_mm_mul_ps(p2, v2), sinhcof_f[2]);
+		p1 = _mm_add_ps(_mm_mul_ps(_mm_mul_ps(p2, v2), v), v);
 #endif
 
 		/* return (a > 1.0) ? p1 : p2 */
@@ -278,7 +280,7 @@ namespace sek::math::detail
 #ifdef SEK_USE_SSE4_1
 		return _mm_blendv_ps(p1, p2, select_mask);
 #else
-		/* TODO: Implement this */
+		return _mm_add_ps(_mm_and_ps(select_mask, p2), _mm_andnot_ps(select_mask, p1));
 #endif
 	}
 

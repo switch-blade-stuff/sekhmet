@@ -26,25 +26,15 @@ namespace sek::math::detail
 	SEK_API __m128 x86_exp_ps(__m128 v) noexcept;
 	SEK_API __m128 x86_log_ps(__m128 v) noexcept;
 
-	template<storage_policy P>
-	inline void vector_exp(vector_data<float, 2, P> &out, const vector_data<float, 2, P> &v) noexcept
+	template<std::size_t N, storage_policy P>
+	inline void vector_exp(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
 	{
-		const auto a = x86_exp_ps(_mm_set_ps(0, v[1], 0, v[0]));
-		const auto h = _mm_cvtss_f32(_mm_unpackhi_ps(a, a));
-		const auto l = _mm_cvtss_f32(a);
-
-		out[0] = l;
-		out[1] = h;
+		x86_unpack_ps(out, x86_exp_ps(x86_pack_ps(v)));
 	}
-	template<storage_policy P>
-	inline void vector_log(vector_data<float, 2, P> &out, const vector_data<float, 2, P> &v) noexcept
+	template<std::size_t N, storage_policy P>
+	inline void vector_log(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
 	{
-		const auto a = x86_log_ps(_mm_set_ps(0, v[1], 0, v[0]));
-		const auto h = _mm_cvtss_f32(_mm_unpackhi_ps(a, a));
-		const auto l = _mm_cvtss_f32(a);
-
-		out[0] = l;
-		out[1] = h;
+		x86_unpack_ps(out, x86_log_ps(x86_pack_ps(v)));
 	}
 
 	template<std::size_t N>
