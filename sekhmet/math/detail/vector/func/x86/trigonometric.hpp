@@ -11,6 +11,8 @@ namespace sek::math::detail
 {
 	SEK_API __m128 x86_sin_ps(__m128 v) noexcept;
 	SEK_API __m128 x86_cos_ps(__m128 v) noexcept;
+	SEK_API __m128 x86_tan_ps(__m128 v) noexcept;
+	SEK_API __m128 x86_cot_ps(__m128 v) noexcept;
 
 	template<std::size_t N>
 	inline void vector_sin(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
@@ -23,6 +25,18 @@ namespace sek::math::detail
 		requires simd_enabled<simd_vector<float, N>>
 	{
 		out.simd = x86_cos_ps(v.simd);
+	}
+	template<std::size_t N>
+	inline void vector_tan(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
+		requires simd_enabled<simd_vector<float, N>>
+	{
+		out.simd = x86_tan_ps(v.simd);
+	}
+	template<std::size_t N>
+	inline void vector_cot(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
+		requires simd_enabled<simd_vector<float, N>>
+	{
+		out.simd = x86_cot_ps(v.simd);
 	}
 
 	SEK_API __m128d x86_sin_pd(__m128d v) noexcept;

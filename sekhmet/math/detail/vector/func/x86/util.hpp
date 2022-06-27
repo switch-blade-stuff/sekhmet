@@ -75,11 +75,6 @@ namespace sek::math::detail
 #endif
 
 #ifdef SEK_USE_SSE2
-	SEK_API __m128i x86_cvtpd_epu64(__m128d v) noexcept;
-	SEK_API __m128i x86_cvtpd_epi64(__m128d v) noexcept;
-	SEK_API __m128d x86_cvtepu64_pd(__m128i x) noexcept;
-	SEK_API __m128d x86_cvtepi64_pd(__m128i x) noexcept;
-
 	template<std::size_t I0, std::size_t I1>
 	inline void mask_shuffle(simd_mask<double, 2> &out, const simd_mask<double, 2> &m, std::index_sequence<I0, I1>) noexcept
 	{
@@ -302,6 +297,13 @@ namespace sek::math::detail
 #endif
 	}
 #endif
+#endif
+
+#ifndef SEK_USE_AVX512_DQ
+	SEK_API __m128i x86_cvtpd_epu64(__m128d v) noexcept;
+	SEK_API __m128i x86_cvtpd_epi64(__m128d v) noexcept;
+	SEK_API __m128d x86_cvtepu64_pd(__m128i v) noexcept;
+	SEK_API __m128d x86_cvtepi64_pd(__m128i v) noexcept;
 #endif
 #endif
 }	 // namespace sek::math::detail

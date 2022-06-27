@@ -34,6 +34,17 @@ namespace sek::math
 				for (std::size_t i = 0; i < N; ++i) out[i] = static_cast<T>(std::tan(v[i]));
 			}
 			template<typename T, std::size_t N, storage_policy P>
+			constexpr void vector_cot(vector_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
+			{
+				auto one = vector_data<T, N, P>{};
+				for (std::size_t i = 0; i < N; ++i) one[i] = static_cast<T>(1);
+
+				/* cot(x) = 1 / tan(x) */
+				vector_tan(out, v);
+				vector_div(out, one, out);
+			}
+
+			template<typename T, std::size_t N, storage_policy P>
 			constexpr void vector_asin(vector_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = static_cast<T>(std::asin(v[i]));
@@ -48,6 +59,17 @@ namespace sek::math
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = static_cast<T>(std::atan(v[i]));
 			}
+			template<typename T, std::size_t N, storage_policy P>
+			constexpr void vector_acot(vector_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
+			{
+				auto pi2 = vector_data<T, N, P>{};
+				for (std::size_t i = 0; i < N; ++i) pi2[i] = std::numbers::pi_v<T> / 2;
+
+				/* acot(x) = pi / 2 - tan(x) */
+				vector_tan(out, v);
+				vector_sub(out, pi2, out);
+			}
+
 			template<typename T, std::size_t N, storage_policy P>
 			constexpr void vector_sinh(vector_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
 			{
@@ -64,6 +86,17 @@ namespace sek::math
 				for (std::size_t i = 0; i < N; ++i) out[i] = static_cast<T>(std::tanh(v[i]));
 			}
 			template<typename T, std::size_t N, storage_policy P>
+			constexpr void vector_coth(vector_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
+			{
+				auto one = vector_data<T, N, P>{};
+				for (std::size_t i = 0; i < N; ++i) one[i] = static_cast<T>(1);
+
+				/* coth(x) = 1 / tanh(x) */
+				vector_tanh(out, v);
+				vector_div(out, one, out);
+			}
+
+			template<typename T, std::size_t N, storage_policy P>
 			constexpr void vector_asinh(vector_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = static_cast<T>(std::asinh(v[i]));
@@ -77,6 +110,24 @@ namespace sek::math
 			constexpr void vector_atanh(vector_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = static_cast<T>(std::atanh(v[i]));
+			}
+			template<typename T, std::size_t N, storage_policy P>
+			constexpr void vector_acoth(vector_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
+			{
+				auto one = vector_data<T, N, P>{};
+				for (std::size_t i = 0; i < N; ++i) one[i] = static_cast<T>(1);
+				auto two = vector_data<T, N, P>{};
+				for (std::size_t i = 0; i < N; ++i) two[i] = static_cast<T>(2);
+
+				/* acoth(x) = 0.5 * ln((x + 1) / (x - 1)) */
+
+				auto xp1 = v;
+				vector_add(xp1, xp1, one);
+				auto xm1 = v;
+				vector_sub(xm1, xm1, one);
+				vector_div(out, xp1, xm1);
+				vector_log(out, out);
+				vector_div(out, out, two);
 			}
 		}	 // namespace generic
 	}		 // namespace detail
@@ -114,6 +165,18 @@ namespace sek::math
 			detail::vector_tan(result.m_data, v.m_data);
 		return result;
 	}
+	/** Calculates a cotangent of the elements of the vector. */
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp> cot(const basic_vec<U, M, Sp> &v) noexcept
+	{
+		basic_vec<U, M, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_cot(result.m_data, v.m_data);
+		else
+			detail::vector_cot(result.m_data, v.m_data);
+		return result;
+	}
+
 	/** Calculates a arc sine of the elements of the vector. */
 	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> asin(const basic_vec<U, M, Sp> &v) noexcept
@@ -147,6 +210,18 @@ namespace sek::math
 			detail::vector_atan(result.m_data, v.m_data);
 		return result;
 	}
+	/** Calculates a arc cotangent of the elements of the vector. */
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp> acot(const basic_vec<U, M, Sp> &v) noexcept
+	{
+		basic_vec<U, M, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_acot(result.m_data, v.m_data);
+		else
+			detail::vector_acot(result.m_data, v.m_data);
+		return result;
+	}
+
 	/** Calculates a hyperbolic sine of the elements of the vector. */
 	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> sinh(const basic_vec<U, M, Sp> &v) noexcept
@@ -180,6 +255,18 @@ namespace sek::math
 			detail::vector_tanh(result.m_data, v.m_data);
 		return result;
 	}
+	/** Calculates a hyperbolic cotangent of the elements of the vector. */
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp> coth(const basic_vec<U, M, Sp> &v) noexcept
+	{
+		basic_vec<U, M, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_coth(result.m_data, v.m_data);
+		else
+			detail::vector_coth(result.m_data, v.m_data);
+		return result;
+	}
+
 	/** Calculates a hyperbolic arc sine of the elements of the vector. */
 	template<typename U, std::size_t M, storage_policy Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> asinh(const basic_vec<U, M, Sp> &v) noexcept
@@ -211,6 +298,17 @@ namespace sek::math
 			detail::generic::vector_atanh(result.m_data, v.m_data);
 		else
 			detail::vector_atanh(result.m_data, v.m_data);
+		return result;
+	}
+	/** Calculates a hyperbolic arc cotangent of the elements of the vector. */
+	template<typename U, std::size_t M, storage_policy Sp>
+	[[nodiscard]] constexpr basic_vec<U, M, Sp> acoth(const basic_vec<U, M, Sp> &v) noexcept
+	{
+		basic_vec<U, M, Sp> result = {};
+		if (std::is_constant_evaluated())
+			detail::generic::vector_acoth(result.m_data, v.m_data);
+		else
+			detail::vector_acoth(result.m_data, v.m_data);
 		return result;
 	}
 
