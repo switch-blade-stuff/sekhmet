@@ -24,24 +24,37 @@ namespace sek::math::detail
 
 #ifdef SEK_USE_SSE2
 	SEK_API __m128 x86_exp_ps(__m128 v) noexcept;
-	SEK_API __m128 x86_log_ps(__m128 v) noexcept;
+	SEK_API __m128 x86_exp2_ps(__m128 v) noexcept;
 
 	template<std::size_t N, storage_policy P>
 	inline void vector_exp(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
 	{
 		x86_unpack_ps(out, x86_exp_ps(x86_pack_ps(v)));
 	}
-	template<std::size_t N, storage_policy P>
-	inline void vector_log(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
-	{
-		x86_unpack_ps(out, x86_log_ps(x86_pack_ps(v)));
-	}
-
 	template<std::size_t N>
 	inline void vector_exp(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
 		requires simd_enabled<simd_vector<float, N>>
 	{
 		out.simd = x86_exp_ps(v.simd);
+	}
+	template<std::size_t N, storage_policy P>
+	inline void vector_exp2(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+	{
+		x86_unpack_ps(out, x86_exp2_ps(x86_pack_ps(v)));
+	}
+	template<std::size_t N>
+	inline void vector_exp2(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
+		requires simd_enabled<simd_vector<float, N>>
+	{
+		out.simd = x86_exp2_ps(v.simd);
+	}
+
+	SEK_API __m128 x86_log_ps(__m128 v) noexcept;
+
+	template<std::size_t N, storage_policy P>
+	inline void vector_log(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+	{
+		x86_unpack_ps(out, x86_log_ps(x86_pack_ps(v)));
 	}
 	template<std::size_t N>
 	inline void vector_log(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
