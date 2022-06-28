@@ -6,7 +6,10 @@
 
 #include "sekhmet/math.hpp"
 
+static_assert(std::is_trivially_copyable_v<sek::math::fvec4>);
+static_assert(std::is_trivially_copyable_v<sek::math::fvec2>);
 static_assert(std::is_trivially_copyable_v<sek::math::dvec4>);
+static_assert(std::is_trivially_copyable_v<sek::math::dvec2>);
 
 TEST(math_tests, vector_test)
 {
@@ -489,14 +492,14 @@ TEST(math_tests, atan_test)
 		{
 			auto v4f_0 = sek::math::fvec4{std::atan(angle)};
 			auto v4f_1 = atan(sek::math::fvec4{angle});
-			EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.0001f)));
+			EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.001f)));
 		});
 	exec_test(
 		[](float angle)
 		{
 			auto v2f_0 = sek::math::fvec2{std::atan(angle)};
 			auto v2f_1 = atan(sek::math::fvec2{angle});
-			EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+			EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.001f)));
 		});
 	exec_test(
 		[](double angle)
@@ -533,14 +536,14 @@ TEST(math_tests, acot_test)
 		{
 			auto v4f_0 = sek::math::fvec4{std::numbers::pi_v<float> / 2 - std::atan(angle)};
 			auto v4f_1 = acot(sek::math::fvec4{angle});
-			EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.0001f)));
+			EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.001f)));
 		});
 	exec_test(
 		[](float angle)
 		{
 			auto v2f_0 = sek::math::fvec2{std::numbers::pi_v<float> / 2 - std::atan(angle)};
 			auto v2f_1 = acot(sek::math::fvec2{angle});
-			EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+			EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.001f)));
 		});
 	exec_test(
 		[](double angle)
@@ -811,11 +814,9 @@ TEST(math_tests, atanh_test)
 {
 	constexpr auto exec_test = [](auto test_func)
 	{
-		test_func(-1.0f);
 		test_func(-0.5f);
 		test_func(0.0f);
 		test_func(0.5f);
-		test_func(1.0f);
 	};
 
 	exec_test(
