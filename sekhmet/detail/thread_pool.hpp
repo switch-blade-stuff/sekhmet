@@ -8,10 +8,9 @@
 #include <mutex>
 #include <thread>
 
-#include "aligned_storage.hpp"
 #include "define.h"
+#include "ebo_base_helper.hpp"
 #include <condition_variable>
-#include <memory_resource>
 
 namespace sek
 {
@@ -57,64 +56,22 @@ namespace sek
 		};
 		struct task_base : task_node
 		{
-			constexpr task_base *invoke() noexcept
-			{
-				invoke_func(this);
-				return this;
-			}
-			constexpr void destroy(std::pmr::unsynchronized_pool_resource *pool) noexcept { destroy_func(this, pool); }
-
-			void (*invoke_func)(void *) noexcept;
-			void (*destroy_func)(void *, std::pmr::unsynchronized_pool_resource *) noexcept;
-
-			union
-			{
-				aligned_storage<sizeof(std::uintptr_t) * 2, alignof(std::uintptr_t)> local_data;
-				void *heap_data;
-			};
+			virtual ~task_base() = default;
+			virtual task_base *invoke() noexcept = 0;
 		};
 		template<typename T, typename F, typename U = std::decay_t<F>>
-		struct task_t : task_base
+		struct task_t final : task_base, ebo_base_helper<F>
 		{
-			constexpr static bool in_place = sizeof(U) <= sizeof(task_base::local_data);
+			using ebo_t = ebo_base_helper<F>;
 
-			task_t(std::pmr::unsynchronized_pool_resource *pool, std::promise<T> &&promise, F &&f)
-				: promise(std::forward<std::promise<T>>(promise))
-			{
-				if constexpr (in_place)
-				{
-					std::construct_at(local_data.template get<U>(), std::forward<F>(f));
+			task_t(std::promise<T> &&p, F &&f) : ebo_t(std::forward<F>(f)), promise(std::forward<std::promise<T>>(p)) {}
+			~task_t() final = default;
 
-					invoke_func = +[](void *ptr) noexcept
-					{
-						auto task = static_cast<task_t *>(ptr);
-						task->do_invoke(*task->local_data.template get<U>());
-					};
-				}
-				else
-				{
-					heap_data = pool->allocate(sizeof(U), alignof(U));
-					std::construct_at(static_cast<U *>(heap_data), std::forward<F>(f));
-
-					invoke_func = +[](void *ptr) noexcept
-					{
-						auto task = static_cast<task_t *>(ptr);
-						task->do_invoke(*static_cast<U *>(task->heap_data));
-					};
-				}
-
-				destroy_func = +[](void *ptr, std::pmr::unsynchronized_pool_resource *pool) noexcept
-				{
-					auto task = static_cast<task_t *>(ptr);
-					task->do_destroy(pool);
-					pool->deallocate(ptr, sizeof(task_t), alignof(task_t));
-				};
-			}
-
-			void do_invoke(F &f) noexcept
+			task_base *invoke() noexcept final
 			{
 				try
 				{
+					auto &f = *ebo_t::get();
 					if constexpr (std::is_void_v<T>)
 					{
 						f();
@@ -127,18 +84,7 @@ namespace sek
 				{
 					promise.set_exception(std::current_exception());
 				}
-			}
-			void do_destroy(std::pmr::unsynchronized_pool_resource *pool)
-			{
-				if constexpr (in_place)
-					std::destroy_at(local_data.template get<U>());
-				else
-				{
-					std::destroy_at(static_cast<U *>(heap_data));
-					pool->deallocate(heap_data, sizeof(U), alignof(U));
-				}
-
-				std::destroy_at(this);
+				return this;
 			}
 
 			std::promise<T> promise;
@@ -170,15 +116,7 @@ namespace sek
 		/* Worker threads may outlive the pool, thus the control block must live as long as any worker lives. */
 		struct control_block
 		{
-			static control_block *make_control_block(std::pmr::memory_resource *res, std::size_t n, thread_pool::queue_mode mode)
-			{
-				auto *cb = static_cast<control_block *>(res->allocate(sizeof(control_block), alignof(control_block)));
-				if (!cb) [[unlikely]]
-					throw std::bad_alloc();
-				return std::construct_at(cb, res, n, mode);
-			}
-
-			SEK_API control_block(std::pmr::memory_resource *res, std::size_t n, queue_mode mode);
+			SEK_API control_block(std::size_t n, queue_mode mode);
 			SEK_API ~control_block();
 
 			SEK_API void resize(std::size_t n);
@@ -193,14 +131,9 @@ namespace sek
 				{
 					std::lock_guard<std::mutex> l(mtx);
 
-					using task_type = task_t<T, F>;
-					auto task_ptr = static_cast<task_type *>(task_alloc.allocate(sizeof(task_type), alignof(task_type)));
-					if (!task_ptr) [[unlikely]]
-						throw std::bad_alloc();
-
-					std::construct_at(task_ptr, &task_alloc, std::forward<std::promise<T>>(promise), std::forward<F>(task));
-					task_ptr->link_after(queue_head);
-					result = task_ptr->promise.get_future();
+					auto node = new task_t<T, F>(std::forward<std::promise<T>>(promise), std::forward<F>(task));
+					result = node->promise.get_future();
+					node->link_after(queue_head);
 				}
 				cv.notify_one();
 				return result;
@@ -214,9 +147,7 @@ namespace sek
 				// NOLINTNEXTLINE static cast is fine here since there is no virtual inheritance
 				return static_cast<task_base *>((dispatch_mode == fifo ? queue_head.back : queue_head.front)->unlink());
 			}
-			void delete_task(task_base *task) { task->destroy(&task_alloc); }
 
-			std::pmr::unsynchronized_pool_resource task_alloc;
 			std::atomic<std::size_t> ref_count = 1;
 
 			std::condition_variable cv;
@@ -241,16 +172,7 @@ namespace sek
 		/** Initializes thread pool with n threads & the specified queue mode.
 		 * @param n Amount of worker threads to initialize the pool with. If set to 0 will use `std::thread::hardware_concurrency` workers.
 		 * @param mode Queue mode used for task dispatch. Default is FIFO. */
-		explicit thread_pool(std::size_t n, queue_mode mode = fifo)
-			: thread_pool(std::pmr::get_default_resource(), n, mode)
-		{
-		}
-		/** @copydoc thread_pool
-		 * @param res Memory resource used to allocate tasks. */
-		thread_pool(std::pmr::memory_resource *res, std::size_t n, queue_mode mode = fifo)
-			: m_cb(control_block::make_control_block(res, n, mode))
-		{
-		}
+		explicit thread_pool(std::size_t n, queue_mode mode = fifo) : m_cb(new control_block(n, mode)) {}
 		/** Terminates all worker threads & releases internal state. */
 		~thread_pool()
 		{

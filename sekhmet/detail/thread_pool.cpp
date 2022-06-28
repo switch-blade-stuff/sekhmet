@@ -15,8 +15,7 @@ namespace sek
 			throw std::runtime_error("`std::thread::hardware_concurrency` returned 0");
 	}
 
-	thread_pool::control_block::control_block(std::pmr::memory_resource *res, std::size_t n, thread_pool::queue_mode mode)
-		: task_alloc(res), dispatch_mode(mode)
+	thread_pool::control_block::control_block(std::size_t n, thread_pool::queue_mode mode) : dispatch_mode(mode)
 	{
 		adjust_worker_count(n);
 
@@ -30,10 +29,11 @@ namespace sek
 	}
 	thread_pool::control_block::~control_block()
 	{
+		for (auto task = queue_head.front, end = queue_head.back; task != end;)
+			delete static_cast<task_base *>(std::exchange(task, task->next));	 // NOLINT
+
 		/* Workers should be terminated by now, no need to destroy them again. */
 		::operator delete[](static_cast<void *>(workers_data), workers_capacity * sizeof(worker_t));
-		for (auto task = queue_head.front, end = queue_head.back; task != end;)
-			delete_task(static_cast<task_base *>(std::exchange(task, task->next)));	   // NOLINT
 	}
 
 	void thread_pool::control_block::destroy_workers(worker_t *first, worker_t *last)
@@ -107,7 +107,7 @@ namespace sek
 			}
 
 			/* Execute & delete the task. */
-			cb->delete_task(task->invoke());
+			delete task->invoke();
 		}
 		cb->release();
 	}
