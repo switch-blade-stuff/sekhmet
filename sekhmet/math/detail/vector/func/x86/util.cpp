@@ -43,7 +43,7 @@ namespace sek::math::detail
 #ifdef SEK_USE_SSE4_1
 		const auto b = _mm_blend_epi16(v, exp52, 0xcc);
 #else
-		const auto mask = _mm_set1_epi64x(static_cast<std::int64_t>(0x8000'8000'0000'0000));
+		const auto mask = _mm_set1_epi64x(static_cast<std::int64_t>(0xffff'ffff'0000'0000));
 		const auto b = _mm_or_si128(_mm_and_si128(mask, exp52), _mm_andnot_si128(mask, v));
 #endif
 		return _mm_add_pd(_mm_sub_pd(_mm_castsi128_pd(a), adjust), _mm_castsi128_pd(b));
@@ -58,14 +58,14 @@ namespace sek::math::detail
 #ifdef SEK_USE_SSE4_1
 		auto a = _mm_blend_epi16(tmp, _mm_setzero_si128(), 0x33);
 #else
-		const auto mask = _mm_set1_epi64x(static_cast<std::int64_t>(0x0000'0000'8000'8000));
+		auto mask = _mm_set1_epi64x(static_cast<std::int64_t>(0x0000'0000'ffff'ffff));
 		auto a = _mm_or_si128(_mm_and_si128(mask, _mm_setzero_si128()), _mm_andnot_si128(mask, tmp));
 #endif
 
 #ifdef SEK_USE_SSE4_1
 		auto b = _mm_blend_epi16(v, exp52, 0x88);
 #else
-		const auto mask = _mm_set1_epi64x(static_cast<std::int64_t>(0x8000'0000'0000'0000));
+		mask = _mm_set1_epi64x(static_cast<std::int64_t>(0xffff'0000'0000'0000));
 		const auto b = _mm_or_si128(_mm_and_si128(mask, exp52), _mm_andnot_si128(mask, v));
 #endif
 

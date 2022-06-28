@@ -18,6 +18,7 @@ namespace sek::math::detail
 	static const float dp_f[3] = {-0.78515625f, -2.4187564849853515625e-4f, -3.77489497744594108e-8f};
 	static const float pi4_f = 1.2732395447351626861510701069801148962756771659236515899813387524f;
 	static const float pi2_f = 1.5707963267948966192313216916397514420985846996875529104874722961f;
+	static const float pi_f = std::numbers::pi_v<float>;
 
 	__m128 x86_sin_ps(__m128 v) noexcept
 	{
@@ -220,21 +221,20 @@ namespace sek::math::detail
 #endif
 
 		const auto bit2 = _mm_cmpeq_epi32(_mm_and_si128(c, _mm_set1_epi32(2)), _mm_set1_epi32(2));
-		const auto select1 = _mm_and_si128(bit2, cot_mask);	   /* select1 = (c & 2) && cot_mask */
-		const auto select2 = _mm_andnot_si128(cot_mask, bit2); /* select2 = (c & 2) && !cot_mask */
-		const auto select3 = _mm_andnot_si128(bit2, cot_mask); /* select3 = !(c & 2) && cot_mask */
-		const auto b1 = _mm_xor_ps(b, sign_mask);			   /* b1 = -b */
-		const auto b2 = _mm_div_ps(_mm_set1_ps(-1.0f), b);	   /* b2 = -1.0f/b */
-		const auto b3 = _mm_div_ps(_mm_set1_ps(1.0f), b);	   /* b2 = 1.0f/b */
+		const auto select1 = _mm_castsi128_ps(_mm_and_si128(bit2, cot_mask));	 /* select1 = (c & 2) && cot_mask */
+		const auto select2 = _mm_castsi128_ps(_mm_andnot_si128(cot_mask, bit2)); /* select2 = (c & 2) && !cot_mask */
+		const auto select3 = _mm_castsi128_ps(_mm_andnot_si128(bit2, cot_mask)); /* select3 = !(c & 2) && cot_mask */
+		const auto b1 = _mm_xor_ps(b, sign_mask);								 /* b1 = -b */
+		const auto b2 = _mm_div_ps(_mm_set1_ps(-1.0f), b);						 /* b2 = -1.0f/b */
+		const auto b3 = _mm_div_ps(_mm_set1_ps(1.0f), b);						 /* b2 = 1.0f/b */
 #ifdef SEK_USE_SSE4_1
-		auto result = _mm_blendv_ps(b, b3, _mm_castsi128_ps(select3)); /* result = select3 ? b3 : b */
-		result = _mm_blendv_ps(result, b2, _mm_castsi128_ps(select2)); /* result = select2 ? b2 : result */
-		result = _mm_blendv_ps(result, b1, _mm_castsi128_ps(select1)); /* result = select2 ? b1 : result */
+		auto result = _mm_blendv_ps(b, b3, select3); /* result = select3 ? b3 : b */
+		result = _mm_blendv_ps(result, b2, select2); /* result = select2 ? b2 : result */
+		result = _mm_blendv_ps(result, b1, select1); /* result = select1 ? b1 : result */
 #else
-		auto result = _mm_andnot_ps(select3, b);
-		result = _mm_add_ps(_mm_and_ps(_mm_castsi128_ps(select3), b3), result);
-		result = _mm_add_ps(_mm_and_ps(_mm_castsi128_ps(select2), b2), result);
-		result = _mm_add_ps(_mm_and_ps(_mm_castsi128_ps(select1), b1), result);
+		auto result = _mm_add_ps(_mm_and_ps(select3, b3), _mm_andnot_ps(select3, b));
+		result = _mm_add_ps(_mm_and_ps(select2, b2), _mm_andnot_ps(select2, result));
+		result = _mm_add_ps(_mm_and_ps(select1, b1), _mm_andnot_ps(select1, result));
 #endif
 		return _mm_xor_ps(result, sign);
 	}
@@ -255,9 +255,9 @@ namespace sek::math::detail
 
 		/* P1 (a > 1.0) */
 		auto p1 = x86_exp_ps(a);
-		const auto tmp = _mm_div_ps(_mm_set1_ps(-0.5f), p1);
+		const auto tmp = _mm_div_ps(_mm_set1_ps(-0.5f), p1); /* tmp = (-0.5 / p1) */
 #ifdef SEK_USE_FMA
-		p1 = _mm_fmadd_ps(_mm_set1_ps(0.5f), p1, tmp); /* p1 = (0.5 * p1) - (0.5 / p1) */
+		p1 = _mm_fmadd_ps(_mm_set1_ps(0.5f), p1, tmp); /* p1 = (0.5 * p1) + tmp */
 #else
 		p1 = _mm_add_ps(_mm_mul_ps(_mm_set1_ps(0.5f), p1), tmp);
 #endif
@@ -271,9 +271,9 @@ namespace sek::math::detail
 		p2 = _mm_fmadd_ps(p2, v2, _mm_set1_ps(sinhcof_f[2])); /* p2 = (p2 * v2) + sinhcof_f[2] */
 		p2 = _mm_fmadd_ps(_mm_mul_ps(p2, v2), v, v);		  /* p2 = ((p2 * v2) * v) + v */
 #else
-		p1 = _mm_add_ps(_mm_mul_ps(p2, v2), _mm_set1_ps(sinhcof_f[1]));
-		p1 = _mm_add_ps(_mm_mul_ps(p2, v2), _mm_set1_ps(sinhcof_f[2]));
-		p1 = _mm_add_ps(_mm_mul_ps(_mm_mul_ps(p2, v2), v), v);
+		p2 = _mm_add_ps(_mm_mul_ps(p2, v2), _mm_set1_ps(sinhcof_f[1]));
+		p2 = _mm_add_ps(_mm_mul_ps(p2, v2), _mm_set1_ps(sinhcof_f[2]));
+		p2 = _mm_add_ps(_mm_mul_ps(_mm_mul_ps(p2, v2), v), v);
 #endif
 
 		/* return (a > 1.0) ? p1 : p2 */
@@ -323,15 +323,15 @@ namespace sek::math::detail
 		p2 = _mm_fmadd_ps(p2, a2, _mm_set1_ps(tanhcof_f[4])); /* p2 = (p2 * a2) + tanhcof_f[4] */
 		p2 = _mm_fmadd_ps(_mm_mul_ps(p2, a2), v, v);		  /* p2 = ((p2 * a2) * v) + v */
 #else
-		p2 = _mm_add_ps(_mm_mul_ps(p2, a2), _mm_set1_ps(sinhcof_f[1]));
-		p2 = _mm_add_ps(_mm_mul_ps(p2, a2), _mm_set1_ps(sinhcof_f[2]));
-		p2 = _mm_add_ps(_mm_mul_ps(p2, a2), _mm_set1_ps(sinhcof_f[3]));
-		p2 = _mm_add_ps(_mm_mul_ps(p2, a2), _mm_set1_ps(sinhcof_f[4]));
+		p2 = _mm_add_ps(_mm_mul_ps(p2, a2), _mm_set1_ps(tanhcof_f[1]));
+		p2 = _mm_add_ps(_mm_mul_ps(p2, a2), _mm_set1_ps(tanhcof_f[2]));
+		p2 = _mm_add_ps(_mm_mul_ps(p2, a2), _mm_set1_ps(tanhcof_f[3]));
+		p2 = _mm_add_ps(_mm_mul_ps(p2, a2), _mm_set1_ps(tanhcof_f[4]));
 		p2 = _mm_add_ps(_mm_mul_ps(_mm_mul_ps(p2, a2), v), v);
 #endif
 
 		/* return (a >= 0.625) ? p1 : p2 */
-		const auto select_mask = _mm_cmplt_ps(a, _mm_set1_ps(0.625));
+		const auto select_mask = _mm_cmplt_ps(a, _mm_set1_ps(0.625f));
 #ifdef SEK_USE_SSE4_1
 		return _mm_blendv_ps(p1, p2, select_mask);
 #else
@@ -355,11 +355,16 @@ namespace sek::math::detail
 
 		/* P (a >= 0.0001) */
 		const auto half = _mm_set1_ps(0.5f);
-		const auto half_mask = _mm_cmpngt_ps(a, half);						/* half_mask = a > 0.5 */
-		const auto c1 = _mm_mul_ps(half, _mm_sub_ps(_mm_set1_ps(1.0f), a)); /* c1 = 0.5 * (1.0 - a) */
-		const auto b1 = _mm_sqrt_ps(c1);									/* b1 = sqrt(c1) */
-		const auto c2 = _mm_mul_ps(v, v);									/* c1 = v * v */
-		const auto b2 = a;													/* b2 = a */
+		const auto half_mask = _mm_cmpngt_ps(a, half); /* half_mask = a > 0.5 */
+
+#ifdef SEK_USE_FMA
+		const auto c1 = _mm_fmadd_ps(a, _mm_set1_ps(-0.5f), half); /* c1 = (a * -0.5) + 0.5 */
+#else
+		const auto c1 = _mm_mul_ps(half, _mm_sub_ps(_mm_set1_ps(1.0f), a)); /* c1 = (a * -0.5) + 0.5 */
+#endif
+		const auto b1 = _mm_sqrt_ps(c1);  /* b1 = sqrt(c1) */
+		const auto c2 = _mm_mul_ps(v, v); /* c2 = v * v */
+		const auto b2 = a;				  /* b2 = a */
 
 		/* if (half_mask) { c = c1; b = b1; } else { c = c2; b = b2; } */
 #ifdef SEK_USE_SSE4_1
@@ -367,21 +372,21 @@ namespace sek::math::detail
 		const auto c = _mm_blendv_ps(c1, c2, half_mask);
 #else
 		const auto b = _mm_add_ps(_mm_and_ps(half_mask, b2), _mm_andnot_ps(half_mask, b1));
-		const auto c = _mm_add_ps(_mm_and_ps(half_mask, z2), _mm_andnot_ps(half_mask, z1));
+		const auto c = _mm_add_ps(_mm_and_ps(half_mask, c2), _mm_andnot_ps(half_mask, c1));
 #endif
 
-#ifdef SEK_USE_FMA
 		auto p = _mm_set1_ps(asincof_f[0]);
-		p = _mm_fmadd_ps(p, c, _mm_set1_ps(asincof_f[1])); /* p = (p * c) + asincof_f[1];*/
-		p = _mm_fmadd_ps(p, c, _mm_set1_ps(asincof_f[2])); /* p = (p * c) + asincof_f[2];*/
-		p = _mm_fmadd_ps(p, c, _mm_set1_ps(asincof_f[3])); /* p = (p * c) + asincof_f[3];*/
-		p = _mm_fmadd_ps(p, c, _mm_set1_ps(asincof_f[4])); /* p = (p * c) + asincof_f[4];*/
-		p = _mm_fmadd_ps(_mm_mul_ps(p, c), b, b);		   /* p = ((p * c) * b) + b;*/
+#ifdef SEK_USE_FMA
+		p = _mm_fmadd_ps(p, c, _mm_set1_ps(asincof_f[1])); /* p = (p * c) + asincof_f[1] */
+		p = _mm_fmadd_ps(p, c, _mm_set1_ps(asincof_f[2])); /* p = (p * c) + asincof_f[2] */
+		p = _mm_fmadd_ps(p, c, _mm_set1_ps(asincof_f[3])); /* p = (p * c) + asincof_f[3] */
+		p = _mm_fmadd_ps(p, c, _mm_set1_ps(asincof_f[4])); /* p = (p * c) + asincof_f[4] */
+		p = _mm_fmadd_ps(_mm_mul_ps(p, c), b, b);		   /* p = ((p * c) * b) + b */
 #else
-		p = _mm_add_ps(_mm_mul_ps(p, c), _mm_set1_ps(sinhcof_f[1]));
-		p = _mm_add_ps(_mm_mul_ps(p, c), _mm_set1_ps(sinhcof_f[2]));
-		p = _mm_add_ps(_mm_mul_ps(p, c), _mm_set1_ps(sinhcof_f[3]));
-		p = _mm_add_ps(_mm_mul_ps(p, c), _mm_set1_ps(sinhcof_f[4]));
+		p = _mm_add_ps(_mm_mul_ps(p, c), _mm_set1_ps(asincof_f[1]));
+		p = _mm_add_ps(_mm_mul_ps(p, c), _mm_set1_ps(asincof_f[2]));
+		p = _mm_add_ps(_mm_mul_ps(p, c), _mm_set1_ps(asincof_f[3]));
+		p = _mm_add_ps(_mm_mul_ps(p, c), _mm_set1_ps(asincof_f[4]));
 		p = _mm_add_ps(_mm_mul_ps(_mm_mul_ps(p, c), b), b);
 #endif
 		/* p = half_mask ? (Pi / 2) - (p + p) : p */
@@ -400,6 +405,46 @@ namespace sek::math::detail
 		const auto result = _mm_add_ps(_mm_and_ps(select_mask, p), _mm_andnot_ps(select_mask, a));
 #endif
 		return _mm_xor_ps(result, _mm_and_ps(v, sign_mask)); /* return (v < 0) ? -result : result */
+	}
+	__m128 x86_acos_ps(__m128 v) noexcept
+	{
+		const auto half_minus = _mm_set1_ps(-0.5f);
+		const auto half = _mm_set1_ps(0.5f);
+
+		/* v < -0.5 */
+#ifdef SEK_USE_FMA
+		auto a = _mm_fmadd_ps(v, half, half); /* a = (v * 0.5) + 0.5 */
+#else
+		auto a = _mm_add_ps(_mm_mul_ps(v, half), half);
+#endif
+		a = x86_asin_ps(_mm_sqrt_ps(a)); /* a = asinf(sqrtf(a)) */
+#ifdef SEK_USE_FMA
+		a = _mm_fmadd_ps(a, _mm_set1_ps(-2.0f), _mm_set1_ps(pi_f)); /* a = (a * -2.0) + pi */
+#else
+		a = _mm_add_ps(_mm_mul_ps(a, _mm_set1_ps(-2.0f)), _mm_set1_ps(pi_f));
+#endif
+
+		/* v > 0.5 */
+#ifdef SEK_USE_FMA
+		auto b = _mm_fmadd_ps(v, half_minus, half); /* b = (v * -0.5) + 0.5 */
+#else
+		auto b = _mm_add_ps(_mm_mul_ps(v, half_minus), half);
+#endif
+		b = _mm_mul_ps(_mm_set1_ps(2.0f), x86_asin_ps(_mm_sqrt_ps(b))); /* b = 2.0 * asinf(sqrtf(b)) */
+
+		/* |v| <= 0.5 */
+		const auto c = _mm_sub_ps(_mm_set1_ps(pi2_f), x86_asin_ps(v));
+
+		/* Calculate masks & select between a, b & c */
+		const auto a_mask = _mm_cmpnlt_ps(v, half_minus);
+		const auto b_mask = _mm_cmpngt_ps(v, half);
+#ifdef SEK_USE_SSE4_1
+		const auto tmp = _mm_blendv_ps(b, c, b_mask); /* tmp = (v > 0.5) ? b : c */
+		return _mm_blendv_ps(a, tmp, a_mask);		  /* return (v < -0.5) ? a : tmp */
+#else
+		const auto tmp = _mm_add_ps(_mm_and_ps(b_mask, c), _mm_andnot_ps(b_mask, b));
+		return _mm_add_ps(_mm_and_ps(a_mask, tmp), _mm_andnot_ps(a_mask, a));
+#endif
 	}
 
 	static const double sincof_d[6] = {
@@ -489,7 +534,7 @@ namespace sek::math::detail
 #ifdef SEK_USE_FMA
 		p1 = _mm_fmadd_pd(a2, _mm_set1_pd(-0.5), p1); /* p1 = (a2 * -0.5) + p1 */
 #else
-		p1 = _mm_sub_pd(p1, _mm_mul_pd(a2, _mm_set1_ps(0.5))); /* p1 = p1 - (a2 * 0.5) */
+		p1 = _mm_sub_pd(p1, _mm_mul_pd(a2, _mm_set1_pd(0.5))); /* p1 = p1 - (a2 * 0.5) */
 #endif
 		p1 = _mm_add_pd(p1, _mm_set1_pd(1.0));
 
@@ -585,7 +630,7 @@ namespace sek::math::detail
 #ifdef SEK_USE_FMA
 		p1 = _mm_fmadd_pd(a2, _mm_set1_pd(-0.5), p1); /* p1 = (a2 * -0.5) + p1 */
 #else
-		p1 = _mm_sub_pd(p1, _mm_mul_pd(a2, _mm_set1_ps(0.5))); /* p1 = p1 - (a2 * 0.5) */
+		p1 = _mm_sub_pd(p1, _mm_mul_pd(a2, _mm_set1_pd(0.5))); /* p1 = p1 - (a2 * 0.5) */
 #endif
 		p1 = _mm_add_pd(p1, _mm_set1_pd(1.0));
 

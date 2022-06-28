@@ -32,7 +32,7 @@ namespace sek::math::detail
 #ifndef SEK_USE_SSE4_1
 		{
 			const auto tmp = _mm_cvtepi32_ps(_mm_cvtps_epi32(b));
-			b = _mm_sub_ps(tmp, _mm_and_ps(_mm_cmpgt_ps(tmp, b), one));
+			b = _mm_sub_ps(tmp, _mm_and_ps(_mm_cmpgt_ps(tmp, b), _mm_set1_ps(1.0f)));
 		}
 #else
 		b = _mm_floor_ps(b);
