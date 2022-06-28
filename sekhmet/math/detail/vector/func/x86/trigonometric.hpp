@@ -62,6 +62,72 @@ namespace sek::math::detail
 		out.simd = x86_cot_ps(v.simd);
 	}
 
+	SEK_API __m128 x86_sinh_ps(__m128 v) noexcept;
+	SEK_API __m128 x86_cosh_ps(__m128 v) noexcept;
+
+	template<std::size_t N, storage_policy P>
+	inline void vector_sinh(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+	{
+		x86_unpack_ps(out, x86_sinh_ps(x86_pack_ps(v)));
+	}
+	template<std::size_t N, storage_policy P>
+	inline void vector_cosh(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+	{
+		x86_unpack_ps(out, x86_cosh_ps(x86_pack_ps(v)));
+	}
+	template<std::size_t N>
+	inline void vector_sinh(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
+		requires simd_enabled<simd_vector<float, N>>
+	{
+		out.simd = x86_sinh_ps(v.simd);
+	}
+	template<std::size_t N>
+	inline void vector_cosh(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
+		requires simd_enabled<simd_vector<float, N>>
+	{
+		out.simd = x86_cosh_ps(v.simd);
+	}
+
+	SEK_API __m128 x86_tanh_ps(__m128 v) noexcept;
+
+	template<std::size_t N, storage_policy P>
+	inline void vector_tanh(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+	{
+		x86_unpack_ps(out, x86_tanh_ps(x86_pack_ps(v)));
+	}
+	template<std::size_t N>
+	inline void vector_tanh(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
+		requires simd_enabled<simd_vector<float, N>>
+	{
+		out.simd = x86_tanh_ps(v.simd);
+	}
+
+	SEK_API __m128 x86_asin_ps(__m128 v) noexcept;
+	// SEK_API __m128 x86_acos_ps(__m128 v) noexcept;
+
+	template<std::size_t N, storage_policy P>
+	inline void vector_asin(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+	{
+		x86_unpack_ps(out, x86_asin_ps(x86_pack_ps(v)));
+	}
+	//	template<std::size_t N, storage_policy P>
+	//	inline void vector_acos(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+	//	{
+	//		x86_unpack_ps(out, x86_acos_ps(x86_pack_ps(v)));
+	//	}
+	template<std::size_t N>
+	inline void vector_asin(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
+		requires simd_enabled<simd_vector<float, N>>
+	{
+		out.simd = x86_asin_ps(v.simd);
+	}
+	//	template<std::size_t N>
+	//	inline void vector_acos(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
+	//		requires simd_enabled<simd_vector<float, N>>
+	//	{
+	//		out.simd = x86_acos_ps(v.simd);
+	//	}
+
 	SEK_API __m128d x86_sin_pd(__m128d v) noexcept;
 	SEK_API __m128d x86_cos_pd(__m128d v) noexcept;
 

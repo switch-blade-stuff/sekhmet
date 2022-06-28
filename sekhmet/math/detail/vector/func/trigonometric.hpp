@@ -65,8 +65,8 @@ namespace sek::math
 				auto pi2 = vector_data<T, N, P>{};
 				for (std::size_t i = 0; i < N; ++i) pi2[i] = std::numbers::pi_v<T> / 2;
 
-				/* acot(x) = pi / 2 - tan(x) */
-				vector_tan(out, v);
+				/* acot(x) = pi / 2 - atan(x) */
+				vector_atan(out, v);
 				vector_sub(out, pi2, out);
 			}
 

@@ -44,13 +44,14 @@ namespace sek::math
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = !static_cast<bool>(m[i]);
 			}
-			
+
 			template<typename T, std::size_t N, storage_policy P>
-			constexpr void vector_cmp(mask_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r, auto p) noexcept
+			constexpr void
+				vector_cmp(mask_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r, auto p) noexcept
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = p(l[i], r[i]);
 			}
-			
+
 			template<typename T, std::size_t N, storage_policy P>
 			constexpr void vector_eq(mask_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r) noexcept
 			{
@@ -250,7 +251,7 @@ namespace sek::math
 	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>>
 		fcmp_eq(const basic_vec<U, M, Sp> &a, const basic_vec<U, M, Sp> &b, const basic_vec<U, M, Sp> &epsilon) noexcept
 	{
-		return abs(a - b) <= epsilon;
+		return a == b || abs(a - b) <= epsilon;
 	}
 	/** @copydoc fcmp_eq */
 	template<std::floating_point U, std::size_t M, storage_policy Sp>
@@ -264,7 +265,7 @@ namespace sek::math
 	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>>
 		fcmp_ne(const basic_vec<U, M, Sp> &a, const basic_vec<U, M, Sp> &b, const basic_vec<U, M, Sp> &epsilon) noexcept
 	{
-		return abs(a - b) > epsilon;
+		return a != b || abs(a - b) > epsilon;
 	}
 	/** @copydoc fcmp_ne */
 	template<std::floating_point U, std::size_t M, storage_policy Sp>
@@ -278,7 +279,7 @@ namespace sek::math
 	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>>
 		fcmp_le(const basic_vec<U, M, Sp> &a, const basic_vec<U, M, Sp> &b, const basic_vec<U, M, Sp> &epsilon) noexcept
 	{
-		return a <= b || fcmp_eq(a, b, epsilon);
+		return a <= b || abs(a - b) <= epsilon;
 	}
 	/** @copydoc fcmp_le */
 	template<std::floating_point U, std::size_t M, storage_policy Sp>
@@ -292,7 +293,7 @@ namespace sek::math
 	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>>
 		fcmp_ge(const basic_vec<U, M, Sp> &a, const basic_vec<U, M, Sp> &b, const basic_vec<U, M, Sp> &epsilon) noexcept
 	{
-		return a >= b || fcmp_eq(a, b, epsilon);
+		return a >= b || abs(a - b) <= epsilon;
 	}
 	/** @copydoc fcmp_ge */
 	template<std::floating_point U, std::size_t M, storage_policy Sp>
@@ -306,7 +307,7 @@ namespace sek::math
 	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>>
 		fcmp_lt(const basic_vec<U, M, Sp> &a, const basic_vec<U, M, Sp> &b, const basic_vec<U, M, Sp> &epsilon) noexcept
 	{
-		return a < b && fcmp_ne(a, b, epsilon);
+		return a < b && abs(a - b) > epsilon;
 	}
 	/** @copydoc fcmp_lt */
 	template<std::floating_point U, std::size_t M, storage_policy Sp>
@@ -320,7 +321,7 @@ namespace sek::math
 	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>>
 		fcmp_gt(const basic_vec<U, M, Sp> &a, const basic_vec<U, M, Sp> &b, const basic_vec<U, M, Sp> &epsilon) noexcept
 	{
-		return a > b && fcmp_ne(a, b, epsilon);
+		return a > b && abs(a - b) > epsilon;
 	}
 	/** @copydoc fcmp_gt */
 	template<std::floating_point U, std::size_t M, storage_policy Sp>
