@@ -8,17 +8,20 @@
 
 namespace sek::math
 {
-	enum class storage_policy : int
+	enum storage_policy : int
 	{
-		/** @brief Values are stored with potential over-alignment to allow for SIMD optimizations. */
-		OPTIMAL,
-		/** @brief Values are tightly packed in memory.
-		 * @note Packed storage is not SIMD-optimized. */
-		PACKED
+		/** Elements are stored with potential over-alignment to allow for SIMD optimizations.
+		 * Precision of certain mathematical operations may be sacrificed for speed. */
+		SPEED,
+		/** Elements are stored with potential over-alignment to allow for SIMD optimizations.
+		 * Accuracy of mathematical operations is preferred over speed. */
+		PRECISION,
+		/** Elements are tightly packed in memory. SIMD optimizations may not be possible due to alignment requirements. */
+		SIZE
 	};
 
 	template<typename T, std::size_t N, storage_policy Policy>
 	class basic_vec;
 	template<typename...>
 	class vec_mask;
-}
+}	 // namespace sek::math

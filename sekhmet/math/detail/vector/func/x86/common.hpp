@@ -21,11 +21,6 @@
 
 namespace sek::math::detail
 {
-	template<typename T, std::size_t N>
-	using simd_vector = vector_data<T, N, storage_policy::OPTIMAL>;
-	template<typename T, std::size_t N>
-	using simd_mask = mask_data<T, N, storage_policy::OPTIMAL>;
-
 	template<typename Data>
 	concept simd_enabled = requires(Data data) { data.simd; };
 
@@ -75,8 +70,9 @@ namespace sek::math::detail
 		constexpr bool operator()(auto &v) const noexcept { return v; }
 	};
 
-	template<>
-	union mask_data<float, 3, storage_policy::OPTIMAL>
+	template<storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union mask_data<float, 3, P>
 	{
 		using element_t = mask_element<std::uint32_t>;
 		using const_element_t = mask_element<const std::uint32_t>;
@@ -101,8 +97,9 @@ namespace sek::math::detail
 		std::uint32_t values[3];
 		__m128 simd;
 	};
-	template<>
-	union mask_data<float, 4, storage_policy::OPTIMAL>
+	template<storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union mask_data<float, 4, P>
 	{
 		using element_t = mask_element<std::uint32_t>;
 		using const_element_t = mask_element<const std::uint32_t>;
@@ -128,8 +125,9 @@ namespace sek::math::detail
 		std::uint32_t values[4];
 		__m128 simd;
 	};
-	template<>
-	union vector_data<float, 3, storage_policy::OPTIMAL>
+	template<storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union vector_data<float, 3, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
 		constexpr vector_data(float x, float y, float z) noexcept : values{x, y, z} {}
@@ -146,8 +144,9 @@ namespace sek::math::detail
 		float values[3];
 		__m128 simd;
 	};
-	template<>
-	union vector_data<float, 4, storage_policy::OPTIMAL>
+	template<storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union vector_data<float, 4, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
 		constexpr vector_data(float x, float y, float z, float w) noexcept : values{x, y, z, w} {}
@@ -218,8 +217,9 @@ namespace sek::math::detail
 		constexpr bool operator()(auto &v) const noexcept { return v; }
 	};
 
-	template<integral_of_size<4> T>
-	union mask_data<T, 3, storage_policy::OPTIMAL>
+	template<integral_of_size<4> T, storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union mask_data<T, 3, P>
 	{
 		using element_t = mask_element<std::uint32_t>;
 		using const_element_t = mask_element<const std::uint32_t>;
@@ -244,8 +244,9 @@ namespace sek::math::detail
 		std::uint32_t values[3];
 		__m128i simd;
 	};
-	template<integral_of_size<4> T>
-	union mask_data<T, 4, storage_policy::OPTIMAL>
+	template<integral_of_size<4> T, storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union mask_data<T, 4, P>
 	{
 		using element_t = mask_element<std::uint32_t>;
 		using const_element_t = mask_element<const std::uint32_t>;
@@ -271,8 +272,9 @@ namespace sek::math::detail
 		std::uint32_t values[4];
 		__m128i simd;
 	};
-	template<integral_of_size<4> T>
-	union vector_data<T, 3, storage_policy::OPTIMAL>
+	template<integral_of_size<4> T, storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union vector_data<T, 3, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
 		constexpr vector_data(T x, T y, T z) noexcept : values{x, y, z} {}
@@ -289,8 +291,9 @@ namespace sek::math::detail
 		T values[3];
 		__m128i simd;
 	};
-	template<integral_of_size<4> T>
-	union vector_data<T, 4, storage_policy::OPTIMAL>
+	template<integral_of_size<4> T, storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union vector_data<T, 4, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
 		constexpr vector_data(T x, T y, T z, T w) noexcept : values{x, y, z, w} {}
@@ -353,8 +356,9 @@ namespace sek::math::detail
 		}
 	}
 
-	template<>
-	union mask_data<double, 2, storage_policy::OPTIMAL>
+	template<storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union mask_data<double, 2, P>
 	{
 		using element_t = mask_element<std::uint64_t>;
 		using const_element_t = mask_element<const std::uint64_t>;
@@ -378,8 +382,9 @@ namespace sek::math::detail
 		std::uint64_t values[2];
 		__m128d simd;
 	};
-	template<>
-	union vector_data<double, 2, storage_policy::OPTIMAL>
+	template<storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union vector_data<double, 2, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
 		constexpr vector_data(double x, double y) noexcept : values{x, y} {}
@@ -409,8 +414,8 @@ namespace sek::math::detail
 		out[0] = _mm_cvtsd_f64(v);
 	}
 
-	template<integral_of_size<8> T>
-	union mask_data<T, 2, storage_policy::OPTIMAL>
+	template<integral_of_size<8> T, storage_policy P>
+	union mask_data<T, 2, P>
 	{
 		using element_t = mask_element<std::uint64_t>;
 		using const_element_t = mask_element<const std::uint64_t>;
@@ -434,8 +439,8 @@ namespace sek::math::detail
 		std::uint64_t values[2];
 		__m128i simd;
 	};
-	template<integral_of_size<8> T>
-	union vector_data<T, 2, storage_policy::OPTIMAL>
+	template<integral_of_size<8> T, storage_policy P>
+	union vector_data<T, 2, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
 		constexpr vector_data(T x, T y) noexcept : values{x, y} {}
@@ -466,8 +471,9 @@ namespace sek::math::detail
 	}
 
 #ifndef SEK_USE_AVX
-	template<>
-	union mask_data<double, 3, storage_policy::OPTIMAL>
+	template<storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union mask_data<double, 3, P>
 	{
 		using element_t = mask_element<std::uint64_t>;
 		using const_element_t = mask_element<const std::uint64_t>;
@@ -492,8 +498,9 @@ namespace sek::math::detail
 		std::uint64_t values[3];
 		__m128d simd[2];
 	};
-	template<>
-	union mask_data<double, 4, storage_policy::OPTIMAL>
+	template<storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union mask_data<double, 4, P>
 	{
 		using element_t = mask_element<std::uint64_t>;
 		using const_element_t = mask_element<const std::uint64_t>;
@@ -519,8 +526,9 @@ namespace sek::math::detail
 		std::uint64_t values[4];
 		__m128d simd[2];
 	};
-	template<>
-	union vector_data<double, 3, storage_policy::OPTIMAL>
+	template<storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union vector_data<double, 3, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
 		constexpr vector_data(double x, double y, double z) noexcept : values{x, y, z} {}
@@ -537,8 +545,9 @@ namespace sek::math::detail
 		double values[3];
 		__m128d simd[2];
 	};
-	template<>
-	union vector_data<double, 4, storage_policy::OPTIMAL>
+	template<storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union vector_data<double, 4, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
 		constexpr vector_data(double x, double y, double z, double w) noexcept : values{x, y, z, w} {}
@@ -557,8 +566,9 @@ namespace sek::math::detail
 	};
 
 #ifndef SEK_USE_AVX2
-	template<integral_of_size<8> T>
-	union mask_data<T, 3, storage_policy::OPTIMAL>
+	template<integral_of_size<8> T, storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union mask_data<T, 3, P>
 	{
 		using element_t = mask_element<std::uint64_t>;
 		using const_element_t = mask_element<const std::uint64_t>;
@@ -583,8 +593,9 @@ namespace sek::math::detail
 		std::uint64_t values[3];
 		__m128i simd[2];
 	};
-	template<integral_of_size<8> T>
-	union mask_data<T, 4, storage_policy::OPTIMAL>
+	template<integral_of_size<8> T, storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union mask_data<T, 4, P>
 	{
 		using element_t = mask_element<std::uint64_t>;
 		using const_element_t = mask_element<const std::uint64_t>;
@@ -610,8 +621,9 @@ namespace sek::math::detail
 		std::uint64_t values[4];
 		__m128i simd[2];
 	};
-	template<integral_of_size<8> T>
-	union vector_data<T, 3, storage_policy::OPTIMAL>
+	template<integral_of_size<8> T, storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union vector_data<T, 3, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
 		constexpr vector_data(T x, T y, T z) noexcept : values{x, y, z} {}
@@ -628,8 +640,9 @@ namespace sek::math::detail
 		T values[3];
 		__m128i simd[2];
 	};
-	template<integral_of_size<8> T>
-	union vector_data<T, 4, storage_policy::OPTIMAL>
+	template<integral_of_size<8> T, storage_policy P>
+		requires(P != storage_policy::SIZE)
+	union vector_data<T, 4, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
 		constexpr vector_data(T x, T y, T z, T w) noexcept : values{x, y, z, w} {}

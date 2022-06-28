@@ -19,7 +19,7 @@
 
 #define SEK_DETAIL_VECTOR_MASK_COMMON(T, N, P)                                                                         \
 private:                                                                                                               \
-	using data_t = detail::mask_data<T, N, P>;                                                                         \
+	using data_t = detail::mask_data_t<T, N, P>;                                                                       \
 	data_t m_data = {};                                                                                                \
                                                                                                                        \
 	template<typename U, std::size_t M, storage_policy Sp>                                                             \
@@ -75,7 +75,7 @@ public:                                                                         
 
 #define SEK_DETAIL_VECTOR_COMMON(T, N, P)                                                                              \
 private:                                                                                                               \
-	using data_t = detail::vector_data<T, N, P>;                                                                       \
+	using data_t = detail::vector_data_t<T, N, P>;                                                                     \
 	using mask_t = vec_mask<basic_vec>;                                                                                \
 	data_t m_data = {};                                                                                                \
                                                                                                                        \
@@ -143,7 +143,7 @@ namespace sek::math
 	 * @tparam T Type of values stored in the vector.
 	 * @tparam N Amount of values the vector holds.
 	 * @tparam Policy Policy used for storage & optimization. */
-	template<typename T, std::size_t N, storage_policy Policy = storage_policy::OPTIMAL>
+	template<typename T, std::size_t N, storage_policy Policy = storage_policy::SPEED>
 	class basic_vec;
 	/** @brief Structure used to mask off elements of a vector. */
 	template<typename T, std::size_t N, storage_policy P>

@@ -15,7 +15,7 @@
 
 namespace sek::math
 {
-	template<std::floating_point T, storage_policy Policy = storage_policy::OPTIMAL>
+	template<std::floating_point T, storage_policy Policy = storage_policy::SPEED>
 	class basic_quat
 	{
 	public:

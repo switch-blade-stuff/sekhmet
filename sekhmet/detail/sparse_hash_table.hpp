@@ -27,7 +27,7 @@ namespace sek::detail
 	 * since all pointers in a list are located in the same array, thus skipping multiple pointers would take
 	 * advantage of them being cached.nn
 	 *
-	 * I decided not to use an array (ex. how Google's densehash does), since while it would provide the most storage_policy::OPTIMAL cache
+	 * I decided not to use an array (ex. how Google's densehash does), since while it would provide the most storage_policy::SPEED cache
 	 * performance, it would also create a lot of wasted space for large objects. Another determent to using an array,
 	 * is that you can't simply check if a node is empty by comparing it to nullptr without storing an additional flag
 	 * alongside the value. To avoid that you would need to store an additional default-constructed key that you would

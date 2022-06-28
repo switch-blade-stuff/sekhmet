@@ -22,15 +22,15 @@ namespace sek::math::detail
 	{
 		x86_unpack_ps(out, x86_cos_ps(x86_pack_ps(v)));
 	}
-	template<std::size_t N>
-	inline void vector_sin(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
-		requires simd_enabled<simd_vector<float, N>>
+	template<std::size_t N, storage_policy P>
+	inline void vector_sin(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+		requires simd_enabled<vector_data<float, N, P>>
 	{
 		out.simd = x86_sin_ps(v.simd);
 	}
-	template<std::size_t N>
-	inline void vector_cos(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
-		requires simd_enabled<simd_vector<float, N>>
+	template<std::size_t N, storage_policy P>
+	inline void vector_cos(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+		requires simd_enabled<vector_data<float, N, P>>
 	{
 		out.simd = x86_cos_ps(v.simd);
 	}
@@ -49,15 +49,15 @@ namespace sek::math::detail
 	{
 		x86_unpack_ps(out, x86_cot_ps(x86_pack_ps(v)));
 	}
-	template<std::size_t N>
-	inline void vector_tan(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
-		requires simd_enabled<simd_vector<float, N>>
+	template<std::size_t N, storage_policy P>
+	inline void vector_tan(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+		requires simd_enabled<vector_data<float, N, P>>
 	{
 		out.simd = x86_tan_ps(v.simd);
 	}
-	template<std::size_t N>
-	inline void vector_cot(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
-		requires simd_enabled<simd_vector<float, N>>
+	template<std::size_t N, storage_policy P>
+	inline void vector_cot(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+		requires simd_enabled<vector_data<float, N, P>>
 	{
 		out.simd = x86_cot_ps(v.simd);
 	}
@@ -75,15 +75,15 @@ namespace sek::math::detail
 	{
 		x86_unpack_ps(out, x86_cosh_ps(x86_pack_ps(v)));
 	}
-	template<std::size_t N>
-	inline void vector_sinh(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
-		requires simd_enabled<simd_vector<float, N>>
+	template<std::size_t N, storage_policy P>
+	inline void vector_sinh(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+		requires simd_enabled<vector_data<float, N, P>>
 	{
 		out.simd = x86_sinh_ps(v.simd);
 	}
-	template<std::size_t N>
-	inline void vector_cosh(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
-		requires simd_enabled<simd_vector<float, N>>
+	template<std::size_t N, storage_policy P>
+	inline void vector_cosh(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+		requires simd_enabled<vector_data<float, N, P>>
 	{
 		out.simd = x86_cosh_ps(v.simd);
 	}
@@ -95,9 +95,9 @@ namespace sek::math::detail
 	{
 		x86_unpack_ps(out, x86_tanh_ps(x86_pack_ps(v)));
 	}
-	template<std::size_t N>
-	inline void vector_tanh(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
-		requires simd_enabled<simd_vector<float, N>>
+	template<std::size_t N, storage_policy P>
+	inline void vector_tanh(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+		requires simd_enabled<vector_data<float, N, P>>
 	{
 		out.simd = x86_tanh_ps(v.simd);
 	}
@@ -115,15 +115,15 @@ namespace sek::math::detail
 	{
 		x86_unpack_ps(out, x86_acos_ps(x86_pack_ps(v)));
 	}
-	template<std::size_t N>
-	inline void vector_asin(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
-		requires simd_enabled<simd_vector<float, N>>
+	template<std::size_t N, storage_policy P>
+	inline void vector_asin(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+		requires simd_enabled<vector_data<float, N, P>>
 	{
 		out.simd = x86_asin_ps(v.simd);
 	}
-	template<std::size_t N>
-	inline void vector_acos(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
-		requires simd_enabled<simd_vector<float, N>>
+	template<std::size_t N, storage_policy P>
+	inline void vector_acos(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+		requires simd_enabled<vector_data<float, N, P>>
 	{
 		out.simd = x86_acos_ps(v.simd);
 	}
@@ -132,12 +132,7 @@ namespace sek::math::detail
 
 	template<std::size_t N, storage_policy P>
 	inline void vector_atan(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
-	{
-		x86_unpack_ps(out, x86_atan_ps(x86_pack_ps(v)));
-	}
-	template<std::size_t N>
-	inline void vector_atan(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
-		requires simd_enabled<simd_vector<float, N>>
+		requires (simd_enabled<vector_data<float, N, P>> && P != storage_policy::PRECISION)
 	{
 		out.simd = x86_atan_ps(v.simd);
 	}
@@ -155,15 +150,15 @@ namespace sek::math::detail
 	{
 		x86_unpack_ps(out, x86_acosh_ps(x86_pack_ps(v)));
 	}
-	template<std::size_t N>
-	inline void vector_asinh(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
-		requires simd_enabled<simd_vector<float, N>>
+	template<std::size_t N, storage_policy P>
+	inline void vector_asinh(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+		requires simd_enabled<vector_data<float, N, P>>
 	{
 		out.simd = x86_asinh_ps(v.simd);
 	}
-	template<std::size_t N>
-	inline void vector_acosh(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
-		requires simd_enabled<simd_vector<float, N>>
+	template<std::size_t N, storage_policy P>
+	inline void vector_acosh(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+		requires simd_enabled<vector_data<float, N, P>>
 	{
 		out.simd = x86_acosh_ps(v.simd);
 	}
@@ -175,9 +170,9 @@ namespace sek::math::detail
 	{
 		x86_unpack_ps(out, x86_atanh_ps(x86_pack_ps(v)));
 	}
-	template<std::size_t N>
-	inline void vector_atanh(simd_vector<float, N> &out, const simd_vector<float, N> &v) noexcept
-		requires simd_enabled<simd_vector<float, N>>
+	template<std::size_t N, storage_policy P>
+	inline void vector_atanh(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+		requires simd_enabled<vector_data<float, N, P>>
 	{
 		out.simd = x86_atanh_ps(v.simd);
 	}
@@ -195,11 +190,15 @@ namespace sek::math::detail
 	{
 		x86_unpack_pd(out, x86_cos_pd(x86_pack_pd(v)));
 	}
-	inline void vector_sin(simd_vector<double, 2> &out, const simd_vector<double, 2> &v) noexcept
+	template<storage_policy P>
+	inline void vector_sin(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
+		requires simd_enabled<vector_data<double, 2, P>>
 	{
 		out.simd = x86_sin_pd(v.simd);
 	}
-	inline void vector_cos(simd_vector<double, 2> &out, const simd_vector<double, 2> &v) noexcept
+	template<storage_policy P>
+	inline void vector_cos(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
+		requires simd_enabled<vector_data<double, 2, P>>
 	{
 		out.simd = x86_cos_pd(v.simd);
 	}
@@ -250,16 +249,16 @@ namespace sek::math::detail
 		}
 	}
 
-	template<std::size_t N>
-	inline void vector_sin(simd_vector<double, N> &out, const simd_vector<double, N> &v) noexcept
-		requires simd_enabled<simd_vector<double, N>>
+	template<std::size_t N, storage_policy P>
+	inline void vector_sin(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
+		requires simd_enabled<vector_data<double, N, P>>
 	{
 		out.simd[0] = x86_sin_pd(v.simd[0]);
 		out.simd[1] = x86_sin_pd(v.simd[1]);
 	}
-	template<std::size_t N>
-	inline void vector_cos(simd_vector<double, N> &out, const simd_vector<double, N> &v) noexcept
-		requires simd_enabled<simd_vector<double, N>>
+	template<std::size_t N, storage_policy P>
+	inline void vector_cos(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
+		requires simd_enabled<vector_data<double, N, P>>
 	{
 		out.simd[0] = x86_cos_pd(v.simd[0]);
 		out.simd[1] = x86_cos_pd(v.simd[1]);

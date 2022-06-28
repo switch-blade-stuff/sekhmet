@@ -86,7 +86,7 @@ namespace sek::math
 	 * @tparam M Amount of rows of the matrix.
 	 * @tparam Policy Policy used for storage & optimization.
 	 * @note Generic matrix types are not guaranteed to be SIMD-optimized. */
-	template<arithmetic T, std::size_t N, std::size_t M, storage_policy Policy = storage_policy::OPTIMAL>
+	template<arithmetic T, std::size_t N, std::size_t M, storage_policy Policy = storage_policy::SPEED>
 	class basic_mat;
 
 	template<typename T, std::size_t N, std::size_t M, storage_policy Sp>

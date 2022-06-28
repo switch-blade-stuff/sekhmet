@@ -10,8 +10,13 @@
 
 namespace sek::math::detail
 {
-	template<typename T, std::size_t N, storage_policy P = storage_policy::PACKED>
-	union vector_data
+	template<typename T, std::size_t N, storage_policy P>
+	union vector_data;
+	template<typename T, std::size_t N, storage_policy P>
+	union mask_data;
+
+	template<typename T, std::size_t N>
+	union vector_data<T, N, storage_policy::SIZE>
 	{
 		constexpr vector_data() noexcept : values{} {}
 		template<std::size_t M = N>
@@ -29,9 +34,8 @@ namespace sek::math::detail
 
 		T values[N];
 	};
-
-	template<typename, std::size_t N, storage_policy P = storage_policy::PACKED>
-	union mask_data
+	template<typename T, std::size_t N>
+	union mask_data<T, N, storage_policy::SIZE>
 	{
 		constexpr mask_data() noexcept : values{} {}
 		template<std::convertible_to<bool> B, std::size_t M = N>
@@ -63,6 +67,26 @@ namespace sek::math::detail
 	{
 		constexpr bool operator()(T &v) const noexcept { return T{v}; }
 	};
+
+	template<typename T, typename = void>
+	struct is_defined
+	{
+		static constexpr bool value = false;
+	};
+	template<typename T>
+	struct is_defined<T, std::enable_if_t<(sizeof(T) > 0)>>
+	{
+		static constexpr bool value = true;
+	};
+	template<typename T>
+	constexpr auto is_defined_v = is_defined<T>::value;
+
+	// clang-format off
+	template<typename T, std::size_t N, storage_policy P>
+	using vector_data_t = std::conditional_t<is_defined_v<vector_data<T, N, P>>, vector_data<T, N, P>, vector_data<T, N, storage_policy::SIZE>>;
+	template<typename T, std::size_t N, storage_policy P>
+	using mask_data_t = std::conditional_t<is_defined_v<mask_data<T, N, P>>, mask_data<T, N, P>, mask_data<T, N, storage_policy::SIZE>>;
+	// clang-format on
 
 	template<typename T>
 	class mask_element
