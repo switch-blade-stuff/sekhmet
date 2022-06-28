@@ -6,47 +6,38 @@
 
 #include "sekhmet/detail/define.h"
 
-#ifdef SEK_NO_SIMD
-#ifdef SEK_USE_SSE
-#undef SEK_USE_SSE
-#endif
-#ifdef SEK_USE_AVX
-#undef SEK_USE_AVX
-#endif
-#ifdef SEK_USE_FMA
-#undef SEK_USE_FMA
-#endif
-#endif
+#ifndef SEK_NO_SIMD
 
-#if defined(SEK_USE_SSE) && (!defined(__SSE__))
-#undef SEK_USE_SSE
-#endif
-#if defined(SEK_USE_SSE2) && (!defined(__SSE2__) || !defined(SEK_USE_SSE))
-#undef SEK_USE_SSE2
-#endif
-#if defined(SEK_USE_SSE3) && (!defined(__SSE3__) || !defined(SEK_USE_SSE))
-#undef SEK_USE_SSE3
-#endif
-#if defined(SEK_USE_SSSE3) && (!defined(__SSSE3__) || !defined(SEK_USE_SSE))
-#undef SEK_USE_SSSE3
-#endif
-#if defined(SEK_USE_SSE4) && !defined(SEK_USE_SSE)
-#undef SEK_USE_SSE4
-#endif
-#if defined(SEK_USE_SSE4_1) && (!defined(__SSE4_1__) || !defined(SEK_USE_SSE4))
-#undef SEK_USE_SSE4_1
-#endif
-#if defined(SEK_USE_SSE4_2) && (!defined(__SSE4_2__) || !defined(SEK_USE_SSE4))
-#undef SEK_USE_SSE4_2
-#endif
+#ifdef __SSE__
+#define SEK_USE_SSE
+#ifdef __SSE2__
+#define SEK_USE_SSE2
+#ifdef __SSE3__
+#define SEK_USE_SSE3
+#ifdef __SSSE3__
+#define SEK_USE_SSSE3
+#ifdef __SSE4_1__
+#define SEK_USE_SSE4
+#define SEK_USE_SSE4_1
+#ifdef __SSE4_2__
+#define SEK_USE_SSE4_2
+#endif /* __SSE4_2__ */
+#endif /* __SSE4_1__ */
+#endif /* __SSSE3__ */
+#endif /* __SSE3__ */
+#endif /* __SSE2__ */
+#endif /* __SSE__ */
 
-#if defined(SEK_USE_AVX) && !defined(__AVX__)
-#undef SEK_USE_AVX
-#endif
-#if defined(SEK_USE_AVX2) && (!defined(__AVX2__) || !defined(SEK_USE_AVX))
-#undef SEK_USE_AVX2
-#endif
+#ifdef __FMA__
+#define SEK_USE_FMA
+#endif /* __FMA__ */
 
-#if defined(SEK_USE_FMA) && !defined(__FMA__)
-#undef SEK_USE_FMA
+/* TODO: Implement AVX support */
+// #ifdef __AVX__
+// #define SEK_USE_AVX
+// #ifdef __AVX2__
+// #undef SEK_USE_AVX2
+// #endif /* __AVX2__ */
+// #endif /* __AVX__ */
+
 #endif
