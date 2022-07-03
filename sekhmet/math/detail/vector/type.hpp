@@ -4,27 +4,25 @@
 
 #pragma once
 
+#include "func/fwd/arithmetic.hpp"
+#include "func/fwd/bitwise.hpp"
+#include "func/fwd/category.hpp"
+#include "func/fwd/exp.hpp"
+#include "func/fwd/geom.hpp"
+#include "func/fwd/relational.hpp"
+#include "func/fwd/trig.hpp"
+#include "func/fwd/util.hpp"
 #include "shuffle.hpp"
 #include "storage.hpp"
-
-/* vector & mask function declarations. */
-#include "func/arithm_fwd.hpp"
-#include "func/bitwise_fwd.hpp"
-#include "func/cat_fwd.hpp"
-#include "func/exp_fwd.hpp"
-#include "func/geom_fwd.hpp"
-#include "func/rel_fwd.hpp"
-#include "func/trig_fwd.hpp"
-#include "func/util_fwd.hpp"
 
 #define SEK_DETAIL_VECTOR_MASK_COMMON(T, N, P)                                                                         \
 private:                                                                                                               \
 	using data_t = detail::mask_data_t<T, N, P>;                                                                       \
 	data_t m_data = {};                                                                                                \
                                                                                                                        \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
+	template<typename U, std::size_t M, policy_t Sp>                                                                   \
 	friend constexpr sek::hash_t hash(const vec_mask<basic_vec<U, M, Sp>> &) noexcept;                                 \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
+	template<typename U, std::size_t M, policy_t Sp>                                                                   \
 	friend constexpr void swap(vec_mask<basic_vec<U, M, Sp>> &, vec_mask<basic_vec<U, M, Sp>> &) noexcept;             \
                                                                                                                        \
 	SEK_DETAIL_FRIEND_UTILITY                                                                                          \
@@ -39,7 +37,7 @@ public:                                                                         
                                                                                                                        \
 	constexpr vec_mask() noexcept = default;                                                                           \
                                                                                                                        \
-	template<std::convertible_to<T> U, std::size_t M, policy_t Sp>                                               \
+	template<std::convertible_to<T> U, std::size_t M, policy_t Sp>                                                     \
 	constexpr explicit vec_mask(const vec_mask<basic_vec<U, M, Sp>> &other) noexcept                                   \
 		requires(!std::same_as<T, U> || M != N || Sp != P)                                                             \
 	{                                                                                                                  \
@@ -79,9 +77,9 @@ private:                                                                        
 	using mask_t = vec_mask<basic_vec>;                                                                                \
 	data_t m_data = {};                                                                                                \
                                                                                                                        \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
+	template<typename U, std::size_t M, policy_t Sp>                                                                   \
 	friend constexpr sek::hash_t hash(const basic_vec<U, M, Sp> &) noexcept;                                           \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
+	template<typename U, std::size_t M, policy_t Sp>                                                                   \
 	friend constexpr void swap(basic_vec<U, M, Sp> &, basic_vec<U, M, Sp> &) noexcept;                                 \
                                                                                                                        \
 	SEK_DETAIL_FRIEND_UTILITY                                                                                          \
@@ -102,7 +100,7 @@ public:                                                                         
                                                                                                                        \
 	constexpr basic_vec() noexcept = default;                                                                          \
                                                                                                                        \
-	template<std::convertible_to<T> U, std::size_t M, policy_t OtherPolicy>                                      \
+	template<std::convertible_to<T> U, std::size_t M, policy_t OtherPolicy>                                            \
 	constexpr explicit basic_vec(const basic_vec<U, M, OtherPolicy> &other) noexcept                                   \
 		requires(!std::same_as<T, U> || M != N || OtherPolicy != P)                                                    \
 	{                                                                                                                  \

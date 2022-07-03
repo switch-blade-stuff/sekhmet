@@ -1,6 +1,6 @@
 
 target_sources(${PROJECT_NAME} PRIVATE
-        ${CMAKE_CURRENT_LIST_DIR}/util.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/exp_f32.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/trig_f32.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/trig_f64.cpp)
+        ${CMAKE_CURRENT_LIST_DIR}/utility.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/f32/exponential.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/f32/trigonometric.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/f64/trigonometric.cpp)
