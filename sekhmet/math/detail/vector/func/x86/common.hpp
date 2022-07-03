@@ -21,6 +21,31 @@
 
 namespace sek::math::detail
 {
+	SEK_FORCE_INLINE __m128i x86_blendv_epi8(__m128i a, __m128i b, __m128i m) noexcept
+	{
+#ifdef SEK_USE_SSE4_1
+		return _mm_blendv_epi8(a, b, m);
+#else
+		return _mm_add_si128(_mm_and_si128(m, b), _mm_andnot_si128(m, a));
+#endif
+	}
+	SEK_FORCE_INLINE __m128d x86_blendv_pd(__m128d a, __m128d b, __m128d m) noexcept
+	{
+#ifdef SEK_USE_SSE4_1
+		return _mm_blendv_pd(a, b, m);
+#else
+		return _mm_add_pd(_mm_and_pd(m, b), _mm_andnot_pd(m, a));
+#endif
+	}
+	SEK_FORCE_INLINE __m128 x86_blendv_ps(__m128 a, __m128 b, __m128 m) noexcept
+	{
+#ifdef SEK_USE_SSE4_1
+		return _mm_blendv_ps(a, b, m);
+#else
+		return _mm_add_ps(_mm_and_ps(m, b), _mm_andnot_ps(m, a));
+#endif
+	}
+
 	template<std::size_t J, std::size_t I, std::size_t... Is>
 	constexpr std::uint8_t x86_128_shuffle4_unwrap(std::index_sequence<I, Is...>) noexcept
 	{
