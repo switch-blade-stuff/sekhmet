@@ -12,8 +12,8 @@
 #ifdef SEK_USE_SSE2
 namespace sek::math::detail
 {
-	static const float sincof_f[3] = {-1.9515295891E-4f, 8.3321608736E-3f, -1.6666654611E-1f};
-	static const float coscof_f[3] = {2.443315711809948E-005f, -1.388731625493765E-003f, 4.166664568298827E-002f};
+	static const float sincof_f[3] = {-1.9515295891e-4f, 8.3321608736e-3f, -1.6666654611e-1f};
+	static const float coscof_f[3] = {2.443315711809948e-5f, -1.388731625493765e-3f, 4.166664568298827e-2f};
 	static const float dp_f[3] = {-0.78515625f, -2.4187564849853515625e-4f, -3.77489497744594108e-8f};
 	static const float fopi_f = 4.0f / std::numbers::pi_v<float>; /* 4 / Pi */
 	static const float pio2_f = std::numbers::pi_v<float> / 2.0f; /* Pi / 2 */
@@ -107,12 +107,12 @@ namespace sek::math::detail
 	}
 
 	static const float tancof_f[6] = {
-		9.38540185543E-3f,
-		3.11992232697E-3f,
-		2.44301354525E-2f,
-		5.34112807005E-2f,
-		1.33387994085E-1f,
-		3.33331568548E-1f,
+		9.38540185543e-3f,
+		3.11992232697e-3f,
+		2.44301354525e-2f,
+		5.34112807005e-2f,
+		1.33387994085e-1f,
+		3.33331568548e-1f,
 	};
 
 	__m128 x86_tancot_ps(__m128 v, __m128i cot_mask) noexcept
@@ -164,7 +164,7 @@ namespace sek::math::detail
 	__m128 x86_tan_ps(__m128 v) noexcept { return x86_tancot_ps(v, _mm_setzero_si128()); }
 	__m128 x86_cot_ps(__m128 v) noexcept { return x86_tancot_ps(v, _mm_set1_epi32(-1)); }
 
-	static const float sinhcof_f[3] = {2.03721912945E-4f, 8.33028376239E-3f, 1.66667160211E-1f};
+	static const float sinhcof_f[3] = {2.03721912945e-4f, 8.33028376239e-3f, 1.66667160211e-1f};
 
 	__m128 x86_sinh_ps(__m128 v) noexcept
 	{
@@ -197,11 +197,11 @@ namespace sek::math::detail
 	}
 
 	static const float tanhcof_f[5] = {
-		-5.70498872745E-3f,
-		2.06390887954E-2f,
-		-5.37397155531E-2f,
-		1.33314422036E-1f,
-		-3.33332819422E-1f,
+		-5.70498872745e-3f,
+		2.06390887954e-2f,
+		-5.37397155531e-2f,
+		1.33314422036e-1f,
+		-3.33332819422e-1f,
 	};
 
 	__m128 x86_tanh_ps(__m128 v) noexcept
@@ -231,11 +231,11 @@ namespace sek::math::detail
 	}
 
 	static const float asincof_f[5] = {
-		4.2163199048E-2f,
-		2.4181311049E-2f,
-		4.5470025998E-2f,
-		7.4953002686E-2f,
-		1.6666752422E-1f,
+		4.2163199048e-2f,
+		2.4181311049e-2f,
+		4.5470025998e-2f,
+		7.4953002686e-2f,
+		1.6666752422e-1f,
 	};
 
 	__m128 x86_asin_ps(__m128 v) noexcept
@@ -291,7 +291,7 @@ namespace sek::math::detail
 		return x86_blendv_ps(a, x86_blendv_ps(b, c, b_mask), a_mask); /* return (v < -0.5) ? a : ((v > 0.5) ? b : c) */
 	}
 
-	static const float atancof_f[4] = {8.05374449538e-2f, -1.38776856032E-1f, 1.99777106478E-1f, -3.33329491539E-1f};
+	static const float atancof_f[4] = {8.05374449538e-2f, -1.38776856032e-1f, 1.99777106478e-1f, -3.33329491539e-1f};
 	static const float tan3pi8_f = 2.414213562373095f; /* tan((3 * Pi) / 8) */
 	static const float tanpi8_f = 0.4142135623730950f; /* tan(Pi / 8) */
 
@@ -331,8 +331,8 @@ namespace sek::math::detail
 		return _mm_xor_ps(_mm_add_ps(b, p), _mm_and_ps(v, sign_mask));
 	}
 
-	static const float asinhcof_f[4] = {2.0122003309E-2f, -4.2699340972E-2f, 7.4847586088E-2f, -1.6666288134E-1f};
-	static const float acoshcof_f[5] = {1.7596881071E-3f, -7.5272886713E-3f, 2.6454905019E-2f, -1.1784741703E-1f, 1.4142135263E0f};
+	static const float asinhcof_f[4] = {2.0122003309e-2f, -4.2699340972e-2f, 7.4847586088e-2f, -1.6666288134e-1f};
+	static const float acoshcof_f[5] = {1.7596881071e-3f, -7.5272886713e-3f, 2.6454905019e-2f, -1.1784741703e-1f, 1.4142135263E0f};
 	static const float loge2_f = 0.693147180559945309f;
 
 	__m128 x86_asinh_ps(__m128 v) noexcept
@@ -387,11 +387,11 @@ namespace sek::math::detail
 	}
 
 	static const float atanhcof_f[5] = {
-		1.81740078349E-1f,
-		8.24370301058E-2f,
-		1.46691431730E-1f,
-		1.99782164500E-1f,
-		3.33337300303E-1f,
+		1.81740078349e-1f,
+		8.24370301058e-2f,
+		1.46691431730e-1f,
+		1.99782164500e-1f,
+		3.33337300303e-1f,
 	};
 
 	__m128 x86_atanh_ps(__m128 v) noexcept

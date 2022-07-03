@@ -204,20 +204,303 @@ TEST(math_tests, vector_test)
 		v4f_4 = (v4f_0 * v4f_1) - v4f_2;
 		EXPECT_TRUE(all(v4f_3 == v4f_4));
 	}
-	{
-		constexpr auto x = 2.0f;
-		const auto v4f_0 = sek::math::fvec4{std::exp(x)};
-		const auto v4f_1 = exp(sek::math::fvec4{x});
+}
 
-		EXPECT_TRUE(all(v4f_0 == v4f_1));
-	}
+TEST(math_tests, exp_test)
+{
+	constexpr auto exec_test = [](auto test_func)
 	{
-		const auto x = std::exp(2.0f);
-		const auto v4f_0 = sek::math::fvec4{std::log(x)};
-		const auto v4f_1 = log(sek::math::fvec4{x});
+		test_func(0.0f);
+		test_func(1.0f);
+		test_func(2.0f);
+		test_func(3.0f);
+		test_func(4.0f);
+		test_func(4.5f);
+	};
 
-		EXPECT_TRUE(all(v4f_0 == v4f_1));
-	}
+	exec_test(
+		[](float x)
+		{
+			auto v4f_0 = sek::math::fvec4{std::exp(x)};
+			auto v4f_1 = exp(sek::math::fvec4{x});
+			EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.0001f)));
+		});
+	exec_test(
+		[](float x)
+		{
+			auto v2f_0 = sek::math::fvec2{std::exp(x)};
+			auto v2f_1 = exp(sek::math::fvec2{x});
+			EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+		});
+	exec_test(
+		[](double x)
+		{
+			auto v4d_0 = sek::math::dvec4{std::exp(x)};
+			auto v4d_1 = exp(sek::math::dvec4{x});
+			EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+		});
+	exec_test(
+		[](double x)
+		{
+			auto v2d_0 = sek::math::dvec2{std::exp(x)};
+			auto v2d_1 = exp(sek::math::dvec2{x});
+			EXPECT_TRUE(all(fcmp_eq(v2d_0, v2d_1, 0.000001)));
+		});
+}
+TEST(math_tests, exp2_test)
+{
+	constexpr auto exec_test = [](auto test_func)
+	{
+		test_func(0.0f);
+		test_func(1.0f);
+		test_func(2.0f);
+		test_func(3.0f);
+		test_func(4.0f);
+		test_func(4.5f);
+	};
+
+	exec_test(
+		[](float x)
+		{
+			auto v4f_0 = sek::math::fvec4{std::exp2(x)};
+			auto v4f_1 = exp2(sek::math::fvec4{x});
+			EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.0001f)));
+		});
+	exec_test(
+		[](float x)
+		{
+			auto v2f_0 = sek::math::fvec2{std::exp2(x)};
+			auto v2f_1 = exp2(sek::math::fvec2{x});
+			EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+		});
+	exec_test(
+		[](double x)
+		{
+			auto v4d_0 = sek::math::dvec4{std::exp2(x)};
+			auto v4d_1 = exp2(sek::math::dvec4{x});
+			EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+		});
+	exec_test(
+		[](double x)
+		{
+			auto v2d_0 = sek::math::dvec2{std::exp2(x)};
+			auto v2d_1 = exp2(sek::math::dvec2{x});
+			EXPECT_TRUE(all(fcmp_eq(v2d_0, v2d_1, 0.000001)));
+		});
+}
+TEST(math_tests, expm1_test)
+{
+	constexpr auto exec_test = [](auto test_func)
+	{
+		test_func(0.0f);
+		test_func(1.0f);
+		test_func(2.0f);
+		test_func(3.0f);
+		test_func(4.0f);
+		test_func(4.5f);
+	};
+
+	exec_test(
+		[](float x)
+		{
+			auto v4f_0 = sek::math::fvec4{std::expm1(x)};
+			auto v4f_1 = expm1(sek::math::fvec4{x});
+			EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.0001f)));
+		});
+	exec_test(
+		[](float x)
+		{
+			auto v2f_0 = sek::math::fvec2{std::expm1(x)};
+			auto v2f_1 = expm1(sek::math::fvec2{x});
+			EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+		});
+	exec_test(
+		[](double x)
+		{
+			auto v4d_0 = sek::math::dvec4{std::expm1(x)};
+			auto v4d_1 = expm1(sek::math::dvec4{x});
+			EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+		});
+	exec_test(
+		[](double x)
+		{
+			auto v2d_0 = sek::math::dvec2{std::expm1(x)};
+			auto v2d_1 = expm1(sek::math::dvec2{x});
+			EXPECT_TRUE(all(fcmp_eq(v2d_0, v2d_1, 0.000001)));
+		});
+}
+
+TEST(math_tests, log_test)
+{
+	constexpr auto exec_test = [](auto test_func)
+	{
+		test_func(std::exp(-0.5f));
+		test_func(std::exp(0.0f));
+		test_func(std::exp(0.5f));
+		test_func(std::exp(1.0f));
+		test_func(std::exp(2.0f));
+		test_func(std::exp(3.0f));
+		test_func(std::exp(4.0f));
+		test_func(std::exp(4.5f));
+	};
+
+	exec_test(
+		[](float x)
+		{
+			auto v4f_0 = sek::math::fvec4{std::log(x)};
+			auto v4f_1 = log(sek::math::fvec4{x});
+			EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.0001f)));
+		});
+	exec_test(
+		[](float x)
+		{
+			auto v2f_0 = sek::math::fvec2{std::log(x)};
+			auto v2f_1 = log(sek::math::fvec2{x});
+			EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+		});
+	exec_test(
+		[](double x)
+		{
+			auto v4d_0 = sek::math::dvec4{std::log(x)};
+			auto v4d_1 = log(sek::math::dvec4{x});
+			EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+		});
+	exec_test(
+		[](double x)
+		{
+			auto v2d_0 = sek::math::dvec2{std::log(x)};
+			auto v2d_1 = log(sek::math::dvec2{x});
+			EXPECT_TRUE(all(fcmp_eq(v2d_0, v2d_1, 0.000001)));
+		});
+}
+TEST(math_tests, log1p_test)
+{
+	constexpr auto exec_test = [](auto test_func)
+	{
+		test_func(std::exp(-0.5f));
+		test_func(std::exp(0.0f));
+		test_func(std::exp(0.5f));
+		test_func(std::exp(1.0f));
+		test_func(std::exp(2.0f));
+		test_func(std::exp(3.0f));
+		test_func(std::exp(4.0f));
+		test_func(std::exp(4.5f));
+	};
+
+	exec_test(
+		[](float x)
+		{
+			auto v4f_0 = sek::math::fvec4{std::log1p(x)};
+			auto v4f_1 = log1p(sek::math::fvec4{x});
+			EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.0001f)));
+		});
+	exec_test(
+		[](float x)
+		{
+			auto v2f_0 = sek::math::fvec2{std::log1p(x)};
+			auto v2f_1 = log1p(sek::math::fvec2{x});
+			EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+		});
+	exec_test(
+		[](double x)
+		{
+			auto v4d_0 = sek::math::dvec4{std::log1p(x)};
+			auto v4d_1 = log1p(sek::math::dvec4{x});
+			EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+		});
+	exec_test(
+		[](double x)
+		{
+			auto v2d_0 = sek::math::dvec2{std::log1p(x)};
+			auto v2d_1 = log1p(sek::math::dvec2{x});
+			EXPECT_TRUE(all(fcmp_eq(v2d_0, v2d_1, 0.000001)));
+		});
+}
+TEST(math_tests, log2_test)
+{
+	constexpr auto exec_test = [](auto test_func)
+	{
+		test_func(std::exp(-0.5f));
+		test_func(std::exp(0.0f));
+		test_func(std::exp(0.5f));
+		test_func(std::exp(1.0f));
+		test_func(std::exp(2.0f));
+		test_func(std::exp(3.0f));
+		test_func(std::exp(4.0f));
+		test_func(std::exp(4.5f));
+	};
+
+	exec_test(
+		[](float x)
+		{
+			auto v4f_0 = sek::math::fvec4{std::log2(x)};
+			auto v4f_1 = log2(sek::math::fvec4{x});
+			EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.0001f)));
+		});
+	exec_test(
+		[](float x)
+		{
+			auto v2f_0 = sek::math::fvec2{std::log2(x)};
+			auto v2f_1 = log2(sek::math::fvec2{x});
+			EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+		});
+	exec_test(
+		[](double x)
+		{
+			auto v4d_0 = sek::math::dvec4{std::log2(x)};
+			auto v4d_1 = log2(sek::math::dvec4{x});
+			EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+		});
+	exec_test(
+		[](double x)
+		{
+			auto v2d_0 = sek::math::dvec2{std::log2(x)};
+			auto v2d_1 = log2(sek::math::dvec2{x});
+			EXPECT_TRUE(all(fcmp_eq(v2d_0, v2d_1, 0.000001)));
+		});
+}
+TEST(math_tests, log10_test)
+{
+	constexpr auto exec_test = [](auto test_func)
+	{
+		test_func(std::exp(-0.5f));
+		test_func(std::exp(0.0f));
+		test_func(std::exp(0.5f));
+		test_func(std::exp(1.0f));
+		test_func(std::exp(2.0f));
+		test_func(std::exp(3.0f));
+		test_func(std::exp(4.0f));
+		test_func(std::exp(4.5f));
+	};
+
+	exec_test(
+		[](float x)
+		{
+			auto v4f_0 = sek::math::fvec4{std::log10(x)};
+			auto v4f_1 = log10(sek::math::fvec4{x});
+			EXPECT_TRUE(all(fcmp_eq(v4f_0, v4f_1, 0.0001f)));
+		});
+	exec_test(
+		[](float x)
+		{
+			auto v2f_0 = sek::math::fvec2{std::log10(x)};
+			auto v2f_1 = log10(sek::math::fvec2{x});
+			EXPECT_TRUE(all(fcmp_eq(v2f_0, v2f_1, 0.0001f)));
+		});
+	exec_test(
+		[](double x)
+		{
+			auto v4d_0 = sek::math::dvec4{std::log10(x)};
+			auto v4d_1 = log10(sek::math::dvec4{x});
+			EXPECT_TRUE(all(fcmp_eq(v4d_0, v4d_1, 0.000001)));
+		});
+	exec_test(
+		[](double x)
+		{
+			auto v2d_0 = sek::math::dvec2{std::log10(x)};
+			auto v2d_1 = log10(sek::math::dvec2{x});
+			EXPECT_TRUE(all(fcmp_eq(v2d_0, v2d_1, 0.000001)));
+		});
 }
 
 TEST(math_tests, sin_test)

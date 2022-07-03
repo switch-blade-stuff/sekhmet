@@ -81,10 +81,35 @@ namespace sek::math::detail
 	inline void vector_log1p(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
+		const auto one = _mm_set1_ps(1.0f);
 		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-			out.simd = x86_log_ps(_mm_add_ps(_mm_set1_ps(1.0f), v.simd));
+			out.simd = x86_log_ps(_mm_add_ps(v.simd, one));
 		else
-			x86_unpack_ps(out, x86_log_ps(_mm_add_ps(_mm_set1_ps(1.0f), x86_pack_ps(v))));
+			x86_unpack_ps(out, x86_log_ps(_mm_add_ps(x86_pack_ps(v), one)));
+	}
+
+	SEK_API __m128 x86_log2_ps(__m128 v) noexcept;
+
+	template<std::size_t N, policy_t P>
+	inline void vector_log2(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
+	{
+		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
+			out.simd = x86_log2_ps(v.simd);
+		else
+			x86_unpack_ps(out, x86_log2_ps(x86_pack_ps(v)));
+	}
+
+	SEK_API __m128 x86_log10_ps(__m128 v) noexcept;
+
+	template<std::size_t N, policy_t P>
+	inline void vector_log10(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
+		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
+	{
+		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
+			out.simd = x86_log10_ps(v.simd);
+		else
+			x86_unpack_ps(out, x86_log10_ps(x86_pack_ps(v)));
 	}
 #endif
 }	 // namespace sek::math::detail
