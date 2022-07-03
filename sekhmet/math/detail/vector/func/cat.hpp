@@ -8,7 +8,7 @@
 
 #ifndef SEK_NO_SIMD
 #if defined(SEK_ARCH_x86)
-#include "x86/category.hpp"
+#include "x86/cat.hpp"
 #endif
 #endif
 
@@ -18,27 +18,27 @@ namespace sek::math
 	{
 		inline namespace generic
 		{
-			template<typename T, std::size_t N, storage_policy P>
+			template<typename T, std::size_t N, policy_t P>
 			constexpr void vector_is_nan(mask_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = static_cast<bool>(std::isnan(v[i]));
 			}
-			template<typename T, std::size_t N, storage_policy P>
+			template<typename T, std::size_t N, policy_t P>
 			constexpr void vector_is_inf(mask_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = static_cast<bool>(std::isinf(v[i]));
 			}
-			template<typename T, std::size_t N, storage_policy P>
+			template<typename T, std::size_t N, policy_t P>
 			constexpr void vector_is_fin(mask_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = static_cast<bool>(std::isfinite(v[i]));
 			}
-			template<typename T, std::size_t N, storage_policy P>
+			template<typename T, std::size_t N, policy_t P>
 			constexpr void vector_is_neg(mask_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = static_cast<bool>(std::signbit(v[i]));
 			}
-			template<typename T, std::size_t N, storage_policy P>
+			template<typename T, std::size_t N, policy_t P>
 			constexpr void vector_is_norm(mask_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = static_cast<bool>(std::isnormal(v[i]));
@@ -47,7 +47,7 @@ namespace sek::math
 	}		 // namespace detail
 
 	/** Checks if elements of the vector are `NaN`. */
-	template<std::floating_point U, std::size_t M, storage_policy Sp>
+	template<std::floating_point U, std::size_t M, policy_t Sp>
 	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> is_nan(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		vec_mask<basic_vec<U, M, Sp>> result = {};
@@ -58,7 +58,7 @@ namespace sek::math
 		return result;
 	}
 	/** Checks if elements of the vector are a positive or negative infinity. */
-	template<std::floating_point U, std::size_t M, storage_policy Sp>
+	template<std::floating_point U, std::size_t M, policy_t Sp>
 	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> is_inf(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		vec_mask<basic_vec<U, M, Sp>> result = {};
@@ -69,7 +69,7 @@ namespace sek::math
 		return result;
 	}
 	/** Checks if elements of the vector are finite. */
-	template<std::floating_point U, std::size_t M, storage_policy Sp>
+	template<std::floating_point U, std::size_t M, policy_t Sp>
 	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> is_fin(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		vec_mask<basic_vec<U, M, Sp>> result = {};
@@ -80,7 +80,7 @@ namespace sek::math
 		return result;
 	}
 	/** Checks if elements of the vector are negative. */
-	template<std::floating_point U, std::size_t M, storage_policy Sp>
+	template<std::floating_point U, std::size_t M, policy_t Sp>
 	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> is_neg(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		vec_mask<basic_vec<U, M, Sp>> result = {};
@@ -91,7 +91,7 @@ namespace sek::math
 		return result;
 	}
 	/** Checks if elements of the vector are normal. */
-	template<std::floating_point U, std::size_t M, storage_policy Sp>
+	template<std::floating_point U, std::size_t M, policy_t Sp>
 	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> is_norm(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		vec_mask<basic_vec<U, M, Sp>> result = {};

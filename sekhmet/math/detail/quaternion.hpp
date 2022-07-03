@@ -15,7 +15,7 @@
 
 namespace sek::math
 {
-	template<std::floating_point T, storage_policy Policy = storage_policy::SPEED>
+	template<std::floating_point T, policy_t Policy = policy_t::DEFAULT>
 	class basic_quat
 	{
 	public:
@@ -28,12 +28,12 @@ namespace sek::math
 		constexpr basic_quat() noexcept = default;
 
 		// clang-format off
-		template<storage_policy OtherPolicy>
+		template<policy_t OtherPolicy>
 		constexpr explicit basic_quat(const basic_quat<T, OtherPolicy> &other) noexcept requires(OtherPolicy != policy)
 			: m_data(other.m_data)
 		{
 		}
-		template<storage_policy OtherPolicy>
+		template<policy_t OtherPolicy>
 		constexpr explicit basic_quat(basic_quat<T, OtherPolicy> &&other) noexcept requires(OtherPolicy != policy)
 			: m_data(std::move(other.m_data))
 		{
@@ -48,11 +48,11 @@ namespace sek::math
 		[[nodiscard]] constexpr value_type &operator[](std::size_t i) noexcept { return m_data[i]; }
 		[[nodiscard]] constexpr const value_type &operator[](std::size_t i) const noexcept { return m_data[i]; }
 
-		template<storage_policy P = policy>
+		template<policy_t P = policy>
 		constexpr basic_quat(const basic_vec<T, 4, P> &vector) noexcept : m_data(vector)
 		{
 		}
-		template<storage_policy P = policy>
+		template<policy_t P = policy>
 		constexpr basic_quat(basic_vec<T, 4, P> &&vector) noexcept : m_data(std::move(vector))
 		{
 		}
@@ -104,24 +104,24 @@ namespace sek::math
 	};
 
 	/** Gets the Ith element of the quaternion. */
-	template<std::size_t I, typename T, storage_policy Sp>
+	template<std::size_t I, typename T, policy_t Sp>
 	[[nodiscard]] constexpr T &get(basic_quat<T, Sp> &q) noexcept
 	{
 		return get<I>(q.vector());
 	}
 	/** @copydoc get */
-	template<std::size_t I, typename T, storage_policy Sp>
+	template<std::size_t I, typename T, policy_t Sp>
 	[[nodiscard]] constexpr const T &get(const basic_quat<T, Sp> &q) noexcept
 	{
 		return get<I>(q.vector());
 	}
 }	 // namespace sek::math
 
-template<typename T, sek::math::storage_policy Sp>
+template<typename T, sek::math::policy_t Sp>
 struct std::tuple_size<sek::math::basic_quat<T, Sp>> : std::integral_constant<std::size_t, 4>
 {
 };
-template<std::size_t I, typename T, sek::math::storage_policy Sp>
+template<std::size_t I, typename T, sek::math::policy_t Sp>
 struct std::tuple_element<I, sek::math::basic_quat<T, Sp>>
 {
 	using type = T;

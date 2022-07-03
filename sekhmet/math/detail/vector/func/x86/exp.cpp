@@ -2,9 +2,9 @@
  * Created by switchblade on 26/06/22
  */
 
-#include "exponential.hpp"
+#include "exp.hpp"
 
-#include "arithmetic.hpp"
+#include "arithm.hpp"
 #include "util.hpp"
 
 /* Implementations of exponential functions derived from netlib's cephes library (http://www.netlib.org/cephes/)

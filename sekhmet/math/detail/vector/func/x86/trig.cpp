@@ -2,10 +2,10 @@
  * Created by switchblade on 26/06/22
  */
 
-#include "trigonometric.hpp"
+#include "trig.hpp"
 
-#include "arithmetic.hpp"
-#include "exponential.hpp"
+#include "arithm.hpp"
+#include "exp.hpp"
 #include "util.hpp"
 
 /* Implementations of trigonometric functions derived from netlib's cephes library (http://www.netlib.org/cephes/)

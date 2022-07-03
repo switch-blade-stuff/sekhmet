@@ -27,7 +27,7 @@ namespace sek::detail
 	 * since all pointers in a list are located in the same array, thus skipping multiple pointers would take
 	 * advantage of them being cached.nn
 	 *
-	 * I decided not to use an array (ex. how Google's densehash does), since while it would provide the most storage_policy::SPEED cache
+	 * I decided not to use an array (ex. how Google's densehash does), since while it would provide the most fastest cache
 	 * performance, it would also create a lot of wasted space for large objects. Another determent to using an array,
 	 * is that you can't simply check if a node is empty by comparing it to nullptr without storing an additional flag
 	 * alongside the value. To avoid that you would need to store an additional default-constructed key that you would
@@ -35,7 +35,7 @@ namespace sek::detail
 	 * keys. This especially is bad when you are using things like strings, integers, or really any type whose default
 	 * value can have a meaning and could be used as a key. For example, you would not be able to have a set that looks
 	 * like this {"", "a", "B"}, since the empty string "", would be equal to a default-constructed string,
-	 * and thus would be treated as an empty node. Same issue happens with "tombstone" buckets.nn
+	 * and thus would be treated as an empty node. Same issue happens with "tombstone" buckets.
 	 *
 	 * Using a list would provide a better overall performance than using a linked list,
 	 * while being more conservative about the amount of memory allocated.

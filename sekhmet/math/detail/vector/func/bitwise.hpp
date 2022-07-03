@@ -18,22 +18,22 @@ namespace sek::math
 	{
 		inline namespace generic
 		{
-			template<typename T, std::size_t N, storage_policy P>
+			template<typename T, std::size_t N, policy_t P>
 			constexpr void vector_and(vector_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r) noexcept
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = l[i] & r[i];
 			}
-			template<typename T, std::size_t N, storage_policy P>
+			template<typename T, std::size_t N, policy_t P>
 			constexpr void vector_or(vector_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r) noexcept
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = l[i] | r[i];
 			}
-			template<typename T, std::size_t N, storage_policy P>
+			template<typename T, std::size_t N, policy_t P>
 			constexpr void vector_xor(vector_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r) noexcept
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = l[i] ^ r[i];
 			}
-			template<typename T, std::size_t N, storage_policy P>
+			template<typename T, std::size_t N, policy_t P>
 			constexpr void vector_inv(vector_data<T, N, P> &out, const vector_data<T, N, P> &v) noexcept
 			{
 				for (std::size_t i = 0; i < N; ++i) out[i] = ~v[i];
@@ -42,7 +42,7 @@ namespace sek::math
 	}		 // namespace detail
 
 	/** Preforms a bitwise AND on two vectors. */
-	template<std::integral U, std::size_t M, storage_policy Sp>
+	template<std::integral U, std::size_t M, policy_t Sp>
 	constexpr basic_vec<U, M, Sp> &operator&=(basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		if (std::is_constant_evaluated())
@@ -52,7 +52,7 @@ namespace sek::math
 		return l;
 	}
 	/** Returns a vector which is the result of bitwise AND of two vectors. */
-	template<std::integral U, std::size_t M, storage_policy Sp>
+	template<std::integral U, std::size_t M, policy_t Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator&(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		basic_vec<U, M, Sp> result;
@@ -63,7 +63,7 @@ namespace sek::math
 		return result;
 	}
 	/** Preforms a bitwise OR on two vectors. */
-	template<std::integral U, std::size_t M, storage_policy Sp>
+	template<std::integral U, std::size_t M, policy_t Sp>
 	constexpr basic_vec<U, M, Sp> &operator|=(basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		if (std::is_constant_evaluated())
@@ -73,7 +73,7 @@ namespace sek::math
 		return l;
 	}
 	/** Returns a vector which is the result of bitwise OR of two vectors. */
-	template<std::integral U, std::size_t M, storage_policy Sp>
+	template<std::integral U, std::size_t M, policy_t Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator|(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		basic_vec<U, M, Sp> result;
@@ -84,7 +84,7 @@ namespace sek::math
 		return result;
 	}
 	/** Returns a vector which is the result of bitwise XOR of two vectors. */
-	template<std::integral U, std::size_t M, storage_policy Sp>
+	template<std::integral U, std::size_t M, policy_t Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator^(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		basic_vec<U, M, Sp> result;
@@ -95,7 +95,7 @@ namespace sek::math
 		return result;
 	}
 	/** Preforms a bitwise XOR on two vectors. */
-	template<std::integral U, std::size_t M, storage_policy Sp>
+	template<std::integral U, std::size_t M, policy_t Sp>
 	constexpr basic_vec<U, M, Sp> &operator^=(basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
 	{
 		if (std::is_constant_evaluated())
@@ -105,7 +105,7 @@ namespace sek::math
 		return l;
 	}
 	/** Returns a bitwise inverted copy of a vector. */
-	template<std::integral U, std::size_t M, storage_policy Sp>
+	template<std::integral U, std::size_t M, policy_t Sp>
 	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator~(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		basic_vec<U, M, Sp> result;

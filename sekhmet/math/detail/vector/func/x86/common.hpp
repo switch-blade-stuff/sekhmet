@@ -21,9 +21,6 @@
 
 namespace sek::math::detail
 {
-	template<typename Data>
-	concept simd_enabled = requires(Data data) { data.simd; };
-
 	template<std::size_t J, std::size_t I, std::size_t... Is>
 	constexpr std::uint8_t x86_128_shuffle4_unwrap(std::index_sequence<I, Is...>) noexcept
 	{
@@ -70,102 +67,48 @@ namespace sek::math::detail
 		constexpr bool operator()(auto &v) const noexcept { return v; }
 	};
 
-	template<storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union mask_data<float, 3, P>
+	template<std::size_t N, policy_t P>
+		requires(N > 2 && check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
+	union mask_data<float, N, P>
 	{
 		using element_t = mask_element<std::uint32_t>;
 		using const_element_t = mask_element<const std::uint32_t>;
 
 		constexpr mask_data() noexcept : values{} {}
-		constexpr mask_data(bool x, bool y, bool z) noexcept
-		{
-			operator[](0) = x;
-			operator[](1) = y;
-			operator[](2) = z;
-		}
-
 		template<std::size_t M>
 		constexpr mask_data(const bool (&data)[M]) noexcept : values{}
 		{
-			for (std::size_t i = 0; i < min(3, M); ++i) operator[](i) = data[i];
+			for (std::size_t i = 0; i < min(N, M); ++i)
+				values[i] = static_cast<bool>(data[i]) ? std::numeric_limits<std::uint32_t>::max() : 0;
 		}
 
 		constexpr element_t operator[](std::size_t i) noexcept { return {values[i]}; }
 		constexpr const_element_t operator[](std::size_t i) const noexcept { return {values[i]}; }
 
-		std::uint32_t values[3];
+		std::uint32_t values[N];
 		__m128 simd;
 	};
-	template<storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union mask_data<float, 4, P>
-	{
-		using element_t = mask_element<std::uint32_t>;
-		using const_element_t = mask_element<const std::uint32_t>;
-
-		constexpr mask_data() noexcept : values{} {}
-		constexpr mask_data(bool x, bool y, bool z, bool w) noexcept
-		{
-			operator[](0) = x;
-			operator[](1) = y;
-			operator[](2) = z;
-			operator[](3) = w;
-		}
-
-		template<std::size_t M>
-		constexpr mask_data(const bool (&data)[M]) noexcept : values{}
-		{
-			for (std::size_t i = 0; i < min(4, M); ++i) operator[](i) = data[i];
-		}
-
-		constexpr element_t operator[](std::size_t i) noexcept { return {values[i]}; }
-		constexpr const_element_t operator[](std::size_t i) const noexcept { return {values[i]}; }
-
-		std::uint32_t values[4];
-		__m128 simd;
-	};
-	template<storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union vector_data<float, 3, P>
+	template<std::size_t N, policy_t P>
+		requires(N > 2 && check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
+	union vector_data<float, N, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
-		constexpr vector_data(float x, float y, float z) noexcept : values{x, y, z} {}
-
 		template<std::size_t M>
-		constexpr explicit vector_data(const float (&data)[M]) noexcept
+		constexpr vector_data(const float (&data)[M]) noexcept : values{}
 		{
-			for (std::size_t i = 0; i < min<std::size_t>(3, M); ++i) values[i] = data[i];
+			for (std::size_t i = 0; i < min(N, M); ++i) values[i] = data[i];
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
 		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
 
-		float values[3];
-		__m128 simd;
-	};
-	template<storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union vector_data<float, 4, P>
-	{
-		constexpr vector_data() noexcept : values{} {}
-		constexpr vector_data(float x, float y, float z, float w) noexcept : values{x, y, z, w} {}
-
-		template<std::size_t M>
-		constexpr explicit vector_data(const float (&data)[M]) noexcept
-		{
-			for (std::size_t i = 0; i < min<std::size_t>(4, M); ++i) values[i] = data[i];
-		}
-
-		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
-		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
-
-		float values[4];
+		float values[N];
 		__m128 simd;
 	};
 
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline __m128 x86_pack_ps(const vector_data<float, N, P> &v) noexcept
+		requires(N <= 4)
 	{
 		if constexpr (N == 2)
 			return _mm_set_ps(0, v[1], 0, v[0]);
@@ -174,8 +117,9 @@ namespace sek::math::detail
 		else
 			return _mm_set_ps(v[3], v[2], v[1], v[0]);
 	}
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline void x86_unpack_ps(vector_data<float, N, P> &out, __m128 v) noexcept
+		requires(N <= 4)
 	{
 		if constexpr (N == 2)
 		{
@@ -202,117 +146,48 @@ namespace sek::math::detail
 	}
 
 #ifdef SEK_USE_SSE2
-	template<>
-	struct mask_set<std::uint64_t>
-	{
-		template<typename U>
-		constexpr void operator()(std::uint64_t &to, U &&from) const noexcept
-		{
-			to = from ? std::numeric_limits<std::uint64_t>::max() : 0;
-		}
-	};
-	template<>
-	struct mask_get<std::uint64_t>
-	{
-		constexpr bool operator()(auto &v) const noexcept { return v; }
-	};
-
-	template<integral_of_size<4> T, storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union mask_data<T, 3, P>
+	template<integral_of_size<4> T, std::size_t N, policy_t P>
+		requires(N > 2 && check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
+	union mask_data<T, N, P>
 	{
 		using element_t = mask_element<std::uint32_t>;
 		using const_element_t = mask_element<const std::uint32_t>;
 
 		constexpr mask_data() noexcept : values{} {}
-		constexpr mask_data(bool x, bool y, bool z) noexcept
-		{
-			operator[](0) = x;
-			operator[](1) = y;
-			operator[](2) = z;
-		}
-
 		template<std::size_t M>
 		constexpr mask_data(const bool (&data)[M]) noexcept : values{}
 		{
-			for (std::size_t i = 0; i < min(3, M); ++i) operator[](i) = data[i];
+			for (std::size_t i = 0; i < min(N, M); ++i)
+				values[i] = static_cast<bool>(data[i]) ? std::numeric_limits<std::uint32_t>::max() : 0;
 		}
 
 		constexpr element_t operator[](std::size_t i) noexcept { return {values[i]}; }
 		constexpr const_element_t operator[](std::size_t i) const noexcept { return {values[i]}; }
 
-		std::uint32_t values[3];
+		std::uint32_t values[N];
 		__m128i simd;
 	};
-	template<integral_of_size<4> T, storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union mask_data<T, 4, P>
-	{
-		using element_t = mask_element<std::uint32_t>;
-		using const_element_t = mask_element<const std::uint32_t>;
-
-		constexpr mask_data() noexcept : values{} {}
-		constexpr mask_data(bool x, bool y, bool z, bool w) noexcept
-		{
-			operator[](0) = x;
-			operator[](1) = y;
-			operator[](2) = z;
-			operator[](3) = w;
-		}
-
-		template<std::size_t M>
-		constexpr mask_data(const bool (&data)[M]) noexcept : values{}
-		{
-			for (std::size_t i = 0; i < min(4, M); ++i) operator[](i) = data[i];
-		}
-
-		constexpr element_t operator[](std::size_t i) noexcept { return {values[i]}; }
-		constexpr const_element_t operator[](std::size_t i) const noexcept { return {values[i]}; }
-
-		std::uint32_t values[4];
-		__m128i simd;
-	};
-	template<integral_of_size<4> T, storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union vector_data<T, 3, P>
+	template<integral_of_size<4> T, std::size_t N, policy_t P>
+		requires(N > 2 && check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
+	union vector_data<T, N, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
-		constexpr vector_data(T x, T y, T z) noexcept : values{x, y, z} {}
-
 		template<std::size_t M>
-		constexpr explicit vector_data(const T (&data)[M]) noexcept
+		constexpr vector_data(const T (&data)[M]) noexcept : values{}
 		{
-			for (std::size_t i = 0; i < min<std::size_t>(3, M); ++i) values[i] = data[i];
+			for (std::size_t i = 0; i < min(N, M); ++i) values[i] = data[i];
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
 		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
 
-		T values[3];
-		__m128i simd;
-	};
-	template<integral_of_size<4> T, storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union vector_data<T, 4, P>
-	{
-		constexpr vector_data() noexcept : values{} {}
-		constexpr vector_data(T x, T y, T z, T w) noexcept : values{x, y, z, w} {}
-
-		template<std::size_t M>
-		constexpr explicit vector_data(const T (&data)[M]) noexcept
-		{
-			for (std::size_t i = 0; i < min<std::size_t>(4, M); ++i) values[i] = data[i];
-		}
-
-		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
-		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
-
-		T values[4];
+		T values[N];
 		__m128i simd;
 	};
 
-	template<integral_of_size<4> T, std::size_t N, storage_policy P>
+	template<integral_of_size<4> T, std::size_t N, policy_t P>
 	inline __m128i x86_pack_ps(const vector_data<T, N, P> &v) noexcept
+		requires(N <= 4)
 	{
 		// clang-format off
 		if constexpr (N == 2)
@@ -329,8 +204,9 @@ namespace sek::math::detail
 								 static_cast<std::int32_t>(v[0]));
 		// clang-format on
 	}
-	template<integral_of_size<4> T, std::size_t N, storage_policy P>
+	template<integral_of_size<4> T, std::size_t N, policy_t P>
 	inline void x86_unpack_ps(vector_data<T, N, P> &out, __m128i v) noexcept
+		requires(N <= 4)
 	{
 		if constexpr (N == 2)
 		{
@@ -356,20 +232,29 @@ namespace sek::math::detail
 		}
 	}
 
-	template<storage_policy P>
-		requires(P != storage_policy::SIZE)
+	template<>
+	struct mask_set<std::uint64_t>
+	{
+		template<typename U>
+		constexpr void operator()(std::uint64_t &to, U &&from) const noexcept
+		{
+			to = from ? std::numeric_limits<std::uint64_t>::max() : 0;
+		}
+	};
+	template<>
+	struct mask_get<std::uint64_t>
+	{
+		constexpr bool operator()(auto &v) const noexcept { return v; }
+	};
+
+	template<policy_t P>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	union mask_data<double, 2, P>
 	{
 		using element_t = mask_element<std::uint64_t>;
 		using const_element_t = mask_element<const std::uint64_t>;
 
 		constexpr mask_data() noexcept : values{} {}
-		constexpr mask_data(bool x, bool y) noexcept
-		{
-			operator[](0) = x;
-			operator[](1) = y;
-		}
-
 		template<std::size_t M>
 		constexpr mask_data(const bool (&data)[M]) noexcept : values{}
 		{
@@ -382,13 +267,11 @@ namespace sek::math::detail
 		std::uint64_t values[2];
 		__m128d simd;
 	};
-	template<storage_policy P>
-		requires(P != storage_policy::SIZE)
+	template<policy_t P>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	union vector_data<double, 2, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
-		constexpr vector_data(double x, double y) noexcept : values{x, y} {}
-
 		template<std::size_t M>
 		constexpr explicit vector_data(const double (&data)[M]) noexcept
 		{
@@ -402,31 +285,26 @@ namespace sek::math::detail
 		__m128d simd;
 	};
 
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline __m128d x86_pack_pd(const vector_data<double, 2, P> &v) noexcept
 	{
 		return _mm_set_pd(v[1], v[0]);
 	}
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline void x86_unpack_pd(vector_data<double, 2, P> &out, __m128d v) noexcept
 	{
 		out[1] = _mm_cvtsd_f64(_mm_unpackhi_pd(v, v));
 		out[0] = _mm_cvtsd_f64(v);
 	}
 
-	template<integral_of_size<8> T, storage_policy P>
+	template<integral_of_size<8> T, policy_t P>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	union mask_data<T, 2, P>
 	{
 		using element_t = mask_element<std::uint64_t>;
 		using const_element_t = mask_element<const std::uint64_t>;
 
 		constexpr mask_data() noexcept : values{} {}
-		constexpr mask_data(bool x, bool y) noexcept
-		{
-			operator[](0) = x;
-			operator[](1) = y;
-		}
-
 		template<std::size_t M>
 		constexpr mask_data(const bool (&data)[M]) noexcept : values{}
 		{
@@ -439,12 +317,11 @@ namespace sek::math::detail
 		std::uint64_t values[2];
 		__m128i simd;
 	};
-	template<integral_of_size<8> T, storage_policy P>
+	template<integral_of_size<8> T, policy_t P>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	union vector_data<T, 2, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
-		constexpr vector_data(T x, T y) noexcept : values{x, y} {}
-
 		template<std::size_t M>
 		constexpr explicit vector_data(const T (&data)[M]) noexcept
 		{
@@ -458,12 +335,12 @@ namespace sek::math::detail
 		__m128i simd;
 	};
 
-	template<integral_of_size<8> T, std::size_t N, storage_policy P>
+	template<integral_of_size<8> T, std::size_t N, policy_t P>
 	inline __m128i x86_pack_pd(const vector_data<T, 2, P> &v) noexcept
 	{
 		return _mm_set_epi64x(static_cast<std::int64_t>(v[1]), static_cast<std::int64_t>(v[0]));
 	}
-	template<integral_of_size<8> T, std::size_t N, storage_policy P>
+	template<integral_of_size<8> T, std::size_t N, policy_t P>
 	inline void x86_unpack_pd(vector_data<T, 2, P> &out, __m128i v) noexcept
 	{
 		out[1] = static_cast<T>(_mm_cvtsi128_si64x(_mm_unpackhi_epi64(v, v)));
@@ -471,25 +348,19 @@ namespace sek::math::detail
 	}
 
 #ifndef SEK_USE_AVX
-	template<storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union mask_data<double, 3, P>
+	template<std::size_t N, policy_t P>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
+	union mask_data<double, N, P>
 	{
 		using element_t = mask_element<std::uint64_t>;
 		using const_element_t = mask_element<const std::uint64_t>;
 
 		constexpr mask_data() noexcept : values{} {}
-		constexpr mask_data(bool x, bool y, bool z) noexcept
-		{
-			operator[](0) = x;
-			operator[](1) = y;
-			operator[](2) = z;
-		}
-
 		template<std::size_t M>
 		constexpr mask_data(const bool (&data)[M]) noexcept : values{}
 		{
-			for (std::size_t i = 0; i < min(3, M); ++i) operator[](i) = data[i];
+			for (std::size_t i = 0; i < min(N, M); ++i)
+				values[i] = static_cast<bool>(data[i]) ? std::numeric_limits<std::uint64_t>::max() : 0;
 		}
 
 		constexpr element_t operator[](std::size_t i) noexcept { return {values[i]}; }
@@ -498,93 +369,38 @@ namespace sek::math::detail
 		std::uint64_t values[3];
 		__m128d simd[2];
 	};
-	template<storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union mask_data<double, 4, P>
-	{
-		using element_t = mask_element<std::uint64_t>;
-		using const_element_t = mask_element<const std::uint64_t>;
-
-		constexpr mask_data() noexcept : values{} {}
-		constexpr mask_data(bool x, bool y, bool z, bool w) noexcept
-		{
-			operator[](0) = x;
-			operator[](1) = y;
-			operator[](2) = z;
-			operator[](3) = w;
-		}
-
-		template<std::size_t M>
-		constexpr mask_data(const bool (&data)[M]) noexcept : values{}
-		{
-			for (std::size_t i = 0; i < min(4, M); ++i) operator[](i) = data[i];
-		}
-
-		constexpr element_t operator[](std::size_t i) noexcept { return {values[i]}; }
-		constexpr const_element_t operator[](std::size_t i) const noexcept { return {values[i]}; }
-
-		std::uint64_t values[4];
-		__m128d simd[2];
-	};
-	template<storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union vector_data<double, 3, P>
+	template<std::size_t N, policy_t P>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
+	union vector_data<double, N, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
-		constexpr vector_data(double x, double y, double z) noexcept : values{x, y, z} {}
-
 		template<std::size_t M>
-		constexpr explicit vector_data(const double (&data)[M]) noexcept
+		constexpr vector_data(const double (&data)[M]) noexcept : values{}
 		{
-			for (std::size_t i = 0; i < min<std::size_t>(3, M); ++i) values[i] = data[i];
+			for (std::size_t i = 0; i < min(N, M); ++i) values[i] = data[i];
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
 		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
 
-		double values[3];
-		__m128d simd[2];
-	};
-	template<storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union vector_data<double, 4, P>
-	{
-		constexpr vector_data() noexcept : values{} {}
-		constexpr vector_data(double x, double y, double z, double w) noexcept : values{x, y, z, w} {}
-
-		template<std::size_t M>
-		constexpr explicit vector_data(const double (&data)[M]) noexcept
-		{
-			for (std::size_t i = 0; i < min<std::size_t>(4, M); ++i) values[i] = data[i];
-		}
-
-		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
-		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
-
-		double values[4];
+		double values[N];
 		__m128d simd[2];
 	};
 
 #ifndef SEK_USE_AVX2
-	template<integral_of_size<8> T, storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union mask_data<T, 3, P>
+	template<integral_of_size<8> T, std::size_t N, policy_t P>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
+	union mask_data<T, N, P>
 	{
 		using element_t = mask_element<std::uint64_t>;
 		using const_element_t = mask_element<const std::uint64_t>;
 
 		constexpr mask_data() noexcept : values{} {}
-		constexpr mask_data(bool x, bool y, bool z) noexcept
-		{
-			operator[](0) = x;
-			operator[](1) = y;
-			operator[](2) = z;
-		}
-
 		template<std::size_t M>
 		constexpr mask_data(const bool (&data)[M]) noexcept : values{}
 		{
-			for (std::size_t i = 0; i < min(3, M); ++i) operator[](i) = data[i];
+			for (std::size_t i = 0; i < min(N, M); ++i)
+				values[i] = static_cast<bool>(data[i]) ? std::numeric_limits<std::uint64_t>::max() : 0;
 		}
 
 		constexpr element_t operator[](std::size_t i) noexcept { return {values[i]}; }
@@ -593,70 +409,21 @@ namespace sek::math::detail
 		std::uint64_t values[3];
 		__m128i simd[2];
 	};
-	template<integral_of_size<8> T, storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union mask_data<T, 4, P>
-	{
-		using element_t = mask_element<std::uint64_t>;
-		using const_element_t = mask_element<const std::uint64_t>;
-
-		constexpr mask_data() noexcept : values{} {}
-		constexpr mask_data(bool x, bool y, bool z, bool w) noexcept
-		{
-			operator[](0) = x;
-			operator[](1) = y;
-			operator[](2) = z;
-			operator[](3) = w;
-		}
-
-		template<std::size_t M>
-		constexpr mask_data(const bool (&data)[M]) noexcept : values{}
-		{
-			for (std::size_t i = 0; i < min(4, M); ++i) operator[](i) = data[i];
-		}
-
-		constexpr element_t operator[](std::size_t i) noexcept { return {values[i]}; }
-		constexpr const_element_t operator[](std::size_t i) const noexcept { return {values[i]}; }
-
-		std::uint64_t values[4];
-		__m128i simd[2];
-	};
-	template<integral_of_size<8> T, storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union vector_data<T, 3, P>
+	template<integral_of_size<8> T, std::size_t N, policy_t P>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
+	union vector_data<T, N, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
-		constexpr vector_data(T x, T y, T z) noexcept : values{x, y, z} {}
-
 		template<std::size_t M>
-		constexpr explicit vector_data(const T (&data)[M]) noexcept
+		constexpr vector_data(const T (&data)[M]) noexcept : values{}
 		{
-			for (std::size_t i = 0; i < min<std::size_t>(3, M); ++i) values[i] = data[i];
+			for (std::size_t i = 0; i < min(N, M); ++i) values[i] = data[i];
 		}
 
 		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
 		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
 
-		T values[3];
-		__m128i simd[2];
-	};
-	template<integral_of_size<8> T, storage_policy P>
-		requires(P != storage_policy::SIZE)
-	union vector_data<T, 4, P>
-	{
-		constexpr vector_data() noexcept : values{} {}
-		constexpr vector_data(T x, T y, T z, T w) noexcept : values{x, y, z, w} {}
-
-		template<std::size_t M>
-		constexpr explicit vector_data(const T (&data)[M]) noexcept
-		{
-			for (std::size_t i = 0; i < min<std::size_t>(4, M); ++i) values[i] = data[i];
-		}
-
-		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
-		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
-
-		T values[4];
+		T values[N];
 		__m128i simd[2];
 	};
 #endif

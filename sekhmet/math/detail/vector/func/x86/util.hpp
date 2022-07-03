@@ -18,27 +18,27 @@ namespace sek::math::detail
 #endif
 	}
 
-	template<std::size_t N, std::size_t M, storage_policy P, std::size_t... Is>
+	template<std::size_t N, std::size_t M, policy_t P, std::size_t... Is>
 	inline void mask_shuffle(mask_data<float, N, P> &out, const mask_data<float, N, P> &m, std::index_sequence<Is...> s) noexcept
-		requires simd_enabled<mask_data<float, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		constexpr auto mask = x86_128_shuffle4_mask(s);
 		out.simd = _mm_shuffle_ps(m.simd, m.simd, mask);
 	}
 
-	template<std::size_t N, std::size_t M, storage_policy P, std::size_t... Is>
+	template<std::size_t N, std::size_t M, policy_t P, std::size_t... Is>
 	inline void vector_shuffle(vector_data<float, N, P> &out, const vector_data<float, M, P> &l, std::index_sequence<Is...> s) noexcept
-		requires simd_enabled<vector_data<float, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		constexpr auto mask = x86_128_shuffle4_mask(s);
 		out.simd = _mm_shuffle_ps(l.simd, l.simd, mask);
 	}
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline void vector_interleave(vector_data<float, N, P> &out,
 								  const vector_data<float, N, P> &l,
 								  const vector_data<float, N, P> &r,
 								  mask_data<float, N, P> &m) noexcept
-		requires simd_enabled<vector_data<float, N, P>> && simd_enabled<mask_data<float, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = x86_blendv_ps(r.simd, l.simd, m.simd);
 	}
@@ -46,27 +46,27 @@ namespace sek::math::detail
 #ifdef SEK_USE_SSE4_1
 	SEK_FORCE_INLINE __m128 x86_floor_ps(__m128 v) noexcept { return _mm_floor_ps(v); }
 
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline void vector_round(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
-		requires simd_enabled<vector_data<float, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = _mm_round_ps(v.simd, _MM_FROUND_RINT);
 	}
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline void vector_ceil(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
-		requires simd_enabled<vector_data<float, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = _mm_ceil_ps(v.simd);
 	}
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline void vector_floor(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
-		requires simd_enabled<vector_data<float, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = x86_floor_ps(v.simd);
 	}
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline void vector_trunc(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
-		requires simd_enabled<vector_data<float, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = _mm_round_ps(v.simd, _MM_FROUND_TRUNC);
 	}
@@ -77,9 +77,9 @@ namespace sek::math::detail
 		const auto tmp = _mm_cvtepi32_ps(_mm_cvtps_epi32(v));
 		return _mm_sub_ps(tmp, _mm_and_ps(_mm_cmpgt_ps(tmp, v), _mm_set1_ps(1.0f)));
 	}
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline void vector_floor(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
-		requires simd_enabled<vector_data<float, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = x86_floor_ps(v.simd);
 	}
@@ -103,27 +103,27 @@ namespace sek::math::detail
 #endif
 	}
 
-	template<std::size_t I0, std::size_t I1, storage_policy P>
+	template<std::size_t I0, std::size_t I1, policy_t P>
 	inline void mask_shuffle(mask_data<double, 2, P> &out, const mask_data<double, 2, P> &m, std::index_sequence<I0, I1>) noexcept
-		requires simd_enabled<mask_data<double, 2, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		constexpr auto mask = x86_128_shuffle2_mask(std::index_sequence<I0, I1>{});
 		out.simd = _mm_shuffle_pd(m.simd, m.simd, mask);
 	}
 
-	template<storage_policy P, std::size_t... Is>
+	template<policy_t P, std::size_t... Is>
 	inline void vector_shuffle(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v, std::index_sequence<Is...> s) noexcept
-		requires simd_enabled<vector_data<double, 2, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		constexpr auto mask = x86_128_shuffle2_mask(s);
 		out.simd = _mm_shuffle_pd(v.simd, v.simd, mask);
 	}
-	template<storage_policy P>
+	template<policy_t P>
 	inline void vector_interleave(vector_data<double, 2, P> &out,
 								  const vector_data<double, 2, P> &l,
 								  const vector_data<double, 2, P> &r,
 								  mask_data<double, 2, P> &m) noexcept
-		requires simd_enabled<vector_data<double, 2, P>> && simd_enabled<mask_data<double, 2, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = x86_blendv_pd(r.simd, l.simd, m.simd);
 	}
@@ -131,88 +131,88 @@ namespace sek::math::detail
 #ifdef SEK_USE_SSE4_1
 	SEK_FORCE_INLINE __m128d x86_floor_pd(__m128d v) noexcept { return _mm_floor_pd(v); }
 
-	template<storage_policy P>
+	template<policy_t P>
 	inline void vector_round(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
-		requires simd_enabled<vector_data<double, 2, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = _mm_round_pd(v.simd, _MM_FROUND_RINT);
 	}
-	template<storage_policy P>
+	template<policy_t P>
 	inline void vector_ceil(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
-		requires simd_enabled<vector_data<double, 2, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = _mm_ceil_pd(v.simd);
 	}
-	template<storage_policy P>
+	template<policy_t P>
 	inline void vector_trunc(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
-		requires simd_enabled<vector_data<double, 2, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = _mm_round_pd(v.simd, _MM_FROUND_TRUNC);
 	}
 #else
 	SEK_API __m128d x86_floor_pd(__m128d v) noexcept;
 #endif
-	template<storage_policy P>
+	template<policy_t P>
 	inline void vector_floor(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
-		requires simd_enabled<vector_data<double, 2, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = x86_floor_pd(v.simd);
 	}
 
-	template<integral_of_size<4> T, std::size_t N, std::size_t M, storage_policy P, std::size_t... Is>
+	template<integral_of_size<4> T, std::size_t N, std::size_t M, policy_t P, std::size_t... Is>
 	inline void mask_shuffle(mask_data<T, N, P> &out, const mask_data<T, N, P> &m, std::index_sequence<Is...> s) noexcept
-		requires simd_enabled<mask_data<T, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		constexpr auto mask = x86_128_shuffle4_mask(s);
 		out.simd = _mm_shuffle_epi32(m.simd, mask);
 	}
 
-	template<integral_of_size<4> T, std::size_t N, std::size_t M, storage_policy P, std::size_t... Is>
+	template<integral_of_size<4> T, std::size_t N, std::size_t M, policy_t P, std::size_t... Is>
 	inline void vector_shuffle(vector_data<T, N, P> &out, const vector_data<T, M, P> &v, std::index_sequence<Is...> s) noexcept
-		requires simd_enabled<vector_data<T, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		constexpr auto mask = x86_128_shuffle4_mask(s);
 		out.simd = _mm_shuffle_epi32(v.simd, mask);
 	}
-	template<integral_of_size<4> T, std::size_t N, storage_policy P>
+	template<integral_of_size<4> T, std::size_t N, policy_t P>
 	inline void vector_interleave(vector_data<T, N, P> &out,
 								  const vector_data<T, N, P> &l,
 								  const vector_data<T, N, P> &r,
 								  const mask_data<T, N, P> &m) noexcept
-		requires simd_enabled<vector_data<T, N, P>> && simd_enabled<mask_data<T, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = x86_blendv_epi8(r.simd, l.simd, m.simd);
 	}
 
-	template<integral_of_size<8> T, std::size_t I0, std::size_t I1, storage_policy P>
+	template<integral_of_size<8> T, std::size_t I0, std::size_t I1, policy_t P>
 	inline void mask_shuffle(mask_data<T, 2, P> &out, const mask_data<T, 2, P> &m, std::index_sequence<I0, I1>) noexcept
 	{
 		constexpr auto mask = x86_128_shuffle2_mask(std::index_sequence<I0, I1>{});
 		out.simd = _mm_castpd_si128(_mm_shuffle_pd(_mm_castsi128_pd(m.simd), _mm_castsi128_pd(m.simd), mask));
 	}
 
-	template<integral_of_size<8> T, storage_policy P, std::size_t... Is>
+	template<integral_of_size<8> T, policy_t P, std::size_t... Is>
 	inline void vector_shuffle(vector_data<T, 2, P> &out, const vector_data<T, 2, P> &v, std::index_sequence<Is...> s) noexcept
-		requires simd_enabled<vector_data<T, 2, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		constexpr auto mask = x86_128_shuffle2_mask(s);
 		const auto a = _mm_castsi128_pd(v.simd);
 		out.simd = _mm_castpd_si128(_mm_shuffle_pd(a, a, mask));
 	}
-	template<integral_of_size<8> T, storage_policy P>
+	template<integral_of_size<8> T, policy_t P>
 	inline void vector_interleave(vector_data<T, 2, P> &out,
 								  const vector_data<T, 2, P> &l,
 								  const vector_data<T, 2, P> &r,
 								  const mask_data<T, 2, P> &m) noexcept
-		requires simd_enabled<vector_data<T, 2, P>> && simd_enabled<mask_data<T, 2, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = x86_blendv_epi8(r.simd, l.simd, m.simd);
 	}
 
 #ifndef SEK_USE_AVX
-	template<std::size_t N, std::size_t I0, std::size_t I1, storage_policy P, std::size_t... Is>
+	template<std::size_t N, std::size_t I0, std::size_t I1, policy_t P, std::size_t... Is>
 	inline void mask_shuffle(mask_data<double, N, P> &out, const mask_data<double, 2, P> &m, std::index_sequence<I0, I1, Is...>) noexcept
-		requires(N != 2 && simd_enabled<mask_data<double, N, P>> && simd_enabled<mask_data<double, 2, P>>)
+		requires(N != 2 && check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
 	{
 		constexpr auto mask0 = x86_128_shuffle2_mask(std::index_sequence<I0, I1>{});
 		constexpr auto mask1 = x86_128_shuffle2_mask(std::index_sequence<Is...>{});
@@ -220,65 +220,65 @@ namespace sek::math::detail
 		out.simd[1] = _mm_shuffle_pd(m.simd, m.simd, mask1);
 	}
 
-	template<std::size_t N, std::size_t I0, std::size_t I1, storage_policy P, std::size_t... Is>
+	template<std::size_t N, std::size_t I0, std::size_t I1, policy_t P, std::size_t... Is>
 	inline void vector_shuffle(vector_data<double, N, P> &out,
 							   const vector_data<double, 2, P> &v,
 							   std::index_sequence<I0, I1, Is...>) noexcept
-		requires(N != 2 && simd_enabled<vector_data<double, N, P>> && simd_enabled<vector_data<double, 2, P>>)
+		requires(N != 2 && check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
 	{
 		constexpr auto mask0 = x86_128_shuffle2_mask(std::index_sequence<I0, I1>{});
 		constexpr auto mask1 = x86_128_shuffle2_mask(std::index_sequence<Is...>{});
 		out.simd[0] = _mm_shuffle_pd(v.simd, v.simd, mask0);
 		out.simd[1] = _mm_shuffle_pd(v.simd, v.simd, mask1);
 	}
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline void vector_interleave(vector_data<double, N, P> &out,
 								  const vector_data<double, N, P> &l,
 								  const vector_data<double, N, P> &r,
 								  mask_data<double, N, P> &m) noexcept
-		requires simd_enabled<vector_data<double, N, P>> && simd_enabled<mask_data<double, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd[0] = x86_blendv_pd(r.simd[0], l.simd[0], m.simd[0]);
 		out.simd[1] = x86_blendv_pd(r.simd[1], l.simd[1], m.simd[1]);
 	}
 
 #ifdef SEK_USE_SSE4_1
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline void vector_round(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
-		requires simd_enabled<vector_data<double, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		const int mask = _MM_FROUND_RINT;
 		out.simd[0] = _mm_round_pd(v.simd[0], mask);
 		out.simd[1] = _mm_round_pd(v.simd[1], mask);
 	}
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline void vector_ceil(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
-		requires simd_enabled<vector_data<double, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd[0] = _mm_ceil_pd(v.simd[0]);
 		out.simd[1] = _mm_ceil_pd(v.simd[1]);
 	}
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline void vector_trunc(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
-		requires simd_enabled<vector_data<double, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		const int mask = _MM_FROUND_TRUNC;
 		out.simd[0] = _mm_round_pd(v.simd[0], mask);
 		out.simd[1] = _mm_round_pd(v.simd[1], mask);
 	}
 #endif
-	template<std::size_t N, storage_policy P>
+	template<std::size_t N, policy_t P>
 	inline void vector_floor(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
-		requires simd_enabled<vector_data<double, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd[0] = x86_floor_pd(v.simd[0]);
 		out.simd[1] = x86_floor_pd(v.simd[1]);
 	}
 
 #ifndef SEK_USE_AVX2
-	template<integral_of_size<8> T, std::size_t N, std::size_t I0, std::size_t I1, storage_policy P, std::size_t... Is>
+	template<integral_of_size<8> T, std::size_t N, std::size_t I0, std::size_t I1, policy_t P, std::size_t... Is>
 	inline void mask_shuffle(mask_data<T, N, P> &out, const mask_data<T, 2, P> &m, std::index_sequence<I0, I1, Is...>) noexcept
-		requires(N != 2 && simd_enabled<mask_data<T, N, P>> && simd_enabled<mask_data<T, 2, P>>)
+		requires(N != 2 && check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
 	{
 		constexpr auto mask0 = x86_128_shuffle2_mask(std::index_sequence<I0, I1>{});
 		constexpr auto mask1 = x86_128_shuffle2_mask(std::index_sequence<Is...>{});
@@ -287,9 +287,9 @@ namespace sek::math::detail
 		out.simd[1] = _mm_castpd_si128(_mm_shuffle_pd(a, a, mask1));
 	}
 
-	template<integral_of_size<8> T, std::size_t N, std::size_t I0, std::size_t I1, storage_policy P, std::size_t... Is>
+	template<integral_of_size<8> T, std::size_t N, std::size_t I0, std::size_t I1, policy_t P, std::size_t... Is>
 	inline void vector_shuffle(vector_data<T, N, P> &out, const vector_data<T, 2, P> &v, std::index_sequence<I0, I1, Is...>) noexcept
-		requires(N != 2 && simd_enabled<vector_data<T, N, P>> && simd_enabled<vector_data<T, 2, P>>)
+		requires(N != 2 && check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
 	{
 		constexpr auto mask0 = x86_128_shuffle2_mask(std::index_sequence<I0, I1>{});
 		constexpr auto mask1 = x86_128_shuffle2_mask(std::index_sequence<Is...>{});
@@ -297,12 +297,12 @@ namespace sek::math::detail
 		out.simd[0] = _mm_castpd_si128(_mm_shuffle_pd(a, a, mask0));
 		out.simd[1] = _mm_castpd_si128(_mm_shuffle_pd(a, a, mask1));
 	}
-	template<integral_of_size<8> T, std::size_t N, storage_policy P>
+	template<integral_of_size<8> T, std::size_t N, policy_t P>
 	inline void vector_interleave(vector_data<T, N, P> &out,
 								  const vector_data<T, N, P> &l,
 								  const vector_data<T, N, P> &r,
 								  const mask_data<T, N, P> &m) noexcept
-		requires simd_enabled<vector_data<T, N, P>> && simd_enabled<mask_data<T, N, P>>
+		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd[0] = x86_blendv_epi8(r.simd[0], l.simd[0], m.simd[0]);
 		out.simd[1] = x86_blendv_epi8(r.simd[1], l.simd[1], m.simd[1]);

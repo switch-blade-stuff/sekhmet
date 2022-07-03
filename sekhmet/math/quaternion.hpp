@@ -9,7 +9,7 @@
 namespace sek::math
 {
 	using fquat = basic_quat<float>;
-	using fquat_packed = basic_quat<float, storage_policy::SIZE>;
+	using fquat_packed = basic_quat<float, policy_t::PACKED>;
 	using dquat = basic_quat<double>;
-	using dquat_packed = basic_quat<double, storage_policy::SIZE>;
+	using dquat_packed = basic_quat<double, policy_t::PACKED>;
 }	 // namespace sek::math

@@ -15,11 +15,11 @@ namespace sek::math
 	template<typename T = float>
 	using vec2 = basic_vec<T, 2>;
 	template<typename T = float>
-	using vec4_packed = basic_vec<T, 4, storage_policy::SIZE>;
+	using vec4_packed = basic_vec<T, 4, policy_t::DEFAULT_PACKED>;
 	template<typename T = float>
-	using vec3_packed = basic_vec<T, 3, storage_policy::SIZE>;
+	using vec3_packed = basic_vec<T, 3, policy_t::DEFAULT_PACKED>;
 	template<typename T = float>
-	using vec2_packed = basic_vec<T, 2, storage_policy::SIZE>;
+	using vec2_packed = basic_vec<T, 2, policy_t::DEFAULT_PACKED>;
 
 	typedef vec4<double> dvec4;
 	typedef vec3<double> dvec3;
@@ -65,11 +65,11 @@ namespace sek::math
 	template<typename T = float>
 	using vec2_mask = vec_mask<basic_vec<T, 2>>;
 	template<typename T = float>
-	using vec4_mask_packed = vec_mask<basic_vec<T, 4, storage_policy::SIZE>>;
+	using vec4_mask_packed = vec_mask<basic_vec<T, 4, policy_t::DEFAULT_PACKED>>;
 	template<typename T = float>
-	using vec3_mask_packed = vec_mask<basic_vec<T, 3, storage_policy::SIZE>>;
+	using vec3_mask_packed = vec_mask<basic_vec<T, 3, policy_t::DEFAULT_PACKED>>;
 	template<typename T = float>
-	using vec2_mask_packed = vec_mask<basic_vec<T, 2, storage_policy::SIZE>>;
+	using vec2_mask_packed = vec_mask<basic_vec<T, 2, policy_t::DEFAULT_PACKED>>;
 
 	typedef vec4_mask<double> dvec4_mask;
 	typedef vec3_mask<double> dvec3_mask;

@@ -8,13 +8,13 @@
 #include "storage.hpp"
 
 /* vector & mask function declarations. */
-#include "func/arithmetic_fwd.hpp"
+#include "func/arithm_fwd.hpp"
 #include "func/bitwise_fwd.hpp"
-#include "func/category_fwd.hpp"
-#include "func/exponential_fwd.hpp"
-#include "func/geometric_fwd.hpp"
-#include "func/relational_fwd.hpp"
-#include "func/trigonometric_fwd.hpp"
+#include "func/cat_fwd.hpp"
+#include "func/exp_fwd.hpp"
+#include "func/geom_fwd.hpp"
+#include "func/rel_fwd.hpp"
+#include "func/trig_fwd.hpp"
 #include "func/util_fwd.hpp"
 
 #define SEK_DETAIL_VECTOR_MASK_COMMON(T, N, P)                                                                         \
@@ -22,9 +22,9 @@ private:                                                                        
 	using data_t = detail::mask_data_t<T, N, P>;                                                                       \
 	data_t m_data = {};                                                                                                \
                                                                                                                        \
-	template<typename U, std::size_t M, storage_policy Sp>                                                             \
+	template<typename U, std::size_t M, policy_t Sp>                                                             \
 	friend constexpr sek::hash_t hash(const vec_mask<basic_vec<U, M, Sp>> &) noexcept;                                 \
-	template<typename U, std::size_t M, storage_policy Sp>                                                             \
+	template<typename U, std::size_t M, policy_t Sp>                                                             \
 	friend constexpr void swap(vec_mask<basic_vec<U, M, Sp>> &, vec_mask<basic_vec<U, M, Sp>> &) noexcept;             \
                                                                                                                        \
 	SEK_DETAIL_FRIEND_UTILITY                                                                                          \
@@ -39,7 +39,7 @@ public:                                                                         
                                                                                                                        \
 	constexpr vec_mask() noexcept = default;                                                                           \
                                                                                                                        \
-	template<std::convertible_to<T> U, std::size_t M, storage_policy Sp>                                               \
+	template<std::convertible_to<T> U, std::size_t M, policy_t Sp>                                               \
 	constexpr explicit vec_mask(const vec_mask<basic_vec<U, M, Sp>> &other) noexcept                                   \
 		requires(!std::same_as<T, U> || M != N || Sp != P)                                                             \
 	{                                                                                                                  \
@@ -79,9 +79,9 @@ private:                                                                        
 	using mask_t = vec_mask<basic_vec>;                                                                                \
 	data_t m_data = {};                                                                                                \
                                                                                                                        \
-	template<typename U, std::size_t M, storage_policy Sp>                                                             \
+	template<typename U, std::size_t M, policy_t Sp>                                                             \
 	friend constexpr sek::hash_t hash(const basic_vec<U, M, Sp> &) noexcept;                                           \
-	template<typename U, std::size_t M, storage_policy Sp>                                                             \
+	template<typename U, std::size_t M, policy_t Sp>                                                             \
 	friend constexpr void swap(basic_vec<U, M, Sp> &, basic_vec<U, M, Sp> &) noexcept;                                 \
                                                                                                                        \
 	SEK_DETAIL_FRIEND_UTILITY                                                                                          \
@@ -102,7 +102,7 @@ public:                                                                         
                                                                                                                        \
 	constexpr basic_vec() noexcept = default;                                                                          \
                                                                                                                        \
-	template<std::convertible_to<T> U, std::size_t M, storage_policy OtherPolicy>                                      \
+	template<std::convertible_to<T> U, std::size_t M, policy_t OtherPolicy>                                      \
 	constexpr explicit basic_vec(const basic_vec<U, M, OtherPolicy> &other) noexcept                                   \
 		requires(!std::same_as<T, U> || M != N || OtherPolicy != P)                                                    \
 	{                                                                                                                  \
@@ -143,13 +143,13 @@ namespace sek::math
 	 * @tparam T Type of values stored in the vector.
 	 * @tparam N Amount of values the vector holds.
 	 * @tparam Policy Policy used for storage & optimization. */
-	template<typename T, std::size_t N, storage_policy Policy = storage_policy::SPEED>
+	template<typename T, std::size_t N, policy_t Policy = policy_t::DEFAULT>
 	class basic_vec;
 	/** @brief Structure used to mask off elements of a vector. */
-	template<typename T, std::size_t N, storage_policy P>
+	template<typename T, std::size_t N, policy_t P>
 	class vec_mask<basic_vec<T, N, P>>;
 
-	template<typename T, storage_policy Policy>
+	template<typename T, policy_t Policy>
 	class vec_mask<basic_vec<T, 2, Policy>>
 	{
 		template<typename...>
@@ -159,7 +159,7 @@ namespace sek::math
 		SEK_DETAIL_VECTOR_MASK_COMMON(T, 2, Policy)
 
 	public:
-		constexpr vec_mask(bool x, bool y) noexcept : m_data(x, y) {}
+		constexpr vec_mask(bool x, bool y) noexcept : m_data({x, y}) {}
 		constexpr explicit vec_mask(bool x) noexcept : vec_mask(x, x) {}
 
 		[[nodiscard]] constexpr decltype(auto) x() noexcept { return m_data[0]; }
@@ -169,7 +169,7 @@ namespace sek::math
 
 		SEK_VECTOR_MASK_GENERATE_SHUFFLE(x, y)
 	};
-	template<typename T, storage_policy Policy>
+	template<typename T, policy_t Policy>
 	class vec_mask<basic_vec<T, 3, Policy>>
 	{
 		template<typename...>
@@ -179,7 +179,7 @@ namespace sek::math
 		SEK_DETAIL_VECTOR_MASK_COMMON(T, 3, Policy)
 
 	public:
-		constexpr vec_mask(bool x, bool y, bool z) noexcept : m_data(x, y, z) {}
+		constexpr vec_mask(bool x, bool y, bool z) noexcept : m_data({x, y, z}) {}
 		constexpr vec_mask(bool x, bool y) noexcept : vec_mask(x, y, y) {}
 		constexpr explicit vec_mask(bool x) noexcept : vec_mask(x, x, x) {}
 
@@ -192,7 +192,7 @@ namespace sek::math
 
 		SEK_VECTOR_MASK_GENERATE_SHUFFLE(x, y, z)
 	};
-	template<typename T, storage_policy Policy>
+	template<typename T, policy_t Policy>
 	class vec_mask<basic_vec<T, 4, Policy>>
 	{
 		template<typename...>
@@ -202,7 +202,7 @@ namespace sek::math
 		SEK_DETAIL_VECTOR_MASK_COMMON(T, 4, Policy)
 
 	public:
-		constexpr vec_mask(bool x, bool y, bool z, bool w) noexcept : m_data(x, y, z, w) {}
+		constexpr vec_mask(bool x, bool y, bool z, bool w) noexcept : m_data({x, y, z, w}) {}
 		constexpr vec_mask(bool x, bool y, bool z) noexcept : vec_mask(x, y, z, z) {}
 		constexpr vec_mask(bool x, bool y) noexcept : vec_mask(x, y, y, y) {}
 		constexpr explicit vec_mask(bool x) noexcept : vec_mask(x, x) {}
@@ -219,30 +219,30 @@ namespace sek::math
 		SEK_VECTOR_MASK_GENERATE_SHUFFLE(x, y, z, w)
 	};
 
-	template<typename U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, policy_t Sp>
 	[[nodiscard]] constexpr sek::hash_t hash(const vec_mask<basic_vec<U, M, Sp>> &m) noexcept
 	{
 		hash_t result = 0;
 		for (std::size_t i = 0; i < M; ++i) hash_combine(result, m[i]);
 		return result;
 	}
-	template<typename U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, policy_t Sp>
 	constexpr void swap(vec_mask<basic_vec<U, M, Sp>> &a, vec_mask<basic_vec<U, M, Sp>> &b) noexcept
 	{
 		a.swap(b);
 	}
 
-	template<arithmetic T, storage_policy Policy>
+	template<arithmetic T, policy_t Policy>
 	class basic_vec<T, 2, Policy>
 	{
-		template<typename U, std::size_t M, storage_policy P>
+		template<typename U, std::size_t M, policy_t P>
 		friend class basic_vec;
 
 	public:
 		SEK_DETAIL_VECTOR_COMMON(T, 2, Policy)
 
 	public:
-		constexpr basic_vec(T x, T y) noexcept : m_data(x, y) {}
+		constexpr basic_vec(T x, T y) noexcept : m_data({x, y}) {}
 		constexpr explicit basic_vec(T x) noexcept : basic_vec(x, x) {}
 
 		[[nodiscard]] constexpr decltype(auto) x() noexcept { return m_data[0]; }
@@ -252,17 +252,17 @@ namespace sek::math
 
 		SEK_VECTOR_GENERATE_SHUFFLE(x, y)
 	};
-	template<arithmetic T, storage_policy Policy>
+	template<arithmetic T, policy_t Policy>
 	class basic_vec<T, 3, Policy>
 	{
-		template<typename U, std::size_t M, storage_policy P>
+		template<typename U, std::size_t M, policy_t P>
 		friend class basic_vec;
 
 	public:
 		SEK_DETAIL_VECTOR_COMMON(T, 3, Policy)
 
 	public:
-		constexpr basic_vec(T x, T y, T z) noexcept : m_data(x, y, z) {}
+		constexpr basic_vec(T x, T y, T z) noexcept : m_data({x, y, z}) {}
 		constexpr basic_vec(T x, T y) noexcept : basic_vec(x, y, y) {}
 		constexpr explicit basic_vec(T x) noexcept : basic_vec(x, x, x) {}
 
@@ -284,17 +284,17 @@ namespace sek::math
 
 		SEK_VECTOR_GENERATE_SHUFFLE(r, g, b)
 	};
-	template<arithmetic T, storage_policy Policy>
+	template<arithmetic T, policy_t Policy>
 	class basic_vec<T, 4, Policy>
 	{
-		template<typename U, std::size_t M, storage_policy P>
+		template<typename U, std::size_t M, policy_t P>
 		friend class basic_vec;
 
 	public:
 		SEK_DETAIL_VECTOR_COMMON(T, 4, Policy)
 
 	public:
-		constexpr basic_vec(T x, T y, T z, T w) noexcept : m_data(x, y, z, w) {}
+		constexpr basic_vec(T x, T y, T z, T w) noexcept : m_data({x, y, z, w}) {}
 		constexpr basic_vec(T x, T y, T z) noexcept : basic_vec(x, y, z, z) {}
 		constexpr basic_vec(T x, T y) noexcept : basic_vec(x, y, y, y) {}
 		constexpr explicit basic_vec(T x) noexcept : basic_vec(x, x, x, x) {}
@@ -333,35 +333,35 @@ namespace sek::math
 		SEK_VECTOR_GENERATE_SHUFFLE(s, t, p, q)
 	};
 
-	template<typename U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, policy_t Sp>
 	[[nodiscard]] constexpr sek::hash_t hash(const basic_vec<U, M, Sp> &v) noexcept
 	{
 		hash_t result = 0;
 		for (std::size_t i = 0; i < M; ++i) hash_combine(result, v[i]);
 		return result;
 	}
-	template<typename U, std::size_t M, storage_policy Sp>
+	template<typename U, std::size_t M, policy_t Sp>
 	constexpr void swap(basic_vec<U, M, Sp> &a, basic_vec<U, M, Sp> &b) noexcept
 	{
 		a.swap(b);
 	}
 }	 // namespace sek::math
 
-template<typename U, std::size_t M, sek::math::storage_policy Sp>
+template<typename U, std::size_t M, sek::math::policy_t Sp>
 struct std::tuple_size<sek::math::vec_mask<sek::math::basic_vec<U, M, Sp>>> : std::integral_constant<std::size_t, M>
 {
 };
-template<std::size_t I, typename U, std::size_t M, sek::math::storage_policy Sp>
+template<std::size_t I, typename U, std::size_t M, sek::math::policy_t Sp>
 struct std::tuple_element<I, sek::math::vec_mask<sek::math::basic_vec<U, M, Sp>>>
 {
 	using type = bool;
 };
 
-template<typename U, std::size_t M, sek::math::storage_policy Sp>
+template<typename U, std::size_t M, sek::math::policy_t Sp>
 struct std::tuple_size<sek::math::basic_vec<U, M, Sp>> : std::integral_constant<std::size_t, M>
 {
 };
-template<std::size_t I, typename U, std::size_t M, sek::math::storage_policy Sp>
+template<std::size_t I, typename U, std::size_t M, sek::math::policy_t Sp>
 struct std::tuple_element<I, sek::math::basic_vec<U, M, Sp>>
 {
 	using type = U;
