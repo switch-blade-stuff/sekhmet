@@ -13,16 +13,6 @@
 #ifdef SEK_USE_SSE2
 namespace sek::math::detail
 {
-	SEK_FORCE_INLINE __m128 x86_frexp_ps(__m128 v, __m128 &e) noexcept
-	{
-		const auto mant_mask = _mm_set1_ps(std::bit_cast<float>(0x807f'ffff));
-		const auto a = _mm_srli_epi32(_mm_castps_si128(v), 23);
-		v = _mm_and_ps(v, mant_mask);
-		v = _mm_or_ps(v, _mm_set1_ps(0.5f));
-		e = _mm_add_ps(_mm_cvtepi32_ps(_mm_sub_epi32(a, _mm_set1_epi32(0x7f))), _mm_set1_ps(1.0f));
-		return v;
-	}
-
 	static const float expp_f[6] = {
 		1.9875691500e-4f,
 		1.3981999507e-3f,
