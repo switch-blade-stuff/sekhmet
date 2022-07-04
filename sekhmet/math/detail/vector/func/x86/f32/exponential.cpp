@@ -33,19 +33,21 @@ namespace sek::math::detail
 	};
 	static const float expc_f[2] = {0.693359375f, -2.12194440e-4f};
 	static const float exphi_f = 88.3762626647949f;
-	static const float explo_f = -88.3762626647949f;
+	static const float explo_f = -103.278929903431851103f;
 	static const float log2e_f = 1.44269504088896341f;
 
 	__m128 x86_exp_ps(__m128 v) noexcept
 	{
 		auto a = _mm_max_ps(_mm_min_ps(v, _mm_set1_ps(exphi_f)), _mm_set1_ps(explo_f)); /* Clamp the input. */
-		auto b = _mm_add_ps(_mm_mul_ps(a, _mm_set1_ps(log2e_f)), _mm_set1_ps(0.5f)); /* exp(x) = exp(g + n * log(2)) */
-		b = x86_floor_ps(b);														 /* b = floor(b) */
 
-		const auto tmp = _mm_mul_ps(b, _mm_set1_ps(expc_f[0]));
-		auto c = _mm_mul_ps(b, _mm_set1_ps(expc_f[1]));
-		a = _mm_sub_ps(_mm_sub_ps(a, tmp), c);
-		c = _mm_mul_ps(a, a);
+		/* exp(x) = exp(g + n * log(2)) */
+		auto b = _mm_add_ps(_mm_mul_ps(a, _mm_set1_ps(log2e_f)), _mm_set1_ps(0.5f));
+		b = x86_floor_ps(b); /* b = floor(b) */
+
+		const auto tmp1 = _mm_mul_ps(b, _mm_set1_ps(expc_f[0]));
+		const auto tmp2 = _mm_mul_ps(b, _mm_set1_ps(expc_f[1]));
+		a = _mm_sub_ps(_mm_sub_ps(a, tmp1), tmp2);
+		const auto a2 = _mm_mul_ps(a, a);
 
 		auto p = _mm_set1_ps(expp_f[0]);
 		p = x86_fmadd_ps(p, a, _mm_set1_ps(expp_f[1])); /* p = (p * a) + expp_f[1] */
@@ -53,10 +55,9 @@ namespace sek::math::detail
 		p = x86_fmadd_ps(p, a, _mm_set1_ps(expp_f[3])); /* p = (p * a) + expp_f[3] */
 		p = x86_fmadd_ps(p, a, _mm_set1_ps(expp_f[4])); /* p = (p * a) + expp_f[4] */
 		p = x86_fmadd_ps(p, a, _mm_set1_ps(expp_f[5])); /* p = (p * a) + expp_f[5] */
-		p = x86_fmadd_ps(p, c, a);						/* p = (p * c) + a */
+		p = x86_fmadd_ps(p, a2, a);						/* p = (p * a2) + a */
 
-		p = _mm_add_ps(p, _mm_set1_ps(1.0f));
-		return _mm_mul_ps(p, x86_pow2_ps(b)); /* return p * 2 ^ b */
+		return _mm_mul_ps(_mm_add_ps(p, _mm_set1_ps(1.0f)), x86_pow2_ps(b)); /* return (p + 1) * 2 ^ b */
 	}
 
 	static const float exp2p_f[6] = {
@@ -72,8 +73,7 @@ namespace sek::math::detail
 
 	__m128 x86_exp2_ps(__m128 v) noexcept
 	{
-		/* Clamp the input. */
-		auto a = v = _mm_max_ps(_mm_min_ps(v, _mm_set1_ps(exp2hi_f)), _mm_set1_ps(exp2lo_f));
+		auto a = v = _mm_max_ps(_mm_min_ps(v, _mm_set1_ps(exp2hi_f)), _mm_set1_ps(exp2lo_f)); /* Clamp the input. */
 
 		/* b = floor(a) */
 		const auto b = x86_floor_ps(a);

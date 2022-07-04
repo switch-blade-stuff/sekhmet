@@ -2,9 +2,10 @@
  * Created by switchblade on 26/06/22
  */
 
+#include "trigonometric.hpp"
+
 #include "../arithmetic.hpp"
 #include "../exponential.hpp"
-#include "trigonometric.hpp"
 
 /* Implementations of trigonometric functions derived from netlib's cephes library (http://www.netlib.org/cephes/)
  * Inspired by http://gruntthepeon.free.fr/ssemath */
@@ -328,7 +329,7 @@ namespace sek::math::detail
 		p = x86_fmadd_ps(p, c, _mm_set1_ps(atancof_f[3])); /* p = (p * c) + atancof_f[3] */
 		p = x86_fmadd_ps(_mm_mul_ps(p, c), a, a);		   /* p = ((p * c) * a) + a */
 
-		return _mm_xor_ps(_mm_add_ps(b, p), _mm_and_ps(v, sign_mask));
+		return _mm_xor_ps(_mm_add_ps(b, p), _mm_and_ps(v, sign_mask)); /* return v < 0 ? -(b + p) : (b + p) */
 	}
 
 	static const float asinhcof_f[4] = {2.0122003309e-2f, -4.2699340972e-2f, 7.4847586088e-2f, -1.6666288134e-1f};
