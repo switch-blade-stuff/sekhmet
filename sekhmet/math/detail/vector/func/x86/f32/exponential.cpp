@@ -38,15 +38,7 @@ namespace sek::math::detail
 		const auto tmp2 = _mm_mul_ps(b, _mm_set1_ps(expc_f[1]));
 		a = _mm_sub_ps(_mm_sub_ps(a, tmp1), tmp2);
 		const auto a2 = _mm_mul_ps(a, a);
-
-		auto p = _mm_set1_ps(expp_f[0]);
-		p = x86_fmadd_ps(p, a, _mm_set1_ps(expp_f[1])); /* p = (p * a) + expp_f[1] */
-		p = x86_fmadd_ps(p, a, _mm_set1_ps(expp_f[2])); /* p = (p * a) + expp_f[2] */
-		p = x86_fmadd_ps(p, a, _mm_set1_ps(expp_f[3])); /* p = (p * a) + expp_f[3] */
-		p = x86_fmadd_ps(p, a, _mm_set1_ps(expp_f[4])); /* p = (p * a) + expp_f[4] */
-		p = x86_fmadd_ps(p, a, _mm_set1_ps(expp_f[5])); /* p = (p * a) + expp_f[5] */
-		p = x86_fmadd_ps(p, a2, a);						/* p = (p * a2) + a */
-
+		const auto p = x86_fmadd_ps(x86_polevl_ps(a, expp_f), a2, a);		 /* p = (expp_f(a) * a2) + a */
 		return _mm_mul_ps(_mm_add_ps(p, _mm_set1_ps(1.0f)), x86_pow2_ps(b)); /* return (p + 1) * 2 ^ b */
 	}
 
@@ -75,16 +67,8 @@ namespace sek::math::detail
 		i = x86_blendv_epi8(_mm_add_epi32(i, _mm_set1_epi32(1)), i, mask_half);		  /* i = (a > 0.5) ? (i + 1) : i */
 		a = x86_blendv_ps(_mm_sub_ps(a, one), a, _mm_castsi128_ps(mask_half)); /* a = (a > 0.5) ? (a - 1.0) : a */
 
-		/* exp2(a) = 1.0 + xP(a) */
-		auto p = _mm_set1_ps(exp2p_f[0]);
-		p = x86_fmadd_ps(p, a, _mm_set1_ps(exp2p_f[1])); /* p = (p * a) + exp2p_f[1] */
-		p = x86_fmadd_ps(p, a, _mm_set1_ps(exp2p_f[2])); /* p = (p * a) + exp2p_f[2] */
-		p = x86_fmadd_ps(p, a, _mm_set1_ps(exp2p_f[3])); /* p = (p * a) + exp2p_f[3] */
-		p = x86_fmadd_ps(p, a, _mm_set1_ps(exp2p_f[4])); /* p = (p * a) + exp2p_f[4] */
-		p = x86_fmadd_ps(p, a, _mm_set1_ps(exp2p_f[5])); /* p = (p * a) + exp2p_f[5] */
-		p = x86_fmadd_ps(p, a, one);					 /* p = (p * a) + 1.0 */
-		p = _mm_mul_ps(p, x86_pow2_ps(i));				 /* p = p * 2 ^ i */
-
+		auto p = x86_fmadd_ps(x86_polevl_ps(a, exp2p_f), a, one);		  /* p = (exp2p_f(a) * a) + 1.0 */
+		p = _mm_mul_ps(p, x86_pow2_ps(i));								  /* p = p * 2 ^ i */
 		return x86_blendv_ps(one, p, _mm_cmpneq_ps(v, _mm_setzero_ps())); /* return (v == 0) ? 1.0 : p */
 	}
 
@@ -114,20 +98,10 @@ namespace sek::math::detail
 		e = _mm_sub_ps(e, _mm_and_ps(one, mask));				 /* e = e - 1 & mask */
 
 		const auto a2 = _mm_mul_ps(a, a);
-		auto b = _mm_set1_ps(logp_f[0]);
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[1])); /* b = (b * a) + logp_f[1] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[2])); /* b = (b * a) + logp_f[2] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[3])); /* b = (b * a) + logp_f[3] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[4])); /* b = (b * a) + logp_f[4] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[5])); /* b = (b * a) + logp_f[5] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[6])); /* b = (b * a) + logp_f[6] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[7])); /* b = (b * a) + logp_f[7] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[8])); /* b = (b * a) + logp_f[8] */
-		b = _mm_mul_ps(_mm_mul_ps(b, a), a2);			/* b = b * a * a2 */
-		b = x86_fmadd_ps(e, _mm_set1_ps(logq_f[0]), b); /* b = (e * logq_f[0]) + b */
-		b = x86_fmadd_ps(a2, _mm_set1_ps(-0.5f), b);	/* b = (a2 * -0.5) + b */
-
-		a = x86_fmadd_ps(e, _mm_set1_ps(logq_f[1]), _mm_add_ps(a, b)); /* a = (e * logq_f[1]) + (a + b) */
+		auto b = _mm_mul_ps(_mm_mul_ps(x86_polevl_ps(a, logp_f), a), a2); /* b = (logp_f(a) * a) * a2 */
+		b = x86_fmadd_ps(e, _mm_set1_ps(logq_f[0]), b);					  /* b = (e * logq_f[0]) + b */
+		b = x86_fmadd_ps(a2, _mm_set1_ps(-0.5f), b);					  /* b = (a2 * -0.5) + b */
+		a = x86_fmadd_ps(e, _mm_set1_ps(logq_f[1]), _mm_add_ps(a, b));	  /* a = (e * logq_f[1]) + (a + b) */
 		return _mm_or_ps(a, nan_mask);
 	}
 
@@ -145,17 +119,8 @@ namespace sek::math::detail
 		e = _mm_sub_ps(e, _mm_and_ps(one, mask));				 /* c = c - 1 & mask */
 
 		const auto a2 = _mm_mul_ps(a, a);
-		auto b = _mm_set1_ps(logp_f[0]);
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[1])); /* p = (p * a) + logp_f[1] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[2])); /* p = (p * a) + logp_f[2] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[3])); /* p = (p * a) + logp_f[3] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[4])); /* p = (p * a) + logp_f[4] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[5])); /* p = (p * a) + logp_f[5] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[6])); /* p = (p * a) + logp_f[6] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[7])); /* p = (p * a) + logp_f[7] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[8])); /* p = (p * a) + logp_f[8] */
-		b = _mm_mul_ps(_mm_mul_ps(b, a), a2);			/* p = (p * a) * a2 */
-		b = x86_fmadd_ps(a2, _mm_set1_ps(-0.5f), b);	/* p = (a2 * -0.5) + p */
+		auto b = _mm_mul_ps(_mm_mul_ps(x86_polevl_ps(a, logp_f), a), a2); /* b = (logp_f(a) * a) * a2 */
+		b = x86_fmadd_ps(a2, _mm_set1_ps(-0.5f), b);					  /* p = (a2 * -0.5) + p */
 
 		const auto l2ea = _mm_set1_ps(l2ea_f);
 		auto c = _mm_add_ps(_mm_mul_ps(b, l2ea), _mm_mul_ps(a, l2ea));
@@ -180,17 +145,8 @@ namespace sek::math::detail
 		e = _mm_sub_ps(e, _mm_and_ps(one, mask));				 /* e = e - 1 & mask */
 
 		const auto a2 = _mm_mul_ps(a, a);
-		auto b = _mm_set1_ps(logp_f[0]);				/* b = logp_f[0] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[1])); /* b = (b * a) + logp_f[1] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[2])); /* b = (b * a) + logp_f[2] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[3])); /* b = (b * a) + logp_f[3] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[4])); /* b = (b * a) + logp_f[4] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[5])); /* b = (b * a) + logp_f[5] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[6])); /* b = (b * a) + logp_f[6] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[7])); /* b = (b * a) + logp_f[7] */
-		b = x86_fmadd_ps(b, a, _mm_set1_ps(logp_f[8])); /* b = (b * a) + logp_f[8] */
-		b = _mm_mul_ps(_mm_mul_ps(b, a2), a);			/* b = (b * a2) * a */
-		b = x86_fmadd_ps(a2, _mm_set1_ps(-0.5f), b);	/* b = (a2 * -0.5) + b */
+		auto b = _mm_mul_ps(_mm_mul_ps(x86_polevl_ps(a, logp_f), a2), a); /* b = (logp_f(a) * a2) * a */
+		b = x86_fmadd_ps(a2, _mm_set1_ps(-0.5f), b);					  /* b = (a2 * -0.5) + b */
 
 		auto c = _mm_mul_ps(_mm_add_ps(a, b), _mm_set1_ps(l10eb_f)); /* c = (a + b) * l10eb_f */
 		c = x86_fmadd_ps(b, _mm_set1_ps(l10ea_f), c);				 /* c = (b * l10ea_f) + c */

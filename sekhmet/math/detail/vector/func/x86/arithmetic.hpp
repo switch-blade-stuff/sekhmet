@@ -63,6 +63,20 @@ namespace sek::math::detail
 		return _mm_sub_ps(_mm_mul_ps(a, b), c);
 #endif
 	}
+	template<std::size_t N>
+	SEK_FORCE_INLINE __m128 x86_polevl_ps(__m128 a, const float (&c)[N]) noexcept
+	{
+		auto p = _mm_set1_ps(c[0]);
+		for (std::size_t i = 1; i < N; ++i) p = x86_fmadd_ps(p, a, _mm_set1_ps(c[i]));
+		return p;
+	}
+	template<std::size_t N>
+	SEK_FORCE_INLINE __m128 x86_polevl1_ps(__m128 a, const float (&c)[N]) noexcept
+	{
+		auto p = _mm_set1_ps(1.0f);
+		for (std::size_t i = 0; i < N; ++i) p = x86_fmadd_ps(p, a, _mm_set1_ps(c[i]));
+		return p;
+	}
 
 	template<std::size_t N, policy_t P>
 	inline void vector_fmadd(vector_data<float, N, P> &out,
@@ -85,25 +99,33 @@ namespace sek::math::detail
 
 #ifdef SEK_USE_SSE2
 	template<policy_t P>
-	inline void vector_add(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &l, const vector_data<double, 2, P> &r) noexcept
+	inline void vector_add(vector_data<double, 2, P> &out,
+						   const vector_data<double, 2, P> &l,
+						   const vector_data<double, 2, P> &r) noexcept
 		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = _mm_add_pd(l.simd, r.simd);
 	}
 	template<policy_t P>
-	inline void vector_sub(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &l, const vector_data<double, 2, P> &r) noexcept
+	inline void vector_sub(vector_data<double, 2, P> &out,
+						   const vector_data<double, 2, P> &l,
+						   const vector_data<double, 2, P> &r) noexcept
 		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = _mm_sub_pd(l.simd, r.simd);
 	}
 	template<policy_t P>
-	inline void vector_mul(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &l, const vector_data<double, 2, P> &r) noexcept
+	inline void vector_mul(vector_data<double, 2, P> &out,
+						   const vector_data<double, 2, P> &l,
+						   const vector_data<double, 2, P> &r) noexcept
 		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = _mm_mul_pd(l.simd, r.simd);
 	}
 	template<policy_t P>
-	inline void vector_div(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &l, const vector_data<double, 2, P> &r) noexcept
+	inline void vector_div(vector_data<double, 2, P> &out,
+						   const vector_data<double, 2, P> &l,
+						   const vector_data<double, 2, P> &r) noexcept
 		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd = _mm_div_pd(l.simd, r.simd);
@@ -138,8 +160,22 @@ namespace sek::math::detail
 		return _mm_sub_pd(_mm_mul_pd(a, b), c);
 #endif
 	}
+	template<std::size_t N>
+	SEK_FORCE_INLINE __m128d x86_polevl_pd(__m128d a, const double (&c)[N]) noexcept
+	{
+		auto p = _mm_set1_pd(c[0]);
+		for (std::size_t i = 1; i < N; ++i) p = x86_fmadd_pd(p, a, _mm_set1_pd(c[i]));
+		return p;
+	}
+	template<std::size_t N>
+	SEK_FORCE_INLINE __m128d x86_polevl1_pd(__m128d a, const double (&c)[N]) noexcept
+	{
+		auto p = _mm_set1_pd(1.0);
+		for (std::size_t i = 0; i < N; ++i) p = x86_fmadd_pd(p, a, _mm_set1_pd(c[i]));
+		return p;
+	}
 
-		template<policy_t P>
+	template<policy_t P>
 	inline void vector_fmadd(vector_data<double, 2, P> &out,
 							 const vector_data<double, 2, P> &a,
 							 const vector_data<double, 2, P> &b,
@@ -206,28 +242,36 @@ namespace sek::math::detail
 
 #ifndef SEK_USE_AVX
 	template<std::size_t N, policy_t P>
-	inline void vector_add(vector_data<double, N, P> &out, const vector_data<double, N, P> &l, const vector_data<double, N, P> &r) noexcept
+	inline void vector_add(vector_data<double, N, P> &out,
+						   const vector_data<double, N, P> &l,
+						   const vector_data<double, N, P> &r) noexcept
 		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd[0] = _mm_add_pd(l.simd[0], r.simd[0]);
 		out.simd[1] = _mm_add_pd(l.simd[1], r.simd[1]);
 	}
 	template<std::size_t N, policy_t P>
-	inline void vector_sub(vector_data<double, N, P> &out, const vector_data<double, N, P> &l, const vector_data<double, N, P> &r) noexcept
+	inline void vector_sub(vector_data<double, N, P> &out,
+						   const vector_data<double, N, P> &l,
+						   const vector_data<double, N, P> &r) noexcept
 		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd[0] = _mm_sub_pd(l.simd[0], r.simd[0]);
 		out.simd[1] = _mm_sub_pd(l.simd[1], r.simd[1]);
 	}
 	template<std::size_t N, policy_t P>
-	inline void vector_mul(vector_data<double, N, P> &out, const vector_data<double, N, P> &l, const vector_data<double, N, P> &r) noexcept
+	inline void vector_mul(vector_data<double, N, P> &out,
+						   const vector_data<double, N, P> &l,
+						   const vector_data<double, N, P> &r) noexcept
 		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd[0] = _mm_mul_pd(l.simd[0], r.simd[0]);
 		out.simd[1] = _mm_mul_pd(l.simd[1], r.simd[1]);
 	}
 	template<std::size_t N, policy_t P>
-	inline void vector_div(vector_data<double, N, P> &out, const vector_data<double, N, P> &l, const vector_data<double, N, P> &r) noexcept
+	inline void vector_div(vector_data<double, N, P> &out,
+						   const vector_data<double, N, P> &l,
+						   const vector_data<double, N, P> &r) noexcept
 		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
 		out.simd[0] = _mm_div_pd(l.simd[0], r.simd[0]);

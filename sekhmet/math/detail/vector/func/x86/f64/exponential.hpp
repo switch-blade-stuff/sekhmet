@@ -85,29 +85,29 @@ namespace sek::math::detail
 			x86_unpack_pd(out, x86_log_pd(_mm_add_pd(x86_pack_pd(v), one)));
 	}
 
-	//	SEK_API __m128d x86_log2_pd(__m128d v) noexcept;
-	//
-	//	template<policy_t P>
-	//	inline void vector_log2(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
-	//		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
-	//	{
-	//		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-	//			out.simd = x86_log2_pd(v.simd);
-	//		else
-	//			x86_unpack_pd(out, x86_log2_pd(x86_pack_pd(v)));
-	//	}
-	//
-	//	SEK_API __m128d x86_log10_pd(__m128d v) noexcept;
-	//
-	//	template<policy_t P>
-	//	inline void vector_log10(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
-	//		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
-	//	{
-	//		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-	//			out.simd = x86_log10_pd(v.simd);
-	//		else
-	//			x86_unpack_pd(out, x86_log10_pd(x86_pack_pd(v)));
-	//	}
+	SEK_API __m128d x86_log2_pd(__m128d v) noexcept;
+
+	template<policy_t P>
+	inline void vector_log2(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
+		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
+	{
+		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
+			out.simd = x86_log2_pd(v.simd);
+		else
+			x86_unpack_pd(out, x86_log2_pd(x86_pack_pd(v)));
+	}
+
+	SEK_API __m128d x86_log10_pd(__m128d v) noexcept;
+
+	template<policy_t P>
+	inline void vector_log10(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
+		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
+	{
+		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
+			out.simd = x86_log10_pd(v.simd);
+		else
+			x86_unpack_pd(out, x86_log10_pd(x86_pack_pd(v)));
+	}
 
 #ifndef SEK_USE_AVX
 	template<std::size_t N, policy_t P>
@@ -294,72 +294,72 @@ namespace sek::math::detail
 			}
 		}
 	}
-//	template<std::size_t N, policy_t P>
-//	inline void vector_log2(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
-//		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
-//	{
-//		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-//		{
-//			out.simd[0] = x86_log2_pd(v.simd[0]);
-//			out.simd[1] = x86_log2_pd(v.simd[1]);
-//		}
-//		else
-//		{
-//			vector_data<double, 2, policy_t::FAST_SIMD> tmp;
-//
-//			tmp = {v[0], v[1]};
-//			tmp.simd = x86_log2_pd(tmp.simd);
-//			out[0] = tmp[0];
-//			out[1] = tmp[1];
-//
-//			if constexpr (N > 3)
-//			{
-//				tmp = {v[2], v[3]};
-//				tmp.simd = x86_log2_pd(tmp.simd);
-//				out[2] = tmp[0];
-//				out[3] = tmp[1];
-//			}
-//			else
-//			{
-//				tmp = {v[2], double{}};
-//				tmp.simd = x86_log2_pd(tmp.simd);
-//				out[2] = tmp[0];
-//			}
-//		}
-//	}
-//	template<std::size_t N, policy_t P>
-//	inline void vector_log10(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
-//		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
-//	{
-//		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-//		{
-//			out.simd[0] = x86_log10_pd(v.simd[0]);
-//			out.simd[1] = x86_log10_pd(v.simd[1]);
-//		}
-//		else
-//		{
-//			vector_data<double, 2, policy_t::FAST_SIMD> tmp;
-//
-//			tmp = {v[0], v[1]};
-//			tmp.simd = x86_log10_pd(tmp.simd);
-//			out[0] = tmp[0];
-//			out[1] = tmp[1];
-//
-//			if constexpr (N > 3)
-//			{
-//				tmp = {v[2], v[3]};
-//				tmp.simd = x86_log10_pd(tmp.simd);
-//				out[2] = tmp[0];
-//				out[3] = tmp[1];
-//			}
-//			else
-//			{
-//				tmp = {v[2], double{}};
-//				tmp.simd = x86_log10_pd(tmp.simd);
-//				out[2] = tmp[0];
-//			}
-//		}
-//	}
+	template<std::size_t N, policy_t P>
+	inline void vector_log2(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
+		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
+	{
+		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
+		{
+			out.simd[0] = x86_log2_pd(v.simd[0]);
+			out.simd[1] = x86_log2_pd(v.simd[1]);
+		}
+		else
+		{
+			vector_data<double, 2, policy_t::FAST_SIMD> tmp;
+
+			tmp = {v[0], v[1]};
+			tmp.simd = x86_log2_pd(tmp.simd);
+			out[0] = tmp[0];
+			out[1] = tmp[1];
+
+			if constexpr (N > 3)
+			{
+				tmp = {v[2], v[3]};
+				tmp.simd = x86_log2_pd(tmp.simd);
+				out[2] = tmp[0];
+				out[3] = tmp[1];
+			}
+			else
+			{
+				tmp = {v[2], double{}};
+				tmp.simd = x86_log2_pd(tmp.simd);
+				out[2] = tmp[0];
+			}
+		}
+	}
+	template<std::size_t N, policy_t P>
+	inline void vector_log10(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
+		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
+	{
+		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
+		{
+			out.simd[0] = x86_log10_pd(v.simd[0]);
+			out.simd[1] = x86_log10_pd(v.simd[1]);
+		}
+		else
+		{
+			vector_data<double, 2, policy_t::FAST_SIMD> tmp;
+
+			tmp = {v[0], v[1]};
+			tmp.simd = x86_log10_pd(tmp.simd);
+			out[0] = tmp[0];
+			out[1] = tmp[1];
+
+			if constexpr (N > 3)
+			{
+				tmp = {v[2], v[3]};
+				tmp.simd = x86_log10_pd(tmp.simd);
+				out[2] = tmp[0];
+				out[3] = tmp[1];
+			}
+			else
+			{
+				tmp = {v[2], double{}};
+				tmp.simd = x86_log10_pd(tmp.simd);
+				out[2] = tmp[0];
+			}
+		}
+	}
 #endif
 }	 // namespace sek::math::detail
 #endif

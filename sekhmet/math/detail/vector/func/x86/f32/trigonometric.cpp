@@ -48,18 +48,12 @@ namespace sek::math::detail
 		const auto a2 = _mm_mul_ps(a, a);
 
 		/* P1 (0 <= a <= Pi/4) */
-		auto p1 = _mm_set1_ps(coscof_f[0]);
-		p1 = x86_fmadd_ps(p1, a2, _mm_set1_ps(coscof_f[1])); /* p1 = (p1 * a2) + coscof_f[1] */
-		p1 = x86_fmadd_ps(p1, a2, _mm_set1_ps(coscof_f[2])); /* p1 = (p1 * a2) + coscof_f[2] */
-		p1 = _mm_mul_ps(_mm_mul_ps(p1, a2), a2);
-		p1 = x86_fmadd_ps(a2, _mm_set1_ps(-0.5f), p1); /* p1 = (a2 * -0.5) + p1 */
+		auto p1 = _mm_mul_ps(_mm_mul_ps(x86_polevl_ps(a2, coscof_f), a2), a2); /* p1 = (coscof_f(a2) * a2) * a2 */
+		p1 = x86_fmadd_ps(a2, _mm_set1_ps(-0.5f), p1);						   /* p1 = (a2 * -0.5) + p1 */
 		p1 = _mm_add_ps(p1, _mm_set1_ps(1.0f));
 
 		/* P2  (Pi/4 <= a <= 0) */
-		auto p2 = _mm_set1_ps(sincof_f[0]);
-		p2 = x86_fmadd_ps(p2, a2, _mm_set1_ps(sincof_f[1])); /* p2 = (p2 * a2) + sincof_f[1] */
-		p2 = x86_fmadd_ps(p2, a2, _mm_set1_ps(sincof_f[2])); /* p2 = (p2 * a2) + sincof_f[2] */
-		p2 = x86_fmadd_ps(_mm_mul_ps(p2, a2), a, a);		 /* p2 = ((p2 * a2) * a) + a */
+		const auto p2 = x86_fmadd_ps(_mm_mul_ps(x86_polevl_ps(a2, sincof_f), a2), a, a); /* p2 = (sincof_f(a2) * a2 * a) + a */
 
 		/* Choose between P1 and P2 */
 		return _mm_xor_ps(x86_blendv_ps(p1, p2, select_mask), sign);
@@ -90,18 +84,12 @@ namespace sek::math::detail
 		const auto a2 = _mm_mul_ps(a, a);
 
 		/* P1 (0 <= a <= Pi/4) */
-		auto p1 = _mm_set1_ps(coscof_f[0]);
-		p1 = x86_fmadd_ps(p1, a2, _mm_set1_ps(coscof_f[1])); /* p1 = (p1 * a2) + coscof_f[1] */
-		p1 = x86_fmadd_ps(p1, a2, _mm_set1_ps(coscof_f[2])); /* p1 = (p1 * a2) + coscof_f[2] */
-		p1 = _mm_mul_ps(_mm_mul_ps(p1, a2), a2);
-		p1 = x86_fmadd_ps(a2, _mm_set1_ps(-0.5f), p1); /* p1 = (a2 * -0.5) + p1 */
+		auto p1 = _mm_mul_ps(_mm_mul_ps(x86_polevl_ps(a2, coscof_f), a2), a2); /* p1 = (coscof_f(a2) * a2) * a2 */
+		p1 = x86_fmadd_ps(a2, _mm_set1_ps(-0.5f), p1);						   /* p1 = (a2 * -0.5) + p1 */
 		p1 = _mm_add_ps(p1, _mm_set1_ps(1.0f));
 
 		/* P2 (Pi/4 <= a <= 0) */
-		auto p2 = _mm_set1_ps(sincof_f[0]);
-		p2 = x86_fmadd_ps(p2, a2, _mm_set1_ps(sincof_f[1])); /* p2 = (p2 * a2) + sincof_f[1] */
-		p2 = x86_fmadd_ps(p2, a2, _mm_set1_ps(sincof_f[2])); /* p2 = (p2 * a2) + sincof_f[2] */
-		p2 = x86_fmadd_ps(_mm_mul_ps(p2, a2), a, a);		 /* p2 = ((p2 * a2) * a) + a */
+		const auto p2 = x86_fmadd_ps(_mm_mul_ps(x86_polevl_ps(a2, sincof_f), a2), a, a); /* p2 = (sincof_f(a2) * a2 * a) + a */
 
 		/* Choose between P1 and P2 */
 		return _mm_xor_ps(x86_blendv_ps(p1, p2, select_mask), sign);
@@ -140,14 +128,8 @@ namespace sek::math::detail
 
 		/* b = a > 0.0001 ? poly(a, coscof_d) : a */
 		const auto a2 = _mm_mul_ps(a, a);
-		auto p = _mm_set1_ps(tancof_f[0]);
-		p = x86_fmadd_ps(p, a2, _mm_set1_ps(tancof_f[1])); /* p = (p * a2) + coscof_d[1] */
-		p = x86_fmadd_ps(p, a2, _mm_set1_ps(tancof_f[2])); /* p = (p * a2) + coscof_d[2] */
-		p = x86_fmadd_ps(p, a2, _mm_set1_ps(tancof_f[3])); /* p = (p * a2) + coscof_d[3] */
-		p = x86_fmadd_ps(p, a2, _mm_set1_ps(tancof_f[4])); /* p = (p * a2) + coscof_d[4] */
-		p = x86_fmadd_ps(p, a2, _mm_set1_ps(tancof_f[5])); /* p = (p * a2) + coscof_d[5] */
-		p = x86_fmadd_ps(_mm_mul_ps(p, a2), a, a);		   /* p = ((p * a2) * a) + a */
-		b = x86_blendv_ps(p, a, select_mask);
+		auto p = _mm_mul_ps(x86_polevl_ps(a2, tancof_f), a2);	  /* p = tancof_f(a2) * a2 */
+		b = x86_blendv_ps(x86_fmadd_ps(p, a, a), a, select_mask); /* b = select_mask ? a : (p * a) : a */
 
 		const auto bit2 = _mm_cmpeq_epi32(_mm_and_si128(c, _mm_set1_epi32(2)), _mm_set1_epi32(2));
 		const auto select1 = _mm_castsi128_ps(_mm_and_si128(bit2, cot_mask));	 /* select1 = (c & 2) && cot_mask */
@@ -181,10 +163,8 @@ namespace sek::math::detail
 
 		/* P2 (a <= 1.0) */
 		const auto v2 = _mm_mul_ps(v, v);
-		auto p2 = _mm_set1_ps(sinhcof_f[0]);
-		p2 = x86_fmadd_ps(p2, v2, _mm_set1_ps(sinhcof_f[1])); /* p2 = (p2 * v2) + sinhcof_f[1] */
-		p2 = x86_fmadd_ps(p2, v2, _mm_set1_ps(sinhcof_f[2])); /* p2 = (p2 * v2) + sinhcof_f[2] */
-		p2 = x86_fmadd_ps(_mm_mul_ps(p2, v2), v, v);		  /* p2 = ((p2 * v2) * v) + v */
+		auto p2 = x86_polevl_ps(v2, sinhcof_f);		 /* p2 = sinhcof_f(v2) * v2 */
+		p2 = x86_fmadd_ps(_mm_mul_ps(p2, v2), v, v); /* p2 = ((p2 * v2) * v) + v */
 
 		/* return (a > 1.0) ? p1 : p2 */
 		return x86_blendv_ps(p1, p2, _mm_cmpngt_ps(a, _mm_set1_ps(1.0f)));
@@ -220,12 +200,8 @@ namespace sek::math::detail
 
 		/* P1 (a < 0.625) */
 		const auto a2 = _mm_mul_ps(a, a);
-		auto p2 = _mm_set1_ps(tanhcof_f[0]);
-		p2 = x86_fmadd_ps(p2, a2, _mm_set1_ps(tanhcof_f[1])); /* p2 = (p2 * a2) + tanhcof_f[1] */
-		p2 = x86_fmadd_ps(p2, a2, _mm_set1_ps(tanhcof_f[2])); /* p2 = (p2 * a2) + tanhcof_f[2] */
-		p2 = x86_fmadd_ps(p2, a2, _mm_set1_ps(tanhcof_f[3])); /* p2 = (p2 * a2) + tanhcof_f[3] */
-		p2 = x86_fmadd_ps(p2, a2, _mm_set1_ps(tanhcof_f[4])); /* p2 = (p2 * a2) + tanhcof_f[4] */
-		p2 = x86_fmadd_ps(_mm_mul_ps(p2, a2), v, v);		  /* p2 = ((p2 * a2) * v) + v */
+		auto p2 = x86_polevl_ps(a2, tanhcof_f);		 /* p2 = tanhcof_f(a2) */
+		p2 = x86_fmadd_ps(_mm_mul_ps(p2, a2), v, v); /* p2 = ((p2 * a2) * v) + v */
 
 		/* return (a >= 0.625) ? p1 : p2 */
 		return x86_blendv_ps(p1, p2, _mm_cmplt_ps(a, _mm_set1_ps(0.625f)));
@@ -256,12 +232,8 @@ namespace sek::math::detail
 		const auto b = x86_blendv_ps(b1, b2, half_mask); /* b = (a > 0.5) ? b1 : b2 */
 		const auto c = x86_blendv_ps(c1, c2, half_mask); /* c = (a > 0.5) ? c1 : c2 */
 
-		auto p = _mm_set1_ps(asincof_f[0]);
-		p = x86_fmadd_ps(p, c, _mm_set1_ps(asincof_f[1])); /* p = (p * c) + asincof_f[1] */
-		p = x86_fmadd_ps(p, c, _mm_set1_ps(asincof_f[2])); /* p = (p * c) + asincof_f[2] */
-		p = x86_fmadd_ps(p, c, _mm_set1_ps(asincof_f[3])); /* p = (p * c) + asincof_f[3] */
-		p = x86_fmadd_ps(p, c, _mm_set1_ps(asincof_f[4])); /* p = (p * c) + asincof_f[4] */
-		p = x86_fmadd_ps(_mm_mul_ps(p, c), b, b);		   /* p = ((p * c) * b) + b */
+		auto p = x86_polevl_ps(c, asincof_f);	  /* p = asincof_f(c) */
+		p = x86_fmadd_ps(_mm_mul_ps(p, c), b, b); /* p = ((p * c) * b) + b */
 
 		/* p = half_mask ? (Pi / 2) - (p + p) : p */
 		p = x86_blendv_ps(_mm_sub_ps(_mm_set1_ps(pio2_f), _mm_add_ps(p, p)), p, half_mask);
@@ -323,11 +295,8 @@ namespace sek::math::detail
 		b = x86_blendv_ps(b2, b, select2); /* b = (a > tanpi8_f) ? b2 : b */
 
 		const auto c = _mm_mul_ps(a, a);
-		auto p = _mm_set1_ps(atancof_f[0]);
-		p = x86_fmadd_ps(p, c, _mm_set1_ps(atancof_f[1])); /* p = (p * c) + atancof_f[1] */
-		p = x86_fmadd_ps(p, c, _mm_set1_ps(atancof_f[2])); /* p = (p * c) + atancof_f[2] */
-		p = x86_fmadd_ps(p, c, _mm_set1_ps(atancof_f[3])); /* p = (p * c) + atancof_f[3] */
-		p = x86_fmadd_ps(_mm_mul_ps(p, c), a, a);		   /* p = ((p * c) * a) + a */
+		auto p = x86_polevl_ps(c, atancof_f);	  /* p = atancof_f(c) */
+		p = x86_fmadd_ps(_mm_mul_ps(p, c), a, a); /* p = ((p * c) * a) + a */
 
 		return _mm_xor_ps(_mm_add_ps(b, p), _mm_and_ps(v, sign_mask)); /* return v < 0 ? -(b + p) : (b + p) */
 	}
@@ -347,11 +316,8 @@ namespace sek::math::detail
 
 		/* a <= 1500.0 && a < 0.5 */
 		const auto a2 = _mm_mul_ps(a, a);
-		auto b2 = _mm_set1_ps(asinhcof_f[0]);
-		b2 = x86_fmadd_ps(b2, a2, _mm_set1_ps(asinhcof_f[1])); /* b2 = (b2 * a2) + asinhcof_f[1] */
-		b2 = x86_fmadd_ps(b2, a2, _mm_set1_ps(asinhcof_f[2])); /* b2 = (b2 * a2) + asinhcof_f[2] */
-		b2 = x86_fmadd_ps(b2, a2, _mm_set1_ps(asinhcof_f[3])); /* b2 = (b2 * a2) + asinhcof_f[3] */
-		b2 = x86_fmadd_ps(_mm_mul_ps(b2, a2), a, a);		   /* b2 = ((b2 * a2) * a) + a */
+		auto b2 = x86_polevl_ps(a2, asinhcof_f);	 /* b2 = asinhcof_f(a2) */
+		b2 = x86_fmadd_ps(_mm_mul_ps(b2, a2), a, a); /* b2 = ((b2 * a2) * a) + a */
 
 		/* a <= 1500.0 && a >= 0.5 */
 		const auto tmp = _mm_sqrt_ps(_mm_add_ps(a2, _mm_set1_ps(1.0f))); /* tmp = sqrt(a2 + 1.0) */
@@ -371,19 +337,14 @@ namespace sek::math::detail
 		const auto b1 = _mm_add_ps(x86_log_ps(v), _mm_set1_ps(loge2_f)); /* b1 = log(v) + loge2_f */
 
 		/* v <= 1500.0 && a < 0.5 */
-		auto b2 = _mm_set1_ps(acoshcof_f[0]);
-		b2 = x86_fmadd_ps(b2, a, _mm_set1_ps(acoshcof_f[1])); /* b2 = (b2 * a) + acoshcof_f[1] */
-		b2 = x86_fmadd_ps(b2, a, _mm_set1_ps(acoshcof_f[2])); /* b2 = (b2 * a) + acoshcof_f[2] */
-		b2 = x86_fmadd_ps(b2, a, _mm_set1_ps(acoshcof_f[3])); /* b2 = (b2 * a) + acoshcof_f[3] */
-		b2 = x86_fmadd_ps(b2, a, _mm_set1_ps(acoshcof_f[4])); /* b2 = (b2 * a) + acoshcof_f[4] */
-		b2 = _mm_mul_ps(b2, _mm_sqrt_ps(a));				  /* b2 = b2 * sqrtf(a) */
+		auto b2 = x86_polevl_ps(a, acoshcof_f); /* b2 = acoshcof_f(a) */
+		b2 = _mm_mul_ps(b2, _mm_sqrt_ps(a));	/* b2 = b2 * sqrtf(a) */
 
 		/* a <= 1500.0 && a >= 0.5 */
 		const auto b3 = x86_log_ps(_mm_add_ps(v, _mm_sqrt_ps(x86_fmadd_ps(v, a, a)))); /* b3 = logf(v + sqrt((v * a) + a)) */
 
-		const auto select1 = _mm_cmpngt_ps(v, _mm_set1_ps(1500.0f)); /* v > 1500.0 */
-		const auto select2 = _mm_cmpnlt_ps(a, _mm_set1_ps(0.5f));	 /* a < 0.5 */
-
+		const auto select1 = _mm_cmpngt_ps(v, _mm_set1_ps(1500.0f));	   /* v > 1500.0 */
+		const auto select2 = _mm_cmpnlt_ps(a, _mm_set1_ps(0.5f));		   /* a < 0.5 */
 		return x86_blendv_ps(b1, x86_blendv_ps(b2, b3, select2), select1); /* return (select1) ? b1 : (select2) ? b2 : b3 */
 	}
 
@@ -406,12 +367,8 @@ namespace sek::math::detail
 
 		/* a >= 0.0001 && a < 0.5 */
 		const auto v2 = _mm_mul_ps(v, v);
-		auto a1 = _mm_set1_ps(atanhcof_f[0]);
-		a1 = x86_fmadd_ps(a1, v2, _mm_set1_ps(atanhcof_f[1])); /* a1 = (a1 * v2) + atanhcof_f[1] */
-		a1 = x86_fmadd_ps(a1, v2, _mm_set1_ps(atanhcof_f[2])); /* a1 = (a1 * v2) + atanhcof_f[2] */
-		a1 = x86_fmadd_ps(a1, v2, _mm_set1_ps(atanhcof_f[3])); /* a1 = (a1 * v2) + atanhcof_f[3] */
-		a1 = x86_fmadd_ps(a1, v2, _mm_set1_ps(atanhcof_f[4])); /* a1 = (a1 * v2) + atanhcof_f[4] */
-		a1 = x86_fmadd_ps(_mm_mul_ps(a1, v2), v, v);		   /* a1 = ((a1 * v2) * v) + v */
+		auto a1 = x86_polevl_ps(v2, atanhcof_f);	 /* a1 = atanhcof_f(v2) */
+		a1 = x86_fmadd_ps(_mm_mul_ps(a1, v2), v, v); /* a1 = ((a1 * v2) * v) + v */
 
 		const auto a = _mm_and_ps(v, abs_mask);							  /* a = |v| */
 		const auto select1 = _mm_cmpnlt_ps(a, _mm_set1_ps(0.5f));		  /* a < 0.5 */
