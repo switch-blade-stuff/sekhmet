@@ -38,17 +38,9 @@ namespace sek::math::detail
 		a = _mm_sub_pd(_mm_sub_pd(a, tmp1), tmp2);
 		const auto a2 = _mm_mul_pd(a, a);
 
-		auto p = _mm_set1_pd(expp_d[0]);
-		p = x86_fmadd_pd(p, a2, _mm_set1_pd(expp_d[1])); /* p = (p * a2) + expp_d[1] */
-		p = x86_fmadd_pd(p, a2, _mm_set1_pd(expp_d[2])); /* p = (p * a2) + expp_d[2] */
-		a = _mm_mul_pd(p, a);							 /* a = p * a */
-
-		p = _mm_set1_pd(expq_d[0]);
-		p = x86_fmadd_pd(p, a2, _mm_set1_pd(expq_d[1])); /* p = (p * a2) + expq_d[1] */
-		p = x86_fmadd_pd(p, a2, _mm_set1_pd(expq_d[2])); /* p = (p * a2) + expq_d[2] */
-		p = x86_fmadd_pd(p, a2, _mm_set1_pd(expq_d[3])); /* p = (p * a2) + expq_d[3] */
-
-		p = _mm_mul_pd(_mm_div_pd(a, _mm_sub_pd(p, a)), _mm_set1_pd(2.0));	/* p = (a / (p - a)) * 2 */
+		const auto pp = _mm_mul_pd(x86_polevl_pd(a2, expp_d), a);			/* pp = expp_d(p) * a */
+		const auto pq = _mm_sub_pd(x86_polevl_pd(a2, expq_d), pp);			/* pq = expq_d(p) - pp */
+		const auto p = _mm_mul_pd(_mm_div_pd(pp, pq), _mm_set1_pd(2.0));	/* p = (pp / pq) * 2 */
 		return _mm_mul_pd(_mm_add_pd(p, _mm_set1_pd(1.0)), x86_pow2_pd(b)); /* return (1.0 + p) * 2 ^ b */
 	}
 
@@ -66,18 +58,10 @@ namespace sek::math::detail
 		a = _mm_sub_pd(a, b);
 		const auto a2 = _mm_mul_pd(a, a);
 
-		auto p = _mm_set1_pd(exp2p_d[0]);
-		p = x86_fmadd_pd(p, a2, _mm_set1_pd(exp2p_d[1])); /* p = (p * a2) + exp2p_d[1] */
-		p = x86_fmadd_pd(p, a2, _mm_set1_pd(exp2p_d[2])); /* p = (p * a2) + exp2p_d[2] */
-		a = _mm_mul_pd(p, a);							  /* a = p * a */
-
-		p = _mm_set1_pd(1.0);
-		p = x86_fmadd_pd(p, a2, _mm_set1_pd(exp2q_d[0])); /* p = (p * a2) + exp2q_d[1] */
-		p = x86_fmadd_pd(p, a2, _mm_set1_pd(exp2q_d[1])); /* p = (p * a2) + exp2q_d[2] */
-		p = _mm_div_pd(a, _mm_sub_pd(p, a));			  /* p = a / (p - a) */
-
-		p = _mm_add_pd(_mm_add_pd(p, p), _mm_set1_pd(1.0)); /* p = (p + p) + 1 */
-		return _mm_mul_pd(p, x86_pow2_pd(b));				/* p * 2 ^ b */
+		const auto pp = _mm_mul_pd(x86_polevl_pd(a2, exp2p_d), a);			/* pp = exp2p_d(p) * a */
+		const auto pq = _mm_sub_pd(x86_polevl1_pd(a2, exp2q_d), pp);		/* pq = exp2q_d(p) - pp */
+		const auto p = _mm_mul_pd(_mm_div_pd(pp, pq), _mm_set1_pd(2.0));	/* p = (pp / pq) * 2 */
+		return _mm_mul_pd(_mm_add_pd(p, _mm_set1_pd(1.0)), x86_pow2_pd(b)); /* return (1.0 + p) * 2 ^ b */
 	}
 
 	static const double logp_d[6] = {
@@ -117,22 +101,12 @@ namespace sek::math::detail
 		const auto a_p1 = _mm_sub_pd(_mm_add_pd(a, _mm_and_pd(sqrth_mask, a)), one); /* a_p1 = a + a & (a < sqrth_d) - 1 */
 		const auto a2_p1 = _mm_mul_pd(a_p1, a_p1);
 
-		auto p1_p = _mm_set1_pd(logp_d[0]);
-		p1_p = x86_fmadd_pd(p1_p, a_p1, _mm_set1_pd(logp_d[1])); /* p1_p = (p1_p * a_p1) + logp_d[1] */
-		p1_p = x86_fmadd_pd(p1_p, a_p1, _mm_set1_pd(logp_d[2])); /* p1_p = (p1_p * a_p1) + logp_d[2] */
-		p1_p = x86_fmadd_pd(p1_p, a_p1, _mm_set1_pd(logp_d[3])); /* p1_p = (p1_p * a_p1) + logp_d[3] */
-		p1_p = x86_fmadd_pd(p1_p, a_p1, _mm_set1_pd(logp_d[4])); /* p1_p = (p1_p * a_p1) + logp_d[4] */
-		p1_p = x86_fmadd_pd(p1_p, a_p1, _mm_set1_pd(logp_d[5])); /* p1_p = (p1_p * a_p1) + logp_d[5] */
-		p1_p = _mm_mul_pd(_mm_mul_pd(p1_p, a2_p1), a_p1);		 /* p1_p = p1_p * a2_p1 * a_p1 */
-		auto p1_q = one;
-		p1_q = x86_fmadd_pd(p1_q, a_p1, _mm_set1_pd(logq_d[0])); /* p1_q = (p1_q * a_p1) + logq_d[0] */
-		p1_q = x86_fmadd_pd(p1_q, a_p1, _mm_set1_pd(logq_d[1])); /* p1_q = (p1_q * a_p1) + logq_d[1] */
-		p1_q = x86_fmadd_pd(p1_q, a_p1, _mm_set1_pd(logq_d[2])); /* p1_q = (p1_q * a_p1) + logq_d[2] */
-		p1_q = x86_fmadd_pd(p1_q, a_p1, _mm_set1_pd(logq_d[3])); /* p1_q = (p1_q * a_p1) + logq_d[3] */
-		p1_q = x86_fmadd_pd(p1_q, a_p1, _mm_set1_pd(logq_d[4])); /* p1_q = (p1_q * a_p1) + logq_d[4] */
-
+		/* p1_p = logp_d(a_p1) * a2_p1
+		 * p1_q = logp_d(a_p1) */
+		const auto p1_p = _mm_mul_pd(x86_polevl_pd(a_p1, logp_d), a2_p1);
+		const auto p1_q = x86_polevl1_pd(a_p1, logq_d);
+		auto p1 = _mm_mul_pd(_mm_div_pd(p1_p, p1_q), a_p1); /* p1 = (a_p1 / p1_q) * p1_p  */
 		const auto e_p1_nz = _mm_and_pd(e, _mm_cmpneq_pd(e, _mm_setzero_pd()));
-		auto p1 = _mm_div_pd(p1_p, p1_q);								   /* p1 = p1_p / p1_q */
 		p1 = x86_fmadd_pd(e_p1_nz, _mm_set1_pd(logc_d[0]), p1);			   /* p1 = (e_p1_nz * logc_d[0]) + p1 */
 		p1 = _mm_add_pd(p1, x86_fmadd_pd(a2_p1, _mm_set1_pd(-0.5), a_p1)); /* p1 = p1 + (a2_p1 * -0.5) + a_p1 */
 		p1 = x86_fmadd_pd(e_p1_nz, _mm_set1_pd(logc_d[1]), p1);			   /* p1 = (e_p1_nz * logc_d[1]) + p1 */
@@ -143,24 +117,103 @@ namespace sek::math::detail
 		const auto a_p2 = _mm_div_pd(_mm_sub_pd(a, s2), x86_fmadd_pd(a, half, s1)); /* a_p2 = (a - s2) / ((0.5 * a) + s1) */
 		const auto a2_p2 = _mm_mul_pd(a_p2, a_p2);
 
-		auto p2_r = _mm_set1_pd(logr_d[0]);
-		p2_r = x86_fmadd_pd(p2_r, a2_p2, _mm_set1_pd(logr_d[1])); /* p2_r = (p2_r * a2_p2) + logr_d[1] */
-		p2_r = x86_fmadd_pd(p2_r, a2_p2, _mm_set1_pd(logr_d[2])); /* p2_r = (p2_r * a2_p2) + logr_d[2] */
-		p2_r = _mm_mul_pd(_mm_mul_pd(p2_r, a2_p2), a_p2);		  /* p2_r = p2_r * a2_p2 * a_p2 */
-
-		auto p2_s = one;
-		p2_s = x86_fmadd_pd(p2_s, a2_p2, _mm_set1_pd(logs_d[0])); /* p2_s = (p2_s * a2_p2) + logs_d[0] */
-		p2_s = x86_fmadd_pd(p2_s, a2_p2, _mm_set1_pd(logs_d[1])); /* p2_s = (p2_s * a2_p2) + logs_d[1] */
-		p2_s = x86_fmadd_pd(p2_s, a2_p2, _mm_set1_pd(logs_d[2])); /* p2_s = (p2_s * a2_p2) + logs_d[2] */
-
-		auto p2 = _mm_div_pd(p2_r, p2_s);
-		p2 = x86_fmadd_pd(e, _mm_set1_pd(logc_d[0]), p2); /* p2 = (e * logc_d[0]) + p2 */
-		p2 = _mm_add_pd(p2, a_p2);						  /* p2 = p2 + a_p2 */
-		p2 = x86_fmadd_pd(e, _mm_set1_pd(logc_d[1]), p2); /* p2 = (e * logc_d[1]) + p2 */
+		/* p2_r = logr_d(a2_p2) * a2_p2
+		 * p2_s = logs_d(a2_p2) */
+		const auto p2_r = _mm_mul_pd(x86_polevl_pd(a2_p2, logr_d), a2_p2);
+		const auto p2_s = x86_polevl1_pd(a2_p2, logs_d);
+		auto p2 = _mm_mul_pd(_mm_div_pd(p2_r, p2_s), a_p2); /* p2 = (p2_r / p2_s) * a_p2 */
+		p2 = x86_fmadd_pd(e, _mm_set1_pd(logc_d[0]), p2);	/* p2 = (e * logc_d[0]) + p2 */
+		p2 = _mm_add_pd(p2, a_p2);							/* p2 = p2 + a_p2 */
+		p2 = x86_fmadd_pd(e, _mm_set1_pd(logc_d[1]), p2);	/* p2 = (e * logc_d[1]) + p2 */
 
 		return _mm_xor_pd(x86_blendv_pd(p1, p2, select_mask), nan_mask); /* return (e > 2 || e < -2) ? p2 : p1 */
 	}
-	//	__m128d x86_log2_pd(__m128d v) noexcept {}
-	//	__m128d x86_log10_pd(__m128d v) noexcept {}
+
+	static const double log2ea_d = 0.44269504088896340735992;
+
+	__m128d x86_log2_pd(__m128d v) noexcept
+	{
+		const auto min_norm = _mm_set1_pd(std::bit_cast<double>(0x10'0000'0000'0000));
+		const auto nan_mask = _mm_cmple_pd(v, _mm_setzero_pd());
+		const auto half = _mm_set1_pd(0.5);
+		const auto one = _mm_set1_pd(1.0);
+		__m128d e, a = x86_frexp_pd(_mm_max_pd(v, min_norm), e);
+
+		/* Polynomial selection mask (e > 2 || e < -2) and (a < sqrth_d) mask. */
+		const auto select_mask = _mm_or_pd(_mm_cmpgt_pd(e, _mm_set1_pd(2.0)), _mm_cmplt_pd(e, _mm_set1_pd(-2.0)));
+		const auto sqrth_mask = _mm_cmplt_pd(a, _mm_set1_pd(sqrth_d));
+		e = _mm_sub_pd(e, _mm_and_pd(sqrth_mask, one)); /* e = e - 1 & (a < sqrth_d) */
+
+		/* P1 (e <= 2 && e >= -2) */
+		const auto a_p1 = _mm_sub_pd(_mm_add_pd(a, _mm_and_pd(sqrth_mask, a)), one); /* a_p1 = a + a & (a < sqrth_d) - 1 */
+		const auto a2_p1 = _mm_mul_pd(a_p1, a_p1);
+		const auto p1_p = _mm_mul_pd(x86_polevl_pd(a_p1, logp_d), a2_p1); /* p1_p = logp_d(a_p1) * a2_p1 */
+		const auto p1_q = x86_polevl1_pd(a_p1, logq_d);					  /* p1_q = logq_d(a_p1) */
+		auto p1 = _mm_mul_pd(_mm_div_pd(p1_p, p1_q), a_p1);				  /* p2 = (p1_p / p1_q) * a_p1 */
+		p1 = x86_fmadd_pd(a2_p1, _mm_set1_pd(-0.5), p1);				  /* p1 = (a2_p1 * -0.5) + p1 */
+
+		/* P2 (e > 2 || e < -2) */
+		const auto s1 = x86_blendv_pd(half, _mm_set1_pd(0.25), sqrth_mask); /* s1 = (a < sqrth_d) ? 0.25 : 0.5 */
+		const auto s2 = x86_blendv_pd(one, half, sqrth_mask);				/* s2 = (a < sqrth_d) ? 0.5 : 1.0 */
+		const auto a_p2 = _mm_div_pd(_mm_sub_pd(a, s2), x86_fmadd_pd(a, half, s1)); /* a_p2 = (a - s2) / ((0.5 * a) + s1) */
+		const auto a2_p2 = _mm_mul_pd(a_p2, a_p2);
+		const auto p2_r = _mm_mul_pd(x86_polevl_pd(a2_p2, logr_d), a2_p2); /* p2_r = logr_d(a2_p2) * a2_p2 */
+		const auto p2_s = x86_polevl1_pd(a2_p2, logs_d);				   /* p2_s = logs_d(a2_p2) */
+		const auto p2 = _mm_mul_pd(_mm_div_pd(p2_r, p2_s), a_p2);		   /* p2 = (p2_r / p2_s) * a_p2 */
+
+		auto p = x86_blendv_pd(p1, p2, select_mask);
+		a = x86_blendv_pd(a_p1, a_p2, select_mask);
+		p = x86_fmadd_pd(_mm_set1_pd(log2ea_d), p, p); /* p = (p * log2ea_d) + p */
+		p = x86_fmadd_pd(_mm_set1_pd(log2ea_d), a, p); /* p = (a * log2ea_d) + p */
+		p = _mm_add_pd(p, _mm_add_pd(a, e));		   /* p = p + a + e */
+		return _mm_or_pd(p, nan_mask);				   /* return p | nan_mask */
+	}
+
+	static const double log10p_d[] = {
+		4.58482948458143443514e-5,
+		4.98531067254050724270e-1,
+		6.56312093769992875930e0,
+		2.97877425097986925891e1,
+		6.06127134467767258030e1,
+		5.67349287391754285487e1,
+		1.98892446572874072159e1,
+	};
+	static const double log10q_d[] = {
+		1.50314182634250003249e1,
+		8.27410449222435217021e1,
+		2.20664384982121929218e2,
+		3.07254189979530058263e2,
+		2.14955586696422947765e2,
+		5.96677339718622216300e1,
+	};
+	static const double l102a_d = 3.0078125e-1;
+	static const double l102b_d = 2.48745663981195213739e-4;
+	static const double l10ea_d = 4.3359375e-1;
+	static const double l10eb_d = 7.00731903251827651129e-4;
+
+	__m128d x86_log10_pd(__m128d v) noexcept
+	{
+		const auto min_norm = _mm_set1_pd(std::bit_cast<double>(0x10'0000'0000'0000));
+		const auto nan_mask = _mm_cmple_pd(v, _mm_setzero_pd());
+		const auto one = _mm_set1_pd(1.0);
+		__m128d e, a = x86_frexp_pd(_mm_max_pd(v, min_norm), e);
+
+		const auto sqrth_mask = _mm_cmplt_pd(a, _mm_set1_pd(sqrth_d));
+		e = _mm_sub_pd(e, _mm_and_pd(sqrth_mask, one));				   /* e = e - 1 & (a < sqrth_d) */
+		a = _mm_sub_pd(_mm_add_pd(a, _mm_and_pd(sqrth_mask, a)), one); /* a = a + a & (a < sqrth_d) - 1 */
+		const auto a2 = _mm_mul_pd(a, a);
+
+		const auto pp = _mm_mul_pd(x86_polevl_pd(a, log10p_d), a2);	 /* pp = log10p_d(a) * a2 */
+		const auto pq = x86_polevl_pd(a, log10q_d);					 /* pp = log10q_d(a) */
+		auto p = _mm_mul_pd(_mm_div_pd(pp, pq), a);					 /* p = (pp / pq) * a */
+		const auto tmp = p = x86_fmadd_pd(a2, _mm_set1_pd(-0.5), p); /* tmp = p = (a2 * -0.5) + p */
+
+		p = _mm_mul_pd(_mm_add_pd(a, p), _mm_set1_pd(l10eb_d)); /* p = (a + p) * l10eb_d */
+		p = x86_fmadd_pd(tmp, _mm_set1_pd(l10ea_d), p);			/* p = (tmp * l10ea_d) + p */
+		p = x86_fmadd_pd(a, _mm_set1_pd(l10ea_d), p);			/* p = (a * l10ea_d) + p */
+		p = x86_fmadd_pd(e, _mm_set1_pd(l102b_d), p);			/* p = (e * l102b_d) + p */
+		p = x86_fmadd_pd(e, _mm_set1_pd(l102a_d), p);			/* p = (e * l102a_d) + p */
+		return _mm_or_pd(p, nan_mask);
+	}
 }	 // namespace sek::math::detail
 #endif
