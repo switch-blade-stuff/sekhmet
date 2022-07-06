@@ -5,7 +5,7 @@
 #include "trigonometric.hpp"
 
 #include "../arithmetic.hpp"
-#include "../utility.hpp"
+#include "../exponential.hpp"
 
 /* Implementations of trigonometric functions derived from netlib's cephes library (http://www.netlib.org/cephes/)
  * Inspired by http://gruntthepeon.free.fr/ssemath */
@@ -181,5 +181,60 @@ namespace sek::math::detail
 	}
 	__m128d x86_tan_pd(__m128d v) noexcept { return x86_tancot_pd(v, _mm_setzero_si128()); }
 	__m128d x86_cot_pd(__m128d v) noexcept { return x86_tancot_pd(v, _mm_set1_epi64x(-1)); }
+
+	static double sinhp_p[4] = {
+		-7.89474443963537015605e-1,
+		-1.63725857525983828727e2,
+		-1.15614435765005216044e4,
+		-3.51754964808151394800e5,
+	};
+	static double sinhq_p[3] = {-2.77711081420602794433e2, 3.61578279834431989373e4, -2.11052978884890840399e6};
+	static const double maxlog_d = 7.09782712893383996843e2;
+	static const double loge2_d = 6.93147180559945309417e-1;
+
+	__m128d x86_sinh_pd(__m128d v) noexcept
+	{
+		const auto sign_mask = _mm_set1_pd(std::bit_cast<double>(0x8000'0000'0000'0000));
+		const auto abs_mask = _mm_set1_pd(std::bit_cast<double>(0x7fff'ffff'ffff'ffff));
+		const auto half = _mm_set1_pd(0.5);
+		const auto a = _mm_and_pd(v, abs_mask); /* a = |v| */
+		const auto a2 = _mm_mul_pd(a, a);
+
+		const auto select1 = _mm_cmpnle_pd(a, _mm_set1_pd(1.0));				/* select1 = a <= 1.0 */
+		const auto select2 = _mm_cmpnge_pd(a, _mm_set1_pd(maxlog_d - loge2_d)); /* select1 = a >= (maxlog_d - loge2_d) */
+
+		/* P1 (a <= 1.0) */
+		const auto p1_p = _mm_mul_pd(x86_polevl_pd(a2, sinhp_p), a2); /* p1_p = sinhp_p(a2) * a2 */
+		const auto p1_q = x86_polevl1_pd(a2, sinhq_p);				  /* p1_q = sinhq_p(a2) */
+		const auto p1 = x86_fmadd_pd(_mm_div_pd(p1_p, p1_q), v, v);	  /* p1 = (p1_p / p1_q) * v + v */
+
+		/* P2 (a > 1.0 && a >= (maxlog_d - loge2_d)) */
+		const auto b_p2 = x86_exp_pd(_mm_mul_pd(a, half));		  /* b_p2 = exp(0.5 * a) */
+		const auto p2 = _mm_mul_pd(_mm_mul_pd(b_p2, b_p2), half); /* p2 = b_p2 * b_p2 * 0.5 */
+
+		/* P3 (a > 1.0 && a < (maxlog_d - loge2_d)) */
+		const auto b_p3 = x86_exp_pd(a);											   /* b_p2 = exp(a) */
+		const auto p3 = x86_fmadd_pd(b_p3, half, _mm_div_pd(_mm_set1_pd(-0.5), b_p3)); /* p3 = 0.5 * b_p3 + (-0.5 / b_p3) */
+
+		/* return select1 ? p1 : ((select2 ? p2 : p3) ^ (v & sign_mask)) */
+		return x86_blendv_pd(p1, _mm_xor_pd(x86_blendv_pd(p2, p3, select2), _mm_and_pd(v, sign_mask)), select1);
+	}
+	__m128d x86_cosh_pd(__m128d v) noexcept
+	{
+		const auto abs_mask = _mm_set1_pd(std::bit_cast<double>(0x7fff'ffff'ffff'ffff));
+		const auto half = _mm_set1_pd(0.5);
+		const auto a = _mm_and_pd(v, abs_mask); /* a = |v| */
+
+		/* B1 (a >= (maxlog_d - loge2_d)) */
+		auto b1 = x86_exp_pd(_mm_mul_pd(a, half)); /* b1 = exp(0.5 * a) */
+		b1 = _mm_mul_pd(_mm_mul_pd(b1, b1), half); /* b1 = 0.5 * b1 * b1 */
+
+		/* B2 (a < (maxlog_d - loge2_d)) */
+		auto b2 = x86_exp_pd(a);						   /* b2 = exp(a) */
+		b2 = x86_fmadd_pd(b2, half, _mm_div_pd(half, b2)); /* b2 = 0.5 * b2 + 0.5 / b2 */
+
+		const auto select = _mm_cmpnge_pd(a, _mm_set1_pd(maxlog_d - loge2_d));
+		return x86_blendv_pd(b2, b2, select); /* return (a >= (maxlog_d - loge2_d)) ? b1 : b2 */
+	}
 }	 // namespace sek::math::detail
 #endif

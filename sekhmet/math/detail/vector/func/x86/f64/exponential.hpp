@@ -32,81 +32,59 @@ namespace sek::math::detail
 
 	SEK_API __m128d x86_exp_pd(__m128d v) noexcept;
 
-	template<policy_t P>
-	inline void vector_exp(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
+	template<std::size_t N, policy_t P>
+	inline void vector_exp(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
-		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-			out.simd = x86_exp_pd(v.simd);
-		else
-			x86_unpack_pd(out, x86_exp_pd(x86_pack_pd(v)));
+		x86_vector_apply(out, v, x86_exp_pd);
 	}
-	template<policy_t P>
-	inline void vector_expm1(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
+	template<std::size_t N, policy_t P>
+	inline void vector_expm1(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
-		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-			out.simd = _mm_sub_pd(x86_exp_pd(v.simd), _mm_set1_pd(1.0));
-		else
-			x86_unpack_pd(out, _mm_sub_pd(x86_exp_pd(x86_pack_pd(v)), _mm_set1_pd(1.0)));
+		x86_vector_apply(out, v, [one = _mm_set1_pd(1.0)](auto v) { return _mm_sub_pd(x86_exp_pd(v), one); });
 	}
 
 	SEK_API __m128d x86_exp2_pd(__m128d v) noexcept;
 
-	template<policy_t P>
-	inline void vector_exp2(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
+	template<std::size_t N, policy_t P>
+	inline void vector_exp2(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
-		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-			out.simd = x86_exp2_pd(v.simd);
-		else
-			x86_unpack_pd(out, x86_exp2_pd(x86_pack_pd(v)));
+		x86_vector_apply(out, v, x86_exp2_pd);
 	}
 
 	SEK_API __m128d x86_log_pd(__m128d v) noexcept;
 
-	template<policy_t P>
-	inline void vector_log(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
+	template<std::size_t N, policy_t P>
+	inline void vector_log(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
-		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-			out.simd = x86_log_pd(v.simd);
-		else
-			x86_unpack_pd(out, x86_log_pd(x86_pack_pd(v)));
+		x86_vector_apply(out, v, x86_log_pd);
 	}
-	template<policy_t P>
-	inline void vector_log1p(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
+	template<std::size_t N, policy_t P>
+	inline void vector_log1p(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
-		const auto one = _mm_set1_pd(1.0);
-		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-			out.simd = x86_log_pd(_mm_add_pd(v.simd, one));
-		else
-			x86_unpack_pd(out, x86_log_pd(_mm_add_pd(x86_pack_pd(v), one)));
+		x86_vector_apply(out, v, [one = _mm_set1_pd(1.0)](auto v) { return x86_log_pd(_mm_add_pd(v, one)); });
 	}
 
 	SEK_API __m128d x86_log2_pd(__m128d v) noexcept;
 
-	template<policy_t P>
-	inline void vector_log2(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
+	template<std::size_t N, policy_t P>
+	inline void vector_log2(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
-		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-			out.simd = x86_log2_pd(v.simd);
-		else
-			x86_unpack_pd(out, x86_log2_pd(x86_pack_pd(v)));
+		x86_vector_apply(out, v, x86_log2_pd);
 	}
 
 	SEK_API __m128d x86_log10_pd(__m128d v) noexcept;
 
-	template<policy_t P>
-	inline void vector_log10(vector_data<double, 2, P> &out, const vector_data<double, 2, P> &v) noexcept
+	template<std::size_t N, policy_t P>
+	inline void vector_log10(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
-		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-			out.simd = x86_log10_pd(v.simd);
-		else
-			x86_unpack_pd(out, x86_log10_pd(x86_pack_pd(v)));
+		x86_vector_apply(out, v, x86_log10_pd);
 	}
 
 #ifndef SEK_USE_AVX
@@ -124,50 +102,6 @@ namespace sek::math::detail
 		const auto one = _mm_set1_pd(1.0);
 		out.simd[0] = _mm_div_pd(one, _mm_sqrt_pd(v.simd[0]));
 		out.simd[1] = _mm_div_pd(one, _mm_sqrt_pd(v.simd[1]));
-	}
-
-	template<std::size_t N, policy_t P>
-	inline void vector_exp(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
-		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
-	{
-		x86_vector_apply(out, v, [](auto v) { return x86_exp_pd(v); });
-	}
-	template<std::size_t N, policy_t P>
-	inline void vector_expm1(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
-		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
-	{
-		x86_vector_apply(out, v, [one = _mm_set1_pd(1.0)](auto v) { return _mm_sub_pd(x86_exp_pd(v), one); });
-	}
-	template<std::size_t N, policy_t P>
-	inline void vector_exp2(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
-		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
-	{
-		x86_vector_apply(out, v, [](auto v) { return x86_exp2_pd(v); });
-	}
-
-	template<std::size_t N, policy_t P>
-	inline void vector_log(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
-		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
-	{
-		x86_vector_apply(out, v, [](auto v) { return x86_log_pd(v); });
-	}
-	template<std::size_t N, policy_t P>
-	inline void vector_log1p(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
-		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
-	{
-		x86_vector_apply(out, v, [one = _mm_set1_pd(1.0)](auto v) { return x86_log_pd(_mm_add_pd(v, one)); });
-	}
-	template<std::size_t N, policy_t P>
-	inline void vector_log2(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
-		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
-	{
-		x86_vector_apply(out, v, [](auto v) { return x86_log2_pd(v); });
-	}
-	template<std::size_t N, policy_t P>
-	inline void vector_log10(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
-		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
-	{
-		x86_vector_apply(out, v, [](auto v) { return x86_log10_pd(v); });
 	}
 #endif
 }	 // namespace sek::math::detail

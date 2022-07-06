@@ -63,19 +63,23 @@ namespace sek::math::detail
 		return _mm_sub_ps(_mm_mul_ps(a, b), c);
 #endif
 	}
+	template<std::size_t I, std::size_t N>
+	SEK_FORCE_INLINE __m128 x86_polevl_ps_unroll(__m128 p, __m128 a, const float (&c)[N]) noexcept
+	{
+		if constexpr (I < N)
+			return x86_polevl_ps_unroll<I + 1>(x86_fmadd_ps(p, a, _mm_set1_ps(c[I])), a, c);
+		else
+			return p;
+	}
 	template<std::size_t N>
 	SEK_FORCE_INLINE __m128 x86_polevl_ps(__m128 a, const float (&c)[N]) noexcept
 	{
-		auto p = _mm_set1_ps(c[0]);
-		for (std::size_t i = 1; i < N; ++i) p = x86_fmadd_ps(p, a, _mm_set1_ps(c[i]));
-		return p;
+		return x86_polevl_ps_unroll<1, N>(_mm_set1_ps(c[0]), a, c);
 	}
 	template<std::size_t N>
 	SEK_FORCE_INLINE __m128 x86_polevl1_ps(__m128 a, const float (&c)[N]) noexcept
 	{
-		auto p = _mm_set1_ps(1.0f);
-		for (std::size_t i = 0; i < N; ++i) p = x86_fmadd_ps(p, a, _mm_set1_ps(c[i]));
-		return p;
+		return x86_polevl_ps_unroll<0, N>(_mm_set1_ps(1.0), a, c);
 	}
 
 	template<std::size_t N, policy_t P>
@@ -160,19 +164,23 @@ namespace sek::math::detail
 		return _mm_sub_pd(_mm_mul_pd(a, b), c);
 #endif
 	}
+	template<std::size_t I, std::size_t N>
+	SEK_FORCE_INLINE __m128d x86_polevl_pd_unroll(__m128d p, __m128d a, const double (&c)[N]) noexcept
+	{
+		if constexpr (I < N)
+			return x86_polevl_pd_unroll<I + 1>(x86_fmadd_pd(p, a, _mm_set1_pd(c[I])), a, c);
+		else
+			return p;
+	}
 	template<std::size_t N>
 	SEK_FORCE_INLINE __m128d x86_polevl_pd(__m128d a, const double (&c)[N]) noexcept
 	{
-		auto p = _mm_set1_pd(c[0]);
-		for (std::size_t i = 1; i < N; ++i) p = x86_fmadd_pd(p, a, _mm_set1_pd(c[i]));
-		return p;
+		return x86_polevl_pd_unroll<1, N>(_mm_set1_pd(c[0]), a, c);
 	}
 	template<std::size_t N>
 	SEK_FORCE_INLINE __m128d x86_polevl1_pd(__m128d a, const double (&c)[N]) noexcept
 	{
-		auto p = _mm_set1_pd(1.0);
-		for (std::size_t i = 0; i < N; ++i) p = x86_fmadd_pd(p, a, _mm_set1_pd(c[i]));
-		return p;
+		return x86_polevl_pd_unroll<0, N>(_mm_set1_pd(1.0), a, c);
 	}
 
 	template<policy_t P>
