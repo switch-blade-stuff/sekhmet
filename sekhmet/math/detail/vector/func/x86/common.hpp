@@ -387,6 +387,39 @@ namespace sek::math::detail
 		__m128d simd[2];
 	};
 
+	template<std::size_t N, policy_t P, typename F>
+	constexpr void x86_vector_apply(vector_data<double, N, P> &out, const vector_data<double, N, P> &v, F &&f)
+	{
+		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
+		{
+			out.simd[0] = f(v.simd[0]);
+			out.simd[1] = f(v.simd[1]);
+		}
+		else
+		{
+			vector_data<double, 2, policy_t::FAST_SIMD> tmp;
+
+			tmp = {v[0], v[1]};
+			tmp.simd = f(tmp.simd);
+			out[0] = tmp[0];
+			out[1] = tmp[1];
+
+			if constexpr (N > 3)
+			{
+				tmp = {v[2], v[3]};
+				tmp.simd = f(tmp.simd);
+				out[2] = tmp[0];
+				out[3] = tmp[1];
+			}
+			else
+			{
+				tmp = {v[2], double{}};
+				tmp.simd = f(tmp.simd);
+				out[2] = tmp[0];
+			}
+		}
+	}
+
 #ifndef SEK_USE_AVX2
 	template<integral_of_size<8> T, std::size_t N, policy_t P>
 		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>

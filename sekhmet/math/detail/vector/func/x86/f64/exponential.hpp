@@ -121,244 +121,53 @@ namespace sek::math::detail
 	inline void vector_rsqrt(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>
 	{
-		const auto v1 = _mm_set1_pd(1);
-		out.simd[0] = _mm_div_pd(v1, _mm_sqrt_pd(v.simd[0]));
-		out.simd[1] = _mm_div_pd(v1, _mm_sqrt_pd(v.simd[1]));
+		const auto one = _mm_set1_pd(1.0);
+		out.simd[0] = _mm_div_pd(one, _mm_sqrt_pd(v.simd[0]));
+		out.simd[1] = _mm_div_pd(one, _mm_sqrt_pd(v.simd[1]));
 	}
 
 	template<std::size_t N, policy_t P>
 	inline void vector_exp(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
-		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-		{
-			out.simd[0] = x86_exp_pd(v.simd[0]);
-			out.simd[1] = x86_exp_pd(v.simd[1]);
-		}
-		else
-		{
-			vector_data<double, 2, policy_t::FAST_SIMD> tmp;
-
-			tmp = {v[0], v[1]};
-			tmp.simd = x86_exp_pd(tmp.simd);
-			out[0] = tmp[0];
-			out[1] = tmp[1];
-
-			if constexpr (N > 3)
-			{
-				tmp = {v[2], v[3]};
-				tmp.simd = x86_exp_pd(tmp.simd);
-				out[2] = tmp[0];
-				out[3] = tmp[1];
-			}
-			else
-			{
-				tmp = {v[2], double{}};
-				tmp.simd = x86_exp_pd(tmp.simd);
-				out[2] = tmp[0];
-			}
-		}
+		x86_vector_apply(out, v, [](auto v) { return x86_exp_pd(v); });
 	}
 	template<std::size_t N, policy_t P>
 	inline void vector_expm1(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
-		const auto one = _mm_set1_pd(1.0);
-		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-		{
-			out.simd[0] = _mm_sub_pd(x86_exp_pd(v.simd[0]), one);
-			out.simd[1] = _mm_sub_pd(x86_exp_pd(v.simd[1]), one);
-		}
-		else
-		{
-			vector_data<double, 2, policy_t::FAST_SIMD> tmp;
-
-			tmp = {v[0], v[1]};
-			tmp.simd = _mm_sub_pd(x86_exp_pd(tmp.simd), one);
-			out[0] = tmp[0];
-			out[1] = tmp[1];
-
-			if constexpr (N > 3)
-			{
-				tmp = {v[2], v[3]};
-				tmp.simd = _mm_sub_pd(x86_exp_pd(tmp.simd), one);
-				out[2] = tmp[0];
-				out[3] = tmp[1];
-			}
-			else
-			{
-				tmp = {v[2], double{}};
-				tmp.simd = _mm_sub_pd(x86_exp_pd(tmp.simd), one);
-				out[2] = tmp[0];
-			}
-		}
+		x86_vector_apply(out, v, [one = _mm_set1_pd(1.0)](auto v) { return _mm_sub_pd(x86_exp_pd(v), one); });
 	}
 	template<std::size_t N, policy_t P>
 	inline void vector_exp2(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
-		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-		{
-			out.simd[0] = x86_exp2_pd(v.simd[0]);
-			out.simd[1] = x86_exp2_pd(v.simd[1]);
-		}
-		else
-		{
-			vector_data<double, 2, policy_t::FAST_SIMD> tmp;
-
-			tmp = {v[0], v[1]};
-			tmp.simd = x86_exp2_pd(tmp.simd);
-			out[0] = tmp[0];
-			out[1] = tmp[1];
-
-			if constexpr (N > 3)
-			{
-				tmp = {v[2], v[3]};
-				tmp.simd = x86_exp2_pd(tmp.simd);
-				out[2] = tmp[0];
-				out[3] = tmp[1];
-			}
-			else
-			{
-				tmp = {v[2], double{}};
-				tmp.simd = x86_exp2_pd(tmp.simd);
-				out[2] = tmp[0];
-			}
-		}
+		x86_vector_apply(out, v, [](auto v) { return x86_exp2_pd(v); });
 	}
 
 	template<std::size_t N, policy_t P>
 	inline void vector_log(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
-		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-		{
-			out.simd[0] = x86_log_pd(v.simd[0]);
-			out.simd[1] = x86_log_pd(v.simd[1]);
-		}
-		else
-		{
-			vector_data<double, 2, policy_t::FAST_SIMD> tmp;
-
-			tmp = {v[0], v[1]};
-			tmp.simd = x86_log_pd(tmp.simd);
-			out[0] = tmp[0];
-			out[1] = tmp[1];
-
-			if constexpr (N > 3)
-			{
-				tmp = {v[2], v[3]};
-				tmp.simd = x86_log_pd(tmp.simd);
-				out[2] = tmp[0];
-				out[3] = tmp[1];
-			}
-			else
-			{
-				tmp = {v[2], double{}};
-				tmp.simd = x86_log_pd(tmp.simd);
-				out[2] = tmp[0];
-			}
-		}
+		x86_vector_apply(out, v, [](auto v) { return x86_log_pd(v); });
 	}
 	template<std::size_t N, policy_t P>
 	inline void vector_log1p(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
-		const auto one = _mm_set1_pd(1.0);
-		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-		{
-			out.simd[0] = x86_log_pd(_mm_add_pd(v.simd[0], one));
-			out.simd[1] = x86_log_pd(_mm_add_pd(v.simd[1], one));
-		}
-		else
-		{
-			vector_data<double, 2, policy_t::FAST_SIMD> tmp;
-
-			tmp = {v[0], v[1]};
-			tmp.simd = x86_log_pd(_mm_add_pd(tmp.simd, one));
-			out[0] = tmp[0];
-			out[1] = tmp[1];
-
-			if constexpr (N > 3)
-			{
-				tmp = {v[2], v[3]};
-				tmp.simd = x86_log_pd(_mm_add_pd(tmp.simd, one));
-				out[2] = tmp[0];
-				out[3] = tmp[1];
-			}
-			else
-			{
-				tmp = {v[2], double{}};
-				tmp.simd = x86_log_pd(_mm_add_pd(tmp.simd, one));
-				out[2] = tmp[0];
-			}
-		}
+		x86_vector_apply(out, v, [one = _mm_set1_pd(1.0)](auto v) { return x86_log_pd(_mm_add_pd(v, one)); });
 	}
 	template<std::size_t N, policy_t P>
 	inline void vector_log2(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
-		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-		{
-			out.simd[0] = x86_log2_pd(v.simd[0]);
-			out.simd[1] = x86_log2_pd(v.simd[1]);
-		}
-		else
-		{
-			vector_data<double, 2, policy_t::FAST_SIMD> tmp;
-
-			tmp = {v[0], v[1]};
-			tmp.simd = x86_log2_pd(tmp.simd);
-			out[0] = tmp[0];
-			out[1] = tmp[1];
-
-			if constexpr (N > 3)
-			{
-				tmp = {v[2], v[3]};
-				tmp.simd = x86_log2_pd(tmp.simd);
-				out[2] = tmp[0];
-				out[3] = tmp[1];
-			}
-			else
-			{
-				tmp = {v[2], double{}};
-				tmp.simd = x86_log2_pd(tmp.simd);
-				out[2] = tmp[0];
-			}
-		}
+		x86_vector_apply(out, v, [](auto v) { return x86_log2_pd(v); });
 	}
 	template<std::size_t N, policy_t P>
 	inline void vector_log10(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
 		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
 	{
-		if constexpr (check_policy_v<P, policy_t::STORAGE_MASK, policy_t::ALIGNED>)
-		{
-			out.simd[0] = x86_log10_pd(v.simd[0]);
-			out.simd[1] = x86_log10_pd(v.simd[1]);
-		}
-		else
-		{
-			vector_data<double, 2, policy_t::FAST_SIMD> tmp;
-
-			tmp = {v[0], v[1]};
-			tmp.simd = x86_log10_pd(tmp.simd);
-			out[0] = tmp[0];
-			out[1] = tmp[1];
-
-			if constexpr (N > 3)
-			{
-				tmp = {v[2], v[3]};
-				tmp.simd = x86_log10_pd(tmp.simd);
-				out[2] = tmp[0];
-				out[3] = tmp[1];
-			}
-			else
-			{
-				tmp = {v[2], double{}};
-				tmp.simd = x86_log10_pd(tmp.simd);
-				out[2] = tmp[0];
-			}
-		}
+		x86_vector_apply(out, v, [](auto v) { return x86_log10_pd(v); });
 	}
 #endif
 }	 // namespace sek::math::detail

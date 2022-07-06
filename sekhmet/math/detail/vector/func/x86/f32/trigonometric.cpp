@@ -111,7 +111,7 @@ namespace sek::math::detail
 		const auto sign = _mm_and_ps(v, sign_mask);
 
 		auto a = _mm_and_ps(v, abs_mask);			 /* a = |v| */
-		auto b = _mm_mul_ps(a, _mm_set1_ps(fopi_f)); /* b = abs * (4 / PI) */
+		auto b = _mm_mul_ps(a, _mm_set1_ps(fopi_f)); /* b = a * (4 / PI) */
 		auto c = _mm_cvttps_epi32(b);				 /* c = (int32) b */
 
 		/* c = (c + 1) & (~1) */
@@ -125,24 +125,24 @@ namespace sek::math::detail
 		a = x86_fmadd_ps(_mm_set1_ps(dp_f[0]), b, a); /* a = (dp_f[0] * b) + a */
 		a = x86_fmadd_ps(_mm_set1_ps(dp_f[1]), b, a); /* a = (dp_f[1] * b) + a */
 		a = x86_fmadd_ps(_mm_set1_ps(dp_f[2]), b, a); /* a = (dp_f[2] * b) + a */
-
-		/* b = a > 0.0001 ? poly(a, coscof_d) : a */
 		const auto a2 = _mm_mul_ps(a, a);
+
+		/* p = a > 0.0001 ? poly(a, coscof_d) : a */
 		auto p = _mm_mul_ps(x86_polevl_ps(a2, tancof_f), a2);	  /* p = tancof_f(a2) * a2 */
-		b = x86_blendv_ps(x86_fmadd_ps(p, a, a), a, select_mask); /* b = select_mask ? a : (p * a) : a */
+		p = x86_blendv_ps(x86_fmadd_ps(p, a, a), a, select_mask); /* p = select_mask ? a : (p * a) + a */
 
 		const auto bit2 = _mm_cmpeq_epi32(_mm_and_si128(c, _mm_set1_epi32(2)), _mm_set1_epi32(2));
 		const auto select1 = _mm_castsi128_ps(_mm_and_si128(bit2, cot_mask));	 /* select1 = (c & 2) && cot_mask */
 		const auto select2 = _mm_castsi128_ps(_mm_andnot_si128(cot_mask, bit2)); /* select2 = (c & 2) && !cot_mask */
 		const auto select3 = _mm_castsi128_ps(_mm_andnot_si128(bit2, cot_mask)); /* select3 = !(c & 2) && cot_mask */
-		const auto b1 = _mm_xor_ps(b, sign_mask);								 /* b1 = -b */
-		const auto b2 = _mm_div_ps(_mm_set1_ps(-1.0f), b);						 /* b2 = -1.0f/b */
-		const auto b3 = _mm_div_ps(_mm_set1_ps(1.0f), b);						 /* b2 = 1.0f/b */
+		const auto p1 = _mm_xor_ps(p, sign_mask);								 /* p1 = -p */
+		const auto p2 = _mm_div_ps(_mm_set1_ps(-1.0f), p);						 /* p2 = -1.0 / p */
+		const auto p3 = _mm_div_ps(_mm_set1_ps(1.0f), p);						 /* p3 = 1.0 / p */
 
-		auto result = x86_blendv_ps(b, b3, select3); /* result = select3 ? b3 : b */
-		result = x86_blendv_ps(result, b2, select2); /* result = select2 ? b2 : result */
-		result = x86_blendv_ps(result, b1, select1); /* result = select1 ? b1 : result */
-		return _mm_xor_ps(result, sign);
+		p = x86_blendv_ps(p, p3, select3); /* p = select3 ? p3 : p */
+		p = x86_blendv_ps(p, p2, select2); /* p = select2 ? p2 : result */
+		p = x86_blendv_ps(p, p1, select1); /* p = select1 ? p1 : result */
+		return _mm_xor_ps(p, sign);
 	}
 	__m128 x86_tan_ps(__m128 v) noexcept { return x86_tancot_ps(v, _mm_setzero_si128()); }
 	__m128 x86_cot_ps(__m128 v) noexcept { return x86_tancot_ps(v, _mm_set1_epi32(-1)); }

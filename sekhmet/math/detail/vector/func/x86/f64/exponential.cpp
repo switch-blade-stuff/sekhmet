@@ -169,7 +169,7 @@ namespace sek::math::detail
 		return _mm_or_pd(p, nan_mask);				   /* return p | nan_mask */
 	}
 
-	static const double log10p_d[] = {
+	static const double log10p_d[7] = {
 		4.58482948458143443514e-5,
 		4.98531067254050724270e-1,
 		6.56312093769992875930e0,
@@ -178,7 +178,7 @@ namespace sek::math::detail
 		5.67349287391754285487e1,
 		1.98892446572874072159e1,
 	};
-	static const double log10q_d[] = {
+	static const double log10q_d[6] = {
 		1.50314182634250003249e1,
 		8.27410449222435217021e1,
 		2.20664384982121929218e2,
