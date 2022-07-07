@@ -20,6 +20,7 @@ namespace sek::math
 	public:
 		typedef T value_type;
 		typedef basic_vec<T, 4, Policy> vector_type;
+		typedef vec_mask<vector_type> mask_type;
 
 		constexpr static auto policy = Policy;
 
@@ -31,6 +32,9 @@ namespace sek::math
 		/** Converts a rotation matrix to quaternion rotation. */
 		template<typename U = T, std::size_t N = 3, std::size_t M = 3, policy_t P = Policy>
 		[[nodiscard]] constexpr static basic_quat from_mat(const basic_mat<U, N, M, P> &m) noexcept requires(N >= 3 && M >= 3);
+		/** Creates a quaternion from a rotation andle and an axis. */
+		template<typename U = T, std::size_t N = 3, policy_t P = Policy>
+		[[nodiscard]] constexpr static basic_quat from_angle_axis(U angle, const basic_vec<U, N, P> &axis) noexcept requires(N >= 3);
 		// clang-format on
 
 	public:
@@ -107,6 +111,18 @@ namespace sek::math
 		/** Converts the quaternion to a matrix rotation. */
 		template<std::size_t N = 3, std::size_t M = 3, policy_t P = Policy>
 		[[nodiscard]] constexpr basic_mat<T, N, M, P> to_mat() const noexcept requires(N >= 3 && M >= 3);
+
+		/** Returns quaternion rotation angle. */
+		[[nodiscard]] constexpr T angle() const noexcept;
+		/** Returns quaternion rotation axis. */
+		template<std::size_t N = 3, policy_t P = Policy>
+		[[nodiscard]] constexpr basic_vec<T, N, P> axis() const noexcept;
+
+		/* Rotates a quaternion from a vector of 3 components axis and an angle.
+		 * @param angle Angle of the rotation.
+		 * @param axis Axis of the rotation */
+		template<std::size_t N = 3, policy_t P = Policy>
+		constexpr basic_quat &rotate(T angle, const basic_vec<T, N, P> &axis) noexcept requires(N >= 3);
 		// clang-format on
 
 		[[nodiscard]] constexpr auto operator==(const basic_quat &other) const noexcept
@@ -247,6 +263,65 @@ namespace sek::math
 								 static_cast<T>(2) * (c.z() - d.x()),
 								 static_cast<T>(1) - (b.x() + b.y()) * static_cast<T>(2)};
 		return mat_type{c0, c1, c2};
+	}
+
+	template<std::floating_point T, policy_t P>
+	template<typename U, std::size_t N, policy_t Q>
+	constexpr basic_quat<T, P> basic_quat<T, P>::from_angle_axis(U angle, const basic_vec<U, N, Q> &axis) noexcept
+		requires(N >= 3)
+	{
+		const auto half_angle = angle * static_cast<T>(0.5);
+		const auto s = std::sin(half_angle);
+		const auto c = std::cos(half_angle);
+		const auto v = axis * s;
+		return basic_quat<T, P>(v.x(), v.y(), v.z(), c);
+	}
+	template<std::floating_point T, policy_t P>
+	constexpr T basic_quat<T, P>::angle() const noexcept
+	{
+		constexpr auto cos1o2 = static_cast<T>(0.877582561890372716130286068203503191); /* cos(1/2) */
+		if (std::abs(w()) > cos1o2)
+		{
+			const auto v = basic_vec<T, 3, policy_t::FAST_SIMD>{vector().xyz()};
+			const auto a = std::asin(magn(v)) * static_cast<T>(2);
+			if (w() < static_cast<T>(0))
+				return std::numbers::pi_v<T> * static_cast<T>(2) - a;
+			else
+				return a;
+		}
+		else
+			return std::acos(w()) * static_cast<T>(2);
+	}
+	template<std::floating_point T, policy_t P>
+	template<std::size_t N, policy_t Q>
+	constexpr basic_vec<T, N, Q> basic_quat<T, P>::axis() const noexcept
+	{
+		if (const auto a = static_cast<T>(1) - w() * w(); a <= static_cast<T>(0))
+			return basic_vec<T, N, Q>{0, 0, 1};
+		else
+		{
+			const auto v = basic_vec<T, 3, policy_t::FAST_SIMD>{vector().xyz()};
+			const auto b = static_cast<T>(1) / std::sqrt(a);
+			return basic_vec<T, N, Q>{v * b};
+		}
+	}
+
+	template<std::floating_point T, policy_t P>
+	template<std::size_t N, policy_t Q>
+	constexpr basic_quat<T, P> &basic_quat<T, P>::rotate(T angle, const basic_vec<T, N, Q> &axis) noexcept
+		requires(N >= 3)
+	{
+		auto tmp = basic_vec<T, 4, policy_t::FAST_SIMD>{axis};
+
+		/* Axis must be normalised */
+		if (const auto len = length(tmp); abs(len - static_cast<T>(1)) > static_cast<T>(0.001)) [[unlikely]]
+			tmp *= static_cast<T>(1) / len;
+
+		const auto half_angle = angle * static_cast<T>(0.5);
+		tmp *= std::sin(half_angle);
+		tmp.w() = std::cos(half_angle);
+
+		return basic_quat<T, P>{vector() * tmp};
 	}
 
 	/** Shuffles elements of a quaternion according to the provided indices.
