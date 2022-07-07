@@ -1218,17 +1218,21 @@ TEST(math_tests, quaternion_test)
 		EXPECT_TRUE(all(fcmp_eq(e1, rot1, 0.0001f)));
 
 		const auto m1 = q1.to_mat();
-		auto q2 = sek::math::fquat::from_mat(m1);
+		const auto q2 = sek::math::fquat::from_mat(m1);
 		EXPECT_TRUE(all(fcmp_eq(q1, q2, 0.0001f)));
 
 		const auto e2 = deg(q1.to_euler());
 		const auto e3 = deg(q2.to_euler());
 		EXPECT_TRUE(all(fcmp_eq(e2, e1, 0.0001f)));
 		EXPECT_TRUE(all(fcmp_eq(e3, e1, 0.0001f)));
+	}
+	{
+		const auto rot1 = sek::math::fvec3{60, 30, 90};
+		const auto q1 = sek::math::fquat::from_euler(rad(rot1));
 
 		const auto u1 = q1.angle();
 		const auto a1 = q1.axis();
-		q2 = sek::math::fquat::from_angle_axis(u1, a1);
+		const auto q2 = sek::math::fquat::from_angle_axis(u1, a1);
 		EXPECT_TRUE(all(fcmp_eq(q1, q2, 0.0001f)));
 
 		const auto u2 = q2.angle();
