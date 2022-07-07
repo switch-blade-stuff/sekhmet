@@ -6,8 +6,9 @@
 
 #include <iostream>
 
-#include "common.hpp"
 #include "sekhmet/detail/bswap.hpp"
+
+#include "common.hpp"
 
 namespace sek::serialization::ubj
 {
@@ -17,7 +18,7 @@ namespace sek::serialization::ubj
 	{
 		using namespace sek::serialization::detail;
 
-		using base_archive = json_archive_base<char, container_types | char_value>;
+		using base_archive = json_archive_base<char, std::char_traits<char>, container_types | char_value>;
 
 		enum token_t : std::int8_t
 		{
@@ -466,7 +467,7 @@ namespace sek::serialization::ubj
 	class basic_output_archive : detail::base_archive
 	{
 		using base_t = detail::base_archive;
-		using entry_type = typename base_t::entry_type;
+		using entry_type = typename base_t::tree_type::type_selector;
 
 	public:
 		typedef typename base_t::write_frame archive_frame;
@@ -495,7 +496,7 @@ namespace sek::serialization::ubj
 			struct frame_t
 			{
 				void (*emit_type_token)(ubj_writer *, detail::token_t);
-				entry_type value_type = entry_type::NO_TYPE;
+				entry_type value_type = {};
 			};
 
 			static void emit_fixed_type(ubj_writer *, detail::token_t) {}
@@ -503,30 +504,34 @@ namespace sek::serialization::ubj
 
 			constexpr static detail::token_t get_type_token(entry_type type) noexcept
 			{
-				switch (type)
-				{
-					case entry_type::NULL_VALUE: return detail::token_t::NULL_ENTRY;
-					case entry_type::BOOL_FALSE: return detail::token_t::BOOL_FALSE;
-					case entry_type::BOOL_TRUE: return detail::token_t::BOOL_TRUE;
-					case entry_type::CHAR: return detail::token_t::CHAR;
+				if (type.storage == entry_type::ARRAY)
+					return detail::token_t::ARRAY_START;
+				else if (type.storage == entry_type::TABLE)
+					return detail::token_t::OBJECT_START;
+				else if (type.storage == entry_type::VALUE)
+					switch (type.value)
+					{
+						case detail::json_type::NULL_VALUE: return detail::token_t::NULL_ENTRY;
+						case detail::json_type::BOOL_FALSE: return detail::token_t::BOOL_FALSE;
+						case detail::json_type::BOOL_TRUE: return detail::token_t::BOOL_TRUE;
+						case detail::json_type::CHAR: return detail::token_t::CHAR;
 
-					case entry_type::INT_S8: return detail::token_t::INT8;
-					case entry_type::INT_U8: return detail::token_t::UINT8;
-					case entry_type::INT_S16: [[fallthrough]];
-					case entry_type::INT_U16: return detail::token_t::INT16;
-					case entry_type::INT_S32: [[fallthrough]];
-					case entry_type::INT_U32: return detail::token_t::INT32;
-					case entry_type::INT_S64: [[fallthrough]];
-					case entry_type::INT_U64: return detail::token_t::INT64;
+						case detail::json_type::INT_S8: return detail::token_t::INT8;
+						case detail::json_type::INT_U8: return detail::token_t::UINT8;
+						case detail::json_type::INT_S16: [[fallthrough]];
+						case detail::json_type::INT_U16: return detail::token_t::INT16;
+						case detail::json_type::INT_S32: [[fallthrough]];
+						case detail::json_type::INT_U32: return detail::token_t::INT32;
+						case detail::json_type::INT_S64: [[fallthrough]];
+						case detail::json_type::INT_U64: return detail::token_t::INT64;
 
-					case entry_type::FLOAT32: return detail::token_t::FLOAT32;
-					case entry_type::FLOAT64: return detail::token_t::FLOAT64;
+						case detail::json_type::FLOAT32: return detail::token_t::FLOAT32;
+						case detail::json_type::FLOAT64: return detail::token_t::FLOAT64;
 
-					case entry_type::STRING: return detail::token_t::STRING;
-					case entry_type::ARRAY: return detail::token_t::ARRAY_START;
-					case entry_type::OBJECT: return detail::token_t::OBJECT_START;
-					default: [[unlikely]] return detail::token_t::INVALID;
-				}
+						case detail::json_type::STRING: return detail::token_t::STRING;
+						default: break;
+					}
+				return detail::token_t::INVALID;
 			}
 
 			constexpr explicit emitter_spec12(ubj_writer *writer) noexcept : m_writer(writer) {}
@@ -589,7 +594,7 @@ namespace sek::serialization::ubj
 			{
 				m_frame.emit_type_token = emit_dynamic_type;
 				if constexpr ((Config & fixed_type) == fixed_type)
-					if ((m_frame.value_type = value_type) != entry_type::DYNAMIC)
+					if ((m_frame.value_type = value_type).storage != entry_type::DYNAMIC)
 					{
 						m_writer->write_token(detail::token_t::CONTAINER_TYPE);
 						m_writer->write_token(get_type_token(value_type));
@@ -611,38 +616,38 @@ namespace sek::serialization::ubj
 				emit_literal(value);
 			}
 
-			[[nodiscard]] entry_type current_int_type(entry_type type) const noexcept
+			[[nodiscard]] detail::json_type current_int_type(detail::json_type type) const noexcept
 			{
 				if constexpr ((Config & fixed_type) == fixed_type)
-					return m_frame.value_type & entry_type::INT_MASK ? m_frame.value_type : type;
+					return m_frame.value_type.value & detail::json_type::INT_TYPE ? m_frame.value_type.value : type;
 				else
 					return type;
 			}
-			void on_int(entry_type type, std::intmax_t value) { on_uint(type, static_cast<std::uintmax_t>(value)); }
-			void on_uint(entry_type type, std::uintmax_t value)
+			void on_int(detail::json_type type, std::intmax_t value) { on_uint(type, static_cast<std::uintmax_t>(value)); }
+			void on_uint(detail::json_type type, std::uintmax_t value)
 			{
 				switch (current_int_type(type))
 				{
-					case entry_type::INT_U8:
+					case detail::json_type::INT_U8:
 						emit_type(detail::token_t::UINT8);
 						emit_literal(static_cast<std::uint8_t>(value));
 						break;
-					case entry_type::INT_S8:
+					case detail::json_type::INT_S8:
 						emit_type(detail::token_t::INT8);
 						emit_literal(static_cast<std::int8_t>(value));
 						break;
-					case entry_type::INT_U16:
-					case entry_type::INT_S16:
+					case detail::json_type::INT_U16:
+					case detail::json_type::INT_S16:
 						emit_type(detail::token_t::INT16);
 						emit_literal(static_cast<std::int16_t>(value));
 						break;
-					case entry_type::INT_U32:
-					case entry_type::INT_S32:
+					case detail::json_type::INT_U32:
+					case detail::json_type::INT_S32:
 						emit_type(detail::token_t::INT32);
 						emit_literal(static_cast<std::int32_t>(value));
 						break;
-					case entry_type::INT_U64:
-					case entry_type::INT_S64:
+					case detail::json_type::INT_U64:
+					case detail::json_type::INT_S64:
 						emit_type(detail::token_t::INT64);
 						emit_literal(static_cast<std::int64_t>(value));
 						break;

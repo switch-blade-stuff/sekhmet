@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "sekhmet/detail/static_string.hpp"
+
 #include "archive_traits.hpp"
 #include "base64.hpp"
 #include "types/traits.hpp"
@@ -36,20 +38,26 @@ namespace sek::serialization::detail
 		return category;
 	}
 
-	template<typename C>
-	[[nodiscard]] std::basic_string_view<C> generate_key(auto &alloc, std::basic_string_view<C> key)
+	template<std::size_t I, basic_static_string Str, typename C, std::size_t N, typename T>
+	[[nodiscard]] constexpr auto conv_prefix(basic_static_string<C, N, T> to) noexcept
 	{
-		auto str = static_cast<C *>(alloc.allocate((key.size() + 1) * sizeof(C)));
-		if (!str) [[unlikely]]
-			throw std::bad_cast();
-		*std::copy_n(key.data(), key.size(), str) = '\0';
-		return {str, key.size()};
+		if constexpr (I < Str.size())
+		{
+			to[I] = Str[I];
+			return conv_prefix<I + 1, Str>(to);
+		}
+		else
+			return to;
 	}
-	template<typename C>
-	[[nodiscard]] std::basic_string_view<C> generate_key(auto &alloc, std::size_t idx)
+	template<typename C, typename T, basic_static_string Str>
+	[[nodiscard]] constexpr auto conv_prefix() noexcept
 	{
-		constexpr C prefix[] = "__";
-		constexpr auto prefix_size = SEK_ARRAY_SIZE(prefix) - 1;
+		return conv_prefix<0, Str>(basic_static_string<C, Str.size(), T>{});
+	}
+	template<typename C, typename T = std::char_traits<C>, basic_static_string Prefix>
+	[[nodiscard]] std::basic_string_view<C, T> generate_key(auto &alloc, std::size_t idx)
+	{
+		constexpr auto prefix = conv_prefix<C, T, Prefix>();
 
 		/* Format the current index into the buffer. */
 		C buffer[20];
@@ -60,13 +68,13 @@ namespace sek::serialization::detail
 			if (!(idx = idx / 10)) break;
 		}
 
-		auto key_size = SEK_ARRAY_SIZE(buffer) - i + prefix_size;
+		auto key_size = SEK_ARRAY_SIZE(buffer) - i + prefix.size();
 		auto key_str = static_cast<C *>(alloc.allocate((key_size + 1) * sizeof(C)));
 		if (!key_str) [[unlikely]]
 			throw std::bad_cast();
 
-		std::copy_n(prefix, SEK_ARRAY_SIZE(prefix) - 1, key_str);					   /* Copy prefix. */
-		std::copy(buffer + i, buffer + SEK_ARRAY_SIZE(buffer), key_str + prefix_size); /* Copy digits. */
+		std::copy_n(prefix.data(), prefix.size(), key_str);								 /* Copy prefix. */
+		std::copy(buffer + i, buffer + SEK_ARRAY_SIZE(buffer), key_str + prefix.size()); /* Copy digits. */
 		key_str[key_size] = '\0';
 
 		return {key_str, key_size};

@@ -251,7 +251,7 @@ namespace sek::serialization::json
 		void parse(rj_reader reader)
 		{
 			rj_event_handler handler{*this};
-			detail::rj_allocator allocator{base_t::m_upstream};
+			detail::rj_allocator allocator{base_t::upstream};
 			rj_parser parser{&allocator};
 
 			constexpr unsigned parse_flags =
@@ -336,7 +336,7 @@ namespace sek::serialization::json
 		{
 			struct frame_t
 			{
-				std::size_t size;
+				std::size_t size = 0;
 			};
 
 			rj_emitter(rj_writer &writer, detail::rj_allocator &allocator) : rj_emitter_base(writer, &allocator)
@@ -351,25 +351,25 @@ namespace sek::serialization::json
 
 			SEK_FORCE_INLINE void on_null() { rj_emitter_base::Null(); }
 			SEK_FORCE_INLINE void on_bool(bool b) { rj_emitter_base::Bool(b); }
-			SEK_FORCE_INLINE void on_int(entry_type type, std::intmax_t value)
+			SEK_FORCE_INLINE void on_int(detail::json_type type, std::intmax_t value)
 			{
 				switch (type)
 				{
-					case entry_type::INT_S8:
-					case entry_type::INT_S16:
-					case entry_type::INT_S32: rj_emitter_base::Int(static_cast<int>(value)); break;
-					case entry_type::INT_S64: rj_emitter_base::Int64(static_cast<std::int64_t>(value)); break;
+					case detail::json_type::INT_S8:
+					case detail::json_type::INT_S16:
+					case detail::json_type::INT_S32: rj_emitter_base::Int(static_cast<int>(value)); break;
+					case detail::json_type::INT_S64: rj_emitter_base::Int64(static_cast<std::int64_t>(value)); break;
 					default: [[unlikely]] SEK_NEVER_REACHED;
 				}
 			}
-			SEK_FORCE_INLINE void on_uint(entry_type type, std::uintmax_t value)
+			SEK_FORCE_INLINE void on_uint(detail::json_type type, std::uintmax_t value)
 			{
 				switch (type)
 				{
-					case entry_type::INT_U8:
-					case entry_type::INT_U16:
-					case entry_type::INT_U32: rj_emitter_base::Uint(static_cast<unsigned>(value)); break;
-					case entry_type::INT_U64: rj_emitter_base::Uint64(static_cast<std::uint64_t>(value)); break;
+					case detail::json_type::INT_U8:
+					case detail::json_type::INT_U16:
+					case detail::json_type::INT_U32: rj_emitter_base::Uint(static_cast<unsigned>(value)); break;
+					case detail::json_type::INT_U64: rj_emitter_base::Uint64(static_cast<std::uint64_t>(value)); break;
 					default: [[unlikely]] SEK_NEVER_REACHED;
 				}
 			}
@@ -379,13 +379,13 @@ namespace sek::serialization::json
 			{
 				rj_emitter_base::String(str, static_cast<unsigned>(size));
 			}
-			SEK_FORCE_INLINE void on_array_start(std::size_t size, entry_type)
+			SEK_FORCE_INLINE void on_array_start(std::size_t size, auto)
 			{
 				frame.size = size;
 				rj_emitter_base::StartArray();
 			}
 			SEK_FORCE_INLINE void on_array_end() { rj_emitter_base::EndArray(static_cast<unsigned>(frame.size)); }
-			SEK_FORCE_INLINE void on_object_start(std::size_t size, entry_type)
+			SEK_FORCE_INLINE void on_object_start(std::size_t size, auto)
 			{
 				frame.size = size;
 				rj_emitter_base::StartObject();
@@ -525,7 +525,7 @@ namespace sek::serialization::json
 	private:
 		void flush_impl()
 		{
-			detail::rj_allocator allocator{base_t::m_upstream};
+			detail::rj_allocator allocator{base_t::upstream};
 			rj_emitter emitter{m_writer, allocator};
 			base_t::do_flush(emitter);
 		}
