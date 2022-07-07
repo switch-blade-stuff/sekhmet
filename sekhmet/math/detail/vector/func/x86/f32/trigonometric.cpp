@@ -104,7 +104,7 @@ namespace sek::math::detail
 		3.33331568548e-1f,
 	};
 
-	__m128 x86_tancot_ps(__m128 v, __m128i cot_mask) noexcept
+	inline static __m128 x86_tancot_ps(__m128 v, __m128i cot_mask) noexcept
 	{
 		const auto sign_mask = _mm_set1_ps(std::bit_cast<float>(0x8000'0000));
 		const auto abs_mask = _mm_set1_ps(std::bit_cast<float>(0x7fff'ffff));

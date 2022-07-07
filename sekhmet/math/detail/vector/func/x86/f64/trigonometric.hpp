@@ -56,5 +56,64 @@ namespace sek::math::detail
 	{
 		x86_vector_apply(out, v, x86_cosh_pd);
 	}
+
+	SEK_API __m128d x86_tanh_pd(__m128d v) noexcept;
+
+	template<std::size_t N, policy_t P>
+	inline void vector_tanh(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
+		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
+	{
+		x86_vector_apply(out, v, x86_tanh_pd);
+	}
+
+	SEK_API __m128d x86_asin_pd(__m128d v) noexcept;
+	SEK_API __m128d x86_acos_pd(__m128d v) noexcept;
+
+	template<std::size_t N, policy_t P>
+	inline void vector_asin(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
+		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
+	{
+		x86_vector_apply(out, v, x86_asin_pd);
+	}
+	template<std::size_t N, policy_t P>
+	inline void vector_acos(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
+		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
+	{
+		x86_vector_apply(out, v, x86_acos_pd);
+	}
+
+	SEK_API __m128d x86_atan_pd(__m128d v) noexcept;
+
+	template<std::size_t N, policy_t P>
+	inline void vector_atan(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
+		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
+	{
+		x86_vector_apply(out, v, x86_atan_pd);
+	}
+
+	SEK_API __m128d x86_asinh_pd(__m128d v) noexcept;
+	SEK_API __m128d x86_acosh_pd(__m128d v) noexcept;
+
+	template<std::size_t N, policy_t P>
+	inline void vector_asinh(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
+		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
+	{
+		x86_vector_apply(out, v, x86_asinh_pd);
+	}
+	template<std::size_t N, policy_t P>
+	inline void vector_acosh(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
+		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
+	{
+		x86_vector_apply(out, v, x86_acosh_pd);
+	}
+
+	SEK_API __m128d x86_atanh_pd(__m128d v) noexcept;
+
+	template<std::size_t N, policy_t P>
+	inline void vector_atanh(vector_data<double, N, P> &out, const vector_data<double, N, P> &v) noexcept
+		requires check_policy_v<P, policy_t::PRECISION_MASK, policy_t::FAST>
+	{
+		x86_vector_apply(out, v, x86_atanh_pd);
+	}
 }	 // namespace sek::math::detail
 #endif
