@@ -4,9 +4,7 @@
 
 #pragma once
 
-#include "detail/quaterion/category.hpp"
-#include "detail/quaterion/relational.hpp"
-#include "detail/quaterion/type.hpp"
+#include "detail/quaternion.hpp"
 
 namespace sek::math
 {
