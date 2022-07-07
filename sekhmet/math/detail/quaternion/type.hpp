@@ -10,7 +10,7 @@
 #include "../vector.hpp"
 #include "fwd.hpp"
 
-#define SEK_QUATERNION_GENERATE_SHUFFLE(...) SEK_DETAIL_SHUFFLE_4_FUNCS(SEK_DETAIL_V_TYPE, __VA_ARGS__)
+#define SEK_QUATERNION_GENERATE_SHUFFLE(...) SEK_DETAIL_SHUFFLE_4_FUNCS(__VA_ARGS__)
 
 namespace sek::math
 {

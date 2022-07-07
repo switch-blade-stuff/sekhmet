@@ -20,10 +20,10 @@ private:                                                                        
 	using data_t = detail::mask_data_t<T, N, P>;                                                                       \
 	data_t m_data = {};                                                                                                \
                                                                                                                        \
-	template<typename U, std::size_t M, policy_t Q>                                                                   \
-	friend constexpr sek::hash_t hash(const vec_mask<basic_vec<U, M, Q>> &) noexcept;                                 \
-	template<typename U, std::size_t M, policy_t Q>                                                                   \
-	friend constexpr void swap(vec_mask<basic_vec<U, M, Q>> &, vec_mask<basic_vec<U, M, Q>> &) noexcept;             \
+	template<typename U, std::size_t M, policy_t Q>                                                                    \
+	friend constexpr sek::hash_t hash(const vec_mask<basic_vec<U, M, Q>> &) noexcept;                                  \
+	template<typename U, std::size_t M, policy_t Q>                                                                    \
+	friend constexpr void swap(vec_mask<basic_vec<U, M, Q>> &, vec_mask<basic_vec<U, M, Q>> &) noexcept;               \
                                                                                                                        \
 	SEK_DETAIL_FRIEND_UTILITY                                                                                          \
 	SEK_DETAIL_FRIEND_RELATIONAL                                                                                       \
@@ -37,9 +37,9 @@ public:                                                                         
                                                                                                                        \
 	constexpr vec_mask() noexcept = default;                                                                           \
                                                                                                                        \
-	template<std::convertible_to<T> U, std::size_t M, policy_t Q>                                                     \
-	constexpr explicit vec_mask(const vec_mask<basic_vec<U, M, Q>> &other) noexcept                                   \
-		requires(!std::same_as<T, U> || M != N || Q != P)                                                             \
+	template<std::convertible_to<T> U, std::size_t M, policy_t Q>                                                      \
+	constexpr explicit vec_mask(const vec_mask<basic_vec<U, M, Q>> &other) noexcept                                    \
+		requires(!std::same_as<T, U> || M != N || Q != P)                                                              \
 	{                                                                                                                  \
 		for (std::size_t i = 0; i < min(M, N); ++i) m_data[i] = other.m_data[i];                                       \
 	}                                                                                                                  \
@@ -63,24 +63,16 @@ public:                                                                         
 		m_data.swap(other.m_data);                                                                                     \
 	}
 
-#define SEK_DETAIL_M_TYPE(Extent) vec_mask<basic_vec<T, Extent, Policy>>
-#define SEK_DETAIL_M_SHUFFLE_2(x, y) SEK_DETAIL_SHUFFLE_2(SEK_DETAIL_M_TYPE, x, y)
-#define SEK_DETAIL_M_SHUFFLE_3(x, y, z) SEK_DETAIL_SHUFFLE_3(SEK_DETAIL_M_TYPE, x, y, z)
-#define SEK_DETAIL_M_SHUFFLE_4(x, y, z, w) SEK_DETAIL_SHUFFLE_4(SEK_DETAIL_M_TYPE, x, y, z, w)
-#define SEK_VECTOR_MASK_GENERATE_SHUFFLE(x, ...)                                                                       \
-	SEK_GET_MACRO_3(__VA_ARGS__, SEK_DETAIL_M_SHUFFLE_4, SEK_DETAIL_M_SHUFFLE_3, SEK_DETAIL_M_SHUFFLE_2)               \
-	(x, __VA_ARGS__)
-
 #define SEK_DETAIL_VECTOR_COMMON(T, N, P)                                                                              \
 private:                                                                                                               \
 	using data_t = detail::vector_data_t<T, N, P>;                                                                     \
 	using mask_t = vec_mask<basic_vec>;                                                                                \
 	data_t m_data = {};                                                                                                \
                                                                                                                        \
-	template<typename U, std::size_t M, policy_t Q>                                                                   \
-	friend constexpr sek::hash_t hash(const basic_vec<U, M, Q> &) noexcept;                                           \
-	template<typename U, std::size_t M, policy_t Q>                                                                   \
-	friend constexpr void swap(basic_vec<U, M, Q> &, basic_vec<U, M, Q> &) noexcept;                                 \
+	template<typename U, std::size_t M, policy_t Q>                                                                    \
+	friend constexpr sek::hash_t hash(const basic_vec<U, M, Q> &) noexcept;                                            \
+	template<typename U, std::size_t M, policy_t Q>                                                                    \
+	friend constexpr void swap(basic_vec<U, M, Q> &, basic_vec<U, M, Q> &) noexcept;                                   \
                                                                                                                        \
 	SEK_DETAIL_FRIEND_UTILITY                                                                                          \
 	SEK_DETAIL_FRIEND_RELATIONAL                                                                                       \
@@ -127,12 +119,8 @@ public:                                                                         
 		m_data.swap(other.m_data);                                                                                     \
 	}
 
-#define SEK_DETAIL_V_TYPE(Extent) basic_vec<T, Extent, Policy>
-#define SEK_DETAIL_V_SHUFFLE_2(x, y) SEK_DETAIL_SHUFFLE_2(SEK_DETAIL_V_TYPE, x, y)
-#define SEK_DETAIL_V_SHUFFLE_3(x, y, z) SEK_DETAIL_SHUFFLE_3(SEK_DETAIL_V_TYPE, x, y, z)
-#define SEK_DETAIL_V_SHUFFLE_4(x, y, z, w) SEK_DETAIL_SHUFFLE_4(SEK_DETAIL_V_TYPE, x, y, z, w)
 #define SEK_VECTOR_GENERATE_SHUFFLE(x, ...)                                                                            \
-	SEK_GET_MACRO_3(__VA_ARGS__, SEK_DETAIL_V_SHUFFLE_4, SEK_DETAIL_V_SHUFFLE_3, SEK_DETAIL_V_SHUFFLE_2)               \
+	SEK_GET_MACRO_3(__VA_ARGS__, SEK_DETAIL_SHUFFLE_4, SEK_DETAIL_SHUFFLE_3, SEK_DETAIL_SHUFFLE_2)                     \
 	(x, __VA_ARGS__)
 
 namespace sek::math
@@ -165,7 +153,7 @@ namespace sek::math
 		[[nodiscard]] constexpr decltype(auto) y() noexcept { return m_data[1]; }
 		[[nodiscard]] constexpr decltype(auto) y() const noexcept { return m_data[1]; }
 
-		SEK_VECTOR_MASK_GENERATE_SHUFFLE(x, y)
+		SEK_VECTOR_GENERATE_SHUFFLE(x, y)
 	};
 	template<typename T, policy_t Policy>
 	class vec_mask<basic_vec<T, 3, Policy>>
@@ -188,7 +176,7 @@ namespace sek::math
 		[[nodiscard]] constexpr decltype(auto) z() noexcept { return m_data[2]; }
 		[[nodiscard]] constexpr decltype(auto) z() const noexcept { return m_data[2]; }
 
-		SEK_VECTOR_MASK_GENERATE_SHUFFLE(x, y, z)
+		SEK_VECTOR_GENERATE_SHUFFLE(x, y, z)
 	};
 	template<typename T, policy_t Policy>
 	class vec_mask<basic_vec<T, 4, Policy>>
@@ -214,7 +202,7 @@ namespace sek::math
 		[[nodiscard]] constexpr decltype(auto) w() noexcept { return m_data[3]; }
 		[[nodiscard]] constexpr decltype(auto) w() const noexcept { return m_data[3]; }
 
-		SEK_VECTOR_MASK_GENERATE_SHUFFLE(x, y, z, w)
+		SEK_VECTOR_GENERATE_SHUFFLE(x, y, z, w)
 	};
 
 	template<typename U, std::size_t M, policy_t Q>
