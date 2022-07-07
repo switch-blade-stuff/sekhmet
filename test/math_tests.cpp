@@ -1211,22 +1211,21 @@ TEST(math_tests, matrix_test)
 TEST(math_tests, quaternion_test)
 {
 	{
-		//		const auto rot1 = sek::math::fvec3{60, 30, 90};
-		//
-		//		const auto q1 = sek::math::fquat::from_euler(rad(rot1));
-		//		EXPECT_EQ(sek::math::deg(q1.pitch()), rot1.x());
-		//		EXPECT_EQ(sek::math::deg(q1.yaw()), rot1.y());
-		//		EXPECT_EQ(sek::math::deg(q1.roll()), rot1.z());
-		//
-		//		const auto m1 = q1.to_matrix();
-		//		const auto q2 = sek::math::fquat::from_matrix(m1);
-		//		EXPECT_EQ(q1, q2);
-		//
-		//		const auto rot2 = q1.to_euler();
-		//		const auto rot3 = q2.to_euler();
-		//
-		//		EXPECT_EQ(rot2, rot1);
-		//		EXPECT_EQ(rot3, rot1);
+		const auto rot1 = sek::math::fvec3{60, 30, 90};
+
+		const auto q1 = sek::math::fquat::from_euler(rad(rot1));
+		const auto e1 = sek::math::deg(q1.to_euler());
+		EXPECT_TRUE(all(fcmp_eq(e1, rot1, 0.0001f)));
+
+		const auto m1 = q1.to_mat();
+		const auto q2 = sek::math::fquat::from_mat(m1);
+		EXPECT_TRUE(all(fcmp_eq(q1, q2, 0.0001f)));
+
+		const auto e2 = deg(q1.to_euler());
+		const auto e3 = deg(q2.to_euler());
+
+		EXPECT_TRUE(all(fcmp_eq(e2, e1, 0.0001f)));
+		EXPECT_TRUE(all(fcmp_eq(e3, e1, 0.0001f)));
 	}
 }
 

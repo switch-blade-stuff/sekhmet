@@ -7,87 +7,87 @@
 #include "../../fwd.hpp"
 
 #define SEK_DETAIL_FRIEND_TRIGONOMETRIC                                                                                \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> sin(const basic_vec<U, M, Sp> &) noexcept;                                    \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> cos(const basic_vec<U, M, Sp> &) noexcept;                                    \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> tan(const basic_vec<U, M, Sp> &) noexcept;                                    \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> cot(const basic_vec<U, M, Sp> &) noexcept;                                    \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> sin(const basic_vec<U, M, Q> &) noexcept;                                    \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> cos(const basic_vec<U, M, Q> &) noexcept;                                    \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> tan(const basic_vec<U, M, Q> &) noexcept;                                    \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> cot(const basic_vec<U, M, Q> &) noexcept;                                    \
                                                                                                                        \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> asin(const basic_vec<U, M, Sp> &) noexcept;                                   \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> acos(const basic_vec<U, M, Sp> &) noexcept;                                   \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> atan(const basic_vec<U, M, Sp> &) noexcept;                                   \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> acot(const basic_vec<U, M, Sp> &) noexcept;                                   \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> asin(const basic_vec<U, M, Q> &) noexcept;                                   \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> acos(const basic_vec<U, M, Q> &) noexcept;                                   \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> atan(const basic_vec<U, M, Q> &) noexcept;                                   \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> acot(const basic_vec<U, M, Q> &) noexcept;                                   \
                                                                                                                        \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> sinh(const basic_vec<U, M, Sp> &) noexcept;                                   \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> cosh(const basic_vec<U, M, Sp> &) noexcept;                                   \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> tanh(const basic_vec<U, M, Sp> &) noexcept;                                   \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> coth(const basic_vec<U, M, Sp> &) noexcept;                                   \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> sinh(const basic_vec<U, M, Q> &) noexcept;                                   \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> cosh(const basic_vec<U, M, Q> &) noexcept;                                   \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> tanh(const basic_vec<U, M, Q> &) noexcept;                                   \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> coth(const basic_vec<U, M, Q> &) noexcept;                                   \
                                                                                                                        \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> asinh(const basic_vec<U, M, Sp> &) noexcept;                                  \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> acosh(const basic_vec<U, M, Sp> &) noexcept;                                  \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> atanh(const basic_vec<U, M, Sp> &) noexcept;                                  \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> acoth(const basic_vec<U, M, Sp> &) noexcept;                                  \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> asinh(const basic_vec<U, M, Q> &) noexcept;                                  \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> acosh(const basic_vec<U, M, Q> &) noexcept;                                  \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> atanh(const basic_vec<U, M, Q> &) noexcept;                                  \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> acoth(const basic_vec<U, M, Q> &) noexcept;                                  \
                                                                                                                        \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> rad(const basic_vec<U, M, Sp> &) noexcept;                                    \
-	template<typename U, std::size_t M, policy_t Sp>                                                             \
-	friend constexpr basic_vec<U, M, Sp> deg(const basic_vec<U, M, Sp> &) noexcept;
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> rad(const basic_vec<U, M, Q> &) noexcept;                                    \
+	template<typename U, std::size_t M, policy_t Q>                                                             \
+	friend constexpr basic_vec<U, M, Q> deg(const basic_vec<U, M, Q> &) noexcept;
 
 namespace sek::math
 {
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> sin(const basic_vec<U, M, Sp> &v) noexcept;
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> cos(const basic_vec<U, M, Sp> &v) noexcept;
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> tan(const basic_vec<U, M, Sp> &v) noexcept;
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> cot(const basic_vec<U, M, Sp> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> sin(const basic_vec<U, M, Q> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> cos(const basic_vec<U, M, Q> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> tan(const basic_vec<U, M, Q> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> cot(const basic_vec<U, M, Q> &v) noexcept;
 
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> asin(const basic_vec<U, M, Sp> &v) noexcept;
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> acos(const basic_vec<U, M, Sp> &v) noexcept;
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> atan(const basic_vec<U, M, Sp> &v) noexcept;
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> acot(const basic_vec<U, M, Sp> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> asin(const basic_vec<U, M, Q> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> acos(const basic_vec<U, M, Q> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> atan(const basic_vec<U, M, Q> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> acot(const basic_vec<U, M, Q> &v) noexcept;
 
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> sinh(const basic_vec<U, M, Sp> &v) noexcept;
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> cosh(const basic_vec<U, M, Sp> &v) noexcept;
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> tanh(const basic_vec<U, M, Sp> &v) noexcept;
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> coth(const basic_vec<U, M, Sp> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> sinh(const basic_vec<U, M, Q> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> cosh(const basic_vec<U, M, Q> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> tanh(const basic_vec<U, M, Q> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> coth(const basic_vec<U, M, Q> &v) noexcept;
 
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> asinh(const basic_vec<U, M, Sp> &v) noexcept;
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> acosh(const basic_vec<U, M, Sp> &v) noexcept;
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> atanh(const basic_vec<U, M, Sp> &v) noexcept;
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> acoth(const basic_vec<U, M, Sp> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> asinh(const basic_vec<U, M, Q> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> acosh(const basic_vec<U, M, Q> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> atanh(const basic_vec<U, M, Q> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> acoth(const basic_vec<U, M, Q> &v) noexcept;
 
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> rad(const basic_vec<U, M, Sp> &v) noexcept;
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> deg(const basic_vec<U, M, Sp> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> rad(const basic_vec<U, M, Q> &v) noexcept;
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> deg(const basic_vec<U, M, Q> &v) noexcept;
 }	 // namespace sek::math

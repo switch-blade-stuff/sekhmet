@@ -16,13 +16,7 @@
 	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(y, x), 1, 0)                                                              \
 	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(y, y), 1, 1)
 
-#define SEK_DETAIL_SHUFFLE_3(T, x, y, z)                                                                               \
-	SEK_DETAIL_SHUFFLE_2(T, x, y)                                                                                      \
-	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(x, z), 0, 2)                                                              \
-	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(y, z), 1, 2)                                                              \
-	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(z, x), 2, 0)                                                              \
-	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(z, y), 2, 1)                                                              \
-	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(z, z), 2, 2)                                                              \
+#define SEK_DETAIL_SHUFFLE_3_FUNCS(T, x, y, z)                                                                         \
 	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, x, x), 0, 0, 0)                                                        \
 	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, x, y), 0, 0, 1)                                                        \
 	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, x, z), 0, 0, 2)                                                        \
@@ -51,52 +45,16 @@
 	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, z, y), 2, 2, 1)                                                        \
 	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, z, z), 2, 2, 2)
 
-#define SEK_DETAIL_SHUFFLE_4(T, x, y, z, w)                                                                            \
-	SEK_DETAIL_SHUFFLE_3(T, x, y, z)                                                                                   \
-	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(x, w), 0, 3)                                                              \
-	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(y, w), 1, 3)                                                              \
-	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(z, w), 2, 3)                                                              \
-	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(w, x), 3, 0)                                                              \
-	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(w, y), 3, 1)                                                              \
-	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(w, z), 3, 2)                                                              \
-	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(w, w), 3, 3)                                                              \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, x, w), 0, 0, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, y, w), 0, 1, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, z, w), 0, 2, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(y, x, w), 1, 0, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(y, y, w), 1, 1, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(y, z, w), 1, 2, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, x, w), 2, 0, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, y, w), 2, 1, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, z, w), 2, 2, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, w, x), 0, 3, 0)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, w, y), 0, 3, 1)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, w, z), 0, 3, 2)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, w, w), 0, 3, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(y, w, x), 1, 3, 0)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(y, w, y), 1, 3, 1)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(y, w, z), 1, 3, 2)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(y, w, w), 1, 3, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, w, x), 2, 3, 0)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, w, y), 2, 3, 1)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, w, z), 2, 3, 2)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, w, w), 2, 3, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, x, x), 3, 0, 0)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, x, y), 3, 0, 1)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, x, z), 3, 0, 2)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, x, w), 3, 0, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, y, x), 3, 1, 0)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, y, y), 3, 1, 1)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, y, z), 3, 1, 2)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, y, w), 3, 1, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, z, x), 3, 2, 0)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, z, y), 3, 2, 1)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, z, z), 3, 2, 2)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, z, w), 3, 2, 3)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, w, x), 3, 3, 0)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, w, y), 3, 3, 1)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, w, z), 3, 3, 2)                                                        \
-	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, w, w), 3, 3, 3)                                                        \
+#define SEK_DETAIL_SHUFFLE_3(T, x, y, z)                                                                               \
+	SEK_DETAIL_SHUFFLE_2(T, x, y)                                                                                      \
+	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(x, z), 0, 2)                                                              \
+	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(y, z), 1, 2)                                                              \
+	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(z, x), 2, 0)                                                              \
+	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(z, y), 2, 1)                                                              \
+	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(z, z), 2, 2)                                                              \
+	SEK_DETAIL_SHUFFLE_3_FUNCS(T, x, y, z)
+
+#define SEK_DETAIL_SHUFFLE_4_FUNCS(T, x, y, z, w)                                                                      \
 	SEK_DETAIL_SHUFFLE_FUNC(T(4), SEK_CONCAT(x, x, x, x), 0, 0, 0, 0)                                                  \
 	SEK_DETAIL_SHUFFLE_FUNC(T(4), SEK_CONCAT(x, x, x, y), 0, 0, 0, 1)                                                  \
 	SEK_DETAIL_SHUFFLE_FUNC(T(4), SEK_CONCAT(x, x, x, z), 0, 0, 0, 2)                                                  \
@@ -353,3 +311,51 @@
 	SEK_DETAIL_SHUFFLE_FUNC(T(4), SEK_CONCAT(w, w, w, y), 3, 3, 3, 1)                                                  \
 	SEK_DETAIL_SHUFFLE_FUNC(T(4), SEK_CONCAT(w, w, w, z), 3, 3, 3, 2)                                                  \
 	SEK_DETAIL_SHUFFLE_FUNC(T(4), SEK_CONCAT(w, w, w, w), 3, 3, 3, 3)
+
+#define SEK_DETAIL_SHUFFLE_4(T, x, y, z, w)                                                                            \
+	SEK_DETAIL_SHUFFLE_3(T, x, y, z)                                                                                   \
+	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(x, w), 0, 3)                                                              \
+	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(y, w), 1, 3)                                                              \
+	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(z, w), 2, 3)                                                              \
+	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(w, x), 3, 0)                                                              \
+	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(w, y), 3, 1)                                                              \
+	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(w, z), 3, 2)                                                              \
+	SEK_DETAIL_SHUFFLE_FUNC(T(2), SEK_CONCAT(w, w), 3, 3)                                                              \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, x, w), 0, 0, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, y, w), 0, 1, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, z, w), 0, 2, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(y, x, w), 1, 0, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(y, y, w), 1, 1, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(y, z, w), 1, 2, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, x, w), 2, 0, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, y, w), 2, 1, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, z, w), 2, 2, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, w, x), 0, 3, 0)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, w, y), 0, 3, 1)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, w, z), 0, 3, 2)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(x, w, w), 0, 3, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(y, w, x), 1, 3, 0)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(y, w, y), 1, 3, 1)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(y, w, z), 1, 3, 2)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(y, w, w), 1, 3, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, w, x), 2, 3, 0)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, w, y), 2, 3, 1)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, w, z), 2, 3, 2)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(z, w, w), 2, 3, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, x, x), 3, 0, 0)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, x, y), 3, 0, 1)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, x, z), 3, 0, 2)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, x, w), 3, 0, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, y, x), 3, 1, 0)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, y, y), 3, 1, 1)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, y, z), 3, 1, 2)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, y, w), 3, 1, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, z, x), 3, 2, 0)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, z, y), 3, 2, 1)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, z, z), 3, 2, 2)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, z, w), 3, 2, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, w, x), 3, 3, 0)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, w, y), 3, 3, 1)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, w, z), 3, 3, 2)                                                        \
+	SEK_DETAIL_SHUFFLE_FUNC(T(3), SEK_CONCAT(w, w, w), 3, 3, 3)                                                        \
+	SEK_DETAIL_SHUFFLE_4_FUNCS(T, x, y, z, w)

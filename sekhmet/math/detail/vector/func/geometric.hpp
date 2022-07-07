@@ -43,22 +43,22 @@ namespace sek::math
 
 	// clang-format off
 	/** Calculates linear interpolation or extrapolation between two vectors. Equivalent to `l + t * (r - l)`. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> lerp(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r, const basic_vec<U, M, Sp> &t) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> lerp(const basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r, const basic_vec<U, M, Q> &t) noexcept
 	{
 		return l + t * (r - l);
 	}
 	/** @copydoc lerp */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> lerp(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r, U t) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> lerp(const basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r, U t) noexcept
 	{
-		return lerp(l, r, basic_vec<U, M, Sp>{t});
+		return lerp(l, r, basic_vec<U, M, Q>{t});
 	}
 	// clang-format on
 
 	/** Calculates cross product of two vectors. */
-	template<typename T, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<T, 3, Sp> cross(const basic_vec<T, 3, Sp> &l, const basic_vec<T, 3, Sp> &r) noexcept
+	template<typename T, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<T, 3, Q> cross(const basic_vec<T, 3, Q> &l, const basic_vec<T, 3, Q> &r) noexcept
 		requires std::is_signed_v<T>
 	{
 		basic_vec<T, 3> result;
@@ -70,8 +70,8 @@ namespace sek::math
 	}
 
 	/** Calculates dot product of two vectors. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr U dot(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr U dot(const basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r) noexcept
 	{
 		if (std::is_constant_evaluated())
 			return detail::generic::vector_dot(l.m_data, r.m_data);
@@ -79,17 +79,17 @@ namespace sek::math
 			return detail::vector_dot(l.m_data, r.m_data);
 	}
 	/** Returns a length of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr U magn(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr U magn(const basic_vec<U, M, Q> &v) noexcept
 	{
 		/* Magnitude of a vector A=XYZ is sqrt(X*X + Y*Y + Z*Z) = sqrt(dot(A, A)). */
 		return std::sqrt(dot(v, v));
 	}
 	/** Returns a normalized copy of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> norm(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> norm(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_norm(result.m_data, v.m_data);
 		else
@@ -97,8 +97,8 @@ namespace sek::math
 		return result;
 	}
 	/** Returns a dist between two vectors. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr U dist(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr U dist(const basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r) noexcept
 	{
 		return magn(l - r);
 	}

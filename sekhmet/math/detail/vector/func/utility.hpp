@@ -79,61 +79,61 @@ namespace sek::math
 	}		 // namespace detail
 
 	/** Gets the Ith element of the vector mask. */
-	template<std::size_t I, typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr decltype(auto) get(vec_mask<basic_vec<U, M, Sp>> &m) noexcept
+	template<std::size_t I, typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr decltype(auto) get(vec_mask<basic_vec<U, M, Q>> &m) noexcept
 	{
 		return m[I];
 	}
 	/** @copydoc get */
-	template<std::size_t I, typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr decltype(auto) get(const vec_mask<basic_vec<U, M, Sp>> &m) noexcept
+	template<std::size_t I, typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr decltype(auto) get(const vec_mask<basic_vec<U, M, Q>> &m) noexcept
 	{
 		return m[I];
 	}
 	/** Gets the Ith element of the vector. */
-	template<std::size_t I, typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr decltype(auto) get(basic_vec<U, M, Sp> &v) noexcept
+	template<std::size_t I, typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr decltype(auto) get(basic_vec<U, M, Q> &v) noexcept
 	{
 		return v[I];
 	}
 	/** @copydoc get */
-	template<std::size_t I, typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr decltype(auto) get(const basic_vec<U, M, Sp> &v) noexcept
+	template<std::size_t I, typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr decltype(auto) get(const basic_vec<U, M, Q> &v) noexcept
 	{
 		return v[I];
 	}
 
 	/** Applies a functor to every element of the vector mask. */
-	template<typename U, std::size_t M, policy_t Sp, typename F>
-	constexpr void vectorize(const vec_mask<basic_vec<U, M, Sp>> &m, F &&f)
+	template<typename U, std::size_t M, policy_t Q, typename F>
+	constexpr void vectorize(const vec_mask<basic_vec<U, M, Q>> &m, F &&f)
 	{
 		for (std::size_t i = 0; i < M; ++i) f(m[i]);
 	}
 	/** @copydoc vectorize */
-	template<typename U, std::size_t M, policy_t Sp, typename F>
-	constexpr void vectorize(vec_mask<basic_vec<U, M, Sp>> &m, F &&f)
+	template<typename U, std::size_t M, policy_t Q, typename F>
+	constexpr void vectorize(vec_mask<basic_vec<U, M, Q>> &m, F &&f)
 	{
 		for (std::size_t i = 0; i < M; ++i) f(m[i]);
 	}
 	/** Applies a functor to every element of the vector. */
-	template<typename U, std::size_t M, policy_t Sp, typename F>
-	constexpr void vectorize(const basic_vec<U, M, Sp> &v, F &&f)
+	template<typename U, std::size_t M, policy_t Q, typename F>
+	constexpr void vectorize(const basic_vec<U, M, Q> &v, F &&f)
 	{
 		for (std::size_t i = 0; i < M; ++i) f(v[i]);
 	}
 	/** @copydoc vectorize */
-	template<typename U, std::size_t M, policy_t Sp, typename F>
-	constexpr void vectorize(basic_vec<U, M, Sp> &v, F &&f)
+	template<typename U, std::size_t M, policy_t Q, typename F>
+	constexpr void vectorize(basic_vec<U, M, Q> &v, F &&f)
 	{
 		for (std::size_t i = 0; i < M; ++i) f(v[i]);
 	}
 
 	/** Returns a vector consisting of rounded values of `v`.
 	 * @example round({.1, .2, 2.3}) -> {0, 0, 2} */
-	template<std::floating_point U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> round(const basic_vec<U, M, Sp> &v) noexcept
+	template<std::floating_point U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> round(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result;
+		basic_vec<U, M, Q> result;
 		if (std::is_constant_evaluated())
 			detail::generic::vector_round(result.m_data, v.m_data);
 		else
@@ -142,10 +142,10 @@ namespace sek::math
 	}
 	/** Returns a vector consisting of rounded-down values of `v`.
 	 * @example round({.1, .2, 2.3}) -> {0, 0, 2} */
-	template<std::floating_point U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> floor(const basic_vec<U, M, Sp> &v) noexcept
+	template<std::floating_point U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> floor(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result;
+		basic_vec<U, M, Q> result;
 		if (std::is_constant_evaluated())
 			detail::generic::vector_floor(result.m_data, v.m_data);
 		else
@@ -154,10 +154,10 @@ namespace sek::math
 	}
 	/** Returns a vector consisting of rounded-up values of `v`.
 	 * @example round({.1, .2, 2.3}) -> {1, 1, 3} */
-	template<std::floating_point U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> ceil(const basic_vec<U, M, Sp> &v) noexcept
+	template<std::floating_point U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> ceil(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result;
+		basic_vec<U, M, Q> result;
 		if (std::is_constant_evaluated())
 			detail::generic::vector_ceil(result.m_data, v.m_data);
 		else
@@ -166,10 +166,10 @@ namespace sek::math
 	}
 	/** Returns a vector consisting of truncated values of `v`.
 	 * @example round({.1, .2, 2.3}) -> {0, 0, 2} */
-	template<std::floating_point U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> trunc(const basic_vec<U, M, Sp> &v) noexcept
+	template<std::floating_point U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> trunc(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result;
+		basic_vec<U, M, Q> result;
 		if (std::is_constant_evaluated())
 			detail::generic::vector_trunc(result.m_data, v.m_data);
 		else
@@ -180,15 +180,15 @@ namespace sek::math
 	/** Produces a new vector mask which is the result of shuffling elements of another mask.
 	 * @tparam I Indices of elements of the source mask in the order they should be shuffled to the destination mask.
 	 * @return Result mask who's elements are specified by `I`. */
-	template<std::size_t... I, typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr vec_mask<basic_vec<U, sizeof...(I), Sp>> shuffle(const vec_mask<basic_vec<U, M, Sp>> &m) noexcept
+	template<std::size_t... I, typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr vec_mask<basic_vec<U, sizeof...(I), Q>> shuffle(const vec_mask<basic_vec<U, M, Q>> &m) noexcept
 	{
 		using Idx = std::index_sequence<I...>;
 		if constexpr (std::is_same_v<Idx, std::make_index_sequence<M>>)
 			return m;
 		else
 		{
-			vec_mask<basic_vec<U, sizeof...(I), Sp>> result;
+			vec_mask<basic_vec<U, sizeof...(I), Q>> result;
 			if (std::is_constant_evaluated())
 				detail::generic::mask_shuffle(result.m_data, m.m_data, Idx{});
 			else
@@ -200,8 +200,8 @@ namespace sek::math
 	 * @tparam I Indices of elements of the source vector in the order they should be shuffled to the destination vector.
 	 * @return Result vector who's elements are specified by `I`.
 	 * @example shuffle<2, 1, 0>({3, 4, 5}) -> {5, 4, 3} */
-	template<std::size_t... I, typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, sizeof...(I), Sp> shuffle(const basic_vec<U, M, Sp> &v) noexcept
+	template<std::size_t... I, typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, sizeof...(I), Q> shuffle(const basic_vec<U, M, Q> &v) noexcept
 	{
 		using Idx = std::index_sequence<I...>;
 		if constexpr (std::is_same_v<Idx, std::make_index_sequence<M>>)
@@ -223,12 +223,12 @@ namespace sek::math
 	 * @param mask Mask used to select vector elements.
 	 * `true` will select the left-hand element, `false` will select the right-hand element.
 	 * @return Result of the interleave operation. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> interleave(const basic_vec<U, M, Sp> &l,
-														   const basic_vec<U, M, Sp> &r,
-														   const vec_mask<basic_vec<U, M, Sp>> &mask) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> interleave(const basic_vec<U, M, Q> &l,
+														   const basic_vec<U, M, Q> &r,
+														   const vec_mask<basic_vec<U, M, Q>> &mask) noexcept
 	{
-		basic_vec<U, M, Sp> result;
+		basic_vec<U, M, Q> result;
 		if (std::is_constant_evaluated())
 			detail::generic::vector_interleave(result.m_data, l.m_data, r.m_data, mask.m_data);
 		else

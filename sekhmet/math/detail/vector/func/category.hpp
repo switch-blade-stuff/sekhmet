@@ -47,10 +47,10 @@ namespace sek::math
 	}		 // namespace detail
 
 	/** Checks if elements of the vector are `NaN`. */
-	template<std::floating_point U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> is_nan(const basic_vec<U, M, Sp> &v) noexcept
+	template<std::floating_point U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Q>> is_nan(const basic_vec<U, M, Q> &v) noexcept
 	{
-		vec_mask<basic_vec<U, M, Sp>> result = {};
+		vec_mask<basic_vec<U, M, Q>> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_is_nan(result.m_data, v.m_data);
 		else
@@ -58,10 +58,10 @@ namespace sek::math
 		return result;
 	}
 	/** Checks if elements of the vector are a positive or negative infinity. */
-	template<std::floating_point U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> is_inf(const basic_vec<U, M, Sp> &v) noexcept
+	template<std::floating_point U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Q>> is_inf(const basic_vec<U, M, Q> &v) noexcept
 	{
-		vec_mask<basic_vec<U, M, Sp>> result = {};
+		vec_mask<basic_vec<U, M, Q>> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_is_inf(result.m_data, v.m_data);
 		else
@@ -69,10 +69,10 @@ namespace sek::math
 		return result;
 	}
 	/** Checks if elements of the vector are finite. */
-	template<std::floating_point U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> is_fin(const basic_vec<U, M, Sp> &v) noexcept
+	template<std::floating_point U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Q>> is_fin(const basic_vec<U, M, Q> &v) noexcept
 	{
-		vec_mask<basic_vec<U, M, Sp>> result = {};
+		vec_mask<basic_vec<U, M, Q>> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_is_fin(result.m_data, v.m_data);
 		else
@@ -80,10 +80,10 @@ namespace sek::math
 		return result;
 	}
 	/** Checks if elements of the vector are negative. */
-	template<std::floating_point U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> is_neg(const basic_vec<U, M, Sp> &v) noexcept
+	template<std::floating_point U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Q>> is_neg(const basic_vec<U, M, Q> &v) noexcept
 	{
-		vec_mask<basic_vec<U, M, Sp>> result = {};
+		vec_mask<basic_vec<U, M, Q>> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_is_neg(result.m_data, v.m_data);
 		else
@@ -91,10 +91,10 @@ namespace sek::math
 		return result;
 	}
 	/** Checks if elements of the vector are normal. */
-	template<std::floating_point U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Sp>> is_norm(const basic_vec<U, M, Sp> &v) noexcept
+	template<std::floating_point U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Q>> is_norm(const basic_vec<U, M, Q> &v) noexcept
 	{
-		vec_mask<basic_vec<U, M, Sp>> result = {};
+		vec_mask<basic_vec<U, M, Q>> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_is_norm(result.m_data, v.m_data);
 		else

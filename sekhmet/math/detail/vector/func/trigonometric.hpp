@@ -133,10 +133,10 @@ namespace sek::math
 	}		 // namespace detail
 
 	/** Calculates a sine of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> sin(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> sin(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_sin(result.m_data, v.m_data);
 		else
@@ -144,10 +144,10 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a cosine of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> cos(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> cos(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_cos(result.m_data, v.m_data);
 		else
@@ -155,10 +155,10 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a tangent of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> tan(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> tan(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_tan(result.m_data, v.m_data);
 		else
@@ -166,10 +166,10 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a cotangent of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> cot(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> cot(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_cot(result.m_data, v.m_data);
 		else
@@ -178,10 +178,10 @@ namespace sek::math
 	}
 
 	/** Calculates a arc sine of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> asin(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> asin(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_asin(result.m_data, v.m_data);
 		else
@@ -189,10 +189,10 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a arc cosine of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> acos(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> acos(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_acos(result.m_data, v.m_data);
 		else
@@ -200,10 +200,10 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a arc tangent of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> atan(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> atan(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_atan(result.m_data, v.m_data);
 		else
@@ -211,10 +211,10 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a arc cotangent of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> acot(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> acot(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_acot(result.m_data, v.m_data);
 		else
@@ -223,10 +223,10 @@ namespace sek::math
 	}
 
 	/** Calculates a hyperbolic sine of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> sinh(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> sinh(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_sinh(result.m_data, v.m_data);
 		else
@@ -234,10 +234,10 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a hyperbolic cosine of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> cosh(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> cosh(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_cosh(result.m_data, v.m_data);
 		else
@@ -245,10 +245,10 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a hyperbolic tangent of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> tanh(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> tanh(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_tanh(result.m_data, v.m_data);
 		else
@@ -256,10 +256,10 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a hyperbolic cotangent of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> coth(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> coth(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_coth(result.m_data, v.m_data);
 		else
@@ -268,10 +268,10 @@ namespace sek::math
 	}
 
 	/** Calculates a hyperbolic arc sine of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> asinh(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> asinh(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_asinh(result.m_data, v.m_data);
 		else
@@ -279,10 +279,10 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a hyperbolic arc cosine of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> acosh(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> acosh(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_acosh(result.m_data, v.m_data);
 		else
@@ -290,10 +290,10 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a hyperbolic arc tangent of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> atanh(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> atanh(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_atanh(result.m_data, v.m_data);
 		else
@@ -301,10 +301,10 @@ namespace sek::math
 		return result;
 	}
 	/** Calculates a hyperbolic arc cotangent of the elements of the vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> acoth(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> acoth(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result = {};
+		basic_vec<U, M, Q> result = {};
 		if (std::is_constant_evaluated())
 			detail::generic::vector_acoth(result.m_data, v.m_data);
 		else
@@ -313,15 +313,15 @@ namespace sek::math
 	}
 
 	/** Converts a degree angle vector to radian angle vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> rad(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> rad(const basic_vec<U, M, Q> &v) noexcept
 	{
-		return v * basic_vec<U, M, Sp>{std::numbers::pi_v<U> / static_cast<U>(180.0)};
+		return v * basic_vec<U, M, Q>{std::numbers::pi_v<U> / static_cast<U>(180.0)};
 	}
 	/** Converts a radian angle vector to degree angle vector. */
-	template<typename U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> deg(const basic_vec<U, M, Sp> &v) noexcept
+	template<typename U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> deg(const basic_vec<U, M, Q> &v) noexcept
 	{
-		return v * basic_vec<U, M, Sp>{static_cast<U>(180.0) / std::numbers::pi_v<U>};
+		return v * basic_vec<U, M, Q>{static_cast<U>(180.0) / std::numbers::pi_v<U>};
 	}
 }	 // namespace sek::math

@@ -42,8 +42,8 @@ namespace sek::math
 	}		 // namespace detail
 
 	/** Preforms a bitwise AND on two vectors. */
-	template<std::integral U, std::size_t M, policy_t Sp>
-	constexpr basic_vec<U, M, Sp> &operator&=(basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
+	template<std::integral U, std::size_t M, policy_t Q>
+	constexpr basic_vec<U, M, Q> &operator&=(basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r) noexcept
 	{
 		if (std::is_constant_evaluated())
 			detail::generic::vector_and(l.m_data, l.m_data, r.m_data);
@@ -52,10 +52,10 @@ namespace sek::math
 		return l;
 	}
 	/** Returns a vector which is the result of bitwise AND of two vectors. */
-	template<std::integral U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator&(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
+	template<std::integral U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> operator&(const basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r) noexcept
 	{
-		basic_vec<U, M, Sp> result;
+		basic_vec<U, M, Q> result;
 		if (std::is_constant_evaluated())
 			detail::generic::vector_and(result.m_data, l.m_data, r.m_data);
 		else
@@ -63,8 +63,8 @@ namespace sek::math
 		return result;
 	}
 	/** Preforms a bitwise OR on two vectors. */
-	template<std::integral U, std::size_t M, policy_t Sp>
-	constexpr basic_vec<U, M, Sp> &operator|=(basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
+	template<std::integral U, std::size_t M, policy_t Q>
+	constexpr basic_vec<U, M, Q> &operator|=(basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r) noexcept
 	{
 		if (std::is_constant_evaluated())
 			detail::generic::vector_or(l.m_data, l.m_data, r.m_data);
@@ -73,10 +73,10 @@ namespace sek::math
 		return l;
 	}
 	/** Returns a vector which is the result of bitwise OR of two vectors. */
-	template<std::integral U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator|(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
+	template<std::integral U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> operator|(const basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r) noexcept
 	{
-		basic_vec<U, M, Sp> result;
+		basic_vec<U, M, Q> result;
 		if (std::is_constant_evaluated())
 			detail::generic::vector_or(result.m_data, l.m_data, r.m_data);
 		else
@@ -84,10 +84,10 @@ namespace sek::math
 		return result;
 	}
 	/** Returns a vector which is the result of bitwise XOR of two vectors. */
-	template<std::integral U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator^(const basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
+	template<std::integral U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> operator^(const basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r) noexcept
 	{
-		basic_vec<U, M, Sp> result;
+		basic_vec<U, M, Q> result;
 		if (std::is_constant_evaluated())
 			detail::generic::vector_xor(result.m_data, l.m_data, r.m_data);
 		else
@@ -95,8 +95,8 @@ namespace sek::math
 		return result;
 	}
 	/** Preforms a bitwise XOR on two vectors. */
-	template<std::integral U, std::size_t M, policy_t Sp>
-	constexpr basic_vec<U, M, Sp> &operator^=(basic_vec<U, M, Sp> &l, const basic_vec<U, M, Sp> &r) noexcept
+	template<std::integral U, std::size_t M, policy_t Q>
+	constexpr basic_vec<U, M, Q> &operator^=(basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r) noexcept
 	{
 		if (std::is_constant_evaluated())
 			detail::generic::vector_xor(l.m_data, l.m_data, r.m_data);
@@ -105,10 +105,10 @@ namespace sek::math
 		return l;
 	}
 	/** Returns a bitwise inverted copy of a vector. */
-	template<std::integral U, std::size_t M, policy_t Sp>
-	[[nodiscard]] constexpr basic_vec<U, M, Sp> operator~(const basic_vec<U, M, Sp> &v) noexcept
+	template<std::integral U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> operator~(const basic_vec<U, M, Q> &v) noexcept
 	{
-		basic_vec<U, M, Sp> result;
+		basic_vec<U, M, Q> result;
 		if (std::is_constant_evaluated())
 			detail::generic::vector_inv(result.m_data, v.m_data);
 		else

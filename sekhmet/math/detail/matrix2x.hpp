@@ -15,43 +15,43 @@ namespace sek::math
 
 	public:
 		constexpr basic_mat(const col_type &c0, const col_type &c1) noexcept : m_data{c0, c1} {}
-		template<policy_t Sp>
-		constexpr basic_mat(const basic_vec<T, 2, Sp> &c0, const basic_vec<T, 2, Sp> &c1) noexcept
+		template<policy_t Q>
+		constexpr basic_mat(const basic_vec<T, 2, Q> &c0, const basic_vec<T, 2, Q> &c1) noexcept
 			: m_data{col_type{c0}, col_type{c1}}
 		{
 		}
 		constexpr basic_mat(T xx, T yx, T xy, T yy) noexcept : basic_mat({xx, xy}, {yx, yy}) {}
 
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 2, 3, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 2, 3, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 2, 4, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 2, 4, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 3, 2, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 3, 2, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 3, 3, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 3, 3, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 3, 4, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 3, 4, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 4, 2, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 4, 2, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 4, 3, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 4, 3, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 4, 4, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 4, 4, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
 	};
@@ -113,12 +113,12 @@ namespace sek::math
 		return basic_vec<T, 2, P>{dot(v, m[0]), dot(v, m[1])};
 	}
 
-	template<typename T, policy_t Sp>
-	[[nodiscard]] constexpr basic_mat<T, 2, 2, Sp> transpose(const basic_mat<T, 2, 2, Sp> &m) noexcept
+	template<typename T, policy_t Q>
+	[[nodiscard]] constexpr basic_mat<T, 2, 2, Q> transpose(const basic_mat<T, 2, 2, Q> &m) noexcept
 	{
 		const auto r0 = m.row(0);
 		const auto r1 = m.row(1);
-		return basic_mat<T, 2, 2, Sp>{r0, r1};
+		return basic_mat<T, 2, 2, Q>{r0, r1};
 	}
 
 	template<arithmetic T, policy_t P>
@@ -128,43 +128,43 @@ namespace sek::math
 
 	public:
 		constexpr basic_mat(const col_type &c0, const col_type &c1) noexcept : m_data{c0, c1} {}
-		template<policy_t Sp>
-		constexpr basic_mat(const basic_vec<T, 3, Sp> &c0, const basic_vec<T, 3, Sp> &c1) noexcept
+		template<policy_t Q>
+		constexpr basic_mat(const basic_vec<T, 3, Q> &c0, const basic_vec<T, 3, Q> &c1) noexcept
 			: m_data{col_type{c0}, col_type{c1}}
 		{
 		}
 		constexpr basic_mat(T xx, T yx, T xy, T yy, T xz, T yz) noexcept : basic_mat({xx, xy, xz}, {yx, yy, yz}) {}
 
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 2, 2, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 2, 2, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 2, 4, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 2, 4, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 3, 2, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 3, 2, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 3, 3, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 3, 3, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 3, 4, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 3, 4, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 4, 2, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 4, 2, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 4, 3, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 4, 3, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 4, 4, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 4, 4, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
 	};
@@ -229,13 +229,13 @@ namespace sek::math
 		return basic_vec<T, 2, P>{dot(v, m[0]), dot(v, m[1])};
 	}
 
-	template<typename T, policy_t Sp>
-	[[nodiscard]] constexpr basic_mat<T, 3, 2, Sp> transpose(const basic_mat<T, 2, 3, Sp> &m) noexcept
+	template<typename T, policy_t Q>
+	[[nodiscard]] constexpr basic_mat<T, 3, 2, Q> transpose(const basic_mat<T, 2, 3, Q> &m) noexcept
 	{
 		const auto r0 = m.row(0);
 		const auto r1 = m.row(1);
 		const auto r2 = m.row(2);
-		return basic_mat<T, 3, 2, Sp>{r0, r1, r2};
+		return basic_mat<T, 3, 2, Q>{r0, r1, r2};
 	}
 
 	template<arithmetic T, policy_t P>
@@ -245,8 +245,8 @@ namespace sek::math
 
 	public:
 		constexpr basic_mat(const col_type &c0, const col_type &c1) noexcept : m_data{c0, c1} {}
-		template<policy_t Sp>
-		constexpr basic_mat(const basic_vec<T, 4, Sp> &c0, const basic_vec<T, 4, Sp> &c1) noexcept
+		template<policy_t Q>
+		constexpr basic_mat(const basic_vec<T, 4, Q> &c0, const basic_vec<T, 4, Q> &c1) noexcept
 			: m_data{col_type{c0}, col_type{c1}}
 		{
 		}
@@ -255,36 +255,36 @@ namespace sek::math
 		{
 		}
 
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 2, 2, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 2, 2, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 2, 3, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 2, 3, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 3, 2, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 3, 2, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 3, 3, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 3, 3, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 3, 4, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 3, 4, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 4, 2, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 4, 2, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 4, 3, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 4, 3, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
-		template<policy_t Sp>
-		constexpr explicit basic_mat(const basic_mat<T, 4, 4, Sp> &other) noexcept : basic_mat{other[0], other[1]}
+		template<policy_t Q>
+		constexpr explicit basic_mat(const basic_mat<T, 4, 4, Q> &other) noexcept : basic_mat{other[0], other[1]}
 		{
 		}
 	};
@@ -352,13 +352,13 @@ namespace sek::math
 		return basic_vec<T, 2, P>{dot(v, m[0]), dot(v, m[1])};
 	}
 
-	template<typename T, policy_t Sp>
-	[[nodiscard]] constexpr basic_mat<T, 4, 2, Sp> transpose(const basic_mat<T, 2, 4, Sp> &m) noexcept
+	template<typename T, policy_t Q>
+	[[nodiscard]] constexpr basic_mat<T, 4, 2, Q> transpose(const basic_mat<T, 2, 4, Q> &m) noexcept
 	{
 		const auto r0 = m.row(0);
 		const auto r1 = m.row(1);
 		const auto r2 = m.row(2);
 		const auto r3 = m.row(3);
-		return basic_mat<T, 4, 2, Sp>{r0, r1, r2, r3};
+		return basic_mat<T, 4, 2, Q>{r0, r1, r2, r3};
 	}
 }	 // namespace sek::math
