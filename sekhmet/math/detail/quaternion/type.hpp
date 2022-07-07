@@ -35,6 +35,23 @@ namespace sek::math
 		/** Creates a quaternion from a rotation andle and an axis. */
 		template<typename U = T, std::size_t N = 3, policy_t P = Policy>
 		[[nodiscard]] constexpr static basic_quat from_angle_axis(U angle, const basic_vec<U, N, P> &axis) noexcept requires(N >= 3);
+
+		/** Creates a quaternion used to rotate towards a direction using left-handed rotation. */
+		template<typename U = T, std::size_t N = 3, policy_t P = Policy>
+		[[nodiscard]] constexpr static basic_quat look_at_l(const basic_vec<U, N, P> &dir, const basic_vec<U, N, P> &up = {0, 1, 0}) noexcept requires(N >= 3);
+		/** Creates a quaternion used to rotate towards a direction using left-handed rotation. */
+		template<typename U = T, std::size_t N = 3, policy_t P = Policy>
+		[[nodiscard]] constexpr static basic_quat look_at_r(const basic_vec<U, N, P> &dir, const basic_vec<U, N, P> &up = {0, 1, 0}) noexcept requires(N >= 3);
+		/** Creates a quaternion used to rotate towards a direction.
+		 * @tparam R Whether to use right-handed rotation. */
+		template<bool R = false, typename U = T, std::size_t N = 3, policy_t P = Policy>
+		[[nodiscard]] constexpr static basic_quat look_at(const basic_vec<U, N, P> &dir, const basic_vec<U, N, P> &up) noexcept requires(N >= 3)
+		{
+			if constexpr (R)
+				return look_at_r(dir, up);
+			else
+				return look_at_l(dir, up);
+		}
 		// clang-format on
 
 	public:
@@ -71,13 +88,9 @@ namespace sek::math
 		}
 
 		/** Casts quaternion to the underlying vector type. */
-		[[nodiscard]] constexpr vector_type &vector() noexcept { return m_data; }
+		[[nodiscard]] constexpr vector_type vector() const noexcept { return m_data; }
 		/** @copydoc vector */
-		[[nodiscard]] constexpr operator vector_type &() noexcept { return vector(); }
-		/** @copydoc vector */
-		[[nodiscard]] constexpr const vector_type &vector() const noexcept { return m_data; }
-		/** @copydoc vector */
-		[[nodiscard]] constexpr operator const vector_type &() const noexcept { return vector(); }
+		[[nodiscard]] constexpr operator vector_type() const noexcept { return vector(); }
 
 		[[nodiscard]] constexpr decltype(auto) x() noexcept { return m_data.x(); }
 		[[nodiscard]] constexpr decltype(auto) x() const noexcept { return m_data.x(); }
@@ -118,9 +131,9 @@ namespace sek::math
 		template<std::size_t N = 3, policy_t P = Policy>
 		[[nodiscard]] constexpr basic_vec<T, N, P> axis() const noexcept;
 
-		/* Rotates a quaternion from a vector of 3 components axis and an angle.
+		/* Rotates a quaternion from an axis vector and an angle.
 		 * @param angle Angle of the rotation.
-		 * @param axis Axis of the rotation */
+		 * @param axis Axis of the rotation. */
 		template<std::size_t N = 3, policy_t P = Policy>
 		constexpr basic_quat &rotate(T angle, const basic_vec<T, N, P> &axis) noexcept requires(N >= 3);
 		// clang-format on
@@ -307,6 +320,41 @@ namespace sek::math
 	}
 
 	template<std::floating_point T, policy_t P>
+	template<typename U, std::size_t N, policy_t Q>
+	constexpr basic_quat<T, P> basic_quat<T, P>::look_at_l(const basic_vec<U, N, Q> &dir, const basic_vec<U, N, Q> &up) noexcept
+		requires(N >= 3)
+	{
+		using fast_mat = basic_mat<T, 3, 3, policy_t::FAST_SIMD>;
+		using fast_vec = basic_vec<T, 3, policy_t::FAST_SIMD>;
+
+		const auto dir_f = fast_vec{dir};
+		const auto up_f = fast_vec{up};
+
+		const auto right = cross(up_f, dir_f);
+		const auto c0 = right * (static_cast<T>(1) / std::sqrt(max(static_cast<T>(0.00001), dot(right, right))));
+		const auto c1 = right * cross(dir_f, c0);
+		const auto c2 = dir_f;
+		return from_mat(fast_mat{c0, c1, c2});
+	}
+	template<std::floating_point T, policy_t P>
+	template<typename U, std::size_t N, policy_t Q>
+	constexpr basic_quat<T, P> basic_quat<T, P>::look_at_r(const basic_vec<U, N, Q> &dir, const basic_vec<U, N, Q> &up) noexcept
+		requires(N >= 3)
+	{
+		using fast_mat = basic_mat<T, 3, 3, policy_t::FAST_SIMD>;
+		using fast_vec = basic_vec<T, 3, policy_t::FAST_SIMD>;
+
+		const auto dir_f = -fast_vec{dir};
+		const auto up_f = fast_vec{up};
+
+		const auto right = cross(up_f, dir_f);
+		const auto c0 = right * (static_cast<T>(1) / std::sqrt(max(static_cast<T>(0.00001), dot(right, right))));
+		const auto c1 = right * cross(dir_f, c0);
+		const auto c2 = dir_f;
+		return from_mat(fast_mat{c0, c1, c2});
+	}
+
+	template<std::floating_point T, policy_t P>
 	template<std::size_t N, policy_t Q>
 	constexpr basic_quat<T, P> &basic_quat<T, P>::rotate(T angle, const basic_vec<T, N, Q> &axis) noexcept
 		requires(N >= 3)
@@ -314,14 +362,15 @@ namespace sek::math
 		auto tmp = basic_vec<T, 4, policy_t::FAST_SIMD>{axis};
 
 		/* Axis must be normalised */
-		if (const auto len = length(tmp); abs(len - static_cast<T>(1)) > static_cast<T>(0.001)) [[unlikely]]
+		if (const auto len = magn(tmp); std::abs(len - static_cast<T>(1)) > static_cast<T>(0.001)) [[unlikely]]
 			tmp *= static_cast<T>(1) / len;
 
 		const auto half_angle = angle * static_cast<T>(0.5);
 		tmp *= std::sin(half_angle);
 		tmp.w() = std::cos(half_angle);
 
-		return basic_quat<T, P>{vector() * tmp};
+		m_data *= tmp;
+		return *this;
 	}
 
 	/** Shuffles elements of a quaternion according to the provided indices.
@@ -331,6 +380,15 @@ namespace sek::math
 	[[nodiscard]] constexpr basic_quat<T, P> shuffle(const basic_quat<T, P> &q) noexcept
 	{
 		return basic_quat<T, P>{shuffle<Ix, Iy, Iz, Iw>(q.vector())};
+	}
+
+	/** Rotates a vector by a quaternion rotation.
+	 * @return Result of the rotation. */
+	template<typename T, std::size_t N, policy_t P>
+	[[nodiscard]] constexpr basic_vec<T, N, P> operator*(const basic_vec<T, N, P> &l, const basic_quat<T, P> &r) noexcept
+	{
+		const auto v = r.vector().xyz();
+		return l + static_cast<T>(2.0) * cross(v, cross(v, l) + l * r.w());
 	}
 
 	/** Gets the Ith element of the quaternion. */

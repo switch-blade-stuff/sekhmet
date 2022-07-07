@@ -191,13 +191,13 @@ namespace sek::math
 	template<typename U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr basic_vec<U, M, Q> operator*(const basic_vec<U, M, Q> &l, U r) noexcept
 	{
-		return l * basic_vec<U, M, Q>{r};
+		return basic_vec<U, M, Q>{l} * basic_vec<U, M, Q>{r};
 	}
 	/** @copydoc operator* */
 	template<typename U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr basic_vec<U, M, Q> operator*(U l, const basic_vec<U, M, Q> &r) noexcept
 	{
-		return l * basic_vec<U, M, Q>{r};
+		return basic_vec<U, M, Q>{r} * l;
 	}
 	/** Multiplies vector by a scalar. */
 	template<typename U, std::size_t M, policy_t Q>
