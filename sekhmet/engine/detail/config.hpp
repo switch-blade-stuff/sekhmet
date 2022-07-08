@@ -511,6 +511,7 @@ namespace sek::engine
 		typedef std::ptrdiff_t difference_type;
 
 	public:
+		constexpr config_registry() noexcept = default;
 		SEK_API ~config_registry();
 
 		/** Returns iterator to the first category of the registry. */
@@ -580,13 +581,15 @@ namespace sek::engine
 		/** Loads an entry from a Json node tree.
 		 * @param entry Full path of the entry.
 		 * @param tree Json node tree containing source data.
-		 * @param cache If set to true, the node tree will be cached and re-used for de-serialization of new entries. */
-		SEK_API void load(cfg_path entry, serialization::json_tree &&tree, bool cache = true);
+		 * @param cache If set to true, the node tree will be cached and re-used for de-serialization of new entries.
+		 * @return Entry pointer to the loaded entry. */
+		SEK_API entry_ptr<false> load(cfg_path entry, serialization::json_tree &&tree, bool cache = true);
 		/** Loads an entry from a Json file.
 		 * @param entry Full path of the entry.
 		 * @param path Path to a Json file containing source data.
-		 * @param cache If set to true, the data will be cached and re-used for de-serialization of new entries. */
-		SEK_API void load(cfg_path entry, const std::filesystem::path &path, bool cache = true);
+		 * @param cache If set to true, the data will be cached and re-used for de-serialization of new entries.
+		 * @return Entry pointer to the loaded entry. */
+		SEK_API entry_ptr<false> load(cfg_path entry, const std::filesystem::path &path, bool cache = true);
 
 	private:
 		entry_node *insert_impl(cfg_path &&entry);

@@ -319,16 +319,16 @@ namespace sek::engine
 		}
 	}
 
-	void config_registry::load(cfg_path entry, const std::filesystem::path &path, bool cache)
+	config_registry::entry_ptr<false> config_registry::load(cfg_path entry, const std::filesystem::path &path, bool cache)
 	{
 		auto cfg_file = std::ifstream{path};
 		if (!cfg_file.is_open()) [[unlikely]]
 			throw config_error(fmt::format("Failed to open config file \"{}\"", path.c_str()));
 
 		config_input input{cfg_file};
-		load(entry, std::move(*input.tree), cache);
+		return load(entry, std::move(*input.tree), cache);
 	}
-	void config_registry::load(cfg_path entry, json_tree &&tree, bool cache)
+	config_registry::entry_ptr<false> config_registry::load(cfg_path entry, json_tree &&tree, bool cache)
 	{
 		/* Find or create the entry node. */
 		entry_node *node;
@@ -348,6 +348,6 @@ namespace sek::engine
 		}
 
 		/* Initialize the node's branch. */
-		init_branch(node, data);
+		return entry_ptr<false>{init_branch(node, data)};
 	}
 }	 // namespace sek::engine
