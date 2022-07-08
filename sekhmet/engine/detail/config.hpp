@@ -592,9 +592,9 @@ namespace sek::engine
 		SEK_API entry_ptr<false> load(cfg_path entry, const std::filesystem::path &path, bool cache = true);
 
 	private:
-		entry_node *insert_impl(cfg_path &&entry);
-		SEK_API entry_node *insert_impl(cfg_path &&entry, any &&value);
 		SEK_API entry_node *assign_impl(entry_node *node, any &&value);
+		SEK_API entry_node *insert_impl(cfg_path &&entry, any &&value);
+		entry_node *insert_impl(cfg_path &&entry);
 
 		entry_node *init_branch(entry_node *node, serialization::json_tree *cache);
 
@@ -609,9 +609,8 @@ namespace sek::engine
 			return assign_impl(ptr.m_ref.m_node, make_any<T>(value))->value.template cast<T &>();
 		}
 
-		void clear_impl();
-
 		void erase_impl(typename entry_set::const_iterator where);
+		void clear_impl();
 
 		detail::basic_pool<entry_node> m_node_pool; /* Pool used to allocate entry nodes. */
 

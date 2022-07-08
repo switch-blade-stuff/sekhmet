@@ -86,12 +86,6 @@ namespace sek::engine
 		m_entries.clear();
 	}
 
-	void config_registry::clear_impl()
-	{
-		/* Destroy all category entries. */
-		for (auto cat = m_categories.end(), end = m_categories.begin(); cat-- != end;) std::destroy_at(*cat);
-	}
-
 	typename config_registry::entry_ptr<false> config_registry::find(const cfg_path &path)
 	{
 		if (const auto iter = m_entries.find(path.string()); iter != m_entries.end()) [[likely]]
@@ -105,6 +99,18 @@ namespace sek::engine
 		return {};
 	}
 
+	config_registry::entry_node *config_registry::assign_impl(entry_node *node, any &&value)
+	{
+		/* Always assign the value first, although we may override it during later deserialization. */
+		node->value = std::forward<any>(value);
+		return init_branch(node, node->data_cache);
+	}
+	config_registry::entry_node *config_registry::insert_impl(cfg_path &&entry, any &&value)
+	{
+		/* Insert, then initialize the new node. */
+		auto node = insert_impl(std::forward<cfg_path>(entry));
+		return assign_impl(node, std::forward<any>(value));
+	}
 	config_registry::entry_node *config_registry::insert_impl(cfg_path &&entry)
 	{
 		if (entry.empty()) [[unlikely]]
@@ -125,18 +131,6 @@ namespace sek::engine
 			m_node_pool.deallocate(node);
 			throw;
 		}
-	}
-	config_registry::entry_node *config_registry::insert_impl(cfg_path &&entry, any &&value)
-	{
-		/* Insert, then initialize the new node. */
-		auto node = insert_impl(std::forward<cfg_path>(entry));
-		return assign_impl(node, std::forward<any>(value));
-	}
-	config_registry::entry_node *config_registry::assign_impl(entry_node *node, any &&value)
-	{
-		/* Always assign the value first, although we may override it during later deserialization. */
-		node->value = std::forward<any>(value);
-		return init_branch(node, node->data_cache);
 	}
 
 	config_registry::entry_node *config_registry::init_branch(entry_node *node, json_tree *cache)
@@ -199,6 +193,12 @@ namespace sek::engine
 		std::destroy_at(node);
 		m_node_pool.deallocate(node);
 	}
+	void config_registry::clear_impl()
+	{
+		/* Destroy all category entries. */
+		for (auto cat = m_categories.end(), end = m_categories.begin(); cat-- != end;) std::destroy_at(*cat);
+	}
+
 	bool config_registry::erase(entry_ptr<true> where)
 	{
 		if (auto target = m_entries.find(where->m_node); target != m_entries.end()) [[likely]]
