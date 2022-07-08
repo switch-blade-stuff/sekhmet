@@ -7,9 +7,11 @@
 #include <string>
 
 #include "sekhmet/detail/access_guard.hpp"
-#include "sekhmet/detail/define.h"
+#include "sekhmet/detail/basic_pool.hpp"
+#include "sekhmet/detail/dense_map.hpp"
 #include "sekhmet/detail/service.hpp"
 #include "sekhmet/detail/type_info.hpp"
+#include "sekhmet/serialization/json.hpp"
 #include "sekhmet/system/native_file.hpp"
 
 #include <shared_mutex>
@@ -39,7 +41,7 @@ namespace sek::engine
 	/** @brief Path-like structure used to uniquely identify a config registry entry.
 	 *
 	 * Config paths consist of entry names separated by forward slashes `/`. The first entry is the category entry.
-	 * Path entry names can only contain alphanumeric characters, as well as any of the following
+	 * Path entry names can only contain alphanumeric characters, whitespace, as well as any of the following
 	 * special characters: `_`, `-`, `.`.
 	 *
 	 * Paths are case-sensitive and are always absolute (since there is no "current" config path).
@@ -73,6 +75,11 @@ namespace sek::engine
 		 * @throw config_error If the specified path is invalid. */
 		cfg_path(const char *str, std::size_t n) : cfg_path(std::string_view{str, n}) {}
 
+		/** Checks if the config path is empty. */
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_slices.empty(); }
+		/** Checks if the config path is a category path. */
+		[[nodiscard]] constexpr bool is_category() const noexcept { return m_slices.size() == 1; }
+
 		/** Returns reference to the underlying path string. */
 		[[nodiscard]] constexpr auto &string() noexcept { return m_path; }
 		/** @copydoc string */
@@ -84,16 +91,21 @@ namespace sek::engine
 			auto ptr = &m_slices.back();
 			return to_component(ptr, ptr + 1);
 		}
-		/** Returns the last entry name of the path (ex. for path 'graphics/quality' will return `quality`). */
-		[[nodiscard]] cfg_path entry_name() const
+		/** Returns the parent entry path. */
+		[[nodiscard]] cfg_path parent_path() const
 		{
-			auto ptr = &m_slices.back();
-			return to_component(ptr, ptr + 1);
+			return to_component(m_slices.data(), m_slices.data() + m_slices.size() - 1);
 		}
 		/** Returns the entry path without the category component. */
 		[[nodiscard]] cfg_path entry_path() const
 		{
 			return to_component(m_slices.data() + 1, m_slices.data() + m_slices.size());
+		}
+		/** Returns the last entry name of the path (ex. for path 'graphics/quality' will return `quality`). */
+		[[nodiscard]] cfg_path entry_name() const
+		{
+			auto ptr = &m_slices.back();
+			return to_component(ptr, ptr + 1);
 		}
 
 		/** Appends another path to this path.
@@ -171,6 +183,40 @@ namespace sek::engine
 		[[nodiscard]] constexpr auto operator<=>(const cfg_path &other) noexcept { return m_path <=> other.m_path; }
 		[[nodiscard]] constexpr bool operator==(const cfg_path &other) noexcept { return m_path == other.m_path; }
 
+		[[nodiscard]] friend constexpr auto operator<=>(const std::string &a, const cfg_path &b) noexcept
+		{
+			return a <=> b.m_path;
+		}
+		[[nodiscard]] friend constexpr bool operator==(const std::string &a, const cfg_path &b) noexcept
+		{
+			return a == b.m_path;
+		}
+		[[nodiscard]] friend constexpr auto operator<=>(const cfg_path &a, const std::string &b) noexcept
+		{
+			return a.m_path <=> b;
+		}
+		[[nodiscard]] friend constexpr bool operator==(const cfg_path &a, const std::string &b) noexcept
+		{
+			return a.m_path == b;
+		}
+
+		[[nodiscard]] friend constexpr auto operator<=>(std::string_view a, const cfg_path &b) noexcept
+		{
+			return a <=> b.m_path;
+		}
+		[[nodiscard]] friend constexpr bool operator==(std::string_view a, const cfg_path &b) noexcept
+		{
+			return a == b.m_path;
+		}
+		[[nodiscard]] friend constexpr auto operator<=>(const cfg_path &a, std::string_view b) noexcept
+		{
+			return a.m_path <=> b;
+		}
+		[[nodiscard]] friend constexpr bool operator==(const cfg_path &a, std::string_view b) noexcept
+		{
+			return a.m_path == b;
+		}
+
 		constexpr void swap(cfg_path &other) noexcept
 		{
 			using std::swap;
@@ -200,8 +246,384 @@ namespace sek::engine
 	{
 		friend detail::config_guard;
 
+		struct entry_node;
+		struct entry_value
+		{
+			template<typename T>
+			constexpr explicit entry_value(T &&value) : data(std::forward<T>(value))
+			{
+				deserialze = [](serialization::json_tree &, any_ref) {
+
+				};
+				serialze = [](serialization::json_tree &, any_ref) {
+
+				};
+			}
+
+			/* Functions used to read & write the node. */
+			void (*deserialze)(serialization::json_tree &, any_ref);
+			void (*serialze)(serialization::json_tree &, any_ref);
+
+			any data; /* Deserialized data of the entry. */
+		};
+
+		using entry_map = dense_map<std::string_view, entry_node *>;
+
+		struct entry_node
+		{
+			constexpr explicit entry_node(cfg_path &&path) noexcept : path(std::move(path)) {}
+
+			cfg_path path;		/* Full path of the entry. */
+			entry_map children; /* Immediate children of the entry (if any). */
+
+			/* Optional value of the entry (present if the entry is initialized) */
+			entry_value *value = nullptr;
+		};
+
+		template<bool IsConst>
+		class entry_ref;
+		template<bool IsConst>
+		class entry_ptr;
+		template<bool IsConst>
+		class entry_iterator;
+
+		template<bool IsConst>
+		class value_ptr
+		{
+			template<bool>
+			friend class entry_ref;
+
+			constexpr explicit value_ptr(entry_value *ptr) noexcept : m_ptr(ptr) {}
+
+		public:
+			typedef any value_type;
+			typedef std::conditional_t<IsConst, const any, any> *pointer;
+			typedef std::conditional_t<IsConst, const any, any> &reference;
+
+		public:
+			/** Initializes a null value pointer. */
+			constexpr value_ptr() noexcept = default;
+
+			// clang-format off
+			template<bool OtherConst = !IsConst>
+			constexpr value_ptr(const value_ptr<OtherConst> &other) noexcept requires(IsConst && !OtherConst)
+				: m_ptr(other.m_ptr) {}
+			// clang-format on
+
+			/** Checks if the value pointer is null. */
+			[[nodiscard]] constexpr operator bool() const noexcept { return m_ptr != nullptr; }
+
+			/** Returns pointer to the underlying 'any' value. */
+			[[nodiscard]] constexpr pointer operator->() const noexcept { return &m_ptr->data; }
+			/** Returns reference to the underlying 'any' value. */
+			[[nodiscard]] constexpr reference operator*() const noexcept { return m_ptr->data; }
+
+			[[nodiscard]] constexpr auto operator<=>(const value_ptr &) const noexcept = default;
+			[[nodiscard]] constexpr bool operator==(const value_ptr &) const noexcept = default;
+
+			constexpr void swap(value_ptr &other) noexcept { std::swap(m_ptr, other.m_ptr); }
+			friend constexpr void swap(value_ptr &a, value_ptr &b) noexcept { a.swap(b); }
+
+		private:
+			entry_value *m_ptr = nullptr;
+		};
+		template<bool IsConst>
+		class entry_ref
+		{
+			template<bool>
+			friend class entry_ref;
+			friend class config_registry;
+
+			constexpr explicit entry_ref(entry_node *node) noexcept : m_node(node) {}
+
+		public:
+			typedef entry_ref value_type;
+			typedef entry_iterator<IsConst> iterator;
+			typedef entry_iterator<true> const_iterator;
+
+		public:
+			entry_ref() = delete;
+
+			/** Checks if the entry pointer is valid. */
+			[[nodiscard]] constexpr bool valid() const noexcept { return m_node != nullptr; }
+
+			/** Returns pointer to self. */
+			[[nodiscard]] constexpr entry_ref *operator&() noexcept { return this; }
+			/** @copydoc operator& */
+			[[nodiscard]] constexpr const entry_ref *operator&() const noexcept { return this; }
+
+			/** Returns iterator to the first child of the entry. */
+			[[nodiscard]] constexpr iterator begin() noexcept { return iterator{m_node->children.begin()}; }
+			/** @copydoc begin */
+			[[nodiscard]] constexpr const_iterator begin() const noexcept
+			{
+				return const_iterator{m_node->children.begin()};
+			}
+			/** @copydoc begin */
+			[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
+			/** Returns iterator one past the last child of the entry. */
+			[[nodiscard]] constexpr iterator end() noexcept { return iterator{m_node->children.end()}; }
+			/** @copydoc end */
+			[[nodiscard]] constexpr const_iterator end() const noexcept
+			{
+				return const_iterator{m_node->children.end()};
+			}
+			/** @copydoc end */
+			[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
+
+			/** Returns reference to the first child of the entry. */
+			[[nodiscard]] constexpr entry_ref front() noexcept { return *begin(); }
+			/** @copydoc front */
+			[[nodiscard]] constexpr entry_ref<true> front() const noexcept { return *begin(); }
+			/** Returns reference to the last child of the entry. */
+			[[nodiscard]] constexpr entry_ref back() noexcept { return *(--end()); }
+			/** @copydoc back */
+			[[nodiscard]] constexpr entry_ref<true> back() const noexcept { return *(--end()); }
+
+			/** Returns reference to the config path of the entry. */
+			[[nodiscard]] constexpr const cfg_path &path() const noexcept { return m_node->path; }
+			/** Returns pointer to the value of the entry. */
+			[[nodiscard]] constexpr auto value() const noexcept { return value_ptr<IsConst>{m_node->value}; }
+
+			[[nodiscard]] constexpr auto operator<=>(const entry_ref &) const noexcept = default;
+			[[nodiscard]] constexpr bool operator==(const entry_ref &) const noexcept = default;
+
+			constexpr void swap(entry_ref &other) noexcept { std::swap(m_node, other.m_node); }
+			friend constexpr void swap(entry_ref &a, entry_ref &b) noexcept { a.swap(b); }
+
+		private:
+			entry_node *m_node = nullptr;
+		};
+		template<bool IsConst>
+		class entry_ptr
+		{
+			template<bool>
+			friend class entry_iterator;
+
+			constexpr explicit entry_ptr(entry_node *node) noexcept : m_ref(node) {}
+
+		public:
+			typedef entry_ref<IsConst> value_type;
+			typedef entry_ref<IsConst> reference;
+			typedef const value_type *pointer;
+
+		public:
+			/** Initializes a null entry pointer. */
+			constexpr entry_ptr() noexcept = default;
+
+			// clang-format off
+			template<bool OtherConst = !IsConst>
+			constexpr entry_ptr(const entry_ptr<OtherConst> &other) noexcept requires(IsConst && !OtherConst)
+				: m_ref(other.m_ref) {}
+			// clang-format on
+
+			/** Checks if the entry pointer is null. */
+			[[nodiscard]] constexpr operator bool() const noexcept { return m_ref.m_entry.valid(); }
+
+			/** Returns pointer to the underlying entry. */
+			[[nodiscard]] constexpr pointer operator->() const noexcept { return &m_ref; }
+			/** Returns reference to the underlying entry. */
+			[[nodiscard]] constexpr reference operator*() const noexcept { return m_ref; }
+
+			[[nodiscard]] constexpr auto operator<=>(const entry_ptr &other) const noexcept
+			{
+				return m_ref.m_entry <=> other.m_ref.m_entry;
+			}
+			[[nodiscard]] constexpr bool operator==(const entry_ptr &other) const noexcept
+			{
+				return m_ref.m_entry == other.m_ref.m_entry;
+			}
+
+			constexpr void swap(entry_ptr &other) noexcept { m_ref.swap(other.m_ref); }
+			friend constexpr void swap(entry_ptr &a, entry_ptr &b) noexcept { a.swap(b); }
+
+		private:
+			reference m_ref = reference{nullptr};
+		};
+		template<bool IsConst>
+		class entry_iterator
+		{
+			friend class config_registry;
+
+			using iter_type = std::conditional_t<IsConst, typename entry_map::const_iterator, typename entry_map::iterator>;
+
+			constexpr explicit entry_iterator(iter_type iter) noexcept : m_iter(iter) {}
+
+		public:
+			typedef entry_ref<IsConst> value_type;
+			typedef entry_ptr<IsConst> pointer;
+			typedef entry_ref<IsConst> reference;
+			typedef std::size_t size_type;
+			typedef std::ptrdiff_t difference_type;
+			typedef std::bidirectional_iterator_tag iterator_category;
+
+		public:
+			constexpr entry_iterator() noexcept = default;
+
+			// clang-format off
+			template<bool OtherConst = !IsConst>
+			constexpr entry_iterator(const entry_iterator<OtherConst> &other) noexcept requires(IsConst && !OtherConst)
+				: m_iter(other.m_iter) {}
+			// clang-format on
+
+			constexpr entry_iterator operator++(int) noexcept
+			{
+				auto temp = *this;
+				++(*this);
+				return temp;
+			}
+			constexpr entry_iterator &operator++() noexcept
+			{
+				++m_iter;
+				return *this;
+			}
+			constexpr entry_iterator operator--(int) noexcept
+			{
+				auto temp = *this;
+				--(*this);
+				return temp;
+			}
+			constexpr entry_iterator &operator--() noexcept
+			{
+				--m_iter;
+				return *this;
+			}
+
+			/** Returns pointer to the underlying entry. */
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{m_iter->second}; }
+			/** @copydoc get */
+			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
+			/** Returns reference to the underlying entry. */
+			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
+
+			[[nodiscard]] constexpr auto operator<=>(const entry_iterator &) const noexcept = default;
+			[[nodiscard]] constexpr bool operator==(const entry_iterator &) const noexcept = default;
+
+			constexpr void swap(entry_iterator &other) noexcept { m_iter.swap(other.m_iter); }
+			friend constexpr void swap(entry_iterator &a, entry_iterator &b) noexcept { a.swap(b); }
+
+		private:
+			iter_type m_iter;
+		};
+
 	public:
+		typedef entry_iterator<false> iterator;
+		typedef entry_iterator<true> const_iterator;
+		typedef std::size_t size_type;
+		typedef std::ptrdiff_t difference_type;
+
+	public:
+		/** Returns iterator to the first category of the registry. */
+		[[nodiscard]] constexpr iterator begin() noexcept { return iterator{m_categories.begin()}; }
+		/** @copydoc begin */
+		[[nodiscard]] constexpr const_iterator begin() const noexcept { return const_iterator{m_categories.begin()}; }
+		/** @copydoc begin */
+		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
+		/** Returns iterator one past the last category of the registry. */
+		[[nodiscard]] constexpr iterator end() noexcept { return iterator{m_categories.end()}; }
+		/** @copydoc end */
+		[[nodiscard]] constexpr const_iterator end() const noexcept { return const_iterator{m_categories.end()}; }
+		/** @copydoc end */
+		[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
+
+		/** Returns reference to the first category of the registry. */
+		[[nodiscard]] constexpr auto front() noexcept { return *begin(); }
+		/** @copydoc front */
+		[[nodiscard]] constexpr auto front() const noexcept { return *begin(); }
+		/** Returns reference to the last category of the registry. */
+		[[nodiscard]] constexpr auto back() noexcept { return *(--end()); }
+		/** @copydoc back */
+		[[nodiscard]] constexpr auto back() const noexcept { return *(--end()); }
+
+		/** Returns entry iterator to the entry with the specified path. */
+		[[nodiscard]] SEK_API iterator find(const cfg_path &path);
+		/** @copydoc find */
+		[[nodiscard]] SEK_API const_iterator find(const cfg_path &path) const;
+
+		/** Creates a config entry of type `T`.
+		 * @param path Full path of the entry.
+		 * @return Reference to the value of the entry. */
+		template<typename T>
+		inline T &try_insert(cfg_path path)
+		{
+			if (auto existing = find(path); existing != end() && existing->value()) [[unlikely]]
+				return existing->value()->template cast<T &>();
+			else
+				return insert(std::move(path), T{});
+		}
+		/** Creates or replaces a config entry of type `T`.
+		 * @param path Full path of the entry.
+		 * @param value Value of the entry.
+		 * @return Reference to the value of the entry.
+		 * @note If such entry already exists, replaces the value. */
+		template<typename T>
+		inline T &insert(cfg_path path, T value = {})
+		{
+			if (auto existing = find(path); existing != end() && existing->value()) [[unlikely]]
+				return (*existing->value() = make_any(std::move(value))).template cast<T &>();
+			else
+				return insert(std::move(path), std::move(value));
+		}
+
+		/** Erases the specified config entry and all it's children. */
+		SEK_API void erase(const_iterator where);
+		/** @copydoc erase
+		 * @return `true` If the entry was erased, `false` otherwise. */
+		inline bool erase(const cfg_path &path)
+		{
+			if (auto target = find(path); target != end()) [[likely]]
+			{
+				erase(target);
+				return true;
+			}
+			else
+				return false;
+		}
+
+	private:
+		entry_node *insert_impl(cfg_path &&path);
+		SEK_API void insert_impl(cfg_path &&path, entry_value *value);
+		template<typename T>
+		inline T &insert_impl(cfg_path &&path, T &&value)
+		{
+			if (path.empty()) [[unlikely]]
+				throw config_error("Entry path cannot be empty");
+
+			auto *ptr = m_value_pool.allocate();
+			try
+			{
+				std::construct_at(ptr, std::forward<T>(value));
+			}
+			catch (...)
+			{
+				m_value_pool.deallocate(ptr);
+				throw;
+			}
+
+			insert_impl(std::forward<cfg_path>(path), ptr);
+			return ptr->data.template cast<T &>();
+		}
+
+		detail::basic_pool<entry_value> m_value_pool; /* Pool used to allocate entry values. */
+		detail::basic_pool<entry_node> m_node_pool;	  /* Pool used to allocate entry nodes. */
+
+		entry_map m_categories; /* Categories of the registry. */
+		entry_map m_entries;	/* Entry nodes of the registry. */
 	};
+
+	namespace attributes
+	{
+		/** @brief Attribute type used to and automatically create a config entry. */
+		template<typename T>
+		class config_entry
+		{
+		public:
+			config_entry(cfg_path path)
+			{
+				config_registry::instance()->access_unique()->template insert<T>(std::move(path));
+			}
+		};
+	}	 // namespace attributes
 }	 // namespace sek::engine
 
 extern template class SEK_API_IMPORT sek::service<sek::engine::detail::config_guard>;
