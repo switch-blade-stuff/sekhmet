@@ -8,7 +8,7 @@
 
 #include "sekhmet/detail/access_guard.hpp"
 #include "sekhmet/detail/basic_pool.hpp"
-#include "sekhmet/detail/dense_map.hpp"
+#include "sekhmet/detail/dense_set.hpp"
 #include "sekhmet/detail/service.hpp"
 #include "sekhmet/detail/type_info.hpp"
 #include "sekhmet/serialization/json.hpp"
@@ -267,14 +267,33 @@ namespace sek::engine
 			any data; /* Deserialized data of the entry. */
 		};
 
-		using entry_map = dense_map<std::string_view, entry_node *>;
+		struct entry_hash
+		{
+			typedef std::true_type is_transparent;
+
+			hash_t operator()(std::string_view key) const noexcept { return fnv1a(key.data(), key.size()); }
+			hash_t operator()(const std::string &key) const noexcept { return operator()(std::string_view{key}); }
+			hash_t operator()(const entry_node *node) const noexcept { return operator()(node->path.string()); }
+		};
+		struct entry_cmp
+		{
+			typedef std::true_type is_transparent;
+
+			hash_t operator()(const entry_node *a, std::string_view b) const noexcept { return a->path == b; }
+			hash_t operator()(std::string_view a, const entry_node *b) const noexcept { return a == b->path; }
+			hash_t operator()(const entry_node *a, const std::string &b) const noexcept { return a->path == b; }
+			hash_t operator()(const std::string &a, const entry_node *b) const noexcept { return a == b->path; }
+			bool operator()(const entry_node *a, const entry_node *b) const noexcept { return a == b; }
+		};
+
+		using entry_set = dense_set<entry_node *, entry_hash, entry_cmp>;
 
 		struct entry_node
 		{
 			constexpr explicit entry_node(cfg_path &&path) noexcept : path(std::move(path)) {}
 
 			cfg_path path;		/* Full path of the entry. */
-			entry_map children; /* Immediate children of the entry (if any). */
+			entry_set children; /* Immediate children of the entry (if any). */
 
 			/* Optional value of the entry (present if the entry is initialized) */
 			entry_value *value = nullptr;
@@ -344,9 +363,6 @@ namespace sek::engine
 		public:
 			entry_ref() = delete;
 
-			/** Checks if the entry pointer is valid. */
-			[[nodiscard]] constexpr bool valid() const noexcept { return m_node != nullptr; }
-
 			/** Returns pointer to self. */
 			[[nodiscard]] constexpr entry_ref *operator&() noexcept { return this; }
 			/** @copydoc operator& */
@@ -399,6 +415,7 @@ namespace sek::engine
 		{
 			template<bool>
 			friend class entry_iterator;
+			friend class config_registry;
 
 			constexpr explicit entry_ptr(entry_node *node) noexcept : m_ref(node) {}
 
@@ -418,21 +435,15 @@ namespace sek::engine
 			// clang-format on
 
 			/** Checks if the entry pointer is null. */
-			[[nodiscard]] constexpr operator bool() const noexcept { return m_ref.m_entry.valid(); }
+			[[nodiscard]] constexpr operator bool() const noexcept { return m_ref.m_node != nullptr; }
 
 			/** Returns pointer to the underlying entry. */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return &m_ref; }
 			/** Returns reference to the underlying entry. */
 			[[nodiscard]] constexpr reference operator*() const noexcept { return m_ref; }
 
-			[[nodiscard]] constexpr auto operator<=>(const entry_ptr &other) const noexcept
-			{
-				return m_ref.m_entry <=> other.m_ref.m_entry;
-			}
-			[[nodiscard]] constexpr bool operator==(const entry_ptr &other) const noexcept
-			{
-				return m_ref.m_entry == other.m_ref.m_entry;
-			}
+			[[nodiscard]] constexpr auto operator<=>(const entry_ptr &) const noexcept = default;
+			[[nodiscard]] constexpr bool operator==(const entry_ptr &) const noexcept = default;
 
 			constexpr void swap(entry_ptr &other) noexcept { m_ref.swap(other.m_ref); }
 			friend constexpr void swap(entry_ptr &a, entry_ptr &b) noexcept { a.swap(b); }
@@ -445,7 +456,7 @@ namespace sek::engine
 		{
 			friend class config_registry;
 
-			using iter_type = std::conditional_t<IsConst, typename entry_map::const_iterator, typename entry_map::iterator>;
+			using iter_type = std::conditional_t<IsConst, typename entry_set::const_iterator, typename entry_set::iterator>;
 
 			constexpr explicit entry_iterator(iter_type iter) noexcept : m_iter(iter) {}
 
@@ -490,14 +501,20 @@ namespace sek::engine
 			}
 
 			/** Returns pointer to the underlying entry. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{m_iter->second}; }
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{*m_iter}; }
 			/** @copydoc get */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 			/** Returns reference to the underlying entry. */
 			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
 
-			[[nodiscard]] constexpr auto operator<=>(const entry_iterator &) const noexcept = default;
-			[[nodiscard]] constexpr bool operator==(const entry_iterator &) const noexcept = default;
+			[[nodiscard]] constexpr auto operator<=>(const entry_iterator &other) const noexcept
+			{
+				return get() <=> other.get();
+			}
+			[[nodiscard]] constexpr bool operator==(const entry_iterator &other) const noexcept
+			{
+				return get() == other.get();
+			}
 
 			constexpr void swap(entry_iterator &other) noexcept { m_iter.swap(other.m_iter); }
 			friend constexpr void swap(entry_iterator &a, entry_iterator &b) noexcept { a.swap(b); }
@@ -535,10 +552,10 @@ namespace sek::engine
 		/** @copydoc back */
 		[[nodiscard]] constexpr auto back() const noexcept { return *(--end()); }
 
-		/** Returns entry iterator to the entry with the specified path. */
-		[[nodiscard]] SEK_API iterator find(const cfg_path &path);
+		/** Returns entry pointer to the entry with the specified path. */
+		[[nodiscard]] SEK_API entry_ptr<false> find(const cfg_path &path);
 		/** @copydoc find */
-		[[nodiscard]] SEK_API const_iterator find(const cfg_path &path) const;
+		[[nodiscard]] SEK_API entry_ptr<true> find(const cfg_path &path) const;
 
 		/** Creates a config entry of type `T`.
 		 * @param path Full path of the entry.
@@ -546,7 +563,7 @@ namespace sek::engine
 		template<typename T>
 		inline T &try_insert(cfg_path path)
 		{
-			if (auto existing = find(path); existing != end() && existing->value()) [[unlikely]]
+			if (auto existing = find(path); existing && existing->value()) [[unlikely]]
 				return existing->value()->template cast<T &>();
 			else
 				return insert(std::move(path), T{});
@@ -559,30 +576,19 @@ namespace sek::engine
 		template<typename T>
 		inline T &insert(cfg_path path, T value = {})
 		{
-			if (auto existing = find(path); existing != end() && existing->value()) [[unlikely]]
+			if (auto existing = find(path); existing && existing->value()) [[unlikely]]
 				return (*existing->value() = make_any(std::move(value))).template cast<T &>();
 			else
 				return insert(std::move(path), std::move(value));
 		}
 
-		/** Erases the specified config entry and all it's children. */
-		SEK_API void erase(const_iterator where);
-		/** @copydoc erase
+		/** Erases the specified config entry and all it's children.
 		 * @return `true` If the entry was erased, `false` otherwise. */
-		inline bool erase(const cfg_path &path)
-		{
-			if (auto target = find(path); target != end()) [[likely]]
-			{
-				erase(target);
-				return true;
-			}
-			else
-				return false;
-		}
+		SEK_API bool erase(entry_ptr<true> where);
+		/** @copydoc erase */
+		SEK_API bool erase(const cfg_path &path);
 
 	private:
-		entry_node *insert_impl(cfg_path &&path);
-		SEK_API void insert_impl(cfg_path &&path, entry_value *value);
 		template<typename T>
 		inline T &insert_impl(cfg_path &&path, T &&value)
 		{
@@ -603,12 +609,16 @@ namespace sek::engine
 			insert_impl(std::forward<cfg_path>(path), ptr);
 			return ptr->data.template cast<T &>();
 		}
+		entry_node *insert_impl(cfg_path &&path);
+		SEK_API void insert_impl(cfg_path &&path, entry_value *value);
+
+		void erase_impl(typename entry_set::const_iterator where);
 
 		detail::basic_pool<entry_value> m_value_pool; /* Pool used to allocate entry values. */
 		detail::basic_pool<entry_node> m_node_pool;	  /* Pool used to allocate entry nodes. */
 
-		entry_map m_categories; /* Categories of the registry. */
-		entry_map m_entries;	/* Entry nodes of the registry. */
+		entry_set m_categories; /* Categories of the registry. */
+		entry_set m_entries;	/* Entry nodes of the registry. */
 	};
 
 	namespace attributes

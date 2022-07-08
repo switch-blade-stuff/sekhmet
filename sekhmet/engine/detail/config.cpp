@@ -4,7 +4,7 @@
 
 #include "config.hpp"
 
-#include <ctype.h>
+#include <cctype>
 
 template class SEK_API_EXPORT sek::service<sek::engine::detail::config_guard>;
 
@@ -66,13 +66,17 @@ namespace sek::engine
 		return result;
 	}
 
-	typename config_registry::iterator config_registry::find(const cfg_path &path)
+	typename config_registry::entry_ptr<false> config_registry::find(const cfg_path &path)
 	{
-		return iterator{m_entries.find(path.string())};
+		if (const auto iter = m_entries.find(path.string()); iter != m_entries.end()) [[likely]]
+			return entry_ptr<false>{*iter};
+		return {};
 	}
-	typename config_registry::const_iterator config_registry::find(const cfg_path &path) const
+	typename config_registry::entry_ptr<true> config_registry::find(const cfg_path &path) const
 	{
-		return const_iterator{m_entries.find(path.string())};
+		if (const auto iter = m_entries.find(path.string()); iter != m_entries.end()) [[likely]]
+			return entry_ptr<true>{*iter};
+		return {};
 	}
 
 	config_registry::entry_node *config_registry::insert_impl(cfg_path &&path)
@@ -92,10 +96,10 @@ namespace sek::engine
 		const auto node = std::construct_at(m_node_pool.allocate(), std::forward<cfg_path>(path));
 		try
 		{
-			/* Create the new node. */
+			/* Create the new node & add new category if needed. */
 			if (add_category) [[unlikely]]
-				m_categories.try_emplace(node->path.string(), node);
-			return m_entries.try_emplace(node->path.string(), node).first->second;
+				m_categories.try_insert(node);
+			return *m_entries.try_insert(node).first;
 		}
 		catch (...)
 		{
@@ -127,32 +131,60 @@ namespace sek::engine
 		{
 			{ /* Find or create parent node. */
 				auto parent_path = child_path.parent_path();
-				if (auto parent_iter = find(parent_path); parent_iter == end())
+				if (auto parent_ptr = find(parent_path); !parent_ptr)
 					parent_node = insert_impl(std::move(parent_path));
 				else
-					parent_node = parent_iter.m_iter->second;
+					parent_node = parent_ptr.m_ref.m_node;
 			}
 
 			/* Insert child node into the parent. */
-			parent_node->children.try_emplace(child_path.string(), child_node);
+			parent_node->children.insert(child_node);
 
 			child_node = parent_node;
 			child_path = parent_node->path;
 		}
 	}
 
-	void config_registry::erase(const_iterator where)
+	void config_registry::erase_impl(typename entry_set::const_iterator where)
 	{
+		const auto node = *where;
+
 		/* Erase all child nodes. */
-		for (auto child = where->begin(), end = where->end(); child != end; ++child) erase(child);
+		for (auto child = node->children.end(), end = node->children.begin(); child-- != end;)
+			erase_impl(m_entries.find(*child));
 
-		/* Erase the current node. */
-		const auto node = where.m_iter->second;
-		const auto value = node->value;
+		/* Erase the node from the node table & category list. */
+		if (auto iter = m_categories.find(node); iter != m_categories.end()) [[unlikely]]
+			m_categories.erase(iter);
+		m_entries.erase(where);
 
+		/* Destroy the node & it's value */
+		if (const auto value = node->value; value)
+		{
+			std::destroy_at(value);
+			m_node_pool.deallocate(value);
+		}
 		std::destroy_at(node);
-		std::destroy_at(value);
 		m_node_pool.deallocate(node);
-		m_node_pool.deallocate(value);
+	}
+	bool config_registry::erase(entry_ptr<true> where)
+	{
+		if (auto target = m_entries.find(where->m_node); target != m_entries.end()) [[likely]]
+		{
+			erase_impl(target);
+			return true;
+		}
+		else
+			return false;
+	}
+	bool config_registry::erase(const cfg_path &path)
+	{
+		if (auto target = m_entries.find(path.string()); target != m_entries.end()) [[likely]]
+		{
+			erase_impl(target);
+			return true;
+		}
+		else
+			return false;
 	}
 }	 // namespace sek::engine
