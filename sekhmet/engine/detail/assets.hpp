@@ -27,7 +27,7 @@ namespace sek::engine
 	class asset_package;
 	class asset_database;
 
-	/** @brief Exception thrown when operation on an asset package fails. */
+	/** @brief Exception thrown by the asset system on runtime errors. */
 	class SEK_API asset_package_error : public std::runtime_error
 	{
 	public:

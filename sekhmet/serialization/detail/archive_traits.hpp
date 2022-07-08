@@ -13,7 +13,7 @@
 
 namespace sek::serialization
 {
-	/** @brief Exception thrown by archives on (de)serialization failure. */
+	/** @brief Exception thrown by archives on runtime errors. */
 	class SEK_API archive_error : public std::runtime_error
 	{
 	public:

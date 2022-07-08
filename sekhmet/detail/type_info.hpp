@@ -1314,6 +1314,9 @@ namespace sek
 
 			constexpr void init(auto &&initializer)
 			{
+				if (destroy) [[unlikely]] /* If already initialized, destroy the old instance. */
+					destroy(this);
+
 				initializer(data.template get<A>());
 				attrib_node::get_any = +[](const attrib_node *n) -> any_ref
 				{

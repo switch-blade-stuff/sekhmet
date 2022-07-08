@@ -327,17 +327,17 @@ namespace sek::serialization::ubj
 
 		/** Initializes input archive from a json node tree.
 		 * @param tree Json node tree containing source data. */
-		explicit basic_input_archive(json_tree &tree) : basic_input_archive(tree, std::pmr::get_default_resource()) {}
+		explicit basic_input_archive(tree_type &tree) : basic_input_archive(tree, std::pmr::get_default_resource()) {}
 		/** @copydoc basic_input_archive */
-		explicit basic_input_archive(json_tree &&tree)
+		explicit basic_input_archive(tree_type &&tree)
 			: basic_input_archive(std::move(tree), std::pmr::get_default_resource())
 		{
 		}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(json_tree &tree, std::pmr::memory_resource *res) : base_t(tree, res) {}
+		basic_input_archive(tree_type &tree, std::pmr::memory_resource *res) : base_t(tree, res) {}
 		/** @copydoc basic_input_archive */
-		basic_input_archive(json_tree &&tree, std::pmr::memory_resource *res) : base_t(std::move(tree), res) {}
+		basic_input_archive(tree_type &&tree, std::pmr::memory_resource *res) : base_t(std::move(tree), res) {}
 
 		/** Reads UBJson using the provided archive reader.
 		 * @param reader Reader used to read UBJson data. */
@@ -745,17 +745,17 @@ namespace sek::serialization::ubj
 
 		/** Initializes output archive from a json node tree.
 		 * @param tree Json node tree containing source data. */
-		explicit basic_output_archive(json_tree &tree) : basic_output_archive(tree, std::pmr::get_default_resource()) {}
+		explicit basic_output_archive(tree_type &tree) : basic_output_archive(tree, std::pmr::get_default_resource()) {}
 		/** @copydoc basic_input_archive */
-		explicit basic_output_archive(json_tree &&tree)
+		explicit basic_output_archive(tree_type &&tree)
 			: basic_output_archive(std::move(tree), std::pmr::get_default_resource())
 		{
 		}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_output_archive(json_tree &tree, std::pmr::memory_resource *res) : base_t(tree, res), m_can_flush(false) {}
+		basic_output_archive(tree_type &tree, std::pmr::memory_resource *res) : base_t(tree, res), m_can_flush(false) {}
 		/** @copydoc basic_input_archive */
-		basic_output_archive(json_tree &&tree, std::pmr::memory_resource *res)
+		basic_output_archive(tree_type &&tree, std::pmr::memory_resource *res)
 			: base_t(std::move(tree), res), m_can_flush(false)
 		{
 		}
@@ -848,7 +848,7 @@ namespace sek::serialization::ubj
 		}
 
 		/** Replaces the internal node tree with the specified one and returns pointer to the old tree. */
-		constexpr json_tree *reset(json_tree *new_tree = nullptr) noexcept
+		constexpr tree_type *reset(tree_type *new_tree = nullptr) noexcept
 		{
 			m_can_flush = m_can_flush || new_tree != nullptr;
 			return std::exchange(base_t::tree, new_tree);
