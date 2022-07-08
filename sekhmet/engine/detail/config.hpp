@@ -258,6 +258,11 @@ namespace sek::engine
 		std::vector<slice_t> m_slices;
 	};
 
+	namespace attributes
+	{
+		class config_type;
+	}
+
 	/** @brief Service used to manage configuration entries.
 	 *
 	 * Engine configuration is stored as entries within the config registry.
@@ -266,6 +271,7 @@ namespace sek::engine
 	 * When a new entry is added, it is de-serialized from the cached category tree. */
 	class config_registry : public service<detail::config_guard>
 	{
+		friend attributes::config_type;
 		friend detail::config_guard;
 
 		struct entry_node;
@@ -291,8 +297,15 @@ namespace sek::engine
 
 		using entry_set = dense_set<entry_node *, entry_hash, entry_cmp>;
 
-		using output_frame = typename serialization::json::output_archive::archive_frame;
-		using input_frame = typename serialization::json::input_archive::archive_frame;
+		// clang-format off
+		using output_archive = serialization::json::basic_output_archive<serialization::json::inline_arrays |
+																		 serialization::json::extended_fp |
+																		 serialization::json::pretty_print>;
+		using input_archive = serialization::json::basic_input_archive<serialization::json::allow_comments |
+																	   serialization::json::extended_fp>;
+		// clang-format on
+		using output_frame = typename output_archive::archive_frame;
+		using input_frame = typename input_archive::archive_frame;
 
 		struct entry_node
 		{
@@ -582,16 +595,31 @@ namespace sek::engine
 		 * @param entry Full path of the entry.
 		 * @param tree Json node tree containing source data.
 		 * @param cache If set to true, the node tree will be cached and re-used for de-serialization of new entries.
-		 * @return Entry pointer to the loaded entry. */
+		 * @return Entry pointer to the loaded entry.
+		 * @throw config_error If the entry path is empty. */
 		SEK_API entry_ptr<false> load(cfg_path entry, serialization::json_tree &&tree, bool cache = true);
 		/** Loads an entry from a Json file.
 		 * @param entry Full path of the entry.
 		 * @param path Path to a Json file containing source data.
 		 * @param cache If set to true, the data will be cached and re-used for de-serialization of new entries.
-		 * @return Entry pointer to the loaded entry. */
+		 * @return Entry pointer to the loaded entry.
+		 * @throw config_error If the file fails to open or the entry path is empty. */
 		SEK_API entry_ptr<false> load(cfg_path entry, const std::filesystem::path &path, bool cache = true);
 
+		/** Loads an entry to a Json node tree.
+		 * @param entry Full path of the entry.
+		 * @param tree Json node tree to store the serialized data in.
+		 * @throw config_error If no such entry exists. */
+		SEK_API void save(const cfg_path &entry, serialization::json_tree &tree) const;
+		/** Loads an entry from a Json file.
+		 * @param entry Full path of the entry.
+		 * @param path Path to a the file to write Json data to.
+		 * @throw config_error If no such entry exists or the fails to open. */
+		SEK_API void save(const cfg_path &entry, const std::filesystem::path &path) const;
+
 	private:
+		void save_impl(const cfg_path &entry, output_archive &archive) const;
+
 		SEK_API entry_node *assign_impl(entry_node *node, any &&value);
 		SEK_API entry_node *insert_impl(cfg_path &&entry, any &&value);
 		entry_node *insert_impl(cfg_path &&entry);
@@ -623,14 +651,16 @@ namespace sek::engine
 		/** @brief Attribute type used to and automatically create a config entry. */
 		class config_type
 		{
-			using output_frame = typename serialization::json::output_archive::archive_frame;
-			using input_frame = typename serialization::json::input_archive::archive_frame;
+			friend class engine::config_registry;
+
+			using output_frame = typename config_registry::output_frame;
+			using input_frame = typename config_registry::input_frame;
 
 		public:
 			template<typename T>
 			constexpr explicit config_type(type_selector_t<T>) noexcept
 			{
-				serialize_func = [](output_frame &frame, const any &a)
+				serialize = [](output_frame &frame, const any &a)
 				{
 					auto &value = a.template cast<const T &>();
 					if constexpr (requires { value.serialize(frame); })
@@ -641,7 +671,7 @@ namespace sek::engine
 						serialize(value, frame);
 					}
 				};
-				deserialize_func = [](input_frame &frame, any &a)
+				deserialize = [](input_frame &frame, any &a)
 				{
 					auto &value = a.template cast<T &>();
 					if constexpr (requires { value.deserialize(frame); })
@@ -659,12 +689,9 @@ namespace sek::engine
 				config_registry::instance()->access_unique()->template insert<T>(std::move(path));
 			}
 
-			void serialize(output_frame &f, const any &a) const { serialize_func(f, a); }
-			void deserialize(input_frame &f, any &a) const { deserialize_func(f, a); }
-
 		private:
-			void (*serialize_func)(output_frame &, const any &a);
-			void (*deserialize_func)(input_frame &, any &a);
+			void (*serialize)(output_frame &, const any &a);
+			void (*deserialize)(input_frame &, any &a);
 		};
 
 		template<typename T>

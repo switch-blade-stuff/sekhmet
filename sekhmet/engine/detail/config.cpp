@@ -5,6 +5,7 @@
 #include "config.hpp"
 
 #include <fstream>
+#include <utility>
 
 #include <fmt/format.h>
 
@@ -13,9 +14,6 @@ template class SEK_API_EXPORT sek::service<sek::engine::detail::config_guard>;
 namespace sek::engine
 {
 	using namespace serialization;
-
-	using config_output = json::basic_output_archive<json::inline_arrays | json::extended_fp | json::pretty_print>;
-	using config_input = json::basic_input_archive<json::allow_comments | json::extended_fp>;
 
 	config_error::~config_error() = default;
 
@@ -169,7 +167,7 @@ namespace sek::engine
 		/* If we found an upstream cache, use it to deserialize the value. */
 		if (cache != nullptr) [[unlikely]]
 		{
-			config_input archive{*cache};
+			input_archive archive{*cache};
 			archive.read(*read_stack.front(), read_stack);
 		}
 
@@ -325,8 +323,8 @@ namespace sek::engine
 		if (!cfg_file.is_open()) [[unlikely]]
 			throw config_error(fmt::format("Failed to open config file \"{}\"", path.c_str()));
 
-		config_input input{cfg_file};
-		return load(entry, std::move(*input.tree), cache);
+		input_archive input{cfg_file};
+		return load(std::move(entry), std::move(*input.tree), cache);
 	}
 	config_registry::entry_ptr<false> config_registry::load(cfg_path entry, json_tree &&tree, bool cache)
 	{
@@ -349,5 +347,27 @@ namespace sek::engine
 
 		/* Initialize the node's branch. */
 		return entry_ptr<false>{init_branch(node, data)};
+	}
+
+	void config_registry::save(const cfg_path &entry, json_tree &tree) const
+	{
+		output_archive archive{tree};
+		save_impl(entry, archive);
+	}
+	void config_registry::save(const cfg_path &entry, const std::filesystem::path &path) const
+	{
+		auto file = std::ofstream{path, std::ios::trunc | std::ios::out};
+		if (!file.is_open()) [[unlikely]]
+			throw config_error(fmt::format("Failed to open config file \"{}\"", path.c_str()));
+
+		output_archive archive{file};
+		save_impl(entry, archive);
+	}
+	void config_registry::save_impl(const cfg_path &entry, output_archive &archive) const
+	{
+		auto ptr = find(entry);
+		if (!ptr) [[unlikely]]
+			throw config_error(fmt::format("Failed to save config entry \"{}\". Unknown entry", entry.string()));
+		archive << *ptr->m_node;
 	}
 }	 // namespace sek::engine

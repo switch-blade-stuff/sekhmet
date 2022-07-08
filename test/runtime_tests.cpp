@@ -337,6 +337,7 @@ namespace
 
 	struct test_config
 	{
+		constexpr test_config() noexcept = default;
 		constexpr explicit test_config(int i) noexcept : silent_i(i) {}
 
 		void serialize(auto &archive) const
@@ -350,9 +351,9 @@ namespace
 			archive >> flag;
 		}
 
-		int silent_i;
-		int some_int;
-		bool flag;
+		int silent_i = 0;
+		int some_int = 0;
+		bool flag = false;
 	};
 }	 // namespace
 
@@ -383,9 +384,8 @@ TEST(runtime_tests, config_test)
 		EXPECT_TRUE(ptr->value().empty());
 		EXPECT_EQ(ptr->path(), "test_category");
 	}
+	sek::type_info::reflect<test_config>().attribute(make_config_type<test_config>());
 	{
-		sek::type_info::reflect<test_config>().attribute(make_config_type<test_config>());
-
 		constexpr auto silent_i = 10;
 		EXPECT_NO_THROW(reg_guard.access_unique()->insert("test_category/test_entry", test_config{silent_i}));
 
@@ -399,9 +399,37 @@ TEST(runtime_tests, config_test)
 		EXPECT_EQ(cfg->silent_i, silent_i);
 		EXPECT_EQ(cfg->some_int, 1);
 		EXPECT_TRUE(cfg->flag);
-
-		sek::type_info::reset<test_config>();
 	}
+	sek::serialization::json_tree data_tree;
+	{
+		EXPECT_NO_THROW(reg_guard.access_shared()->save("test_category/test_entry", data_tree));
+		sek::serialization::json::input_archive archive(data_tree);
+		EXPECT_NO_THROW(reg_guard.access_unique()->load("test_category/test_entry_2", std::move(data_tree)));
+	}
+	{
+		EXPECT_NO_THROW(reg_guard.access_unique()->try_insert<test_config>("test_category/test_entry_2"));
+
+		auto e1 = reg_guard.access_shared()->find("test_category/test_entry");
+		auto e2 = reg_guard.access_shared()->find("test_category/test_entry_2");
+		EXPECT_TRUE(e1);
+		EXPECT_TRUE(e2);
+		EXPECT_FALSE(e1->value().empty());
+		EXPECT_FALSE(e2->value().empty());
+		EXPECT_EQ(e1->path(), "test_category/test_entry");
+		EXPECT_EQ(e2->path(), "test_category/test_entry_2");
+
+		auto *cfg1 = e1->value().try_cast<const test_config>();
+		auto *cfg2 = e2->value().try_cast<const test_config>();
+		EXPECT_NE(cfg2, nullptr);
+		EXPECT_EQ(cfg2->silent_i, 0);
+		EXPECT_EQ(cfg2->some_int, 1);
+		EXPECT_TRUE(cfg2->flag);
+
+		EXPECT_NE(cfg2->silent_i, cfg1->silent_i);
+		EXPECT_EQ(cfg2->some_int, cfg1->some_int);
+		EXPECT_EQ(cfg2->flag, cfg1->flag);
+	}
+	sek::type_info::reset<test_config>();
 }
 
 #include "sekhmet/engine/assets.hpp"
