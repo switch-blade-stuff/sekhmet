@@ -59,31 +59,36 @@ namespace sek::engine
 		/** Initializes an empty config path. */
 		constexpr cfg_path() noexcept = default;
 
-		/** Initializes a config path from a string view.
-		 * @throw config_error If the specified path is invalid. */
-		explicit cfg_path(std::string_view str) : m_path(str) { parse(); }
 		/** Initializes a config path from a string.
 		 * @throw config_error If the specified path is invalid. */
 		explicit cfg_path(std::string &&str) : m_path(std::move(str)) { parse(); }
 		/** @copydoc cfg_path */
-		explicit cfg_path(const std::string &str) : m_path(str) { parse(); }
+		cfg_path(const std::string &str) : m_path(str) { parse(); }
+		/** Initializes a config path from a string view.
+		 * @throw config_error If the specified path is invalid. */
+		cfg_path(std::string_view str) : m_path(str) { parse(); }
 
 		/** Initializes a config path from a C-style string.
 		 * @throw config_error If the specified path is invalid. */
-		explicit cfg_path(const char *str) : cfg_path(std::string_view{str}) {}
+		cfg_path(const char *str) : cfg_path(std::string_view{str}) {}
 		/** Initializes a config path from a character array.
 		 * @throw config_error If the specified path is invalid. */
 		cfg_path(const char *str, std::size_t n) : cfg_path(std::string_view{str, n}) {}
 
+		/** Returns the amount of elements (entry names) within the path. */
+		[[nodiscard]] constexpr std::size_t elements() const noexcept { return m_slices.size(); }
 		/** Checks if the config path is empty. */
-		[[nodiscard]] constexpr bool empty() const noexcept { return m_slices.empty(); }
+		[[nodiscard]] constexpr bool empty() const noexcept { return elements() == 0; }
 		/** Checks if the config path is a category path. */
-		[[nodiscard]] constexpr bool is_category() const noexcept { return m_slices.size() == 1; }
+		[[nodiscard]] constexpr bool is_category() const noexcept { return elements() == 1; }
 
 		/** Returns reference to the underlying path string. */
 		[[nodiscard]] constexpr auto &string() noexcept { return m_path; }
 		/** @copydoc string */
 		[[nodiscard]] constexpr auto &string() const noexcept { return m_path; }
+
+		/** Converts the path to a string view. */
+		[[nodiscard]] constexpr operator std::string_view() noexcept { return {m_path}; }
 
 		/** Returns the category component of the path. */
 		[[nodiscard]] cfg_path category() const
@@ -217,6 +222,23 @@ namespace sek::engine
 			return a.m_path == b;
 		}
 
+		[[nodiscard]] friend constexpr auto operator<=>(const char *a, const cfg_path &b) noexcept
+		{
+			return std::string_view{a} <=> b.m_path;
+		}
+		[[nodiscard]] friend constexpr bool operator==(const char *a, const cfg_path &b) noexcept
+		{
+			return std::string_view{a} == b.m_path;
+		}
+		[[nodiscard]] friend constexpr auto operator<=>(const cfg_path &a, const char *b) noexcept
+		{
+			return a.m_path <=> std::string_view{b};
+		}
+		[[nodiscard]] friend constexpr bool operator==(const cfg_path &a, const char *b) noexcept
+		{
+			return a.m_path == std::string_view{b};
+		}
+
 		constexpr void swap(cfg_path &other) noexcept
 		{
 			using std::swap;
@@ -247,25 +269,6 @@ namespace sek::engine
 		friend detail::config_guard;
 
 		struct entry_node;
-		struct entry_value
-		{
-			template<typename T>
-			constexpr explicit entry_value(T &&value) : data(std::forward<T>(value))
-			{
-				deserialze = [](serialization::json_tree &, any_ref) {
-
-				};
-				serialze = [](serialization::json_tree &, any_ref) {
-
-				};
-			}
-
-			/* Functions used to read & write the node. */
-			void (*deserialze)(serialization::json_tree &, any_ref);
-			void (*serialze)(serialization::json_tree &, any_ref);
-
-			any data; /* Deserialized data of the entry. */
-		};
 
 		struct entry_hash
 		{
@@ -288,15 +291,33 @@ namespace sek::engine
 
 		using entry_set = dense_set<entry_node *, entry_hash, entry_cmp>;
 
+		using output_frame = typename serialization::json::output_archive::archive_frame;
+		using input_frame = typename serialization::json::input_archive::archive_frame;
+
 		struct entry_node
 		{
 			constexpr explicit entry_node(cfg_path &&path) noexcept : path(std::move(path)) {}
+			~entry_node()
+			{
+				for (auto *child : nodes) std::destroy_at(child);
+				delete data_cache;
+			}
 
-			cfg_path path;		/* Full path of the entry. */
-			entry_set children; /* Immediate children of the entry (if any). */
+			struct nodes_proxy;
+			struct any_proxy;
 
-			/* Optional value of the entry (present if the entry is initialized) */
-			entry_value *value = nullptr;
+			SEK_API void serialize(output_frame &) const;
+			SEK_API void deserialize(input_frame &);
+			void deserialize(input_frame &, std::vector<entry_node *> &);
+
+			cfg_path path;	 /* Full path of the entry. */
+			entry_set nodes; /* Immediate children of the entry (if any). */
+
+			/* Optional value of the entry (present if the entry is initialized). */
+			any value = {};
+
+			/* Optional cached Json tree of the entry. */
+			serialization::json_tree *data_cache = nullptr;
 		};
 
 		template<bool IsConst>
@@ -306,46 +327,6 @@ namespace sek::engine
 		template<bool IsConst>
 		class entry_iterator;
 
-		template<bool IsConst>
-		class value_ptr
-		{
-			template<bool>
-			friend class entry_ref;
-
-			constexpr explicit value_ptr(entry_value *ptr) noexcept : m_ptr(ptr) {}
-
-		public:
-			typedef any value_type;
-			typedef std::conditional_t<IsConst, const any, any> *pointer;
-			typedef std::conditional_t<IsConst, const any, any> &reference;
-
-		public:
-			/** Initializes a null value pointer. */
-			constexpr value_ptr() noexcept = default;
-
-			// clang-format off
-			template<bool OtherConst = !IsConst>
-			constexpr value_ptr(const value_ptr<OtherConst> &other) noexcept requires(IsConst && !OtherConst)
-				: m_ptr(other.m_ptr) {}
-			// clang-format on
-
-			/** Checks if the value pointer is null. */
-			[[nodiscard]] constexpr operator bool() const noexcept { return m_ptr != nullptr; }
-
-			/** Returns pointer to the underlying 'any' value. */
-			[[nodiscard]] constexpr pointer operator->() const noexcept { return &m_ptr->data; }
-			/** Returns reference to the underlying 'any' value. */
-			[[nodiscard]] constexpr reference operator*() const noexcept { return m_ptr->data; }
-
-			[[nodiscard]] constexpr auto operator<=>(const value_ptr &) const noexcept = default;
-			[[nodiscard]] constexpr bool operator==(const value_ptr &) const noexcept = default;
-
-			constexpr void swap(value_ptr &other) noexcept { std::swap(m_ptr, other.m_ptr); }
-			friend constexpr void swap(value_ptr &a, value_ptr &b) noexcept { a.swap(b); }
-
-		private:
-			entry_value *m_ptr = nullptr;
-		};
 		template<bool IsConst>
 		class entry_ref
 		{
@@ -360,6 +341,9 @@ namespace sek::engine
 			typedef entry_iterator<IsConst> iterator;
 			typedef entry_iterator<true> const_iterator;
 
+		private:
+			typedef std::conditional_t<IsConst, const any, any> any_type;
+
 		public:
 			entry_ref() = delete;
 
@@ -369,21 +353,18 @@ namespace sek::engine
 			[[nodiscard]] constexpr const entry_ref *operator&() const noexcept { return this; }
 
 			/** Returns iterator to the first child of the entry. */
-			[[nodiscard]] constexpr iterator begin() noexcept { return iterator{m_node->children.begin()}; }
+			[[nodiscard]] constexpr iterator begin() noexcept { return iterator{m_node->nodes.begin()}; }
 			/** @copydoc begin */
 			[[nodiscard]] constexpr const_iterator begin() const noexcept
 			{
-				return const_iterator{m_node->children.begin()};
+				return const_iterator{m_node->nodes.begin()};
 			}
 			/** @copydoc begin */
 			[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
 			/** Returns iterator one past the last child of the entry. */
-			[[nodiscard]] constexpr iterator end() noexcept { return iterator{m_node->children.end()}; }
+			[[nodiscard]] constexpr iterator end() noexcept { return iterator{m_node->nodes.end()}; }
 			/** @copydoc end */
-			[[nodiscard]] constexpr const_iterator end() const noexcept
-			{
-				return const_iterator{m_node->children.end()};
-			}
+			[[nodiscard]] constexpr const_iterator end() const noexcept { return const_iterator{m_node->nodes.end()}; }
 			/** @copydoc end */
 			[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
 
@@ -398,8 +379,8 @@ namespace sek::engine
 
 			/** Returns reference to the config path of the entry. */
 			[[nodiscard]] constexpr const cfg_path &path() const noexcept { return m_node->path; }
-			/** Returns pointer to the value of the entry. */
-			[[nodiscard]] constexpr auto value() const noexcept { return value_ptr<IsConst>{m_node->value}; }
+			/** Returns reference to the value of the entry. */
+			[[nodiscard]] constexpr any_type &value() const noexcept { return m_node->value; }
 
 			[[nodiscard]] constexpr auto operator<=>(const entry_ref &) const noexcept = default;
 			[[nodiscard]] constexpr bool operator==(const entry_ref &) const noexcept = default;
@@ -530,6 +511,8 @@ namespace sek::engine
 		typedef std::ptrdiff_t difference_type;
 
 	public:
+		SEK_API ~config_registry();
+
 		/** Returns iterator to the first category of the registry. */
 		[[nodiscard]] constexpr iterator begin() noexcept { return iterator{m_categories.begin()}; }
 		/** @copydoc begin */
@@ -552,70 +535,82 @@ namespace sek::engine
 		/** @copydoc back */
 		[[nodiscard]] constexpr auto back() const noexcept { return *(--end()); }
 
+		/** Erases all entries of the registry. */
+		SEK_API void clear();
+
 		/** Returns entry pointer to the entry with the specified path. */
-		[[nodiscard]] SEK_API entry_ptr<false> find(const cfg_path &path);
+		[[nodiscard]] SEK_API entry_ptr<false> find(const cfg_path &entry);
 		/** @copydoc find */
-		[[nodiscard]] SEK_API entry_ptr<true> find(const cfg_path &path) const;
+		[[nodiscard]] SEK_API entry_ptr<true> find(const cfg_path &entry) const;
 
 		/** Creates a config entry of type `T`.
-		 * @param path Full path of the entry.
-		 * @return Reference to the value of the entry. */
-		template<typename T>
-		inline T &try_insert(cfg_path path)
-		{
-			if (auto existing = find(path); existing && existing->value()) [[unlikely]]
-				return existing->value()->template cast<T &>();
-			else
-				return insert(std::move(path), T{});
-		}
-		/** Creates or replaces a config entry of type `T`.
-		 * @param path Full path of the entry.
+		 * @param entry Full path of the entry.
 		 * @param value Value of the entry.
 		 * @return Reference to the value of the entry.
-		 * @note If such entry already exists, replaces the value. */
+		 * @note If a new entry was inserted and there is a Json data cache up the tree, the entry will be deserialized. */
 		template<typename T>
-		inline T &insert(cfg_path path, T value = {})
+		inline T &try_insert(cfg_path entry, T value = {})
 		{
-			if (auto existing = find(path); existing && existing->value()) [[unlikely]]
-				return (*existing->value() = make_any(std::move(value))).template cast<T &>();
+			if (auto existing = find(entry); !existing) [[likely]]
+				return insert_impl(std::move(entry), std::move(value));
 			else
-				return insert(std::move(path), std::move(value));
+				return existing->value().template cast<T &>();
+		}
+		/** Creates or replaces a config entry of type `T`.
+		 * @param entry Full path of the entry.
+		 * @param value Value of the entry.
+		 * @return Reference to the value of the entry.
+		 * @note If such entry already exists, value of the entry will be replaced.
+		 * @note If there is a Json data cache up the tree, the entry will be deserialized. */
+		template<typename T>
+		inline T &insert(cfg_path entry, T value = {})
+		{
+			if (auto existing = find(entry); !existing) [[likely]]
+				return insert_impl(std::move(entry), std::move(value));
+			else
+				return assign_impl(existing, std::move(value));
 		}
 
 		/** Erases the specified config entry and all it's children.
 		 * @return `true` If the entry was erased, `false` otherwise. */
 		SEK_API bool erase(entry_ptr<true> where);
 		/** @copydoc erase */
-		SEK_API bool erase(const cfg_path &path);
+		SEK_API bool erase(const cfg_path &entry);
+
+		/** Loads an entry from a Json node tree.
+		 * @param entry Full path of the entry.
+		 * @param tree Json node tree containing source data.
+		 * @param cache If set to true, the node tree will be cached and re-used for de-serialization of new entries. */
+		SEK_API void load(cfg_path entry, serialization::json_tree &&tree, bool cache = true);
+		/** Loads an entry from a Json file.
+		 * @param entry Full path of the entry.
+		 * @param path Path to a Json file containing source data.
+		 * @param cache If set to true, the data will be cached and re-used for de-serialization of new entries. */
+		SEK_API void load(cfg_path entry, const std::filesystem::path &path, bool cache = true);
 
 	private:
+		entry_node *insert_impl(cfg_path &&entry);
+		SEK_API entry_node *insert_impl(cfg_path &&entry, any &&value);
+		SEK_API entry_node *assign_impl(entry_node *node, any &&value);
+
+		entry_node *init_branch(entry_node *node, serialization::json_tree *cache);
+
 		template<typename T>
-		inline T &insert_impl(cfg_path &&path, T &&value)
+		inline T &insert_impl(cfg_path &&entry, T &&value)
 		{
-			if (path.empty()) [[unlikely]]
-				throw config_error("Entry path cannot be empty");
-
-			auto *ptr = m_value_pool.allocate();
-			try
-			{
-				std::construct_at(ptr, std::forward<T>(value));
-			}
-			catch (...)
-			{
-				m_value_pool.deallocate(ptr);
-				throw;
-			}
-
-			insert_impl(std::forward<cfg_path>(path), ptr);
-			return ptr->data.template cast<T &>();
+			return insert_impl(std::forward<cfg_path>(entry), make_any<T>(value))->value.template cast<T &>();
 		}
-		entry_node *insert_impl(cfg_path &&path);
-		SEK_API void insert_impl(cfg_path &&path, entry_value *value);
+		template<typename T>
+		inline T &assign_impl(entry_ptr<false> ptr, T &&value)
+		{
+			return assign_impl(ptr.m_ref.m_node, make_any<T>(value))->value.template cast<T &>();
+		}
+
+		void clear_impl();
 
 		void erase_impl(typename entry_set::const_iterator where);
 
-		detail::basic_pool<entry_value> m_value_pool; /* Pool used to allocate entry values. */
-		detail::basic_pool<entry_node> m_node_pool;	  /* Pool used to allocate entry nodes. */
+		detail::basic_pool<entry_node> m_node_pool; /* Pool used to allocate entry nodes. */
 
 		entry_set m_categories; /* Categories of the registry. */
 		entry_set m_entries;	/* Entry nodes of the registry. */
@@ -624,15 +619,62 @@ namespace sek::engine
 	namespace attributes
 	{
 		/** @brief Attribute type used to and automatically create a config entry. */
-		template<typename T>
-		class config_entry
+		class config_type
 		{
+			using output_frame = typename serialization::json::output_archive::archive_frame;
+			using input_frame = typename serialization::json::input_archive::archive_frame;
+
 		public:
-			config_entry(cfg_path path)
+			template<typename T>
+			constexpr explicit config_type(type_selector_t<T>) noexcept
+			{
+				serialize_func = [](output_frame &frame, const any &a)
+				{
+					auto &value = a.template cast<const T &>();
+					if constexpr (requires { value.serialize(frame); })
+						value.serialize(frame);
+					else
+					{
+						using sek::serialization::serialize;
+						serialize(value, frame);
+					}
+				};
+				deserialize_func = [](input_frame &frame, any &a)
+				{
+					auto &value = a.template cast<T &>();
+					if constexpr (requires { value.deserialize(frame); })
+						value.deserialize(frame);
+					else
+					{
+						using sek::serialization::deserialize;
+						deserialize(value, frame);
+					}
+				};
+			}
+			template<typename T>
+			config_type(type_selector_t<T> s, cfg_path path) : config_type(s)
 			{
 				config_registry::instance()->access_unique()->template insert<T>(std::move(path));
 			}
+
+			void serialize(output_frame &f, const any &a) const { serialize_func(f, a); }
+			void deserialize(input_frame &f, any &a) const { deserialize_func(f, a); }
+
+		private:
+			void (*serialize_func)(output_frame &, const any &a);
+			void (*deserialize_func)(input_frame &, any &a);
 		};
+
+		template<typename T>
+		constexpr config_type make_config_type() noexcept
+		{
+			return config_type{type_selector<T>};
+		}
+		template<typename T>
+		inline config_type make_config_type(cfg_path path) noexcept
+		{
+			return config_type{type_selector<T>, path};
+		}
 	}	 // namespace attributes
 }	 // namespace sek::engine
 

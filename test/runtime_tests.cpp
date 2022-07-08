@@ -329,6 +329,81 @@ TEST(runtime_tests, any_test)
 	}
 }
 
+#include "sekhmet/engine/config.hpp"
+
+namespace
+{
+	using namespace sek::serialization;
+
+	struct test_config
+	{
+		constexpr explicit test_config(int i) noexcept : silent_i(i) {}
+
+		void serialize(auto &archive) const
+		{
+			archive << keyed_entry("some_int", some_int);
+			archive << keyed_entry("flag", flag);
+		}
+		void deserialize(auto &archive)
+		{
+			archive >> some_int;
+			archive >> flag;
+		}
+
+		int silent_i;
+		int some_int;
+		bool flag;
+	};
+}	 // namespace
+
+template<>
+[[nodiscard]] constexpr std::string_view sek::type_name<test_config>() noexcept
+{
+	return "test_config";
+}
+
+TEST(runtime_tests, config_test)
+{
+	using namespace sek::engine::attributes;
+	using namespace sek::serialization;
+	using namespace std::literals;
+
+	using reg_guard_t = std::remove_pointer_t<decltype(sek::engine::config_registry::instance())>;
+	reg_guard_t reg_guard;
+
+	{
+		const auto data = R"({ "nodes": { "test_entry": { "test_config": { "some_int": 1, "flag": true }}}})"sv;
+
+		sek::serialization::json::input_archive archive(data.data(), data.size());
+		EXPECT_NO_THROW(reg_guard.access_unique()->load("test_category", std::move(*archive.tree)));
+	}
+	{
+		auto ptr = reg_guard.access_shared()->find("test_category");
+		EXPECT_TRUE(ptr);
+		EXPECT_TRUE(ptr->value().empty());
+		EXPECT_EQ(ptr->path(), "test_category");
+	}
+	{
+		sek::type_info::reflect<test_config>().attribute(make_config_type<test_config>());
+
+		constexpr auto silent_i = 10;
+		EXPECT_NO_THROW(reg_guard.access_unique()->insert("test_category/test_entry", test_config{silent_i}));
+
+		auto ptr = reg_guard.access_shared()->find("test_category/test_entry");
+		EXPECT_TRUE(ptr);
+		EXPECT_FALSE(ptr->value().empty());
+		EXPECT_EQ(ptr->path(), "test_category/test_entry");
+
+		auto *cfg = ptr->value().try_cast<const test_config>();
+		EXPECT_NE(cfg, nullptr);
+		EXPECT_EQ(cfg->silent_i, silent_i);
+		EXPECT_EQ(cfg->some_int, 1);
+		EXPECT_TRUE(cfg->flag);
+
+		sek::type_info::reset<test_config>();
+	}
+}
+
 #include "sekhmet/engine/assets.hpp"
 
 TEST(runtime_tests, asset_test)

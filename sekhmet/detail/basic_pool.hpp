@@ -44,15 +44,7 @@ namespace sek::detail
 			swap(other);
 			return *this;
 		}
-		~basic_pool()
-		{
-			for (auto *page = last_page(); page != nullptr;)
-			{
-				auto next = page->next;
-				get_alloc().deallocate(std::bit_cast<node_t *>(page), header_nodes + page->capacity);
-				page = next;
-			}
-		}
+		~basic_pool() { release(); }
 
 		T *allocate()
 		{
@@ -92,6 +84,19 @@ namespace sek::detail
 
 			last_page() = header;
 			m_total_cap += cap;
+		}
+
+		void release()
+		{
+			for (auto *page = last_page(); page != nullptr;)
+			{
+				auto next = page->next;
+				get_alloc().deallocate(std::bit_cast<node_t *>(page), header_nodes + page->capacity);
+				page = next;
+			}
+			last_page() = nullptr;
+			m_next_free = nullptr;
+			m_total_cap = 0;
 		}
 
 		constexpr void swap(basic_pool &other) noexcept
