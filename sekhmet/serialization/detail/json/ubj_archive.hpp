@@ -81,6 +81,7 @@ namespace sek::serialization::ubj
 		using base_t = detail::base_archive;
 
 	public:
+		typedef typename base_t::tree_type tree_type;
 		typedef typename base_t::read_frame archive_frame;
 		typedef typename archive_frame::archive_category archive_category;
 		typedef typename archive_frame::char_type char_type;
@@ -486,6 +487,7 @@ namespace sek::serialization::ubj
 		using entry_type = typename base_t::tree_type::type_selector;
 
 	public:
+		typedef typename base_t::tree_type tree_type;
 		typedef typename base_t::write_frame archive_frame;
 		typedef typename archive_frame::archive_category archive_category;
 		typedef typename archive_frame::char_type char_type;
