@@ -141,6 +141,20 @@ namespace sek::serialization::json
 			return *this;
 		}
 
+		/** Initializes input archive from a json node tree.
+		 * @param tree Json node tree containing source data. */
+		explicit basic_input_archive(json_tree &tree) : basic_input_archive(tree, std::pmr::get_default_resource()) {}
+		/** @copydoc basic_input_archive */
+		explicit basic_input_archive(json_tree &&tree)
+			: basic_input_archive(std::move(tree), std::pmr::get_default_resource())
+		{
+		}
+		/** @copydoc basic_input_archive
+		 * @param res Memory resource used for internal allocation. */
+		basic_input_archive(json_tree &tree, std::pmr::memory_resource *res) : base_t(tree, res) {}
+		/** @copydoc basic_input_archive */
+		basic_input_archive(json_tree &&tree, std::pmr::memory_resource *res) : base_t(std::move(tree), res) {}
+
 		/** Reads Json using the provided archive reader.
 		 * @param reader Reader used to read Json data. */
 		explicit basic_input_archive(archive_reader<char_type> reader)
@@ -246,6 +260,8 @@ namespace sek::serialization::json
 
 		constexpr void swap(basic_input_archive &other) noexcept { base_t::swap(other); }
 		friend constexpr void swap(basic_input_archive &a, basic_input_archive &b) noexcept { a.swap(b); }
+
+		using base_t::tree;
 
 	private:
 		void parse(rj_reader reader)
@@ -418,6 +434,20 @@ namespace sek::serialization::json
 			return *this;
 		}
 
+		/** Initializes output archive from a json node tree.
+		 * @param tree Json node tree containing source data. */
+		explicit basic_output_archive(json_tree &tree) : basic_output_archive(tree, std::pmr::get_default_resource()) {}
+		/** @copydoc basic_input_archive */
+		explicit basic_output_archive(json_tree &&tree)
+			: basic_output_archive(std::move(tree), std::pmr::get_default_resource())
+		{
+		}
+		/** @copydoc basic_input_archive
+		 * @param res Memory resource used for internal allocation. */
+		basic_output_archive(json_tree &tree, std::pmr::memory_resource *res) : base_t(tree, res) {}
+		/** @copydoc basic_input_archive */
+		basic_output_archive(json_tree &&tree, std::pmr::memory_resource *res) : base_t(std::move(tree), res) {}
+
 		/** Initializes output archive for writing using the provided writer.
 		 * @param writer Writer used to write Json data. */
 		explicit basic_output_archive(archive_writer<char_type> writer)
@@ -515,6 +545,14 @@ namespace sek::serialization::json
 			base_t::reset();
 		}
 
+		/** Releases the Json node tree and returns rvalue to it.
+		 * @note Archive must be the owner of the tree. Releasing an external tree will lead to undefined behavior. */
+		constexpr json_tree &&release_tree() noexcept
+		{
+			can_flush = false;
+			return std::move(*base_t::own_tree);
+		}
+
 		constexpr void swap(basic_output_archive &other) noexcept
 		{
 			base_t::swap(other);
@@ -525,12 +563,21 @@ namespace sek::serialization::json
 	private:
 		void flush_impl()
 		{
-			detail::rj_allocator allocator{base_t::upstream};
-			rj_emitter emitter{m_writer, allocator};
-			base_t::do_flush(emitter);
+			if (can_flush) [[likely]]
+			{
+				detail::rj_allocator allocator{base_t::upstream};
+				rj_emitter emitter{m_writer, allocator};
+				base_t::do_flush(emitter);
+			}
 		}
 
-		rj_writer m_writer;
+		union
+		{
+			std::byte padding[sizeof(rj_writer)] = {};
+			rj_writer m_writer;
+		};
+
+		bool can_flush = true;
 	};
 
 	typedef basic_output_archive<pretty_print | inline_arrays> output_archive;

@@ -67,12 +67,7 @@ namespace sek::serialization
 			std::intmax_t si;
 			std::uintmax_t ui;
 
-			/* Used for input. */
 			double fp;
-
-			/* Used for output. */
-			float f32;
-			double f64;
 		};
 		template<typename C, typename T = std::char_traits<C>>
 		using basic_json_tree = basic_node_tree<C, json_node_value<C>, void, T>;
@@ -136,8 +131,8 @@ namespace sek::serialization
 					case INT_U16:
 					case INT_U8: emitter.on_uint(type, value.ui); break;
 
-					case FLOAT32: emitter.on_float32(value.f32); break;
-					case FLOAT64: emitter.on_float64(value.f64); break;
+					case FLOAT32: emitter.on_float32(static_cast<float>(value.fp)); break;
+					case FLOAT64: emitter.on_float64(value.fp); break;
 
 					case STRING: emitter.on_string(value.string.data(), value.string.size()); break;
 					default: break;
@@ -520,7 +515,7 @@ namespace sek::serialization
 				template<std::integral S>
 				[[nodiscard]] C *on_string_alloc(S len) const
 				{
-					return m_parent.tree.alloc_string(static_cast<std::size_t>(len));
+					return m_parent.tree->alloc_string(static_cast<std::size_t>(len));
 				}
 
 				bool on_null() const
@@ -613,7 +608,7 @@ namespace sek::serialization
 
 					if (!m_parse_stack) [[unlikely]] /* If stack is empty, this is the top-level object. */
 					{
-						do_start_object(m_parent.tree.top_level);
+						do_start_object(m_parent.tree->top_level);
 						return true;
 					}
 					else
@@ -663,7 +658,7 @@ namespace sek::serialization
 
 					if (!m_parse_stack) [[unlikely]] /* If stack is empty, this is the top-level array. */
 					{
-						do_start_array(m_parent.tree.top_level);
+						do_start_array(m_parent.tree->top_level);
 						return true;
 					}
 					else
@@ -681,7 +676,7 @@ namespace sek::serialization
 
 				void reserve_container(auto &node, std::size_t n) const
 				{
-					node = m_parent.tree.reserve_container(node, n);
+					node = m_parent.tree->reserve_container(node, n);
 				}
 				[[nodiscard]] auto &push_container(auto &node) const
 				{
@@ -1262,16 +1257,16 @@ namespace sek::serialization
 				}
 
 			private:
-				[[nodiscard]] C *alloc_string(std::size_t n) const { return m_parent.tree.alloc_string(n); }
+				[[nodiscard]] C *alloc_string(std::size_t n) const { return m_parent.tree->alloc_string(n); }
 				template<typename U>
 				[[nodiscard]] std::basic_string_view<C> copy_string(std::basic_string_view<C, U> str) const
 				{
-					return m_parent.tree.copy_string(str.data(), str.size());
+					return m_parent.tree->copy_string(str.data(), str.size());
 				}
 
 				void reserve_container(auto &node, std::size_t n) const
 				{
-					node = m_parent.tree.reserve_container(node, n);
+					node = m_parent.tree->reserve_container(node, n);
 				}
 				[[nodiscard]] auto &push_container(auto &node) const
 				{
@@ -1280,7 +1275,7 @@ namespace sek::serialization
 						reserve_container(node, node.empty() ? 1 : old_size * 2);
 
 					node.insert(node.cbegin() + static_cast<std::ptrdiff_t>(old_size), {});
-					return node.begin()[old_size];
+					return node.begin()[static_cast<std::ptrdiff_t>(old_size)];
 				}
 				[[nodiscard]] auto *next_node() const
 				{
@@ -1374,15 +1369,10 @@ namespace sek::serialization
 			void write_value(tree_node &node, F &&f) const requires std::floating_point<std::decay_t<F>>
 			{
 				if constexpr (sizeof(F) > sizeof(float))
-				{
 					node.to_value().type.value = FLOAT64;
-					node.value().f64 = static_cast<double>(f);
-				}
 				else
-				{
 					node.to_value().type.value = FLOAT32;
-					node.value().f32 = static_cast<float>(f);
-				}
+				node.value().fp = static_cast<double>(f);
 			}
 				// clang-format on
 
@@ -1469,14 +1459,14 @@ namespace sek::serialization
 				void write_impl(U &&value, Args &&...args)
 				{
 					if (!m_current.is_array()) [[likely]]
-						m_next_key = m_parent.tree.make_key(m_current.table().size());
+						m_next_key = m_parent.tree->make_key(m_current.table().size());
 					write_value(std::forward<U>(value), std::forward<Args>(args)...);
 				}
 				template<typename U, typename... Args>
 				void write_impl(keyed_entry_t<C, U> value, Args &&...args)
 				{
 					if (!m_current.is_array()) [[likely]]
-						m_next_key = m_parent.tree.copy_string(value.key);
+						m_next_key = m_parent.tree->copy_string(value.key);
 					write_value(std::forward<U>(value.value), std::forward<Args>(args)...);
 				}
 				template<typename U>
@@ -1512,20 +1502,26 @@ namespace sek::serialization
 				std::basic_string_view<C> m_next_key = {};
 			};
 
-			using entry_pool_t = dynamic_buffer_resource<sizeof(entry_t) * 64>;
-			using string_pool_t = dynamic_buffer_resource<SEK_KB(1)>;
-
 			json_archive_base() = delete;
 			json_archive_base(const json_archive_base &) = delete;
 			json_archive_base &operator=(const json_archive_base &) = delete;
 
-			explicit json_archive_base(std::pmr::memory_resource *res) noexcept : tree(res), upstream(res) {}
+			explicit json_archive_base(std::pmr::memory_resource *res) noexcept
+				: own_tree(new tree_type{res}), tree(own_tree), upstream(res)
+			{
+			}
 			explicit json_archive_base(tree_type &&tree, std::pmr::memory_resource *res) noexcept
-				: tree(std::move(tree)), upstream(res)
+				: own_tree(new tree_type{std::move(tree)}), tree(own_tree), upstream(res)
+			{
+			}
+			explicit json_archive_base(tree_type &tree, std::pmr::memory_resource *res) noexcept
+				: tree(&tree), upstream(res)
 			{
 			}
 			constexpr json_archive_base(json_archive_base &&other) noexcept
-				: tree(std::move(other.tree)), upstream(std::exchange(other.upstream, nullptr))
+				: own_tree(std::exchange(other.own_tree, nullptr)),
+				  tree(std::exchange(other.own_tree, nullptr)),
+				  upstream(std::exchange(other.upstream, nullptr))
 			{
 			}
 			constexpr json_archive_base &operator=(json_archive_base &&other) noexcept
@@ -1533,10 +1529,10 @@ namespace sek::serialization
 				swap(other);
 				return *this;
 			}
-			~json_archive_base() = default;
+			~json_archive_base() { delete own_tree; }
 
-			void reset(std::pmr::memory_resource *res) { tree.reset(res); }
-			void reset() { tree.reset(); }
+			void reset(std::pmr::memory_resource *res) { tree->reset(res); }
+			void reset() { tree->reset(); }
 
 			template<typename U, typename... Args>
 			bool do_try_read(U &&value, Args &&...args)
@@ -1557,24 +1553,27 @@ namespace sek::serialization
 			template<typename U, typename... Args>
 			void do_write(U &&value, Args &&...args)
 			{
-				write_frame frame{*this, tree.top_level};
+				write_frame frame{*this, tree->top_level};
 				detail::do_serialize(std::forward<U>(value), frame, std::forward<Args>(args)...);
 			}
 			void do_flush(auto &emitter) const
 			{
-				if (tree.top_level.type.storage != tree_type::type_selector::DYNAMIC) [[likely]]
-					emit_node(tree.top_level, emitter);
+				if (tree->top_level.type.storage != tree_type::type_selector::DYNAMIC) [[likely]]
+					emit_node(tree->top_level, emitter);
 			}
 
 			constexpr void swap(json_archive_base &other) noexcept
 			{
-				tree.swap(other.tree);
+				std::swap(own_tree, other.own_tree);
+				std::swap(tree, other.tree);
 				std::swap(upstream, other.upstream);
 			}
 
-			[[nodiscard]] constexpr auto &top_entry() noexcept { return static_cast<entry_t &>(tree.top_level); }
+			[[nodiscard]] constexpr auto &top_entry() noexcept { return static_cast<entry_t &>(tree->top_level); }
 
-			tree_type tree;
+			tree_type *own_tree = nullptr; /* Tree allocated by this archive. */
+			tree_type *tree;
+
 			std::pmr::memory_resource *upstream;
 		};
 

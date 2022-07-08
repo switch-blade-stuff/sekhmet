@@ -324,6 +324,20 @@ namespace sek::serialization::ubj
 			return *this;
 		}
 
+		/** Initializes input archive from a json node tree.
+		 * @param tree Json node tree containing source data. */
+		explicit basic_input_archive(json_tree &tree) : basic_input_archive(tree, std::pmr::get_default_resource()) {}
+		/** @copydoc basic_input_archive */
+		explicit basic_input_archive(json_tree &&tree)
+			: basic_input_archive(std::move(tree), std::pmr::get_default_resource())
+		{
+		}
+		/** @copydoc basic_input_archive
+		 * @param res Memory resource used for internal allocation. */
+		basic_input_archive(json_tree &tree, std::pmr::memory_resource *res) : base_t(tree, res) {}
+		/** @copydoc basic_input_archive */
+		basic_input_archive(json_tree &&tree, std::pmr::memory_resource *res) : base_t(std::move(tree), res) {}
+
 		/** Reads UBJson using the provided archive reader.
 		 * @param reader Reader used to read UBJson data. */
 		explicit basic_input_archive(archive_reader<char_type> reader)
@@ -432,6 +446,8 @@ namespace sek::serialization::ubj
 
 		constexpr void swap(basic_input_archive &other) noexcept { base_t::swap(other); }
 		friend constexpr void swap(basic_input_archive &a, basic_input_archive &b) noexcept { a.swap(b); }
+
+		using base_t::tree;
 
 	private:
 		void parse(ubj_reader reader)
@@ -623,7 +639,10 @@ namespace sek::serialization::ubj
 				else
 					return type;
 			}
-			void on_int(detail::json_type type, std::intmax_t value) { on_uint(type, static_cast<std::uintmax_t>(value)); }
+			void on_int(detail::json_type type, std::intmax_t value)
+			{
+				on_uint(type, static_cast<std::uintmax_t>(value));
+			}
 			void on_uint(detail::json_type type, std::uintmax_t value)
 			{
 				switch (current_int_type(type))
@@ -721,6 +740,20 @@ namespace sek::serialization::ubj
 			return *this;
 		}
 
+		/** Initializes output archive from a json node tree.
+		 * @param tree Json node tree containing source data. */
+		explicit basic_output_archive(json_tree &tree) : basic_output_archive(tree, std::pmr::get_default_resource()) {}
+		/** @copydoc basic_input_archive */
+		explicit basic_output_archive(json_tree &&tree)
+			: basic_output_archive(std::move(tree), std::pmr::get_default_resource())
+		{
+		}
+		/** @copydoc basic_input_archive
+		 * @param res Memory resource used for internal allocation. */
+		basic_output_archive(json_tree &tree, std::pmr::memory_resource *res) : base_t(tree, res) {}
+		/** @copydoc basic_input_archive */
+		basic_output_archive(json_tree &&tree, std::pmr::memory_resource *res) : base_t(std::move(tree), res) {}
+
 		/** Initializes output archive for writing using the provided writer.
 		 * @param writer Writer used to write UBJson data. */
 		explicit basic_output_archive(archive_writer<char_type> writer)
@@ -808,6 +841,14 @@ namespace sek::serialization::ubj
 			base_t::reset();
 		}
 
+		/** Releases the Json node tree and returns rvalue to it.
+		 * @note Archive must be the owner of the tree. Releasing an external tree will lead to undefined behavior. */
+		constexpr json_tree &&release_tree() noexcept
+		{
+			can_flush = false;
+			return std::move(*base_t::own_tree);
+		}
+
 		constexpr void swap(basic_output_archive &other) noexcept
 		{
 			base_t::swap(other);
@@ -818,11 +859,20 @@ namespace sek::serialization::ubj
 	private:
 		void flush_impl()
 		{
-			emitter_spec12 emitter{&m_writer};
-			base_t::do_flush(emitter);
+			if (can_flush) [[likely]]
+			{
+				emitter_spec12 emitter{&m_writer};
+				base_t::do_flush(emitter);
+			}
 		}
 
-		ubj_writer m_writer;
+		union
+		{
+			std::byte padding[sizeof(ubj_writer)] = {};
+			ubj_writer m_writer;
+		};
+
+		bool can_flush = true;
 	};
 
 	typedef basic_output_archive<fixed_type> output_archive;

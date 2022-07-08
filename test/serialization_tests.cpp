@@ -122,8 +122,6 @@ template class ubj::basic_output_archive<ubj::fixed_type>;
 
 TEST(serialization_tests, ubjson_test)
 {
-	namespace ubj = ser::ubj;
-
 	std::string ubj_string;
 	{
 		std::stringstream ss;
@@ -142,6 +140,23 @@ TEST(serialization_tests, ubjson_test)
 	{
 		ubj::input_archive archive{ubj_string.data(), ubj_string.size()};
 		EXPECT_NO_THROW(deserialized = archive.read(std::in_place_type<serializable_t>, true));
+	}
+	EXPECT_EQ(data, deserialized);
+}
+
+TEST(serialization_tests, json_tree_test)
+{
+	ser::json_tree tree;
+	{
+		std::stringstream ss;
+		ubj::basic_output_archive<ubj::fixed_type> archive{ss};
+		archive << data;
+		tree = archive.release_tree();
+	}
+	serializable_t deserialized = {};
+	{
+		ubj::input_archive archive{tree};
+		EXPECT_TRUE(archive.try_read(deserialized));
 	}
 	EXPECT_EQ(data, deserialized);
 }

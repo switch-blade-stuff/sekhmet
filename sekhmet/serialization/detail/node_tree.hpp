@@ -395,7 +395,24 @@ namespace sek::serialization
 	public:
 		constexpr static auto has_attribute = !std::same_as<A, void>;
 
-		explicit basic_node_tree(std::pmr::memory_resource *res) noexcept : string_pool(res), node_pool(res) {}
+	public:
+		basic_node_tree(const basic_node_tree &) = delete;
+		basic_node_tree &operator=(const basic_node_tree &) = delete;
+
+		basic_node_tree() : basic_node_tree(std::pmr::get_default_resource()) {}
+		explicit basic_node_tree(std::pmr::memory_resource *res) : string_pool(res), node_pool(res) {}
+
+		constexpr basic_node_tree(basic_node_tree &&other) noexcept
+			: top_level(std::exchange(other.top_level, {})),
+			  string_pool(std::exchange(other.string_pool, {})),
+			  node_pool(std::exchange(other.node_pool, {}))
+		{
+		}
+		constexpr basic_node_tree &operator=(basic_node_tree &&other) noexcept
+		{
+			swap(other);
+			return *this;
+		}
 
 		/** Allocates a string (n + 1 chars) using the string pool.
 		 * @throw std::bad_alloc on allocation failure. */
