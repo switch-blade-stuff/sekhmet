@@ -1507,20 +1507,21 @@ namespace sek::serialization
 			json_archive_base &operator=(const json_archive_base &) = delete;
 
 			explicit json_archive_base(std::pmr::memory_resource *res) noexcept
-				: own_tree(new tree_type{res}), tree(own_tree), upstream(res)
+				: own_tree(res), tree(&own_tree), upstream(res)
 			{
 			}
 			explicit json_archive_base(tree_type &&tree, std::pmr::memory_resource *res) noexcept
-				: own_tree(new tree_type{std::move(tree)}), tree(own_tree), upstream(res)
+				: own_tree(std::move(tree)), tree(&own_tree), upstream(res)
 			{
 			}
 			explicit json_archive_base(tree_type &tree, std::pmr::memory_resource *res) noexcept
 				: tree(&tree), upstream(res)
 			{
 			}
+
 			constexpr json_archive_base(json_archive_base &&other) noexcept
-				: own_tree(std::exchange(other.own_tree, nullptr)),
-				  tree(std::exchange(other.own_tree, nullptr)),
+				: own_tree(std::move(other.own_tree)),
+				  tree(std::exchange(other.tree, nullptr)),
 				  upstream(std::exchange(other.upstream, nullptr))
 			{
 			}
@@ -1529,7 +1530,7 @@ namespace sek::serialization
 				swap(other);
 				return *this;
 			}
-			~json_archive_base() { delete own_tree; }
+			~json_archive_base() = default;
 
 			void reset(std::pmr::memory_resource *res) { tree->reset(res); }
 			void reset() { tree->reset(); }
@@ -1564,15 +1565,16 @@ namespace sek::serialization
 
 			constexpr void swap(json_archive_base &other) noexcept
 			{
-				std::swap(own_tree, other.own_tree);
-				std::swap(tree, other.tree);
-				std::swap(upstream, other.upstream);
+				using std::swap;
+				swap(own_tree, other.own_tree);
+				swap(tree, other.tree);
+				swap(upstream, other.upstream);
 			}
 
 			[[nodiscard]] constexpr auto &top_entry() noexcept { return static_cast<entry_t &>(tree->top_level); }
 
-			tree_type *own_tree = nullptr; /* Tree allocated by this archive. */
-			tree_type *tree;
+			tree_type own_tree; /* Tree owned by this archive. */
+			tree_type *tree;	/* Tree used by the archive (could be external). */
 
 			std::pmr::memory_resource *upstream;
 		};

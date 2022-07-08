@@ -148,12 +148,25 @@ TEST(serialization_tests, json_tree_test)
 {
 	ser::json_tree tree;
 	{
-		ubj::basic_output_archive<ubj::fixed_type> archive{tree};
+		json::output_archive archive{tree};
 		archive << data;
 	}
 	serializable_t deserialized = {};
 	{
-		ubj::input_archive archive{tree};
+		json::input_archive archive{tree};
+		EXPECT_TRUE(archive.try_read(deserialized));
+	}
+	std::string json_string;
+	{
+		std::stringstream ss;
+		json::output_archive archive{ss};
+		archive.reset(&tree);
+		archive.flush();
+		json_string = ss.str();
+	}
+	deserialized = {};
+	{
+		json::input_archive archive{json_string.data(), json_string.size()};
 		EXPECT_TRUE(archive.try_read(deserialized));
 	}
 	EXPECT_EQ(data, deserialized);

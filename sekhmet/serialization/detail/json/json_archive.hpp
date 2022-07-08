@@ -548,12 +548,11 @@ namespace sek::serialization::json
 			base_t::reset();
 		}
 
-		/** Releases the Json node tree and returns rvalue to it.
-		 * @note Archive must be the owner of the tree. Releasing an external tree will lead to undefined behavior. */
-		constexpr json_tree &&release_tree() noexcept
+		/** Replaces the internal node tree with the specified one and returns pointer to the old tree. */
+		constexpr json_tree *reset(json_tree *new_tree = nullptr) noexcept
 		{
-			m_can_flush = false;
-			return std::move(*base_t::own_tree);
+			m_can_flush = m_can_flush || new_tree != nullptr;
+			return std::exchange(base_t::tree, new_tree);
 		}
 
 		constexpr void swap(basic_output_archive &other) noexcept
