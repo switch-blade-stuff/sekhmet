@@ -550,6 +550,7 @@ namespace sek::serialization::ubj
 				return detail::token_t::INVALID;
 			}
 
+			constexpr emitter_spec12() noexcept = default;
 			constexpr explicit emitter_spec12(ubj_writer *writer) noexcept : m_writer(writer) {}
 
 			template<typename T>
@@ -721,7 +722,7 @@ namespace sek::serialization::ubj
 			constexpr void exit_frame(frame_t old) { m_frame = old; }
 
 			frame_t m_frame = {emit_dynamic_type};
-			ubj_writer *m_writer;
+			ubj_writer *m_writer = nullptr;
 		};
 
 	public:
@@ -750,9 +751,12 @@ namespace sek::serialization::ubj
 		}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_output_archive(json_tree &tree, std::pmr::memory_resource *res) : base_t(tree, res) {}
+		basic_output_archive(json_tree &tree, std::pmr::memory_resource *res) : base_t(tree, res), m_can_flush(false) {}
 		/** @copydoc basic_input_archive */
-		basic_output_archive(json_tree &&tree, std::pmr::memory_resource *res) : base_t(std::move(tree), res) {}
+		basic_output_archive(json_tree &&tree, std::pmr::memory_resource *res)
+			: base_t(std::move(tree), res), m_can_flush(false)
+		{
+		}
 
 		/** Initializes output archive for writing using the provided writer.
 		 * @param writer Writer used to write UBJson data. */
@@ -845,7 +849,7 @@ namespace sek::serialization::ubj
 		 * @note Archive must be the owner of the tree. Releasing an external tree will lead to undefined behavior. */
 		constexpr json_tree &&release_tree() noexcept
 		{
-			can_flush = false;
+			m_can_flush = false;
 			return std::move(*base_t::own_tree);
 		}
 
@@ -859,7 +863,7 @@ namespace sek::serialization::ubj
 	private:
 		void flush_impl()
 		{
-			if (can_flush) [[likely]]
+			if (m_can_flush) [[likely]]
 			{
 				emitter_spec12 emitter{&m_writer};
 				base_t::do_flush(emitter);
@@ -868,11 +872,11 @@ namespace sek::serialization::ubj
 
 		union
 		{
-			std::byte padding[sizeof(ubj_writer)] = {};
+			std::byte m_padding[sizeof(ubj_writer)] = {};
 			ubj_writer m_writer;
 		};
 
-		bool can_flush = true;
+		bool m_can_flush = true;
 	};
 
 	typedef basic_output_archive<fixed_type> output_archive;

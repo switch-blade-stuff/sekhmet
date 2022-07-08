@@ -444,9 +444,12 @@ namespace sek::serialization::json
 		}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_output_archive(json_tree &tree, std::pmr::memory_resource *res) : base_t(tree, res) {}
+		basic_output_archive(json_tree &tree, std::pmr::memory_resource *res) : base_t(tree, res), m_can_flush(false) {}
 		/** @copydoc basic_input_archive */
-		basic_output_archive(json_tree &&tree, std::pmr::memory_resource *res) : base_t(std::move(tree), res) {}
+		basic_output_archive(json_tree &&tree, std::pmr::memory_resource *res)
+			: base_t(std::move(tree), res), m_can_flush(false)
+		{
+		}
 
 		/** Initializes output archive for writing using the provided writer.
 		 * @param writer Writer used to write Json data. */
@@ -549,7 +552,7 @@ namespace sek::serialization::json
 		 * @note Archive must be the owner of the tree. Releasing an external tree will lead to undefined behavior. */
 		constexpr json_tree &&release_tree() noexcept
 		{
-			can_flush = false;
+			m_can_flush = false;
 			return std::move(*base_t::own_tree);
 		}
 
@@ -563,7 +566,7 @@ namespace sek::serialization::json
 	private:
 		void flush_impl()
 		{
-			if (can_flush) [[likely]]
+			if (m_can_flush) [[likely]]
 			{
 				detail::rj_allocator allocator{base_t::upstream};
 				rj_emitter emitter{m_writer, allocator};
@@ -573,11 +576,11 @@ namespace sek::serialization::json
 
 		union
 		{
-			std::byte padding[sizeof(rj_writer)] = {};
+			std::byte m_padding[sizeof(rj_writer)] = {};
 			rj_writer m_writer;
 		};
 
-		bool can_flush = true;
+		bool m_can_flush = true;
 	};
 
 	typedef basic_output_archive<pretty_print | inline_arrays> output_archive;
