@@ -29,6 +29,12 @@ namespace sek
 		{
 			using parent_t = basic_intern_pool<C, T>;
 
+			static intern_str_header *make_header(parent_t *p, const C *s, std::size_t n)
+			{
+				auto h = ::operator new(sizeof(intern_str_header) + (n + 1) * sizeof(C));
+				return std::construct_at(static_cast<intern_str_header *>(h), p, s, n);
+			}
+
 			constexpr intern_str_header() noexcept = default;
 			constexpr intern_str_header(parent_t *parent, const C *str, std::size_t n) noexcept
 				: parent(parent), length(n)
@@ -653,10 +659,7 @@ namespace sek
 
 		auto iter = m_data.find(sv);
 		if (iter == m_data.end()) [[unlikely]]
-		{
-			auto header = static_cast<header_t *>(::operator new(sizeof(header_t) + sv.size() * sizeof(char)));
-			iter = m_data.emplace(std::construct_at(header, this, sv.data(), sv.size())).first;
-		}
+			iter = m_data.emplace(header_t::make_header(this, sv.data(), sv.size())).first;
 		return *iter;
 	}
 	template<typename C, typename Traits>
