@@ -122,8 +122,8 @@ namespace sek::detail
 			typedef std::random_access_iterator_tag iterator_category;
 
 		private:
-			constexpr explicit dense_table_iterator(ptr_t ptr) noexcept : m_ptr(ptr) {}
 			constexpr explicit dense_table_iterator(iter_t iter) noexcept : m_ptr(std::to_address(iter)) {}
+			constexpr explicit dense_table_iterator(ptr_t ptr) noexcept : m_ptr(ptr) {}
 
 		public:
 			constexpr dense_table_iterator() noexcept = default;
@@ -196,9 +196,8 @@ namespace sek::detail
 			friend constexpr void swap(dense_table_iterator &a, dense_table_iterator &b) noexcept { a.swap(b); }
 
 		private:
-			ptr_t m_ptr;
+			ptr_t m_ptr = {};
 		};
-
 		template<bool IsConst>
 		class dense_table_bucket_iterator
 		{

@@ -422,11 +422,10 @@ namespace sek::engine
 			/** Initializes a null entry pointer. */
 			constexpr entry_ptr() noexcept = default;
 
-			// clang-format off
-			template<bool OtherConst = !IsConst>
-			constexpr entry_ptr(const entry_ptr<OtherConst> &other) noexcept requires(IsConst && !OtherConst)
-				: m_ref(other.m_ref) {}
-			// clang-format on
+			template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
+			constexpr entry_ptr(const entry_ptr<OtherConst> &other) noexcept : m_ref(other.m_ref)
+			{
+			}
 
 			/** Checks if the entry pointer is null. */
 			[[nodiscard]] constexpr operator bool() const noexcept { return m_ref.m_node != nullptr; }
@@ -465,11 +464,10 @@ namespace sek::engine
 		public:
 			constexpr entry_iterator() noexcept = default;
 
-			// clang-format off
-			template<bool OtherConst = !IsConst>
-			constexpr entry_iterator(const entry_iterator<OtherConst> &other) noexcept requires(IsConst && !OtherConst)
-				: m_iter(other.m_iter) {}
-			// clang-format on
+			template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
+			constexpr entry_iterator(const entry_iterator<OtherConst> &other) noexcept : m_iter(other.m_iter)
+			{
+			}
 
 			constexpr entry_iterator operator++(int) noexcept
 			{

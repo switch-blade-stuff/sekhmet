@@ -42,9 +42,9 @@ namespace sek
 			template<bool>
 			using iterator_value = value_type;
 			template<bool Const>
-			using iterator_reference = std::conditional_t<Const, const value_type, value_type> &;
-			template<bool Const>
 			using iterator_pointer = std::conditional_t<Const, const value_type, value_type> *;
+			template<bool Const>
+			using iterator_reference = std::conditional_t<Const, const value_type, value_type> &;
 		};
 
 		using table_type = detail::dense_hash_table<T, T, value_traits, KeyHash, KeyComp, forward_identity, Alloc>;
@@ -269,18 +269,10 @@ namespace sek
 		/** Locates an element within the set.
 		 * @param key Key to search for.
 		 * @return Iterator to the element setped to key. */
-		constexpr iterator find(const key_type &key) noexcept { return m_table.find(key); }
-		/** @copydoc find */
 		constexpr const_iterator find(const key_type &key) const noexcept { return m_table.find(key); }
 		/** @copydoc find
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
-		constexpr const_iterator find(const auto &key) noexcept
-			requires transparent_key
-		{
-			return m_table.find(key);
-		}
-		/** @copydoc find */
 		constexpr const_iterator find(const auto &key) const noexcept
 			requires transparent_key
 		{
@@ -430,7 +422,7 @@ namespace sek
 		constexpr bool erase(const auto &value)
 			requires transparent_key
 		{
-			if (auto target = m_table.find(value); target != m_table.end())
+			if (auto target = m_table.find(value); m_table.end() != target)
 			{
 				m_table.erase(target);
 				return true;
@@ -454,10 +446,7 @@ namespace sek
 		[[nodiscard]] constexpr size_type max_bucket_count() const noexcept { return m_table.max_bucket_count(); }
 
 		/** Returns local iterator to the start of a bucket. */
-		[[nodiscard]] constexpr local_iterator begin(size_type bucket) const noexcept
-		{
-			return m_table.begin(bucket);
-		}
+		[[nodiscard]] constexpr local_iterator begin(size_type bucket) const noexcept { return m_table.begin(bucket); }
 		/** Returns const local iterator to the start of a bucket. */
 		[[nodiscard]] constexpr const_local_iterator cbegin(size_type bucket) const noexcept
 		{

@@ -93,7 +93,7 @@ namespace sek
 		class md5_generator
 		{
 		public:
-			[[nodiscard]] constexpr std::array<std::byte, 16> operator()(const std::byte *data, std::size_t n) noexcept
+			[[nodiscard]] constexpr std::array<std::byte, 16> operator()(const std::byte *data, std::uint64_t n) noexcept
 			{
 				update(std::bit_cast<const std::uint8_t *>(data), n);
 				finalize();
@@ -140,7 +140,7 @@ namespace sek
 				buffer[2] += c;
 				buffer[3] += d;
 			}
-			constexpr void update(const std::uint8_t data[], std::size_t n) noexcept
+			constexpr void update(const std::uint8_t data[], std::uint64_t n) noexcept
 			{
 				std::uint32_t work_data[16];
 
