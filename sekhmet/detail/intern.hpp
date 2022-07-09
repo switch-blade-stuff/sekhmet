@@ -51,7 +51,10 @@ namespace sek
 			void release() noexcept
 			{
 				if (ref_count.fetch_sub(1) == 1) [[unlikely]]
-					delete this;
+				{
+					std::destroy_at(this);
+					::operator delete(this);
+				}
 			}
 
 			/* Reference count of the interned string. */
@@ -650,7 +653,10 @@ namespace sek
 
 		auto iter = m_data.find(sv);
 		if (iter == m_data.end()) [[unlikely]]
-			iter = m_data.emplace(new header_t{this, sv.data(), sv.size()}).first;
+		{
+			auto header = static_cast<header_t *>(::operator new(sizeof(header_t) + sv.size() * sizeof(char)));
+			iter = m_data.emplace(std::construct_at(header, this, sv.data(), sv.size())).first;
+		}
 		return *iter;
 	}
 	template<typename C, typename Traits>
@@ -712,7 +718,8 @@ namespace sek
 		return a == b.sv();
 	}
 
-	extern template class SEK_API_IMPORT basic_interned_string<char>;
+	extern template SEK_API_IMPORT basic_intern_pool<char> &basic_intern_pool<char>::global();
+	extern template SEK_API_IMPORT basic_intern_pool<wchar_t> &basic_intern_pool<wchar_t>::global();
 
 	using intern_pool = basic_intern_pool<char>;
 	using intern_wpool = basic_intern_pool<wchar_t>;
