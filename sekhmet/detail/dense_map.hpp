@@ -42,23 +42,25 @@ namespace sek
 		/* Since we cannot store value_type directly within the table (const key cannot be assigned by the dense
 		 * vector), need to do this ugliness with a proxy reference/value & proxy pointer types. */
 
+		constexpr static auto enable_three_way =
+			requires(value_type a, value_type b)
+		{
+			std::compare_three_way{}(a.first, b.first);
+			std::compare_three_way{}(a.second, b.second);
+		};
+		constexpr static auto enable_equal =
+			requires(value_type a, value_type b)
+		{
+			std::equal_to<>{}(a.first, b.first);
+			std::equal_to<>{}(a.second, b.second);
+		};
+
 		// clang-format off
 		template<bool Const>
 		class value_pointer;
 		template<bool Const>
 		class value_reference
 		{
-			constexpr static auto three_way_enable = requires(value_reference a, value_reference b)
-													 {
-													 	 std::compare_three_way{}(a.first, b.first);
-														 std::compare_three_way{}(a.second, b.second);
-													 };
-			constexpr static auto equality_enable = requires(value_reference a, value_reference b)
-													 {
-													 	 a.first == b.first;
-														 a.second == b.second;
-													 };
-
 		public:
 			value_reference() = delete;
 
@@ -72,7 +74,7 @@ namespace sek
 			[[nodiscard]] constexpr value_pointer<Const> operator&() const noexcept { return value_pointer<Const>{this}; }
 			[[nodiscard]] constexpr operator value_type() const noexcept { return {first, second}; }
 
-			[[nodiscard]] constexpr auto operator<=>(const value_reference &other) const noexcept requires three_way_enable
+			[[nodiscard]] constexpr auto operator<=>(const value_reference &other) const noexcept requires enable_three_way
 			{
 				using res_t = typename std::common_comparison_category<decltype(std::compare_three_way{}(first, other.first)),
 				                                                       decltype(std::compare_three_way{}(second, other.second))>::type;
@@ -82,7 +84,7 @@ namespace sek
 				else
 					return cmp_first;
 			}
-			[[nodiscard]] constexpr auto operator<=>(const value_type &other) const noexcept requires three_way_enable
+			[[nodiscard]] constexpr auto operator<=>(const value_type &other) const noexcept requires enable_three_way
 			{
 				using res_t = typename std::common_comparison_category<decltype(std::compare_three_way{}(first, other.first)),
 																	   decltype(std::compare_three_way{}(second, other.second))>::type;
@@ -92,11 +94,11 @@ namespace sek
 				else
 					return cmp_first;
 			}
-			[[nodiscard]] constexpr bool operator==(const value_reference &other) const noexcept requires equality_enable
+			[[nodiscard]] constexpr bool operator==(const value_reference &other) const noexcept requires enable_equal
 			{
 				return first == other.first || second == other.second;
 			}
-			[[nodiscard]] constexpr bool operator==(const value_type &other) const noexcept requires equality_enable
+			[[nodiscard]] constexpr bool operator==(const value_type &other) const noexcept requires enable_equal
 			{
 				return first == other.first || second == other.second;
 			}
@@ -379,19 +381,19 @@ namespace sek
 		/** Locates an element for the specific key.
 		 * @param key Key to search for.
 		 * @return Iterator to the element mapped to key. */
-		constexpr iterator find(const key_type &key) noexcept { return m_table.find(key); }
+		constexpr auto find(const key_type &key) noexcept { return m_table.find(key); }
 		/** @copydoc find */
-		constexpr const_iterator find(const key_type &key) const noexcept { return m_table.find(key); }
+		constexpr auto find(const key_type &key) const noexcept { return m_table.find(key); }
 		/** @copydoc find
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
-		constexpr iterator find(const auto &key) noexcept
+		constexpr auto find(const auto &key) noexcept
 			requires transparent_key
 		{
 			return m_table.find(key);
 		}
 		/** @copydoc find */
-		constexpr const_iterator find(const auto &key) const noexcept
+		constexpr auto find(const auto &key) const noexcept
 			requires transparent_key
 		{
 			return m_table.find(key);
@@ -625,7 +627,6 @@ namespace sek
 		/** @copydoc erase
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
-		template<typename... Args>
 		constexpr bool erase(const auto &key)
 			requires transparent_key
 		{
@@ -687,7 +688,6 @@ namespace sek
 		/** @copydoc bucket
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
-		template<typename... Args>
 		[[nodiscard]] constexpr size_type bucket(const auto &key) const noexcept
 			requires transparent_key
 		{

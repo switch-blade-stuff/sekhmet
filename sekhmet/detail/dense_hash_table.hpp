@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -101,11 +102,10 @@ namespace sek::detail
 		{
 			template<bool>
 			friend class dense_table_iterator;
-
 			friend class dense_hash_table;
 
 			using iter_t = std::conditional_t<IsConst, typename dense_data_t::const_iterator, typename dense_data_t::iterator>;
-			using ptr_t = typename std::iterator_traits<iter_t>::pointer;
+			using ptr_t = std::conditional_t<IsConst, const entry_type, entry_type> *;
 
 		public:
 			typedef typename ValueTraits::value_type value_type;
@@ -201,7 +201,7 @@ namespace sek::detail
 			friend class dense_hash_table;
 
 			using iter_t = std::conditional_t<IsConst, typename dense_data_t::const_iterator, typename dense_data_t::iterator>;
-			using ptr_t = typename std::iterator_traits<iter_t>::pointer;
+			using ptr_t = std::conditional_t<IsConst, const entry_type, entry_type> *;
 
 		public:
 			typedef typename ValueTraits::value_type value_type;
@@ -347,30 +347,21 @@ namespace sek::detail
 		{
 		}
 
-		[[nodiscard]] constexpr iterator begin() noexcept { return iterator{value_vector().begin()}; }
-		[[nodiscard]] constexpr const_iterator cbegin() const noexcept
-		{
-			return const_iterator{value_vector().begin()};
-		}
-		[[nodiscard]] constexpr const_iterator begin() const noexcept { return cbegin(); }
+		[[nodiscard]] constexpr auto begin() noexcept { return iterator{value_vector().begin()}; }
+		[[nodiscard]] constexpr auto cbegin() const noexcept { return const_iterator{value_vector().begin()}; }
+		[[nodiscard]] constexpr auto begin() const noexcept { return cbegin(); }
 
-		[[nodiscard]] constexpr iterator end() noexcept { return iterator{value_vector().end()}; }
-		[[nodiscard]] constexpr const_iterator cend() const noexcept { return const_iterator{value_vector().end()}; }
-		[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
+		[[nodiscard]] constexpr auto end() noexcept { return iterator{value_vector().end()}; }
+		[[nodiscard]] constexpr auto cend() const noexcept { return const_iterator{value_vector().end()}; }
+		[[nodiscard]] constexpr auto end() const noexcept { return cend(); }
 
-		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return reverse_iterator{end()}; }
-		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept
-		{
-			return const_reverse_iterator{cend()};
-		}
-		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return crbegin(); }
+		[[nodiscard]] constexpr auto rbegin() noexcept { return reverse_iterator{end()}; }
+		[[nodiscard]] constexpr auto crbegin() const noexcept { return const_reverse_iterator{cend()}; }
+		[[nodiscard]] constexpr auto rbegin() const noexcept { return crbegin(); }
 
-		[[nodiscard]] constexpr reverse_iterator rend() noexcept { return reverse_iterator{begin()}; }
-		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept
-		{
-			return const_reverse_iterator{cbegin()};
-		}
-		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return crend(); }
+		[[nodiscard]] constexpr auto rend() noexcept { return reverse_iterator{begin()}; }
+		[[nodiscard]] constexpr auto crend() const noexcept { return const_reverse_iterator{cbegin()}; }
+		[[nodiscard]] constexpr auto rend() const noexcept { return crend(); }
 
 		[[nodiscard]] constexpr size_type size() const noexcept { return value_vector().size(); }
 		[[nodiscard]] constexpr size_type capacity() const noexcept
@@ -391,25 +382,22 @@ namespace sek::detail
 		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return bucket_vector().size(); }
 		[[nodiscard]] constexpr size_type max_bucket_count() const noexcept { return bucket_vector().max_size(); }
 
-		[[nodiscard]] constexpr local_iterator begin(size_type bucket) noexcept
+		[[nodiscard]] constexpr auto begin(size_type bucket) noexcept
 		{
 			return local_iterator{value_vector().begin(), bucket};
 		}
-		[[nodiscard]] constexpr const_local_iterator cbegin(size_type bucket) const noexcept
+		[[nodiscard]] constexpr auto cbegin(size_type bucket) const noexcept
 		{
 			return const_local_iterator{value_vector().begin(), bucket};
 		}
-		[[nodiscard]] constexpr const_local_iterator begin(size_type bucket) const noexcept { return cbegin(bucket); }
+		[[nodiscard]] constexpr auto begin(size_type bucket) const noexcept { return cbegin(bucket); }
 
-		[[nodiscard]] constexpr local_iterator end(size_type) noexcept
-		{
-			return local_iterator{value_vector().begin(), npos};
-		}
-		[[nodiscard]] constexpr const_local_iterator cend(size_type) const noexcept
+		[[nodiscard]] constexpr auto end(size_type) noexcept { return local_iterator{value_vector().begin(), npos}; }
+		[[nodiscard]] constexpr auto cend(size_type) const noexcept
 		{
 			return const_local_iterator{value_vector().begin(), npos};
 		}
-		[[nodiscard]] constexpr const_local_iterator end(size_type bucket) const noexcept { return cend(bucket); }
+		[[nodiscard]] constexpr auto end(size_type bucket) const noexcept { return cend(bucket); }
 
 		[[nodiscard]] constexpr size_type bucket_size(size_type bucket) const noexcept
 		{
@@ -421,11 +409,11 @@ namespace sek::detail
 			return *get_chain(iter.m_ptr->hash);
 		}
 
-		[[nodiscard]] constexpr iterator find(const auto &key) noexcept
+		[[nodiscard]] constexpr auto find(const auto &key) noexcept
 		{
-			return begin() + static_cast<difference_type>(find_impl(key_hash(key), key));
+			return iterator{value_vector().begin() + static_cast<difference_type>(find_impl(key_hash(key), key))};
 		}
-		[[nodiscard]] constexpr const_iterator find(const auto &key) const noexcept
+		[[nodiscard]] constexpr auto find(const auto &key) const noexcept
 		{
 			return cbegin() + static_cast<difference_type>(find_impl(key_hash(key), key));
 		}
@@ -532,19 +520,19 @@ namespace sek::detail
 			return try_insert_impl(get_key(value), std::forward<value_type>(value));
 		}
 
-		constexpr iterator erase(const_iterator first, const_iterator last)
+		constexpr auto erase(const_iterator first, const_iterator last)
 		{
 			/* Iterate backwards here, since iterators after the erased one can be invalidated. */
-			iterator result = end();
+			auto result = end();
 			while (first < last) result = erase(--last);
 			return result;
 		}
-		constexpr iterator erase(const_iterator where) { return erase_impl(where.m_ptr->hash, get_key(*where.get())); }
+		constexpr auto erase(const_iterator where) { return erase_impl(where.m_ptr->hash, get_key(*where.get())); }
 
 		// clang-format off
 		template<typename T>
-		constexpr iterator erase(const T &key) requires(!std::same_as<std::decay_t<const_iterator>, T> &&
-		                                                !std::same_as<std::decay_t<iterator>, T>)
+		constexpr auto erase(const T &key) requires(!std::same_as<std::decay_t<const_iterator>, T> &&
+		                                            !std::same_as<std::decay_t<iterator>, T>)
 		{
 			return erase_impl(key_hash(key), key);
 		}
@@ -666,7 +654,7 @@ namespace sek::detail
 			}
 		}
 
-		constexpr iterator erase_impl(hash_t h, const auto &key)
+		constexpr auto erase_impl(hash_t h, const auto &key)
 		{
 			/* Remove the entry from it's chain. */
 			for (auto *chain_idx = get_chain(h); *chain_idx != npos;)

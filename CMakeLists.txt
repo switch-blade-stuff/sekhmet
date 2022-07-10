@@ -16,7 +16,7 @@ macro(sek_set_maybe_parent)
 endmacro()
 
 macro(sek_init_target_options)
-    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+    if (MSVC)
         if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
             target_compile_options(${ARGV0} PRIVATE /W4 /wd4251)
         else ()

@@ -202,16 +202,49 @@ namespace sek
 			auto s = hash(first());
 			return hash_combine(s, second());
 		}
-		[[nodiscard]] friend constexpr hash_t hash(const packed_pair &p)
-			requires has_hash<T0> && has_hash<T1>
-		{
-			return p.hash();
-		}
 	};
+
+	template<typename T0, typename T1>
+	[[nodiscard]] constexpr hash_t hash(const packed_pair<T0, T1> &p)
+		requires has_hash<T0> && has_hash<T1>
+	{
+		return p.hash();
+	}
+
+	template<std::size_t I, typename T0, typename T1>
+	[[nodiscard]] constexpr decltype(auto) get(packed_pair<T0, T1> &p)
+	{
+		if constexpr (I == 0)
+			return p.first();
+		else
+			return p.second();
+	}
+	template<std::size_t I, typename T0, typename T1>
+	[[nodiscard]] constexpr decltype(auto) get(const packed_pair<T0, T1> &p)
+	{
+		if constexpr (I == 0)
+			return p.first();
+		else
+			return p.second();
+	}
 }	 // namespace sek
 
 template<typename T0, typename T1>
 struct std::hash<sek::packed_pair<T0, T1>>
 {
 	constexpr std::size_t operator()(const sek::packed_pair<T0, T1> &p) noexcept { return p.hash(); }
+};
+template<typename T0, typename T1>
+struct std::tuple_size<sek::packed_pair<T0, T1>> : std::integral_constant<std::size_t, 2>
+{
+};
+template<typename T0, typename T1>
+struct std::tuple_element<0, sek::packed_pair<T0, T1>>
+{
+	using type = T0;
+};
+template<typename T0, typename T1>
+struct std::tuple_element<1, sek::packed_pair<T0, T1>>
+{
+	using type = T1;
 };
