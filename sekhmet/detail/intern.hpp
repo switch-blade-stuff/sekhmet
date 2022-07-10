@@ -7,13 +7,13 @@
 #include <algorithm>
 #include <atomic>
 #include <bit>
+#include <new>
 #include <ranges>
 #include <string>
 
 #include "contiguous_iterator.hpp"
 #include "dense_set.hpp"
 #include "string_util.hpp"
-#include <memory_resource>
 
 namespace sek
 {

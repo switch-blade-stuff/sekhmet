@@ -22,9 +22,8 @@ namespace sek
 			constexpr ebo_base_helper_impl &operator=(ebo_base_helper_impl &&) noexcept(std::is_nothrow_move_assignable_v<T>) = default;
 
 			template<typename... Args>
-			constexpr explicit ebo_base_helper_impl(Args &&...args)
-				noexcept(std::is_nothrow_constructible_v<T, Args...>) requires std::is_constructible_v<T, Args...>
-				: T(std::forward<Args>(args)...)
+			constexpr explicit ebo_base_helper_impl(Args &&...args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+				requires std::is_constructible_v<T, Args...> : T(std::forward<Args>(args)...)
 			{
 			}
 			// clang-format on
@@ -50,15 +49,13 @@ namespace sek
 		struct ebo_base_helper_impl<T, false>
 		{
 			// clang-format off
-			constexpr ebo_base_helper_impl()
-				noexcept(std::is_nothrow_default_constructible_v<T>) requires std::is_default_constructible_v<T>
+			constexpr ebo_base_helper_impl() noexcept(std::is_nothrow_default_constructible_v<T>)
+				requires std::is_default_constructible_v<T> : value()
 			{
-				::new (get()) T();
 			}
-			constexpr ebo_base_helper_impl(const ebo_base_helper_impl &other)
-				noexcept(std::is_nothrow_copy_constructible_v<T>) requires std::is_copy_constructible_v<T>
+			constexpr ebo_base_helper_impl(const ebo_base_helper_impl &other) noexcept(std::is_nothrow_copy_constructible_v<T>)
+				requires std::is_copy_constructible_v<T> : value(other.value)
 			{
-				::new (get()) T{other.value};
 			}
 			constexpr ebo_base_helper_impl &operator=(const ebo_base_helper_impl &other)
 				noexcept(std::is_nothrow_copy_assignable_v<T>) requires std::is_copy_assignable_v<T>
@@ -66,10 +63,9 @@ namespace sek
 				value = other.value;
 				return *this;
 			}
-			constexpr ebo_base_helper_impl(ebo_base_helper_impl &&other)
-				noexcept(std::is_nothrow_move_constructible_v<T>) requires std::is_move_constructible_v<T>
+			constexpr ebo_base_helper_impl(ebo_base_helper_impl &&other) noexcept(std::is_nothrow_move_constructible_v<T>)
+				requires std::is_move_constructible_v<T> : value(std::move(other.value))
 			{
-				::new (get()) T{std::move(other.value)};
 			}
 			constexpr ebo_base_helper_impl &operator=(ebo_base_helper_impl &&other)
 				noexcept(std::is_nothrow_move_assignable_v<T>) requires std::is_move_assignable_v<T>
@@ -77,18 +73,17 @@ namespace sek
 				value = std::move(other.value);
 				return *this;
 			}
-			constexpr ~ebo_base_helper_impl() { get()->~T(); }
+			constexpr ~ebo_base_helper_impl() = default;
 
 			template<typename... Args>
-			constexpr explicit ebo_base_helper_impl(Args &&...args)
-				noexcept(std::is_nothrow_constructible_v<T, Args...>) requires std::is_constructible_v<T, Args...>
+			constexpr explicit ebo_base_helper_impl(Args &&...args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+				requires std::is_constructible_v<T, Args...> : value{std::forward<Args>(args)...}
 			{
-				::new (get()) T{std::forward<Args>(args)...};
 			}
 			// clang-format on
 
-			[[nodiscard]] constexpr T *get() noexcept { return &value; }
-			[[nodiscard]] constexpr const T *get() const noexcept { return &value; }
+			[[nodiscard]] constexpr T *get() noexcept { return std::addressof(value); }
+			[[nodiscard]] constexpr const T *get() const noexcept { return std::addressof(value); }
 
 			constexpr void swap(ebo_base_helper_impl &other) noexcept(std::is_nothrow_swappable_v<T>)
 			{
@@ -96,31 +91,37 @@ namespace sek
 				swap(value, other.value);
 			}
 
-			union
-			{
-				type_storage<T> padding = {};
-				T value;
-			};
+			T value;
 		};
+
+		// clang-format off
+		template<typename T>
+		constexpr bool ebo_candidate = std::is_object_v<T> && std::is_empty_v<T>;
+		// clang-format on
 	}	 // namespace detail
 
 	/** @brief Helper type used to implement empty base optimization. */
 	template<typename T>
-	using ebo_base_helper = detail::ebo_base_helper_impl<std::decay_t<T>, std::is_empty_v<std::decay_t<T>>>;
+	using ebo_base_helper = detail::ebo_base_helper_impl<std::decay_t<T>, detail::ebo_candidate<std::decay_t<T>>>;
 
 	template<typename T>
 	constexpr void swap(ebo_base_helper<T> &a, ebo_base_helper<T> &b) noexcept(std::is_nothrow_swappable_v<T>)
 	{
 		a.swap(b);
 	}
+
+	// clang-format off
 	template<typename T>
 	[[nodiscard]] constexpr int operator<=>(const ebo_base_helper<T> &a, const ebo_base_helper<T> &b) noexcept
+		requires(requires{ *a.get() <=> *b.get(); })
 	{
 		return *a.get() <=> *b.get();
 	}
 	template<typename T>
 	[[nodiscard]] constexpr bool operator==(const ebo_base_helper<T> &a, const ebo_base_helper<T> &b) noexcept
+		requires(requires{ *a.get() == *b.get(); })
 	{
 		return *a.get() == *b.get();
 	}
+	// clang-format on
 }	 // namespace sek

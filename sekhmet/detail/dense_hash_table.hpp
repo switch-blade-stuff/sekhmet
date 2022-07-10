@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <utility>
 #include <vector>
 
 #include "assert.hpp"
@@ -49,13 +50,6 @@ namespace sek::detail
 		typedef std::ptrdiff_t difference_type;
 
 	private:
-		template<bool Const>
-		using iterator_value = typename ValueTraits::template iterator_value<Const>;
-		template<bool Const>
-		using iterator_pointer = typename ValueTraits::template iterator_pointer<Const>;
-		template<bool Const>
-		using iterator_reference = typename ValueTraits::template iterator_reference<Const>;
-
 		using sparse_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<size_type>;
 		using sparse_data_t = std::vector<size_type, sparse_alloc>;
 
@@ -72,8 +66,8 @@ namespace sek::detail
 			constexpr entry_type() = default;
 			constexpr entry_type(const entry_type &) = default;
 			constexpr entry_type &operator=(const entry_type &) = default;
-			constexpr entry_type(entry_type &&) noexcept(std::is_nothrow_move_constructible_v<ebo_base>) = default;
-			constexpr entry_type &operator=(entry_type &&) noexcept(std::is_nothrow_move_assignable_v<ebo_base>) = default;
+			constexpr entry_type(entry_type &&) noexcept(std::is_nothrow_move_constructible_v<ValueType>) = default;
+			constexpr entry_type &operator=(entry_type &&) noexcept(std::is_nothrow_move_assignable_v<ValueType>) = default;
 			constexpr ~entry_type() = default;
 
 			template<typename... Args>
@@ -83,9 +77,9 @@ namespace sek::detail
 
 			[[nodiscard]] constexpr value_type &value() noexcept { return *ebo_base::get(); }
 			[[nodiscard]] constexpr const value_type &value() const noexcept { return *ebo_base::get(); }
-			[[nodiscard]] constexpr decltype(auto) key() const noexcept { return get_key(value()); }
+			[[nodiscard]] constexpr decltype(auto) key() const noexcept { return KeyExtract{}(value()); }
 
-			constexpr void swap(entry_type &other) noexcept(std::is_nothrow_swappable_v<ebo_base>)
+			constexpr void swap(entry_type &other) noexcept(std::is_nothrow_swappable_v<ValueType>)
 			{
 				using std::swap;
 				ebo_base::swap(other);
@@ -114,9 +108,9 @@ namespace sek::detail
 			using ptr_t = typename std::iterator_traits<iter_t>::pointer;
 
 		public:
-			typedef iterator_value<IsConst> value_type;
-			typedef iterator_pointer<IsConst> pointer;
-			typedef iterator_reference<IsConst> reference;
+			typedef typename ValueTraits::value_type value_type;
+			typedef std::conditional_t<IsConst, typename ValueTraits::const_pointer, typename ValueTraits::pointer> pointer;
+			typedef std::conditional_t<IsConst, typename ValueTraits::const_reference, typename ValueTraits::reference> reference;
 			typedef std::size_t size_type;
 			typedef std::ptrdiff_t difference_type;
 			typedef std::random_access_iterator_tag iterator_category;
@@ -180,7 +174,7 @@ namespace sek::detail
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{&m_ptr->value()}; }
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{std::addressof(m_ptr->value())}; }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 
@@ -210,9 +204,9 @@ namespace sek::detail
 			using ptr_t = typename std::iterator_traits<iter_t>::pointer;
 
 		public:
-			typedef iterator_value<IsConst> value_type;
-			typedef iterator_pointer<IsConst> pointer;
-			typedef iterator_reference<IsConst> reference;
+			typedef typename ValueTraits::value_type value_type;
+			typedef std::conditional_t<IsConst, typename ValueTraits::const_pointer, typename ValueTraits::pointer> pointer;
+			typedef std::conditional_t<IsConst, typename ValueTraits::const_reference, typename ValueTraits::reference> reference;
 			typedef std::size_t size_type;
 			typedef std::ptrdiff_t difference_type;
 			typedef std::forward_iterator_tag iterator_category;
@@ -246,7 +240,7 @@ namespace sek::detail
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{&m_ptr->value()}; }
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{std::addressof(m_ptr->value())}; }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 			/** Returns reference to the target element. */

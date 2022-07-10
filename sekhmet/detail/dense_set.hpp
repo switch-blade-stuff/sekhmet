@@ -39,12 +39,13 @@ namespace sek
 	private:
 		struct value_traits
 		{
-			template<bool>
-			using iterator_value = value_type;
-			template<bool Const>
-			using iterator_pointer = std::conditional_t<Const, const value_type, value_type> *;
-			template<bool Const>
-			using iterator_reference = std::conditional_t<Const, const value_type, value_type> &;
+			using value_type = T;
+
+			using reference = value_type &;
+			using const_reference = const value_type &;
+
+			using pointer = value_type *;
+			using const_pointer = const value_type *;
 		};
 
 		using table_type = detail::dense_hash_table<T, T, value_traits, KeyHash, KeyComp, forward_identity, Alloc>;
@@ -499,6 +500,7 @@ namespace sek
 		[[nodiscard]] constexpr key_equal key_eq() const noexcept { return m_table.get_comp(); }
 
 		[[nodiscard]] constexpr bool operator==(const dense_set &other) const noexcept
+			requires(requires(const_iterator a, const_iterator b) { std::equal_to<>{}(*a, *b); })
 		{
 			return std::is_permutation(begin(), end(), other.begin(), other.end());
 		}

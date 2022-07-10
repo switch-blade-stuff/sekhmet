@@ -31,7 +31,6 @@ namespace sek
 		dense_map<std::string_view, detail::type_handle> types;
 	};
 
-
 	type_info_error::~type_info_error() = default;
 	any_type_error::~any_type_error() = default;
 	any_const_error::~any_const_error() = default;

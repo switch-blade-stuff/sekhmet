@@ -6,6 +6,7 @@
 
 #include <new>
 #include <span>
+#include <stdexcept>
 #include <utility>
 
 #include "aligned_storage.hpp"
@@ -37,6 +38,8 @@ namespace sek
 
 			[[nodiscard]] constexpr type_data *operator->() const noexcept { return get(); }
 			[[nodiscard]] constexpr type_data &operator*() const noexcept { return *get(); }
+
+			[[nodiscard]] constexpr bool operator==(const type_handle &other) const noexcept;
 
 			type_data *(*get)() noexcept = nullptr;
 		};
@@ -718,6 +721,11 @@ namespace sek
 	template<typename T>
 	constexpr detail::type_handle::type_handle(type_selector_t<T>) noexcept : get(type_info::get_data<T>)
 	{
+	}
+	constexpr bool detail::type_handle::operator==(const detail::type_handle &other) const noexcept
+	{
+		auto p = get(), other_p = other.get();
+		return p == other_p || p->name == other_p->name;
 	}
 
 	/** @brief Type-erased container of objects. */

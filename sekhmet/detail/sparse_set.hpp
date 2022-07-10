@@ -521,6 +521,7 @@ namespace sek
 		[[nodiscard]] constexpr key_equal key_eq() const noexcept { return m_table.get_comp(); }
 
 		[[nodiscard]] constexpr bool operator==(const sparse_set &other) const noexcept
+			requires(requires(const_iterator a, const_iterator b) { std::equal_to<>{}(*a, *b); })
 		{
 			return std::is_permutation(begin(), end(), other.begin(), other.end());
 		}

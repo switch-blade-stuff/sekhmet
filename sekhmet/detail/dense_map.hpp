@@ -48,6 +48,17 @@ namespace sek
 		template<bool Const>
 		class value_reference
 		{
+			constexpr static auto three_way_enable = requires(value_reference a, value_reference b)
+													 {
+													 	 std::compare_three_way{}(a.first, b.first);
+														 std::compare_three_way{}(a.second, b.second);
+													 };
+			constexpr static auto equality_enable = requires(value_reference a, value_reference b)
+													 {
+													 	 a.first == b.first;
+														 a.second == b.second;
+													 };
+
 		public:
 			value_reference() = delete;
 
@@ -61,7 +72,7 @@ namespace sek
 			[[nodiscard]] constexpr value_pointer<Const> operator&() const noexcept { return value_pointer<Const>{this}; }
 			[[nodiscard]] constexpr operator value_type() const noexcept { return {first, second}; }
 
-			[[nodiscard]] constexpr auto operator<=>(const value_reference &other) const noexcept
+			[[nodiscard]] constexpr auto operator<=>(const value_reference &other) const noexcept requires three_way_enable
 			{
 				using res_t = typename std::common_comparison_category<decltype(std::compare_three_way{}(first, other.first)),
 				                                                       decltype(std::compare_three_way{}(second, other.second))>::type;
@@ -71,7 +82,7 @@ namespace sek
 				else
 					return cmp_first;
 			}
-			[[nodiscard]] constexpr auto operator<=>(const value_type &other) const noexcept
+			[[nodiscard]] constexpr auto operator<=>(const value_type &other) const noexcept requires three_way_enable
 			{
 				using res_t = typename std::common_comparison_category<decltype(std::compare_three_way{}(first, other.first)),
 																	   decltype(std::compare_three_way{}(second, other.second))>::type;
@@ -81,13 +92,13 @@ namespace sek
 				else
 					return cmp_first;
 			}
-			[[nodiscard]] constexpr bool operator==(const value_reference &other) const noexcept
+			[[nodiscard]] constexpr bool operator==(const value_reference &other) const noexcept requires equality_enable
 			{
-				return first == other.first ? true : second == other.second;
+				return first == other.first || second == other.second;
 			}
-			[[nodiscard]] constexpr bool operator==(const value_type &other) const noexcept
+			[[nodiscard]] constexpr bool operator==(const value_type &other) const noexcept requires equality_enable
 			{
-				return first == other.first ? true : second == other.second;
+				return first == other.first || second == other.second;
 			}
 
 			const key_type &first;
@@ -137,17 +148,18 @@ namespace sek
 
 		struct value_traits
 		{
-			template<bool Const>
-			using iterator_value = value_reference<Const>;
-			template<bool Const>
-			using iterator_reference = value_reference<Const>;
-			template<bool Const>
-			using iterator_pointer = value_pointer<Const>;
+			using value_type = std::pair<const key_type, mapped_type>;
+
+			using reference = value_reference<false>;
+			using const_reference = value_reference<true>;
+
+			using pointer = value_pointer<false>;
+			using const_pointer = value_pointer<true>;
 		};
 
-		using table_type =
-			detail::dense_hash_table<K, std::pair<key_type, mapped_type>, value_traits, KeyHash, KeyComp, pair_first, Alloc>;
 		// clang-format off
+		using table_type = detail::dense_hash_table<K, std::pair<key_type, mapped_type>, value_traits, KeyHash, KeyComp, pair_first, Alloc>;
+
 		constexpr static bool transparent_key = requires
 		{
 			typename KeyHash::is_transparent;
@@ -373,7 +385,7 @@ namespace sek
 		/** @copydoc find
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
-		constexpr const_iterator find(const auto &key) noexcept
+		constexpr iterator find(const auto &key) noexcept
 			requires transparent_key
 		{
 			return m_table.find(key);
@@ -602,9 +614,9 @@ namespace sek
 		 * @return `true` if the element was removed, `false` otherwise. */
 		constexpr bool erase(const key_type &key)
 		{
-			if (auto target = m_table.find(key); target != m_table.end())
+			if (auto target = find(key); target != end())
 			{
-				m_table.erase(target);
+				erase(target);
 				return true;
 			}
 			else
@@ -617,9 +629,9 @@ namespace sek
 		constexpr bool erase(const auto &key)
 			requires transparent_key
 		{
-			if (auto target = m_table.find(key); target != m_table.end())
+			if (auto target = find(key); target != end())
 			{
-				m_table.erase(target);
+				erase(target);
 				return true;
 			}
 			else
@@ -705,6 +717,7 @@ namespace sek
 		[[nodiscard]] constexpr key_equal key_eq() const noexcept { return m_table.get_comp(); }
 
 		[[nodiscard]] constexpr bool operator==(const dense_map &other) const noexcept
+			requires(requires(const_iterator a, const_iterator b) { std::equal_to<>{}(*a, *b); })
 		{
 			return std::is_permutation(begin(), end(), other.begin(), other.end());
 		}

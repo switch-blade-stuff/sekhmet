@@ -1051,6 +1051,7 @@ namespace sek
 			}
 
 			[[nodiscard]] constexpr bool operator==(const mkmap_impl &other) const noexcept
+				requires(requires(const_iterator a, const_iterator b) { std::equal_to<>{}(*a, *b); })
 			{
 				return std::is_permutation(begin(), end(), other.begin(), other.end());
 			}
