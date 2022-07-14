@@ -42,10 +42,16 @@ namespace sek::system
 
 	bool native_file::flush()
 	{
-		if (m_input_size != 0) /* Un-read any buffered input. */
+		if (m_reading) /* Un-read buffered input. */
+		{
+			m_reading = false;
 			return m_handle.seek(m_buffer_pos - std::exchange(m_input_size, 0), cur) >= 0;
-		else if (m_buffer_pos != 0) /* Write any buffered output */
+		}
+		else if (m_writing) /* Flush buffered output */
+		{
+			m_writing = false;
 			return m_handle.write(m_buffer, static_cast<std::size_t>(m_buffer_pos)) == std::exchange(m_buffer_pos, 0);
+		}
 		return true;
 	}
 	std::int64_t native_file::seek(std::int64_t off, seek_dir dir)
@@ -67,11 +73,12 @@ namespace sek::system
 	{
 		if (m_mode & out) [[likely]]
 		{
-			if (m_input_size != 0) /* Un-read the buffered input. */
+			if (m_reading) /* Un-read buffered input. */
 			{
 				if (m_handle.seek(m_buffer_pos - m_input_size, cur) < 0) [[unlikely]]
 					return 0;
 				m_input_size = 0;
+				m_reading = false;
 			}
 			else if (m_buffer == nullptr) [[unlikely]] /* Allocate new buffer if needed. */
 			{
@@ -100,6 +107,7 @@ namespace sek::system
 					m_buffer_pos = 0;
 				}
 			}
+			m_writing = m_buffer_pos != 0;
 			return n;
 		}
 		return 0;
@@ -108,11 +116,12 @@ namespace sek::system
 	{
 		if (m_mode & in) [[likely]]
 		{
-			if (m_input_size == 0 && m_buffer_pos != 0) /* Flush any pending output. */
+			if (m_writing) /* Flush buffered output. */
 			{
 				if (m_handle.write(m_buffer, static_cast<std::size_t>(m_buffer_pos)) != m_buffer_pos) [[unlikely]]
 					return 0;
 				m_buffer_pos = 0;
+				m_writing = false;
 			}
 			else if (m_buffer == nullptr) [[unlikely]] /* Allocate new buffer if needed. */
 			{
@@ -143,6 +152,7 @@ namespace sek::system
 				memcpy(dst, m_buffer + m_buffer_pos, read_n);
 				m_buffer_pos += static_cast<std::int64_t>(read_n);
 			}
+			m_reading = m_input_size > m_buffer_pos;
 			return n;
 		}
 		return 0;

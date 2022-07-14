@@ -16,9 +16,6 @@ target_sources(${PROJECT_NAME} INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/mkmap.hpp
         ${CMAKE_CURRENT_LIST_DIR}/intern.hpp
         ${CMAKE_CURRENT_LIST_DIR}/thread_pool.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/type_name.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/type_info.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/message.hpp
         ${CMAKE_CURRENT_LIST_DIR}/filemap.hpp
         ${CMAKE_CURRENT_LIST_DIR}/math.hpp)
 include(${CMAKE_CURRENT_LIST_DIR}/detail/CMakeLists.txt)

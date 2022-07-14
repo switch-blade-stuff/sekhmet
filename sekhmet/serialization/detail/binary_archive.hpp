@@ -4,13 +4,22 @@
 
 #pragma once
 
-#include "archive_reader.hpp"
-#include "manipulators.hpp"
 #include "sekhmet/detail/bswap.hpp"
+
+#include "archive_reader.hpp"
+#include "archive_writer.hpp"
+#include "manipulators.hpp"
 #include "util.hpp"
 
 namespace sek::serialization::binary
 {
+	namespace detail
+	{
+		template<typename T>
+		concept is_char_type = std::same_as<T, char> || std::same_as<T, wchar_t> || std::same_as<T, char8_t> ||
+							   std::same_as<T, char16_t> || std::same_as<T, char32_t>;
+	}
+
 	typedef int config_flags;
 	constexpr config_flags no_flags = 0;
 
@@ -52,17 +61,15 @@ namespace sek::serialization::binary
 	}	 // namespace detail
 
 	/** @details Archive used to read non-structured binary data. */
-	template<config_flags Config, typename C = char>
+	template<config_flags Config>
 	class basic_input_archive
 	{
 	public:
 		typedef input_archive_category archive_category;
 		typedef std::size_t size_type;
-		typedef C char_type;
+		typedef archive_reader<char> reader_type;
 
 	private:
-		using reader_t = archive_reader<char>;
-
 		static void throw_eof() { throw archive_error("Premature EOF"); }
 
 	public:
@@ -75,27 +82,22 @@ namespace sek::serialization::binary
 
 		/** Initializes binary archive for reading using the specified reader.
 		 * @param reader Reader used to read source data. */
-		explicit basic_input_archive(archive_reader<char_type> reader) : m_reader(std::move(reader)) {}
+		explicit basic_input_archive(reader_type reader) : m_reader(std::move(reader)) {}
 		/** Initializes binary archive for buffer reading.
 		 * @param buff Pointer to the memory buffer containing source data.
 		 * @param len Size of the memory buffer. */
-		basic_input_archive(const void *buff, std::size_t len)
-			: basic_input_archive(archive_reader<char_type>{buff, len})
-		{
-		}
+		basic_input_archive(const void *buff, std::size_t len) : basic_input_archive(reader_type{buff, len}) {}
 		/** Initializes binary archive for file reading.
 		 * @param file Native file containing source data. */
-		explicit basic_input_archive(system::native_file &file) : basic_input_archive(archive_reader<char_type>{file})
-		{
-		}
+		explicit basic_input_archive(system::native_file &file) : basic_input_archive(reader_type{file}) {}
 		/** Initializes binary archive for file reading.
 		 * @param file Pointer to the C file containing source data.
 		 * @note File must be opened in binary mode. */
-		explicit basic_input_archive(FILE *file) : basic_input_archive(archive_reader<char_type>{file}) {}
+		explicit basic_input_archive(FILE *file) : basic_input_archive(reader_type{file}) {}
 		/** Initializes binary archive for stream buffer reading.
 		 * @param buff Pointer to the stream buffer.
 		 * @note Stream buffer must be a binary stream buffer. */
-		explicit basic_input_archive(std::streambuf *buff) : basic_input_archive(archive_reader<char_type>{buff}) {}
+		explicit basic_input_archive(std::streambuf *buff) : basic_input_archive(reader_type{buff}) {}
 		/** Initializes binary archive for stream reading.
 		 * @param buff Stream used to read source data.
 		 * @note Stream must be a binary stream. */
@@ -114,30 +116,6 @@ namespace sek::serialization::binary
 		}
 		/** @copydoc read */
 		bool read(std::in_place_type_t<bool>, auto &&...)
-		{
-			bool result;
-			read(result);
-			return result;
-		}
-
-		/** Attempts to read a character from the archive.
-		 * @return `true` on success, `false` on failure. Will fail on premature EOF. */
-		bool try_read(char_type &c, auto &&...) noexcept
-		{
-			const auto result = read_literal(&c);
-			c = detail::fix_endianness<Config>(c);
-			return result;
-		}
-		/** Reads a character from the archive.
-		 * @throw archive_error On premature EOF. */
-		const basic_input_archive &read(char_type &c, auto &&...)
-		{
-			if (!try_read(c)) [[unlikely]]
-				throw_eof();
-			return *this;
-		}
-		/** @copydoc read */
-		char_type read(std::in_place_type_t<char_type>, auto &&...)
 		{
 			bool result;
 			read(result);
@@ -176,12 +154,12 @@ namespace sek::serialization::binary
 
 		/** Attempts to read a string from the archive by reading characters until null character.
 		 * @return `true` on success, `false` on failure. Will fail on premature EOF. */
-		template<typename T = std::char_traits<char_type>, typename A = std::allocator<char_type>>
-		bool try_read(std::basic_string<char_type, T, A> &str, auto &&...)
+		template<detail::is_char_type C = char, typename T = std::char_traits<C>, typename A = std::allocator<C>>
+		bool try_read(std::basic_string<C, T, A> &str, auto &&...)
 		{
 			for (;;)
 			{
-				char_type c = {};
+				C c = {};
 				if (!try_read(c)) [[unlikely]]
 					return false;
 				else if (c == '\0')
@@ -192,12 +170,12 @@ namespace sek::serialization::binary
 		}
 		/** Attempts to read a string from the archive into an output iterator by reading characters until null character.
 		 * @return `true` on success, `false` on failure. Will fail on premature EOF. */
-		template<std::output_iterator<char_type> I>
+		template<detail::is_char_type C = char, std::output_iterator<C> I>
 		bool try_read(I &value, auto &&...)
 		{
 			for (;; value = std::next(value))
 			{
-				char_type c = {};
+				C c = {};
 				if (!try_read(c)) [[unlikely]]
 					return false;
 				else if (c == '\0')
@@ -209,40 +187,40 @@ namespace sek::serialization::binary
 		/** Attempts to read a string from the archive into an output iterator by reading characters until null
 		 * character or `value == sent`.
 		 * @return `true` on success, `false` on failure. Will fail on premature EOF. */
-		template<std::output_iterator<char_type> I, std::sentinel_for<I> S>
+		template<detail::is_char_type C = char, std::output_iterator<C> I, std::sentinel_for<I> S>
 		bool try_read(I &value, S &sent, auto &&...)
 		{
-			for (; value != sent; value = std::next(value))
+			for (auto pos = value; pos != sent; pos = std::next(pos))
 			{
-				char_type c = {};
+				C c = {};
 				if (!try_read(c)) [[unlikely]]
 					return false;
 				else if (c == '\0')
 					break;
-				*value = c;
+				*pos = c;
 			}
 			return true;
 		}
 		/** Reads a string from the archive by reading characters until null character.
 		 * @throw archive_error On premature EOF. */
-		template<typename T = std::char_traits<char_type>, typename A = std::allocator<char_type>>
-		basic_input_archive &read(std::basic_string<char_type, T, A> &str, auto &&...)
+		template<detail::is_char_type C = char, typename T = std::char_traits<C>, typename A = std::allocator<C>>
+		basic_input_archive &read(std::basic_string<C, T, A> &str, auto &&...)
 		{
 			if (!try_read(str)) [[unlikely]]
 				throw_eof();
 			return *this;
 		}
 		/** @copydoc read */
-		template<typename T = std::char_traits<char_type>, typename A = std::allocator<char_type>>
-		std::basic_string<char_type, T, A> read(std::in_place_type_t<std::basic_string<char_type, T, A>>, auto &&...)
+		template<detail::is_char_type C = char, typename T = std::char_traits<C>, typename A = std::allocator<C>>
+		std::basic_string<C, T, A> read(std::in_place_type_t<std::basic_string<C, T, A>>, auto &&...)
 		{
-			std::basic_string<char_type, T, A> result;
+			std::basic_string<C, T, A> result;
 			read(result);
 			return result;
 		}
 		/** Reads a string from the archive by reading characters until null character.
 		 * @throw archive_error On premature EOF. */
-		template<std::output_iterator<char_type> I>
+		template<detail::is_char_type C = char, std::output_iterator<C> I>
 		basic_input_archive &read(I &value, auto &&...)
 		{
 			if (!try_read(value)) [[unlikely]]
@@ -251,7 +229,7 @@ namespace sek::serialization::binary
 		}
 		/** Reads a string from the archive into an output iterator by reading characters until null character or `value == sent`.
 		 * @throw archive_error On premature EOF. */
-		template<std::output_iterator<char_type> I, std::sentinel_for<I> S>
+		template<detail::is_char_type C = char, std::output_iterator<C> I, std::sentinel_for<I> S>
 		basic_input_archive &read(I &value, S &sent, auto &&...)
 		{
 			if (!try_read(value, sent)) [[unlikely]]
@@ -334,21 +312,21 @@ namespace sek::serialization::binary
 			return m_reader.getn(std::bit_cast<char *>(value), sizeof(T)) == sizeof(T);
 		}
 
-		reader_t m_reader;
+		reader_type m_reader;
 	};
 
-	template<config_flags Config, typename C>
+	template<config_flags Config>
 	template<typename T, typename... Args>
-	basic_input_archive<Config, C> &basic_input_archive<Config, C>::read(T &&value, Args &&...args)
+	basic_input_archive<Config> &basic_input_archive<Config>::read(T &&value, Args &&...args)
 	{
 		detail::do_deserialize(std::forward<T>(value), *this, std::forward<Args>(args)...);
 		return *this;
 	}
-	template<config_flags Config, typename C>
+	template<config_flags Config>
 	template<typename T, typename... Args>
-	T basic_input_archive<Config, C>::read(std::in_place_type_t<T>, Args &&...args)
+	T basic_input_archive<Config>::read(std::in_place_type_t<T>, Args &&...args)
 	{
-		using archive_t = basic_input_archive<Config, C>;
+		using archive_t = basic_input_archive<Config>;
 		if constexpr (in_place_deserializable<T, archive_t, Args...> || std::is_constructible_v<T, archive_t &, Args...> ||
 					  in_place_deserializable<T, archive_t> || std::is_constructible_v<T, archive_t &>)
 		{
@@ -370,9 +348,134 @@ namespace sek::serialization::binary
 	{
 	public:
 		typedef output_archive_category archive_category;
+		typedef std::size_t size_type;
+		typedef archive_writer<char> writer_type;
 
 	private:
+		using writer_t = writer_type;
+
+		static void throw_eof() { throw archive_error("Premature EOF"); }
+
+	public:
+		basic_output_archive() = delete;
+		basic_output_archive(const basic_output_archive &) = delete;
+		basic_output_archive &operator=(const basic_output_archive &) = delete;
+
+		constexpr basic_output_archive(basic_output_archive &&) noexcept = default;
+		constexpr basic_output_archive &operator=(basic_output_archive &&) noexcept = default;
+
+		/** Initializes binary archive for writing using the specified writer.
+		 * @param writer Reader used to write serialized data. */
+		explicit basic_output_archive(writer_type writer) : m_writer(std::move(writer)) {}
+		/** Initializes binary archive for buffer writing.
+		 * @param buff Pointer to the memory buffer receiving serialized data.
+		 * @param len Size of the memory buffer. */
+		basic_output_archive(void *buff, std::size_t len) : basic_output_archive(writer_type{buff, len}) {}
+		/** Initializes binary archive for file writing.
+		 * @param file Native file receiving serialized data. */
+		explicit basic_output_archive(system::native_file &file) : basic_output_archive(writer_type{file}) {}
+		/** Initializes binary archive for file writing.
+		 * @param file Pointer to the C file receiving serialized data.
+		 * @note File must be opened in binary mode. */
+		explicit basic_output_archive(FILE *file) : basic_output_archive(writer_type{file}) {}
+		/** Initializes binary archive for stream buffer writing.
+		 * @param buff Pointer to the stream buffer.
+		 * @note Stream buffer must be a binary stream buffer. */
+		explicit basic_output_archive(std::streambuf *buff) : basic_output_archive(writer_type{buff}) {}
+		/** Initializes binary archive for stream writing.
+		 * @param buff Stream used to write serialized data.
+		 * @note Stream must be a binary stream. */
+		explicit basic_output_archive(std::istream &is) : basic_output_archive(is.rdbuf()) {}
+
+		/** Writes a boolean (as an 8-bit integer) to the archive.
+		 * @throw archive_error On premature EOF. */
+		basic_output_archive &write(bool b, auto &&...)
+		{
+			write_literal(&b);
+			return *this;
+		}
+		/** Writes an integer or floating-point number to the archive.
+		 * @throw archive_error On premature EOF. */
+		template<typename I>
+		basic_output_archive &write(I i, auto &&...)
+			requires(std::integral<I> || std::floating_point<I>)
+		{
+			i = detail::fix_endianness<Config>(i);
+			write_literal(&i);
+			return *this;
+		}
+		/** Writes a string to the archive including the null terminator.
+		 * @throw archive_error On premature EOF. */
+		template<detail::is_char_type C = char, typename T = std::char_traits<C>, typename A = std::allocator<C>>
+		basic_output_archive &write(const std::basic_string<C, T, A> &str, auto &&...)
+		{
+			for (auto c : str) write(c);
+			write(static_cast<C>('\0'));
+			return *this;
+		}
+		/** @copydoc write */
+		template<detail::is_char_type C = char, typename T = std::char_traits<C>>
+		basic_output_archive &write(std::basic_string_view<C, T> str, auto &&...)
+		{
+			for (auto c : str) write(c);
+			write(static_cast<C>('\0'));
+			return *this;
+		}
+		/** @copydoc write */
+		template<std::input_iterator I, std::sentinel_for<I> S>
+		basic_output_archive &write(I value, S sent, auto &&...)
+			requires detail::is_char_type<std::iter_value_t<I>>
+		{
+			for (; value != sent; value = std::next(value)) write(*value);
+			write(static_cast<std::iter_value_t<I>>('\0'));
+			return *this;
+		}
+		/** Writes an array of bytes to the archive.
+		 * @throw archive_error On premature EOF. */
+		template<std::size_t N>
+		basic_output_archive &write(std::array<std::byte, N> array, auto &&...)
+		{
+			auto chars = std::bit_cast<const char *>(array.data());
+			if (m_writer.putn(chars, array.size()) != array.size()) [[unlikely]]
+				throw_eof();
+			return *this;
+		}
+
+		/** Serializes an object of type `T`.
+		 * @param value Value to serialize.
+		 * @return Reference to this frame.
+		 * @throw archive_exception On deserialization errors. */
+		template<typename T>
+		basic_output_archive &operator<<(T &&value)
+		{
+			return write(std::forward<T>(value));
+		}
+		/** @copydoc operator<<
+		 * @param args Arguments forwarded to the deserialization function. */
+		template<typename T, typename... Args>
+		basic_output_archive &write(T &&value, Args &&...args);
+
+		constexpr void swap(basic_output_archive &other) noexcept { m_writer.swap(other.m_writer); }
+		friend constexpr void swap(basic_output_archive &a, basic_output_archive &b) noexcept { a.swap(b); }
+
+	private:
+		template<typename T>
+		void write_literal(T *value)
+		{
+			if (m_writer.putn(std::bit_cast<char *>(value), sizeof(T)) != sizeof(T)) [[unlikely]]
+				throw_eof();
+		}
+
+		writer_t m_writer;
 	};
+
+	template<config_flags Config>
+	template<typename T, typename... Args>
+	basic_output_archive<Config> &basic_output_archive<Config>::write(T &&value, Args &&...args)
+	{
+		detail::do_serialize(value, *this, std::forward<Args>(args)...);
+		return *this;
+	}
 
 	typedef basic_output_archive<little_endian> output_archive;
 }	 // namespace sek::serialization::binary

@@ -161,6 +161,8 @@ namespace sek::system
 		std::int64_t m_input_size = 0;
 
 		openmode m_mode = 0;
+		bool m_writing = false;
+		bool m_reading = false;
 	};
 	/** @brief Structure used to manage a memory-mapped file. */
 	class native_filemap

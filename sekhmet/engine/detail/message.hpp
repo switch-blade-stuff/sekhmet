@@ -6,10 +6,11 @@
 
 #include <mutex>
 
-#include "event.hpp"
+#include "sekhmet/detail/event.hpp"
+
 #include "type_info.hpp"
 
-namespace sek
+namespace sek::engine
 {
 	enum class message_scope : int
 	{

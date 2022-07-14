@@ -71,14 +71,15 @@ namespace sek::serialization::json
 		typedef typename archive_frame::archive_category archive_category;
 		typedef typename archive_frame::char_type char_type;
 		typedef typename archive_frame::size_type size_type;
+		typedef archive_reader<char_type> reader_type;
 
 	private:
 		using rj_parser = rapidjson::GenericReader<detail::rj_encoding, detail::rj_encoding, detail::rj_allocator>;
 
-		struct rj_reader : archive_reader<char_type>
+		struct rj_reader : reader_type
 		{
 			using Ch = char_type;
-			using base_t = archive_reader<char_type>;
+			using base_t = reader_type;
 
 			constexpr explicit rj_reader(base_t &&reader) : base_t(std::move(reader)) {}
 
@@ -158,13 +159,13 @@ namespace sek::serialization::json
 
 		/** Reads Json using the provided archive reader.
 		 * @param reader Reader used to read Json data. */
-		explicit basic_input_archive(archive_reader<char_type> reader)
+		explicit basic_input_archive(reader_type reader)
 			: basic_input_archive(std::move(reader), std::pmr::get_default_resource())
 		{
 		}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(archive_reader<char_type> reader, std::pmr::memory_resource *res) : base_t(res)
+		basic_input_archive(reader_type reader, std::pmr::memory_resource *res) : base_t(res)
 		{
 			parse(rj_reader{std::move(reader)});
 		}
@@ -178,7 +179,7 @@ namespace sek::serialization::json
 		/** @copydoc basic_input_archive
 		 * @param res PMR memory resource used for internal allocation. */
 		basic_input_archive(const char_type *buff, std::size_t len, std::pmr::memory_resource *res)
-			: basic_input_archive(archive_reader<char_type>{buff, len}, res)
+			: basic_input_archive(reader_type{buff, len}, res)
 		{
 		}
 		/** Reads Json from a file.
@@ -190,7 +191,7 @@ namespace sek::serialization::json
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
 		basic_input_archive(system::native_file &file, std::pmr::memory_resource *res)
-			: basic_input_archive(archive_reader<char_type>{file}, res)
+			: basic_input_archive(reader_type{file}, res)
 		{
 		}
 		/** Reads Json from a file.
@@ -198,10 +199,7 @@ namespace sek::serialization::json
 		explicit basic_input_archive(FILE *file) : basic_input_archive(file, std::pmr::get_default_resource()) {}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(FILE *file, std::pmr::memory_resource *res)
-			: basic_input_archive(archive_reader<char_type>{file}, res)
-		{
-		}
+		basic_input_archive(FILE *file, std::pmr::memory_resource *res) : basic_input_archive(reader_type{file}, res) {}
 		/** Reads Json from a stream buffer.
 		 * @param buff Pointer to the stream buffer. */
 		explicit basic_input_archive(std::streambuf *buff) : basic_input_archive(buff, std::pmr::get_default_resource())
@@ -210,7 +208,7 @@ namespace sek::serialization::json
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
 		basic_input_archive(std::streambuf *buff, std::pmr::memory_resource *res)
-			: basic_input_archive(archive_reader<char_type>{buff}, res)
+			: basic_input_archive(reader_type{buff}, res)
 		{
 		}
 		/** Reads Json from an input stream.
@@ -324,12 +322,13 @@ namespace sek::serialization::json
 		typedef typename archive_frame::archive_category archive_category;
 		typedef typename archive_frame::char_type char_type;
 		typedef typename archive_frame::size_type size_type;
+		typedef archive_writer<char_type> writer_type;
 
 	private:
-		struct rj_writer : archive_writer<char_type>
+		struct rj_writer : writer_type
 		{
 			using Ch = char_type;
-			using base_t = archive_writer<char_type>;
+			using base_t = writer_type;
 
 			constexpr explicit rj_writer(base_t &&writer) : base_t(std::move(writer)) {}
 
@@ -455,13 +454,13 @@ namespace sek::serialization::json
 
 		/** Initializes output archive for writing using the provided writer.
 		 * @param writer Writer used to write Json data. */
-		explicit basic_output_archive(archive_writer<char_type> writer)
+		explicit basic_output_archive(writer_type writer)
 			: basic_output_archive(std::move(writer), std::pmr::get_default_resource())
 		{
 		}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_output_archive(archive_writer<char_type> writer, std::pmr::memory_resource *res)
+		basic_output_archive(writer_type writer, std::pmr::memory_resource *res)
 			: base_t(res), m_writer(std::move(writer))
 		{
 		}
@@ -476,7 +475,7 @@ namespace sek::serialization::json
 		 * @param res Memory resource used for internal allocation. */
 		template<typename Traits = std::char_traits<char_type>, typename Alloc = std::allocator<char_type>>
 		basic_output_archive(std::basic_string<char_type, Traits, Alloc> &str, std::pmr::memory_resource *res)
-			: basic_output_archive(archive_writer<char_type>{str}, res)
+			: basic_output_archive(writer_type{str}, res)
 		{
 		}
 		/** Initializes output archive for file writing.
@@ -488,7 +487,7 @@ namespace sek::serialization::json
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
 		basic_output_archive(system::native_file &file, std::pmr::memory_resource *res)
-			: basic_output_archive(archive_writer<char_type>{file}, res)
+			: basic_output_archive(writer_type{file}, res)
 		{
 		}
 		/** Initializes output archive for file writing.
@@ -496,8 +495,7 @@ namespace sek::serialization::json
 		explicit basic_output_archive(FILE *file) : basic_output_archive(file, std::pmr::get_default_resource()) {}
 		/** @copydoc output_archive
 		 * @param res PMR memory resource used for internal state allocation. */
-		basic_output_archive(FILE *file, std::pmr::memory_resource *res)
-			: basic_output_archive(archive_writer<char_type>{file}, res)
+		basic_output_archive(FILE *file, std::pmr::memory_resource *res) : basic_output_archive(writer_type{file}, res)
 		{
 		}
 		/** Initializes output archive for stream buffer writing.
@@ -509,7 +507,7 @@ namespace sek::serialization::json
 		/** @copydoc output_archive
 		 * @param res PMR memory resource used for internal state allocation. */
 		basic_output_archive(std::streambuf *buff, std::pmr::memory_resource *res)
-			: basic_output_archive(archive_writer<char_type>{buff}, res)
+			: basic_output_archive(writer_type{buff}, res)
 		{
 		}
 		/** Initializes output archive for stream writing.

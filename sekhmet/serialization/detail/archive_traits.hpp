@@ -9,6 +9,7 @@
 #include <stdexcept>
 
 #include "sekhmet/detail/define.h"
+
 #include <string_view>
 
 namespace sek::serialization
@@ -43,8 +44,8 @@ namespace sek::serialization
 	concept input_archive = requires(A &archive, T &value)
 	{
 		typename A::archive_category;
-		typename A::char_type;
 		typename A::size_type;
+		typename A::reader_type;
 		std::is_base_of_v<input_archive_category, typename A::archive_category>;
 
 		{ archive >> value } -> std::convertible_to<A &>;
@@ -58,8 +59,8 @@ namespace sek::serialization
 	concept output_archive = requires(A &archive, const T &value)
 	{
 		typename A::archive_category;
-		typename A::char_type;
 		typename A::size_type;
+		typename A::writer_type;
 		std::is_base_of_v<output_archive_category, typename A::archive_category>;
 
 		{ archive << value } -> std::convertible_to<A &>;

@@ -926,6 +926,7 @@ namespace sek::serialization
 
 			public:
 				typedef input_archive_category archive_category;
+				typedef archive_reader<C> reader_type;
 				typedef C char_type;
 
 				typedef entry_iterator iterator;
@@ -960,6 +961,8 @@ namespace sek::serialization
 						typename table_node::const_iterator table_end;
 					};
 				};
+
+				static void throw_end_error() { throw archive_error("End of input frame"); }
 
 				constexpr explicit read_frame(const tree_node &node) noexcept : m_type(node.type)
 				{
@@ -1063,7 +1066,7 @@ namespace sek::serialization
 				/** Deserializes the next Json entry of the archive & advance the entry.
 				 * @param value Value to deserialize.
 				 * @return Reference to this frame.
-				 * @throw archive_exception On deserialization errors. */
+				 * @throw archive_exception At the end of frame and on deserialization errors. */
 				template<typename U>
 				read_frame &operator>>(U &&value)
 				{
@@ -1083,7 +1086,7 @@ namespace sek::serialization
 				 * Otherwise, default-constructs & deserializes using `read(T &&)`.
 				 * @param args Arguments forwarded to the deserialization function/constructor.
 				 * @return Deserialized instance of `T`.
-				 * @throw archive_error On deserialization errors. */
+				 * @throw archive_error At the end of frame and on deserialization errors. */
 				template<typename U, typename... Args>
 				U read(std::in_place_type_t<U>, Args &&...args)
 				{
@@ -1109,7 +1112,8 @@ namespace sek::serialization
 				 * @param args Arguments forwarded to the deserialization function.
 				 * @return Reference to this frame.
 				 * @throw archive_exception On deserialization errors.
-				 * @throw std::out_of_range If the object does not contain an entry with the specified key. */
+				 * @throw std::out_of_range If the object does not contain an entry with the specified key
+				 * or the frame is at the end. */
 				template<typename U>
 				read_frame &operator>>(keyed_entry_t<C, U> value)
 				{
@@ -1181,13 +1185,27 @@ namespace sek::serialization
 					return &m_frame_view.table_pos->value;
 				}
 
-				[[nodiscard]] constexpr auto next() noexcept
+				[[nodiscard]] constexpr auto next()
 				{
 					entry_iterator result;
 					switch (m_type.storage)
 					{
-						case tree_type::type_selector::ARRAY: result = {m_frame_view.array_pos++, m_type}; break;
-						case tree_type::type_selector::TABLE: result = {m_frame_view.table_pos++, m_type}; break;
+						case tree_type::type_selector::ARRAY:
+						{
+							if (m_frame_view.array_pos >= m_frame_view.array_end) [[unlikely]]
+								throw_end_error();
+
+							result = {m_frame_view.array_pos++, m_type};
+							break;
+						}
+						case tree_type::type_selector::TABLE:
+						{
+							if (m_frame_view.table_pos >= m_frame_view.table_end) [[unlikely]]
+								throw_end_error();
+
+							result = {m_frame_view.table_pos++, m_type};
+							break;
+						}
 						default: break;
 					}
 					return result;
@@ -1223,6 +1241,7 @@ namespace sek::serialization
 
 			public:
 				typedef output_archive_category archive_category;
+				typedef archive_writer<C> writer_type;
 				typedef C char_type;
 				typedef std::size_t size_type;
 
@@ -1312,13 +1331,13 @@ namespace sek::serialization
 
 				void write_value(tree_node &node, std::nullptr_t) const { node.to_value().type.value = NULL_VALUE; }
 				// clang-format off
-			template<typename U>
-			void write_value(tree_node &node, U &&b) const requires(std::same_as<std::decay_t<U>, bool>)
-			{
-				node.to_value().type.value = static_cast<json_type>(BOOL | static_cast<int>(!!b));
-			}
-			template<typename U>
-			void write_value(tree_node &node, U &&c) const requires(std::same_as<std::decay_t<U>, C> && ((Config & char_value) == char_value))
+				template<typename U>
+				void write_value(tree_node &node, U &&b) const requires(std::same_as<std::decay_t<U>, bool>)
+				{
+					node.to_value().type.value = static_cast<json_type>(BOOL | static_cast<int>(!!b));
+				}
+				template<typename U>
+				void write_value(tree_node &node, U &&c) const requires(std::same_as<std::decay_t<U>, C> && ((Config & char_value) == char_value))
 			{
 				node.to_value().type.value = CHAR;
 				node.value().character = c;
@@ -1353,27 +1372,27 @@ namespace sek::serialization
 				}
 
 				// clang-format off
-			template<typename I>
-			void write_value(tree_node &node, I &&i) const requires is_uint_value<std::decay_t<I>>
-			{
-				node.to_value().type.value = static_cast<json_type>(INT_U | int_size_type(i));
-				node.value().ui = static_cast<std::uintmax_t>(i);
-			}
-			template<typename I>
-			void write_value(tree_node &node, I &&i) const requires is_int_value<std::decay_t<I>>
-			{
-				node.to_value().type.value = static_cast<json_type>(INT_S | int_size_type(i));
-				node.value().si = static_cast<std::intmax_t>(i);
-			}
-			template<typename F>
-			void write_value(tree_node &node, F &&f) const requires std::floating_point<std::decay_t<F>>
-			{
-				if constexpr (sizeof(F) > sizeof(float))
-					node.to_value().type.value = FLOAT64;
-				else
-					node.to_value().type.value = FLOAT32;
-				node.value().fp = static_cast<double>(f);
-			}
+				template<typename I>
+				void write_value(tree_node &node, I &&i) const requires is_uint_value<std::decay_t<I>>
+				{
+					node.to_value().type.value = static_cast<json_type>(INT_U | int_size_type(i));
+					node.value().ui = static_cast<std::uintmax_t>(i);
+				}
+				template<typename I>
+				void write_value(tree_node &node, I &&i) const requires is_int_value<std::decay_t<I>>
+				{
+					node.to_value().type.value = static_cast<json_type>(INT_S | int_size_type(i));
+					node.value().si = static_cast<std::intmax_t>(i);
+				}
+				template<typename F>
+				void write_value(tree_node &node, F &&f) const requires std::floating_point<std::decay_t<F>>
+				{
+					if constexpr (sizeof(F) > sizeof(float))
+						node.to_value().type.value = FLOAT64;
+					else
+						node.to_value().type.value = FLOAT32;
+					node.value().fp = static_cast<double>(f);
+				}
 				// clang-format on
 
 				template<typename U>

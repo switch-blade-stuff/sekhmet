@@ -10,10 +10,10 @@
 #include "sekhmet/detail/basic_pool.hpp"
 #include "sekhmet/detail/dense_set.hpp"
 #include "sekhmet/detail/service.hpp"
-#include "sekhmet/detail/type_info.hpp"
 #include "sekhmet/serialization/json.hpp"
 #include "sekhmet/system/native_file.hpp"
 
+#include "type_info.hpp"
 #include <shared_mutex>
 
 namespace sek::engine
@@ -525,13 +525,13 @@ namespace sek::engine
 		constexpr config_registry() noexcept = default;
 		SEK_API ~config_registry();
 
-		/** Returns iterator to the first category of the registry. */
+		/** Returns entry iterator to the first category of the registry. */
 		[[nodiscard]] constexpr iterator begin() noexcept { return iterator{m_categories.begin()}; }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return const_iterator{m_categories.begin()}; }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
-		/** Returns iterator one past the last category of the registry. */
+		/** Returns entry iterator one past the last category of the registry. */
 		[[nodiscard]] constexpr iterator end() noexcept { return iterator{m_categories.end()}; }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return const_iterator{m_categories.end()}; }
@@ -555,11 +555,12 @@ namespace sek::engine
 		/** @copydoc find */
 		[[nodiscard]] SEK_API entry_ptr<true> find(const cfg_path &entry) const;
 
-		/** Creates a config entry of type `T`.
+		/** Creates a config entry of type `T`. If needed, creates empty entries for parents of the branch.
 		 * @param entry Full path of the entry.
 		 * @param value Value of the entry.
 		 * @return Reference to the value of the entry.
-		 * @note If a new entry was inserted and there is a Json data cache up the tree, the entry will be deserialized. */
+		 * @note If a new entry was inserted and there is a Json data cache up the tree, the entry will be deserialized.
+		 * @throw config_error If any entry within the resulting branch fails to initialize. */
 		template<typename T>
 		inline T &try_insert(cfg_path entry, T value = {})
 		{
@@ -568,12 +569,13 @@ namespace sek::engine
 			else
 				return existing->value().template cast<T &>();
 		}
-		/** Creates or replaces a config entry of type `T`.
+		/** Creates or replaces a config entry of type `T`. If needed, creates empty entries for parents of the branch.
 		 * @param entry Full path of the entry.
 		 * @param value Value of the entry.
 		 * @return Reference to the value of the entry.
 		 * @note If such entry already exists, value of the entry will be replaced.
-		 * @note If there is a Json data cache up the tree, the entry will be deserialized. */
+		 * @note If there is a Json data cache up the tree, the entry will be deserialized.
+		 * @throw config_error If any entry within the resulting branch fails to initialize. */
 		template<typename T>
 		inline T &insert(cfg_path entry, T value = {})
 		{
@@ -585,38 +587,59 @@ namespace sek::engine
 
 		/** Erases the specified config entry and all it's children.
 		 * @return `true` If the entry was erased, `false` otherwise. */
-		SEK_API bool erase(entry_ptr<true> where);
+		SEK_API bool erase(entry_ptr<true> which);
+		/** @copydoc erase */
+		inline bool erase(const_iterator which) { return erase(which.operator->()); }
 		/** @copydoc erase */
 		SEK_API bool erase(const cfg_path &entry);
 
-		/** Loads an entry from a Json node tree.
+		/** Loads an entry and all it's children from a Json node tree.
 		 * @param entry Full path of the entry.
 		 * @param tree Json node tree containing source data.
 		 * @param cache If set to true, the node tree will be cached and re-used for de-serialization of new entries.
 		 * @return Entry pointer to the loaded entry.
-		 * @throw config_error If the entry path is empty. */
+		 * @throw config_error If any entry within the resulting branch fails to initialize. */
 		SEK_API entry_ptr<false> load(cfg_path entry, serialization::json_tree &&tree, bool cache = true);
-		/** Loads an entry from a Json file.
+		/** Loads an entry and all it's children from a Json file.
 		 * @param entry Full path of the entry.
 		 * @param path Path to a Json file containing source data.
 		 * @param cache If set to true, the data will be cached and re-used for de-serialization of new entries.
 		 * @return Entry pointer to the loaded entry.
-		 * @throw config_error If the file fails to open or the entry path is empty. */
+		 * @throw config_error If the file fails to open in read mode or any entry within
+		 * the resulting branch fails to initialize. */
 		SEK_API entry_ptr<false> load(cfg_path entry, const std::filesystem::path &path, bool cache = true);
 
+		/** Saves an entry and all it's children to a Json node tree.
+		 * @param which Pointer to the entry to be saved.
+		 * @param tree Json node tree to store the serialized data in.
+		 * @return `true` on success, `false` on failure (entry does not exist). */
+		SEK_API bool save(entry_ptr<true> which, serialization::json_tree &tree) const;
+		/** Saves an entry and all it's children to a Json node tree.
+		 * @param entry Full path of the entry.
+		 * @param path Path to a the file to write Json data to.
+		 * @return `true` on success, `false` on failure (entry does not exist).
+		 * @throw config_error If the fails to open. */
+		SEK_API bool save(entry_ptr<true> which, const std::filesystem::path &path) const;
 		/** Loads an entry to a Json node tree.
 		 * @param entry Full path of the entry.
 		 * @param tree Json node tree to store the serialized data in.
-		 * @throw config_error If no such entry exists. */
-		SEK_API void save(const cfg_path &entry, serialization::json_tree &tree) const;
+		 * @return `true` on success, `false` on failure (entry does not exist). */
+		inline bool save(const cfg_path &entry, serialization::json_tree &tree) const
+		{
+			return save(find(entry), tree);
+		}
 		/** Loads an entry from a Json file.
 		 * @param entry Full path of the entry.
 		 * @param path Path to a the file to write Json data to.
-		 * @throw config_error If no such entry exists or the fails to open. */
-		SEK_API void save(const cfg_path &entry, const std::filesystem::path &path) const;
+		 * @return `true` on success, `false` on failure (entry does not exist).
+		 * @throw config_error If the fails to open. */
+		inline bool save(const cfg_path &entry, const std::filesystem::path &path) const
+		{
+			return save(find(entry), path);
+		}
 
 	private:
-		void save_impl(const cfg_path &entry, output_archive &archive) const;
+		bool save_impl(entry_ptr<true> which, output_archive &archive) const;
 
 		SEK_API entry_node *assign_impl(entry_node *node, any &&value);
 		SEK_API entry_node *insert_impl(cfg_path &&entry, any &&value);
@@ -646,7 +669,7 @@ namespace sek::engine
 
 	namespace attributes
 	{
-		/** @brief Attribute type used to and automatically create a config entry. */
+		/** @brief Attribute used to designate a type as a config entry and optionally auto-initialize the entry. */
 		class config_type
 		{
 			friend class engine::config_registry;
@@ -692,13 +715,16 @@ namespace sek::engine
 			void (*deserialize)(input_frame &, any &a);
 		};
 
+		/** Helper function used to create an instance of `config_type` attribute for type `T`. */
 		template<typename T>
-		constexpr config_type make_config_type() noexcept
+		[[nodiscard]] constexpr config_type make_config_type() noexcept
 		{
 			return config_type{type_selector<T>};
 		}
+		/** @copydoc make_config_type
+		 * @param path Config path to create an entry for. */
 		template<typename T>
-		inline config_type make_config_type(cfg_path path) noexcept
+		[[nodiscard]] inline config_type make_config_type(cfg_path path) noexcept
 		{
 			return config_type{type_selector<T>, path};
 		}

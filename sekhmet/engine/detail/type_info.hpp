@@ -9,12 +9,13 @@
 #include <stdexcept>
 #include <utility>
 
-#include "aligned_storage.hpp"
-#include "assert.hpp"
-#include "meta_util.hpp"
+#include "sekhmet/detail/aligned_storage.hpp"
+#include "sekhmet/detail/assert.hpp"
+#include "sekhmet/detail/meta_util.hpp"
+
 #include "type_name.hpp"
 
-namespace sek
+namespace sek::engine
 {
 	class any;
 	class any_ref;
@@ -2088,7 +2089,7 @@ namespace sek
 			return type_info::get({str, n});
 		}
 	}	 // namespace literals
-}	 // namespace sek
+}	 // namespace sek::engine
 
 /** Macro used to declare an instance of type info for type `T` as extern.
  *
@@ -2103,7 +2104,7 @@ namespace sek
  * // my_type.cpp
  * SEK_EXPORT_TYPE(my_type)
  * @endcode*/
-#define SEK_EXTERN_TYPE(T) extern template SEK_API_IMPORT sek::type_info::data_t *sek::type_info::get_data<T>();
+#define SEK_EXTERN_TYPE(T) extern template SEK_API_IMPORT sek::engine::type_info::data_t *sek::engine::type_info::get_data<T>();
 
 /** Macro used to export instance of type info for type `T`.
  *
@@ -2118,4 +2119,4 @@ namespace sek
  * // my_type.cpp
  * SEK_EXPORT_TYPE(my_type)
  * @endcode */
-#define SEK_EXPORT_TYPE(T) template SEK_API_EXPORT sek::type_info::data_t *sek::type_info::get_data<T>();
+#define SEK_EXPORT_TYPE(T) template SEK_API_EXPORT sek::engine::type_info::data_t *sek::engine::type_info::get_data<T>();

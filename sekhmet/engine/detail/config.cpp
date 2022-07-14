@@ -47,7 +47,7 @@ namespace sek::engine
 						case '-':
 						case '_':
 						case '.': break;
-						default: throw config_error(std::string{"Invalid config path character"} + c);
+						default: throw config_error(fmt::format("Invalid config path character \'{}\'", c));
 					}
 
 				/* Always insert the first element. */
@@ -197,9 +197,12 @@ namespace sek::engine
 		for (auto cat = m_categories.end(), end = m_categories.begin(); cat-- != end;) std::destroy_at(*cat);
 	}
 
-	bool config_registry::erase(entry_ptr<true> where)
+	bool config_registry::erase(entry_ptr<true> which)
 	{
-		if (auto target = m_entries.find(where->m_node); target != m_entries.end()) [[likely]]
+		if (!which) [[unlikely]]
+			return false;
+
+		if (auto target = m_entries.find(which->m_node); target != m_entries.end()) [[likely]]
 		{
 			erase_impl(target);
 			return true;
@@ -328,6 +331,10 @@ namespace sek::engine
 	}
 	config_registry::entry_ptr<false> config_registry::load(cfg_path entry, json_tree &&tree, bool cache)
 	{
+		/* Handle empty entry paths. */
+		if (entry.empty()) [[unlikely]]
+			return {};
+
 		/* Find or create the entry node. */
 		entry_node *node;
 		if (auto node_ptr = find(entry); !node_ptr)
@@ -349,25 +356,27 @@ namespace sek::engine
 		return entry_ptr<false>{init_branch(node, data)};
 	}
 
-	void config_registry::save(const cfg_path &entry, json_tree &tree) const
+	bool config_registry::save(entry_ptr<true> which, json_tree &tree) const
 	{
 		output_archive archive{tree};
-		save_impl(entry, archive);
+		return save_impl(which, archive);
 	}
-	void config_registry::save(const cfg_path &entry, const std::filesystem::path &path) const
+	bool config_registry::save(entry_ptr<true> which, const std::filesystem::path &path) const
 	{
 		auto file = std::ofstream{path, std::ios::trunc | std::ios::out};
 		if (!file.is_open()) [[unlikely]]
 			throw config_error(fmt::format("Failed to open config file \"{}\"", path.c_str()));
 
 		output_archive archive{file};
-		save_impl(entry, archive);
+		return save_impl(which, archive);
 	}
-	void config_registry::save_impl(const cfg_path &entry, output_archive &archive) const
+	bool config_registry::save_impl(entry_ptr<true> which, output_archive &archive) const
 	{
-		auto ptr = find(entry);
-		if (!ptr) [[unlikely]]
-			throw config_error(fmt::format("Failed to save config entry \"{}\". Unknown entry", entry.string()));
-		archive << *ptr->m_node;
+		if (which) [[likely]]
+		{
+			archive << *which->m_node;
+			return true;
+		}
+		return false;
 	}
 }	 // namespace sek::engine

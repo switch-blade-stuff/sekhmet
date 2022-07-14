@@ -28,14 +28,14 @@ namespace sek::engine
 	class asset_database;
 
 	/** @brief Exception thrown by the asset system on runtime errors. */
-	class SEK_API asset_package_error : public std::runtime_error
+	class SEK_API asset_error : public std::runtime_error
 	{
 	public:
-		asset_package_error() : std::runtime_error("Unknown asset package error") {}
-		explicit asset_package_error(std::string &&msg) : std::runtime_error(std::move(msg)) {}
-		explicit asset_package_error(const std::string &msg) : std::runtime_error(msg) {}
-		explicit asset_package_error(const char *msg) : std::runtime_error(msg) {}
-		~asset_package_error() override;
+		asset_error() : std::runtime_error("Unknown asset error") {}
+		explicit asset_error(std::string &&msg) : std::runtime_error(std::move(msg)) {}
+		explicit asset_error(const std::string &msg) : std::runtime_error(msg) {}
+		explicit asset_error(const char *msg) : std::runtime_error(msg) {}
+		~asset_error() override;
 	};
 
 	namespace detail
@@ -83,7 +83,7 @@ namespace sek::engine
 			{
 				std::construct_at(&loose_info);
 			}
-			~asset_info();
+			inline ~asset_info();
 
 			[[nodiscard]] constexpr bool has_metadata() const noexcept;
 
@@ -128,9 +128,9 @@ namespace sek::engine
 
 			[[nodiscard]] constexpr const_iterator find(uuid) const;
 			[[nodiscard]] constexpr const_iterator find(std::string_view) const;
-			[[nodiscard]] std::vector<reference> find_all(std::string_view) const;
 			[[nodiscard]] constexpr const_iterator match(auto &&) const;
-			[[nodiscard]] std::vector<reference> match_all(auto &&) const;
+			[[nodiscard]] inline std::vector<reference> find_all(std::string_view) const;
+			[[nodiscard]] inline std::vector<reference> match_all(auto &&) const;
 
 			uuid_table_t uuid_table;
 			name_table_t name_table;
@@ -191,7 +191,7 @@ namespace sek::engine
 			sek::detail::basic_pool<asset_info> info_pool;
 		};
 
-		asset_info::~asset_info()
+		inline asset_info::~asset_info()
 		{
 			if (parent->is_archive())
 				std::destroy_at(&archive_info);
@@ -364,7 +364,7 @@ namespace sek::engine
 
 		constexpr bool asset_info::has_metadata() const noexcept
 		{
-			return parent->is_archive() ? archive_info.meta_offset : loose_info.meta_path.empty();
+			return parent->is_archive() ? archive_info.meta_offset : !loose_info.meta_path.empty();
 		}
 
 		struct asset_info_ptr
@@ -511,15 +511,15 @@ namespace sek::engine
 		[[nodiscard]] constexpr const dense_set<interned_string> &tags() const noexcept { return m_ptr->tags; }
 
 		/** Returns a handle to the parent package of the asset. */
-		[[nodiscard]] asset_package package() const;
+		[[nodiscard]] inline asset_package package() const;
 		/** Opens an asset source used to read asset's data.
-		 * @throw asset_package_error On failure to open asset. */
+		 * @throw asset_error On failure to open the file or archive containing the asset. */
 		[[nodiscard]] asset_source open() const { return m_ptr->parent->open_asset(m_ptr.info); }
 		/** Checks if the asset has metadata. */
 		[[nodiscard]] bool has_metadata() const { return m_ptr->has_metadata(); }
 		/** Returns a vector of bytes containing asset's metadata.
 		 * @note If the asset does not have metadata, returns an empty vector.
-		 * @throw asset_package_error On failure to open metadata or archive file. */
+		 * @throw asset_error On failure to open the file or archive containing the metadata. */
 		[[nodiscard]] std::vector<std::byte> metadata() const { return m_ptr->parent->read_metadata(m_ptr.info); }
 
 		constexpr void swap(asset_ref &other) noexcept
@@ -659,7 +659,11 @@ namespace sek::engine
 			else
 				return end();
 		}
-		std::vector<typename asset_table::reference> asset_table::find_all(std::string_view name) const
+		constexpr typename asset_table::const_iterator asset_table::match(auto &&pred) const
+		{
+			return std::find_if(begin(), end(), pred);
+		}
+		inline std::vector<typename asset_table::reference> asset_table::find_all(std::string_view name) const
 		{
 			std::vector<reference> result;
 			std::for_each(begin(),
@@ -670,11 +674,7 @@ namespace sek::engine
 						  });
 			return result;
 		}
-		constexpr typename asset_table::const_iterator asset_table::match(auto &&pred) const
-		{
-			return std::find_if(begin(), end(), pred);
-		}
-		std::vector<typename asset_table::reference> asset_table::match_all(auto &&pred) const
+		inline std::vector<typename asset_table::reference> asset_table::match_all(auto &&pred) const
 		{
 			std::vector<reference> result;
 			std::for_each(begin(),
@@ -709,11 +709,11 @@ namespace sek::engine
 		typedef typename table_t::difference_type difference_type;
 
 		/** Loads a package at the specified path.
-		 * @throw asset_package_error If the path does not contain a valid package or
+		 * @throw asset_error If the path does not contain a valid package or
 		 * an implementation-defined error occurred during loading of package metadata. */
 		[[nodiscard]] static SEK_API asset_package load(const std::filesystem::path &path);
 		/** Load all packages in the specified directory.
-		 * @throw asset_package_error If the path is not a valid directory. */
+		 * @throw asset_error If the path is not a valid directory. */
 		[[nodiscard]] static SEK_API std::vector<asset_package> load_all(const std::filesystem::path &path);
 
 	private:
@@ -786,7 +786,7 @@ namespace sek::engine
 		detail::package_info_ptr m_ptr;
 	};
 
-	asset_package asset_ref::package() const { return asset_package{m_ptr->parent}; }
+	inline asset_package asset_ref::package() const { return asset_package{m_ptr->parent}; }
 
 	/** @brief Proxy range used to manipulate load order of asset database's packages.
 	 *

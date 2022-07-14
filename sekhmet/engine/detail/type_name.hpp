@@ -4,9 +4,9 @@
 
 #pragma once
 
-#include "static_string.hpp"
+#include "sekhmet/detail/static_string.hpp"
 
-namespace sek
+namespace sek::engine
 {
 	namespace detail
 	{
@@ -62,4 +62,4 @@ namespace sek
 	{
 		return detail::generate_type_name<T>();
 	}
-}
+}	 // namespace sek::engine

@@ -80,11 +80,10 @@ namespace sek::engine
 		{
 			auto file = system::native_file{path, system::native_file::in};
 			if (!file.is_open()) [[unlikely]]
-				throw asset_package_error(fmt::format("Failed to open asset package \"{}\"", path.string()));
+				throw asset_error(fmt::format("Failed to open asset package \"{}\"", path.string()));
 			else if (file.seek(offset, system::native_file::beg) < 0) [[unlikely]]
 			{
-				throw asset_package_error(
-					fmt::format("Failed to seek asset package \"{}\" to position {}", path.string(), offset));
+				throw asset_error(fmt::format("Failed to seek asset package \"{}\" to position {}", path.string(), offset));
 			}
 			return file;
 		}
@@ -100,12 +99,11 @@ namespace sek::engine
 				result.resize(static_cast<std::size_t>(info->archive_info.meta_size));
 				file.read(result.data(), result.size());
 			}
-			else
+			else if (const auto full_path = path / info->loose_info.meta_path; exists(full_path)) [[likely]]
 			{
-				const auto full_path = path / info->loose_info.meta_path;
 				file = system::native_file{full_path, system::native_file::in | system::native_file::atend};
 				if (!file.is_open()) [[unlikely]]
-					throw asset_package_error(fmt::format("Failed to open asset metadata at path \"{}\"", full_path.string()));
+					throw asset_error(fmt::format("Failed to open asset metadata at path \"{}\"", full_path.string()));
 
 				result.resize(static_cast<std::size_t>(file.tell()));
 				file.seek(0, system::native_file::beg);
@@ -119,7 +117,7 @@ namespace sek::engine
 			const auto full_path = path / info->loose_info.asset_path;
 			auto file = system::native_file{full_path, system::native_file::in | system::native_file::atend};
 			if (!file.is_open()) [[unlikely]]
-				throw asset_package_error(fmt::format("Failed to open asset at path \"{}\"", full_path.string()));
+				throw asset_error(fmt::format("Failed to open asset at path \"{}\"", full_path.string()));
 
 			const auto size = file.tell();
 			file.seek(0, system::native_file::beg);
@@ -190,7 +188,7 @@ namespace sek::engine
 			}
 			catch (zstd_error &e)
 			{
-				throw asset_package_error(fmt::format(R"(Exception in "zstd_thread_ctx::decompress": "{}")", e.what()));
+				throw asset_error(fmt::format(R"(Exception in "zstd_thread_ctx::decompress": "{}")", e.what()));
 			}
 
 			return make_asset_source(std::move(writer.buffer), src_size);
@@ -202,7 +200,7 @@ namespace sek::engine
 				case 0: return open_asset_loose(info);
 				case IS_ARCHIVE: return open_asset_flat(info);
 				case IS_ARCHIVE | ARCHIVE_FORMAT_ZSTD: return open_asset_zstd(info);
-				default: throw asset_package_error("Failed to open asset source - invalid package flags");
+				default: throw asset_error("Failed to open asset source - invalid package flags");
 			}
 		}
 
@@ -233,8 +231,8 @@ namespace sek::engine
 		constexpr std::uint8_t manifest_ver_max = 1;
 		constexpr std::uint8_t archive_ver_max = 1;
 
-		using json_frame = typename json::input_archive::archive_frame;
-		using binary_archive = binary::input_archive;
+		using json_input = typename json::input_archive::archive_frame;
+		using binary_input = binary::input_archive;
 		using flags_t = package_info::flags_t;
 
 		inline auto open_manifest(const std::filesystem::path &path)
@@ -251,7 +249,7 @@ namespace sek::engine
 			}
 
 		invalid_manifest:
-			throw asset_package_error(fmt::format("Failed to open package manifest at \"{}\"", manifest_path.string()));
+			throw asset_error(fmt::format("Failed to open package manifest at \"{}\"", manifest_path.string()));
 		}
 		inline auto open_header(const std::filesystem::path &path)
 		{
@@ -263,21 +261,21 @@ namespace sek::engine
 				if (!file->is_open()) [[unlikely]]
 					goto invalid_header;
 
-				std::pair<std::unique_ptr<system::native_file>, binary_archive> result = {
+				std::pair<std::unique_ptr<system::native_file>, binary_input> result = {
 					std::unique_ptr<system::native_file>{file},
-					binary_archive{*file},
+					binary_input{*file},
 				};
 				return result;
 			}
 
 		invalid_header:
-			throw asset_package_error(fmt::format("Failed to open archive package at \"{}\"", path.string()));
+			throw asset_error(fmt::format("Failed to open archive package at \"{}\"", path.string()));
 		}
 		inline std::uint8_t get_manifest_version(typename json::input_archive::archive_frame &frame)
 		{
 			std::uint8_t ver = 0;
 			if (!(frame.try_read(keyed_entry("version", ver)) && ver - 1 < manifest_ver_max)) [[unlikely]]
-				throw asset_package_error("Unknown manifest version");
+				throw asset_error("Unknown manifest version");
 			return ver;
 		}
 		inline std::uint8_t get_header_version(binary::input_archive &archive)
@@ -285,23 +283,23 @@ namespace sek::engine
 			for (auto c_req : signature_str)
 			{
 				if (char c; !(archive.try_read(c) && c == c_req)) [[unlikely]]
-					throw asset_package_error("Invalid header signature");
+					throw asset_error("Invalid header signature");
 			}
 			std::uint8_t ver = 0;
 			if (!(archive.try_read(ver) && ver - 1 < archive_ver_max)) [[unlikely]]
-				throw asset_package_error("Unknown header version");
+				throw asset_error("Unknown header version");
 			return ver;
 		}
 		inline auto get_header_flags(binary::input_archive &archive)
 		{
 			std::int32_t value;
 			if (!archive.try_read(value)) [[unlikely]]
-				throw asset_package_error("Invalid header flags");
+				throw asset_error("Invalid header flags");
 			return static_cast<flags_t>(value);
 		}
 
-		inline void deserialize(package_info &, binary_archive &);
-		inline void deserialize(package_info &, json_frame &);
+		inline void deserialize(package_info &, binary_input &);
+		inline void deserialize(package_info &, json_input &);
 
 		namespace v1
 		{
@@ -316,13 +314,13 @@ namespace sek::engine
 				{
 					struct tags_proxy
 					{
-						void deserialize(binary_archive &archive) const
+						void deserialize(binary_input &archive) const
 						{
 							auto size = archive.read(std::in_place_type<std::uint32_t>);
 							tags.reserve(size);
 							while (size-- != 0) tags.emplace(archive.read(std::in_place_type<std::string>));
 						}
-						void deserialize(json_frame &archive) const
+						void deserialize(json_input &archive) const
 						{
 							std::size_t size = 0;
 							archive >> container_size(size);
@@ -333,7 +331,7 @@ namespace sek::engine
 						dense_set<interned_string> &tags;
 					};
 
-					void deserialize(binary_archive &archive, package_info &parent) const
+					void deserialize(binary_input &archive, package_info &parent) const
 					{
 						std::construct_at(info, type_selector<asset_info::archive_info_t>, &parent);
 
@@ -350,7 +348,7 @@ namespace sek::engine
 						if (info->archive_info.asset_offset == 0) [[unlikely]]
 							throw archive_error("Invalid asset data offset");
 					}
-					void deserialize(json_frame &archive, package_info &parent) const
+					void deserialize(json_input &archive, package_info &parent) const
 					{
 						std::construct_at(info, type_selector<asset_info::loose_info_t>, &parent);
 
@@ -374,7 +372,7 @@ namespace sek::engine
 					asset_info *info;
 				};
 
-				uuid read_entry(std::size_t, binary_archive &archive, asset_info *info) const
+				uuid read_entry(std::size_t, binary_input &archive, asset_info *info) const
 				{
 					std::array<std::byte, 16> bytes = {};
 					for (auto &byte : bytes) byte = std::byte{archive.read(std::in_place_type<std::uint8_t>)};
@@ -382,7 +380,7 @@ namespace sek::engine
 					archive.read(info_proxy{info}, pkg);
 					return uuid{bytes};
 				}
-				uuid read_entry(std::size_t i, json_frame &archive, asset_info *info) const
+				uuid read_entry(std::size_t i, json_input &archive, asset_info *info) const
 				{
 					const auto iter = archive.begin() + static_cast<std::ptrdiff_t>(i);
 					const auto id = uuid{iter.key()};
@@ -422,11 +420,11 @@ namespace sek::engine
 					logger::info() << fmt::format("Loaded {} asset(s)", total);
 				}
 
-				void deserialize(binary_archive &archive) const
+				void deserialize(binary_input &archive) const
 				{
 					read_assets(archive, archive.read(std::in_place_type<std::uint32_t>));
 				}
-				void deserialize(json_frame &archive) const
+				void deserialize(json_input &archive) const
 				{
 					std::size_t size = 0;
 					archive >> container_size(size);
@@ -436,7 +434,7 @@ namespace sek::engine
 				package_info &pkg;
 			};
 
-			inline void deserialize(package_info &pkg, binary_archive &archive)
+			inline void deserialize(package_info &pkg, binary_input &archive)
 			{
 				pkg.flags = static_cast<flags_t>(get_header_flags(archive) | package_info::IS_ARCHIVE);
 				logger::info() << fmt::format("Loading v1 archive package (compression: {}) \"{}\"",
@@ -446,7 +444,7 @@ namespace sek::engine
 				/* Try to deserialize assets. */
 				archive.try_read(assets_proxy{pkg});
 			}
-			inline void deserialize(package_info &pkg, json_frame &frame)
+			inline void deserialize(package_info &pkg, json_input &frame)
 			{
 				logger::info() << fmt::format("Loading v1 loose package \"{}\"", relative(pkg.path).string());
 
@@ -455,14 +453,14 @@ namespace sek::engine
 			}
 		}	 // namespace v1
 
-		inline void deserialize(package_info &pkg, binary_archive &archive)
+		inline void deserialize(package_info &pkg, binary_input &archive)
 		{
 			switch (get_header_version(archive))
 			{
 				case 1: v1::deserialize(pkg, archive); break;
 			}
 		}
-		inline void deserialize(package_info &pkg, json_frame &frame)
+		inline void deserialize(package_info &pkg, json_input &frame)
 		{
 			switch (get_manifest_version(frame))
 			{
@@ -471,14 +469,14 @@ namespace sek::engine
 		}
 	}	 // namespace detail
 
-	asset_package_error::~asset_package_error() = default;
+	asset_error::~asset_error() = default;
 
 	asset_package::asset_package(detail::package_info *pkg) : m_ptr(pkg) { m_ptr.acquire(); }
 
 	std::vector<asset_package> asset_package::load_all(const std::filesystem::path &path)
 	{
 		if (!exists(path) && !is_directory(path)) [[unlikely]]
-			throw asset_package_error(fmt::format("\"{}\" is not a valid directory", path.string()));
+			throw asset_error(fmt::format("\"{}\" is not a valid directory", path.string()));
 
 		std::vector<asset_package> result;
 		{
@@ -487,7 +485,7 @@ namespace sek::engine
 				{
 					result.emplace_back(load(entry.path()));
 				}
-				catch (asset_package_error &e)
+				catch (asset_error &e)
 				{
 					logger::info() << fmt::format("Skipping invalid package path \"{}\"."
 												  " Reason: \"{}\"",
@@ -501,7 +499,7 @@ namespace sek::engine
 	asset_package asset_package::load(const std::filesystem::path &path)
 	{
 		if (!exists(path)) [[unlikely]]
-			throw asset_package_error(fmt::format("\"{}\" is not a valid package path", path.string()));
+			throw asset_error(fmt::format("\"{}\" is not a valid package path", path.string()));
 
 		auto result = std::make_unique<detail::package_info>(path);
 		if (is_directory(path))

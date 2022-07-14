@@ -572,9 +572,6 @@ namespace sek
 		constexpr basic_intern_pool &operator=(basic_intern_pool &&) noexcept(std::is_nothrow_move_assignable_v<data_t>) = default;
 		constexpr ~basic_intern_pool() = default;
 
-		/** Initializes the pool using the provided memory resource. */
-		constexpr explicit basic_intern_pool(std::pmr::memory_resource *alloc) : m_data(alloc) {}
-
 		/** Interns the passed string view. */
 		[[nodiscard]] string_type intern(sv_t str) { return string_type{*this, str}; }
 		/** Interns the passed string. */

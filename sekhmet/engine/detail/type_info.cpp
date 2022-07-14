@@ -4,11 +4,12 @@
 
 #include "type_info.hpp"
 
-#include "dense_map.hpp"
+#include "sekhmet/detail/dense_map.hpp"
+
 #include <fmt/format.h>
 #include <shared_mutex>
 
-namespace sek
+namespace sek::engine
 {
 	namespace detail
 	{
@@ -196,4 +197,4 @@ namespace sek
 		}
 		return true;
 	}
-}	 // namespace sek
+}	 // namespace sek::engine

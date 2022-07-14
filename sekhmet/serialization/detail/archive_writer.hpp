@@ -8,6 +8,7 @@
 #include <ios>
 
 #include "sekhmet/system/native_file.hpp"
+
 #include "util.hpp"
 
 namespace sek::serialization
@@ -120,15 +121,18 @@ namespace sek::serialization
 				auto &buffer = data.buffer;
 				auto new_pos = buffer.pos + n;
 				if (new_pos > buffer.size) [[unlikely]]
+				{
 					new_pos = buffer.size;
+					n = new_pos - buffer.pos;
+				}
 
-				std::copy(src, buffer.data + buffer.pos, buffer.data + new_pos);
+				std::copy_n(src, n, buffer.data + new_pos);
 				return new_pos - std::exchange(buffer.pos, new_pos);
 			},
 			.tell = +[](data_t &data) -> std::size_t { return data.buffer.pos; },
 			.put = +[](data_t &data, char_type c) -> void
 			{
-				if (auto &buffer = data.buffer.pos; buffer.pos != buffer.size) [[likely]]
+				if (auto &buffer = data.buffer; buffer.pos != buffer.size) [[likely]]
 					buffer.data[buffer.pos++] = c;
 			},
 			.flush = +[](data_t &) {},
@@ -223,10 +227,13 @@ namespace sek::serialization
 		{
 		}
 		/** Initializes a writer from a data buffer. */
-		constexpr archive_writer(char_type *data, std::size_t n) noexcept : archive_writer(&buffer_vtable, {data, n}) {}
+		constexpr archive_writer(char_type *data, std::size_t n) noexcept
+			: archive_writer(&buffer_vtable, {data, n})
+		{
+		}
 		/** @copydoc archive_writer */
 		constexpr archive_writer(void *data, std::size_t n) noexcept
-			: archive_writer(static_cast<const C *>(data), n / sizeof(C))
+			: archive_writer(static_cast<C *>(data), n / sizeof(C))
 		{
 		}
 		/** Initializes a writer from a native file. */
