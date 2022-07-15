@@ -19,16 +19,41 @@ namespace sek::serialization
 
 	namespace detail
 	{
-		template<typename Node, typename Key>
+		template<typename N, typename K, typename A>
+		struct container_element_base;
+		template<typename N>
+		struct container_element_base<N, void, void>
+		{
+			N value;
+		};
+		template<typename N, typename K>
+		struct container_element_base<N, void, K>
+		{
+			N value;
+			K key;
+		};
+		template<typename N, typename A>
+		struct container_element_base<N, A, void>
+		{
+			A attribute;
+			N value;
+		};
+		template<typename N, typename A, typename K>
 		struct container_element_base
 		{
-			Node value;
-			Key key;
+			A attribute;
+			N value;
+			K key;
 		};
-		template<typename Node>
-		struct container_element_base<Node, void>
+
+		template<typename A>
+		struct attribute_typedef
 		{
-			Node value;
+			typedef A attribute_type;
+		};
+		template<>
+		struct attribute_typedef<void>
+		{
 		};
 	}	 // namespace detail
 
@@ -48,7 +73,7 @@ namespace sek::serialization
 	 * @note Node trees do not provide full serialization functionality themselves,
 	 * they only act as serialized data storage. */
 	template<typename C, typename N, typename A, typename T = std::char_traits<C>>
-	class basic_node_tree
+	class basic_node_tree : public detail::attribute_typedef<A>
 	{
 		static_assert(std::is_trivially_copyable_v<N>);
 		static_assert(std::is_trivially_copyable_v<A> || std::is_void_v<A>);
@@ -57,7 +82,6 @@ namespace sek::serialization
 		typedef C char_type;
 		typedef T traits_type;
 		typedef std::basic_string_view<C, T> key_type;
-
 		typedef N value_node;
 
 		/** @brief Structure containing value & storage type selectors. */
@@ -182,6 +206,8 @@ namespace sek::serialization
 			/** Returns reference to the key of the pointed-to node.
 			 * @note This function is available only for keyed entries. */
 			[[nodiscard]] constexpr auto &key() const noexcept;
+			/** Returns reference to the value of the node's attribute. */
+			[[nodiscard]] constexpr auto &attribute() const noexcept;
 
 			[[nodiscard]] friend constexpr difference_type operator-(node_iterator a, node_iterator b) noexcept
 			{
@@ -388,12 +414,9 @@ namespace sek::serialization
 		using string_pool_t = sek::detail::dynamic_buffer_resource<SEK_KB(8)>;
 
 		template<typename K>
-		struct container_element : detail::container_element_base<node_type, K>
+		struct container_element : detail::container_element_base<node_type, A, K>
 		{
 		};
-
-	public:
-		constexpr static auto has_attribute = !std::same_as<A, void>;
 
 	public:
 		basic_node_tree(const basic_node_tree &) = delete;
@@ -517,5 +540,11 @@ namespace sek::serialization
 	constexpr auto &basic_node_tree<C, N, A, T>::node_iterator<E>::key() const noexcept
 	{
 		return m_ptr->key;
+	}
+	template<typename C, typename N, typename A, typename T>
+	template<typename E>
+	constexpr auto &basic_node_tree<C, N, A, T>::node_iterator<E>::attribute() const noexcept
+	{
+		return m_ptr->attribute;
 	}
 }	 // namespace sek::serialization

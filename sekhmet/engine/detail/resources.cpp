@@ -62,7 +62,8 @@ namespace sek::engine
 	any resource_cache::load_anonymous(metadata_t metadata, asset_source &src)
 	{
 		auto result = metadata.type.construct();
-		metadata.attr->m_deserialize(result.data(), src);
+		float dummy;
+		metadata.attr->m_deserialize(result.data(), src, dummy);
 		return result;
 	}
 	any resource_cache::load_anonymous(type_info type, asset_source &src)
@@ -105,7 +106,8 @@ namespace sek::engine
 
 				/* Read the entry from the asset. */
 				auto src = asset.open();
-				metadata->attr->m_deserialize(ptr.get(), src);
+				float dummy;
+				metadata->attr->m_deserialize(ptr.get(), src, dummy);
 			}
 			else
 				ptr = existing->second.data.lock();

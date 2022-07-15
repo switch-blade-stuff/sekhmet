@@ -385,10 +385,10 @@ namespace sek
 			m_next_id = detail::event_placeholder;
 		}
 
-		/** Returns iterator to the subscriber delegate using it's sub_id id or if such subscriber is not found. */
-		[[nodiscard]] constexpr iterator find(sub_id sub_id) const noexcept
+		/** Returns iterator to the subscriber delegate using it's id or end iterator if such subscriber is not found. */
+		[[nodiscard]] constexpr iterator find(sub_id id) const noexcept
 		{
-			auto iter = std::find_if(m_sub_data.begin(), m_sub_data.end(), [sub_id](auto &s) { return s.id == sub_id; });
+			auto iter = std::find_if(m_sub_data.begin(), m_sub_data.end(), [id](auto &s) { return s.id == id; });
 			return begin() + (iter - m_sub_data.begin());
 		}
 		/** Returns iterator to the subscriber delegate that compares equal to the provided delegate or the end

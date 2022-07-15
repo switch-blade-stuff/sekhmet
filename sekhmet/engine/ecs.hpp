@@ -5,3 +5,4 @@
 #pragma once
 
 #include "detail/entity.hpp"
+#include "detail/world.hpp"

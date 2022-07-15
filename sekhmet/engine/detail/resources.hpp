@@ -54,7 +54,7 @@ namespace sek::engine
 					return any_ref{forward_any(t_ref)};
 				};
 
-				m_deserialize = +[](void *ptr, asset_source &src)
+				m_deserialize = +[](void *ptr, asset_source &src, float &state)
 				{
 					using reader_t = typename I::reader_type;
 					using char_t = typename I::char_type;
@@ -101,7 +101,7 @@ namespace sek::engine
 					};
 
 					auto archive = I{reader_t{&callbacks, &src}};
-					archive >> *static_cast<T *>(ptr);
+					archive.read(*static_cast<T *>(ptr), (state = 0.0f));
 				};
 
 #ifdef SEK_EDITOR /* Serialization is editor-only. */
@@ -125,7 +125,8 @@ namespace sek::engine
 
 			any_ref (*m_forward_ref)(void *);
 
-			void (*m_deserialize)(void *, asset_source &);
+			void (*m_deserialize)(void *, asset_source &, float &);
+
 #ifdef SEK_EDITOR
 			void (*m_serialize)(void *, system::native_file &);
 #endif
@@ -232,12 +233,13 @@ namespace sek::engine
 			return cast_impl<T>(std::move(ptr), metadata);
 		}
 
-		/** @brief Removes cache entry of all resources of the specified type.
-		 * @return Amount of resources removed. */
+		/** Removes cache entries of all resources of the specified type.
+		 * @return Amount of resources removed.
+		 * @note Cache entries of relevant types should be cleared on plugin unload to avoid stale references. */
 		SEK_API std::size_t clear(type_info type);
-		/** @brief Removes cache entry for resource with the specified id. */
+		/** Removes cache entry for resource with the specified id. */
 		SEK_API void clear(uuid id);
-		/** @brief Removes all cache entries. */
+		/** Removes all cache entries. */
 		SEK_API void clear();
 
 	protected:
