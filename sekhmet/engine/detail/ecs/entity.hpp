@@ -582,7 +582,7 @@ namespace sek::engine
 		[[nodiscard]] constexpr reference front() const noexcept { return base_t::m_dense.front(); }
 		/** Returns reference to the last entity in the dense array. */
 		[[nodiscard]] constexpr reference back() const noexcept { return base_t::m_dense.back(); }
-		/** Returns reference to the entity in the dense array located at index `i`. */
+		/** Returns reference to the entity in the dense array located at offset `i`. */
 		[[nodiscard]] constexpr reference at(size_type i) const noexcept { return base_t::m_dense[i]; }
 		/** @copydoc at */
 		[[nodiscard]] constexpr reference operator[](size_type i) const noexcept { return at(i); }
@@ -599,11 +599,11 @@ namespace sek::engine
 			const auto *slot = base_t::get_sparse(e.index().value());
 			return slot && !slot->is_tombstone() ? to_iterator(slot->index().value()) : end();
 		}
-		/** Returns the dense index of an entity iterator. */
-		[[nodiscard]] constexpr size_type index(const_iterator i) const noexcept { return i.offset(); }
-		/** Returns the dense index of an entity.
+		/** Returns the dense array offset of an entity iterator. */
+		[[nodiscard]] constexpr size_type offset(const_iterator i) const noexcept { return i.offset(); }
+		/** Returns the dense array offset of an entity.
 		 * @note Will cause undefined behavior if the entity is not present within the set. */
-		[[nodiscard]] constexpr size_type index(entity e) const noexcept
+		[[nodiscard]] constexpr size_type offset(entity e) const noexcept
 		{
 			return assert_exists(base_t::get_sparse(e.index().value()))->index().value();
 		}
@@ -692,7 +692,7 @@ namespace sek::engine
 		/** @copydoc swap */
 		void swap(const_iterator a, const_iterator b) { swap(a.offset(), b.offset()); }
 		/** @copydoc swap */
-		void swap(entity a, entity b) { swap(index(a), index(b)); }
+		void swap(entity a, entity b) { swap(offset(a), offset(b)); }
 		/** Removes tombstone entities (if any) from the set. */
 		void pack()
 		{

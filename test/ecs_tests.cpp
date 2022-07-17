@@ -129,11 +129,13 @@ TEST(ecs_tests, pool_test)
 		pf.emplace(e1, 1.0f);
 		pf.emplace(e2, 2.0f);
 
-		const auto v = sek::engine::component_view{pi.entities(), pi, pf};
+		const auto v = sek::engine::component_set{pi.entities(), pi, pf};
 		EXPECT_EQ(v.size(), 2);
-		EXPECT_EQ(std::get<0>(*(v.begin() + 0)), 1);
-		EXPECT_EQ(std::get<1>(*(v.begin() + 0)), 1.0f);
-		EXPECT_EQ(std::get<0>(*(v.begin() + 1)), 0);
-		EXPECT_EQ(std::get<1>(*(v.begin() + 1)), 0.0f);
+		EXPECT_EQ(std::get<0>(v[1]), e1);
+		EXPECT_EQ(std::get<1>(v[1]), 1);
+		EXPECT_EQ(std::get<2>(v[1]), 1.0f);
+		EXPECT_EQ(std::get<0>(v[0]), e0);
+		EXPECT_EQ(std::get<1>(v[0]), 0);
+		EXPECT_EQ(std::get<2>(v[0]), 0.0f);
 	}
 }
