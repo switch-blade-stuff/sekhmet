@@ -479,11 +479,9 @@ namespace sek::engine
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 
-			/** Returns reference to the entity at an offset. */
-			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept
-			{
-				return m_base[offset() + n];
-			}
+			/** Returns reference to the entity at index `n` from the iterator.
+			 * Equivalent to `*(*this + n)`. */
+			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return *(*this + n); }
 			/** Returns reference to the target entity. */
 			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
 

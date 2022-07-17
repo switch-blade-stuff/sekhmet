@@ -384,13 +384,9 @@ namespace sek::engine
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 
-			/** Returns reference to the component at an offset. */
-			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept
-			{
-				const auto off = page_off(offset() + n);
-				const auto idx = page_idx(offset() + n);
-				return m_pages[idx] + off;
-			}
+			/** Returns reference to the component at index `n` from the iterator.
+			 * Equivalent to `*(*this + n)`. */
+			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return *(*this + n); }
 			/** Returns reference to the target component. */
 			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
 
@@ -493,7 +489,7 @@ namespace sek::engine
 			return to_iterator(base_set::find(e).offset());
 		}
 
-		/** Returns component located at dense array offset `i`. */
+		/** Returns component located at offset `i`. */
 		[[nodiscard]] constexpr decltype(auto) at(size_type i) noexcept { return base_t::component_ref(i); }
 		/** @copydoc at */
 		[[nodiscard]] constexpr decltype(auto) at(size_type i) const noexcept { return base_t::component_ref(i); }
@@ -724,12 +720,10 @@ namespace sek::engine
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 
-			/** Returns reference to the component at an offset. */
-			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept
-			{
-				return page_ref(std::make_index_sequence<sizeof...(Ts)>{}, offset() + static_cast<size_type>(n));
-			}
-			/** Returns reference to the target component. */
+			/** Returns reference to components at index `n` from the iterator.
+			 * Equivalent to `*(*this + n)`. */
+			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return *(*this + n); }
+			/** Returns reference to target components. */
 			[[nodiscard]] constexpr reference operator*() const noexcept
 			{
 				return page_ref(std::make_index_sequence<sizeof...(Ts)>{}, offset());
@@ -860,7 +854,7 @@ namespace sek::engine
 		/** Returns reference to the underlying entity set. */
 		[[nodiscard]] constexpr const entity_set &entities() const noexcept { return *m_set; }
 
-		/** Returns a set of components located at dense array offset `i`. */
+		/** Returns a set of components located at offset `i`. */
 		[[nodiscard]] constexpr reference at(size_type i) noexcept { return *to_iterator(i); }
 		/** @copydoc at */
 		[[nodiscard]] constexpr const_reference at(size_type i) const noexcept { return *to_iterator(i); }
