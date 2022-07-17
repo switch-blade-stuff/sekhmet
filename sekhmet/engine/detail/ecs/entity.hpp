@@ -468,7 +468,7 @@ namespace sek::engine
 			}
 			constexpr difference_type operator-(const entity_iterator &other) const noexcept
 			{
-				return get() - other.get();
+				return other.m_off - m_off;
 			}
 
 			/** Returns offset of the iterator from the base. */

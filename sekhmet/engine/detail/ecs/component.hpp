@@ -155,8 +155,7 @@ namespace sek::engine
 					if (page != nullptr) dealloc_page(page);
 			}
 
-			[[nodiscard]] constexpr T **data() noexcept { return m_pages.data(); }
-			[[nodiscard]] constexpr const T **data() const noexcept { return m_pages.data(); }
+			[[nodiscard]] constexpr T *const *data() const noexcept { return m_pages.data(); }
 
 			[[nodiscard]] constexpr T *component_ptr(std::size_t i) const noexcept
 			{
@@ -240,15 +239,17 @@ namespace sek::engine
 			void dense_move(std::size_t, std::size_t) final {}
 			void dense_swap(std::size_t, std::size_t) final {}
 
-			[[nodiscard]] constexpr T **data() noexcept { return nullptr; }
-			[[nodiscard]] constexpr const T **data() const noexcept { return nullptr; }
+			[[nodiscard]] constexpr T *const *data() const noexcept { return nullptr; }
 
-			[[nodiscard]] constexpr T component_ref(std::size_t) const noexcept { return T{}; }
-			[[nodiscard]] constexpr T *component_ptr(std::size_t) const noexcept { return nullptr; }
+			constexpr void component_ref(std::size_t) const noexcept {}
+			constexpr void component_ptr(std::size_t) const noexcept {}
 
 			constexpr void swap(component_pool_impl &other) { base_set::swap(other); }
 		};
 	}	 // namespace detail
+
+	template<typename Set, typename... Ts>
+	class component_view;
 
 	/** @brief Structure used to allocate components and associate them with entities.
 	 *
@@ -262,11 +263,14 @@ namespace sek::engine
 	{
 		using base_t = detail::component_pool_impl<T, A, std::is_empty_v<T>>;
 
+		template<typename, typename...>
+		friend class component_view;
+
 	public:
 		typedef A allocator_type;
 		typedef T component_type;
 
-		typedef A value_type;
+		typedef T value_type;
 		typedef value_type *pointer;
 		typedef const value_type *const_pointer;
 		typedef value_type &reference;
@@ -282,6 +286,7 @@ namespace sek::engine
 		// clang-format on
 
 		using set_iterator = typename base_t::set_iterator;
+		using pages_t = T *const *;
 
 		[[nodiscard]] constexpr static size_type page_idx(size_type i) noexcept { return base_t::page_idx(i); }
 		[[nodiscard]] constexpr static size_type page_off(size_type i) noexcept { return base_t::page_off(i); }
@@ -302,7 +307,7 @@ namespace sek::engine
 			typedef std::random_access_iterator_tag iterator_category;
 
 		private:
-			constexpr explicit component_iterator(pointer *pages, size_type off = 0) noexcept
+			constexpr explicit component_iterator(pages_t pages, size_type off = 0) noexcept
 				: m_pages(pages), m_off(static_cast<difference_type>(off))
 			{
 			}
@@ -311,7 +316,7 @@ namespace sek::engine
 			constexpr component_iterator() noexcept = default;
 			template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
 			constexpr component_iterator(const component_iterator<OtherConst> &other) noexcept
-				: m_pages(const_cast<pointer *>(other.m_pages)), m_off(other.m_off)
+				: m_pages(other.m_pages), m_off(other.m_off)
 			{
 			}
 
@@ -358,7 +363,7 @@ namespace sek::engine
 			}
 			constexpr difference_type operator-(const component_iterator &other) const noexcept
 			{
-				return get() - other.get();
+				return other.m_off - m_off;
 			}
 
 			/** Returns offset of the iterator from the base. */
@@ -375,25 +380,14 @@ namespace sek::engine
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 
 			/** Returns reference to the component at an offset. */
-			[[nodiscard]] constexpr decltype(auto) operator[](difference_type n) const noexcept
+			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept
 			{
-				if constexpr (std::is_empty_v<T>)
-					return T{};
-				else
-				{
-					const auto off = page_off(offset() + n);
-					const auto idx = page_idx(offset() + n);
-					return m_pages[idx] + off;
-				}
+				const auto off = page_off(offset() + n);
+				const auto idx = page_idx(offset() + n);
+				return m_pages[idx] + off;
 			}
 			/** Returns reference to the target component. */
-			[[nodiscard]] constexpr decltype(auto) operator*() const noexcept
-			{
-				if constexpr (std::is_empty_v<T>)
-					return T{};
-				else
-					return *get();
-			}
+			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
 
 			[[nodiscard]] constexpr auto operator<=>(const component_iterator &other) const noexcept
 			{
@@ -412,7 +406,7 @@ namespace sek::engine
 			friend constexpr void swap(component_iterator &a, component_iterator &b) noexcept { a.swap(b); }
 
 		private:
-			pointer *m_pages = {};
+			pages_t m_pages = {};
 			difference_type m_off = 0;
 		};
 
@@ -446,26 +440,26 @@ namespace sek::engine
 		{
 		}
 
-		/** Returns iterator to the first component in the set. */
-		[[nodiscard]] constexpr auto begin() noexcept { return iterator{base_t::data(), size()}; }
+		/** Returns iterator to the first component in the pool. */
+		[[nodiscard]] constexpr auto begin() noexcept { return iterator{data(), size()}; }
 		/** @copydoc begin */
-		[[nodiscard]] constexpr auto cbegin() const noexcept { return const_iterator{base_t::data(), size()}; }
+		[[nodiscard]] constexpr auto cbegin() const noexcept { return const_iterator{data(), size()}; }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr auto begin() const noexcept { return cbegin(); }
-		/** Returns iterator one past the last component in the set. */
-		[[nodiscard]] constexpr auto end() noexcept { return iterator{base_t::data()}; }
+		/** Returns iterator one past the last component in the pool. */
+		[[nodiscard]] constexpr auto end() noexcept { return iterator{data()}; }
 		/** @copydoc end */
-		[[nodiscard]] constexpr auto cend() const noexcept { return const_iterator{base_t::data()}; }
+		[[nodiscard]] constexpr auto cend() const noexcept { return const_iterator{data()}; }
 		/** @copydoc end */
 		[[nodiscard]] constexpr auto end() const noexcept { return cend(); }
 
-		/** Returns reverse iterator to the last component in the set. */
+		/** Returns reverse iterator to the last component in the pool. */
 		[[nodiscard]] constexpr auto rbegin() noexcept { return reverse_iterator{end()}; }
 		/** @copydoc rbegin */
 		[[nodiscard]] constexpr auto crbegin() const noexcept { return const_reverse_iterator{cend()}; }
 		/** @copydoc rbegin */
 		[[nodiscard]] constexpr auto rbegin() const noexcept { return crbegin(); }
-		/** Returns reverse iterator one past the first component in the set. */
+		/** Returns reverse iterator one past the first component in the pool. */
 		[[nodiscard]] constexpr auto rend() noexcept { return reverse_iterator{begin()}; }
 		/** @copydoc rend */
 		[[nodiscard]] constexpr auto crend() const noexcept { return const_reverse_iterator{cbegin()}; }
@@ -591,10 +585,306 @@ namespace sek::engine
 		set_iterator erase(set_iterator where) override { return base_t::erase_impl(where); }
 
 	private:
-		[[nodiscard]] constexpr iterator to_iterator(size_type i) noexcept { return iterator{base_t::data(), i + 1}; }
+		[[nodiscard]] constexpr pages_t data() const noexcept { return base_t::data(); }
+
+		[[nodiscard]] constexpr iterator to_iterator(size_type i) noexcept { return iterator{data(), i + 1}; }
 		[[nodiscard]] constexpr const_iterator to_iterator(size_type i) const noexcept
 		{
-			return const_iterator{base_t::data(), i + 1};
+			return const_iterator{data(), i + 1};
 		}
 	};
+
+	/** @brief Helper structure used to iterate over multiple component pools.
+	 * @tparam Set Entity set used to define the range of the view.
+	 * @tparam Ts Sequence of component pool types to iterate over. */
+	template<typename Set, typename... Ts>
+	class component_view
+	{
+		using set_iterator = typename Set::iterator;
+
+		template<typename T>
+		using component_t = typename T::value_type;
+		template<typename T>
+		using page_t = component_t<T> *const *;
+		using pages_t = std::tuple<page_t<Ts>...>;
+
+	public:
+		typedef std::tuple<component_t<Ts>...> value_type;
+		typedef std::tuple<component_t<Ts> *...> pointer;
+		typedef std::tuple<const component_t<Ts> *...> const_pointer;
+		typedef std::tuple<component_t<Ts> &...> reference;
+		typedef std::tuple<const component_t<Ts> &...> const_reference;
+		typedef std::common_type_t<typename Ts::size_type...> size_type;
+		typedef std::common_type_t<typename Ts::difference_type...> difference_type;
+
+	private:
+		template<typename T>
+		[[nodiscard]] constexpr static size_type page_idx(size_type i) noexcept
+		{
+			return T::page_idx(i);
+		}
+		template<typename T>
+		[[nodiscard]] constexpr static size_type page_off(size_type i) noexcept
+		{
+			return T::page_off(i);
+		}
+
+		template<bool IsConst>
+		class view_iterator
+		{
+			friend class component_view;
+
+		public:
+			typedef std::tuple<component_t<Ts>...> value_type;
+			typedef std::tuple<std::conditional_t<IsConst, const component_t<Ts>, component_t<Ts>> *...> pointer;
+			typedef std::tuple<std::conditional_t<IsConst, const component_t<Ts>, component_t<Ts>> &...> reference;
+
+			typedef std::common_type_t<typename Ts::size_type...> size_type;
+			typedef std::common_type_t<typename Ts::difference_type...> difference_type;
+			typedef std::random_access_iterator_tag iterator_category;
+
+		private:
+			constexpr explicit view_iterator(page_t<Ts>... pages, size_type off = 0) noexcept
+				: view_iterator(std::forward_as_tuple(pages...), off)
+			{
+			}
+			constexpr explicit view_iterator(pages_t pages, size_type off = 0) noexcept
+				: m_pages(pages), m_off(static_cast<difference_type>(off))
+			{
+			}
+
+			template<size_type... Is, bool OtherConst>
+			constexpr view_iterator(std::index_sequence<Is...>, const view_iterator<OtherConst> &other) noexcept
+				: view_iterator(static_cast<std::tuple_element_t<Is, pages_t>>(other.m_pages)..., other.m_off)
+			{
+			}
+
+		public:
+			constexpr view_iterator() noexcept = default;
+			template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
+			constexpr view_iterator(const view_iterator<OtherConst> &other) noexcept
+				: view_iterator(std::make_index_sequence<sizeof...(Ts)>{}, other.m_off)
+			{
+			}
+
+			constexpr view_iterator operator++(int) noexcept
+			{
+				auto temp = *this;
+				++(*this);
+				return temp;
+			}
+			constexpr view_iterator &operator++() noexcept
+			{
+				--m_off;
+				return *this;
+			}
+			constexpr view_iterator &operator+=(difference_type n) noexcept
+			{
+				m_off -= n;
+				return *this;
+			}
+			constexpr view_iterator operator--(int) noexcept
+			{
+				auto temp = *this;
+				--(*this);
+				return temp;
+			}
+			constexpr view_iterator &operator--() noexcept
+			{
+				++m_off;
+				return *this;
+			}
+			constexpr view_iterator &operator-=(difference_type n) noexcept
+			{
+				m_off += n;
+				return *this;
+			}
+
+			constexpr view_iterator operator+(difference_type n) const noexcept
+			{
+				return view_iterator{m_pages, static_cast<size_type>(m_off - n)};
+			}
+			constexpr view_iterator operator-(difference_type n) const noexcept
+			{
+				return view_iterator{m_pages, static_cast<size_type>(m_off + n)};
+			}
+			constexpr difference_type operator-(const view_iterator &other) const noexcept
+			{
+				return m_off - other.m_off;
+			}
+
+			/** Returns offset of the iterator from the base. */
+			[[nodiscard]] constexpr size_type offset() const noexcept { return static_cast<size_type>(m_off - 1); }
+
+			/** Returns pointer to the target component. */
+			[[nodiscard]] constexpr pointer get() const noexcept
+			{
+				return page_ptr(std::make_index_sequence<sizeof...(Ts)>{}, m_off - 1);
+			}
+			/** @copydoc value */
+			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
+
+			/** Returns reference to the component at an offset. */
+			[[nodiscard]] constexpr decltype(auto) operator[](difference_type n) const noexcept
+			{
+				return page_ref(std::make_index_sequence<sizeof...(Ts)>{}, offset() + n);
+			}
+			/** Returns reference to the target component. */
+			[[nodiscard]] constexpr decltype(auto) operator*() const noexcept
+			{
+				return page_ref(std::make_index_sequence<sizeof...(Ts)>{}, m_off - 1);
+			}
+
+			[[nodiscard]] constexpr auto operator<=>(const view_iterator &other) const noexcept
+			{
+				return m_off <=> other.m_off;
+			}
+			[[nodiscard]] constexpr bool operator==(const view_iterator &other) const noexcept
+			{
+				return m_off == other.m_off;
+			}
+
+			constexpr void swap(view_iterator &other) noexcept
+			{
+				std::swap(m_pages, other.m_pages);
+				std::swap(m_off, other.m_off);
+			}
+			friend constexpr void swap(view_iterator &a, view_iterator &b) noexcept { a.swap(b); }
+
+		private:
+			template<size_type I>
+			[[nodiscard]] constexpr auto page_ptr(difference_type i) const noexcept
+			{
+				using pool_t = pack_member_t<type_seq_t<Ts...>, I>;
+
+				const auto off = page_off<pool_t>(static_cast<typename pool_t::size_type>(i));
+				const auto idx = page_idx<pool_t>(static_cast<typename pool_t::size_type>(i));
+				return std::get<I>(m_pages)[idx] + off;
+			}
+			template<size_type... Is>
+			[[nodiscard]] constexpr pointer page_ptr(std::index_sequence<Is...>, difference_type i) const noexcept
+			{
+				return std::forward_as_tuple(page_ptr<Is>(i)...);
+			}
+			template<size_type... Is>
+			[[nodiscard]] constexpr reference page_ref(std::index_sequence<Is...>, difference_type i) const noexcept
+			{
+				return std::forward_as_tuple(*page_ptr<Is>(i)...);
+			}
+
+			pages_t m_pages;
+			difference_type m_off;
+		};
+
+	public:
+		typedef view_iterator<false> iterator;
+		typedef view_iterator<true> const_iterator;
+		typedef std::reverse_iterator<iterator> reverse_iterator;
+		typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+
+	public:
+		constexpr component_view() noexcept = default;
+
+		/** Initializes component view from a range of entity iterators and pointers to pools. */
+		constexpr component_view(set_iterator first, set_iterator last, const Ts *...pools) noexcept
+			: m_begin(first), m_end(last), m_ptr(pools...)
+		{
+		}
+		/** Initializes component view from an entity set and pointers to pools. */
+		constexpr component_view(const Set &set, const Ts *...pools) noexcept
+			: component_view(set.begin(), set.end(), pools...)
+		{
+		}
+		/** Initializes component view from a range of entity iterators and references to pools. */
+		constexpr component_view(set_iterator first, set_iterator last, const Ts &...pools) noexcept
+			: component_view(first, last, std::addressof(pools)...)
+		{
+		}
+		/** Initializes component view from an entity set and references to pools. */
+		constexpr component_view(const Set &set, const Ts &...pools) noexcept
+			: component_view(set.begin(), set.end(), std::addressof(pools)...)
+		{
+		}
+
+		/** Returns iterator to the first set of components in the view. */
+		[[nodiscard]] constexpr auto begin() noexcept { return to_iterator(m_begin.offset()); }
+		/** @copydoc begin */
+		[[nodiscard]] constexpr auto cbegin() const noexcept { return to_iterator(m_begin.offset()); }
+		/** @copydoc begin */
+		[[nodiscard]] constexpr auto begin() const noexcept { return cbegin(); }
+		/** Returns iterator one past the last set of components in the view. */
+		[[nodiscard]] constexpr auto end() noexcept { return to_iterator(m_end.offset()); }
+		/** @copydoc end */
+		[[nodiscard]] constexpr auto cend() const noexcept { return to_iterator(m_end.offset()); }
+		/** @copydoc end */
+		[[nodiscard]] constexpr auto end() const noexcept { return cend(); }
+
+		/** Returns reverse iterator to the last set of components in the view. */
+		[[nodiscard]] constexpr auto rbegin() noexcept { return reverse_iterator{end()}; }
+		/** @copydoc rbegin */
+		[[nodiscard]] constexpr auto crbegin() const noexcept { return const_reverse_iterator{cend()}; }
+		/** @copydoc rbegin */
+		[[nodiscard]] constexpr auto rbegin() const noexcept { return crbegin(); }
+		/** Returns reverse iterator one past the first set of components in the view. */
+		[[nodiscard]] constexpr auto rend() noexcept { return reverse_iterator{begin()}; }
+		/** @copydoc rend */
+		[[nodiscard]] constexpr auto crend() const noexcept { return const_reverse_iterator{cbegin()}; }
+		/** @copydoc rend */
+		[[nodiscard]] constexpr auto rend() const noexcept { return crend(); }
+
+		/** Returns a set of components located at index `i`. */
+		[[nodiscard]] constexpr reference at(size_type i) noexcept { return *to_iterator(i); }
+		/** @copydoc at */
+		[[nodiscard]] constexpr const_reference at(size_type i) const noexcept { return *to_iterator(i); }
+		/** @copydoc at */
+		[[nodiscard]] constexpr reference operator[](size_type i) noexcept { return at(i); }
+		/** @copydoc at */
+		[[nodiscard]] constexpr const_reference operator[](size_type i) const noexcept { return at(i); }
+
+		/** Returns the size of the component view. */
+		[[nodiscard]] constexpr size_type size() const noexcept
+		{
+			return static_cast<size_type>(std::distance(m_begin, m_end));
+		}
+		/** Checks if the component view is empty. */
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_begin == m_end; }
+
+		constexpr void swap(component_view &other) noexcept
+		{
+			using std::swap;
+			swap(m_begin, other.m_begin);
+			swap(m_end, other.m_end);
+			swap(m_ptr, other.m_ptr);
+		}
+		friend constexpr void swap(component_view &a, component_view &b) noexcept { a.swap(b); }
+
+	private:
+		template<size_type I>
+		[[nodiscard]] constexpr auto data() const noexcept
+		{
+			return std::get<I>(m_ptr)->data();
+		}
+		template<size_type... Is>
+		[[nodiscard]] constexpr pages_t data(std::index_sequence<Is...>) const noexcept
+		{
+			return pages_t{data<Is>()...};
+		}
+
+		[[nodiscard]] constexpr iterator to_iterator(size_type i) noexcept
+		{
+			return iterator{data(std::make_index_sequence<sizeof...(Ts)>{}), i + 1};
+		}
+		[[nodiscard]] constexpr const_iterator to_iterator(size_type i) const noexcept
+		{
+			return const_iterator{data(std::make_index_sequence<sizeof...(Ts)>{}), i + 1};
+		}
+
+		set_iterator m_begin, m_end;
+		std::tuple<const Ts *...> m_ptr;
+	};
+
+	template<typename S, typename... Ts>
+	component_view(const S &, const Ts *...) -> component_view<S, Ts...>;
+	template<typename S, typename... Ts>
+	component_view(const S &, const Ts &...) -> component_view<S, Ts...>;
 }	 // namespace sek::engine

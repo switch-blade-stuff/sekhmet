@@ -119,4 +119,21 @@ TEST(ecs_tests, pool_test)
 		EXPECT_TRUE(p.contains(e1));
 		EXPECT_FALSE(p.contains(e2));
 	}
+	{
+		sek::engine::basic_component_pool<int> pi;
+		pi.emplace(e0, 0);
+		pi.emplace(e1, 1);
+
+		sek::engine::basic_component_pool<float> pf;
+		pf.emplace(e0, 0.0f);
+		pf.emplace(e1, 1.0f);
+		pf.emplace(e2, 2.0f);
+
+		const auto v = sek::engine::component_view{pi.entities(), pi, pf};
+		EXPECT_EQ(v.size(), 2);
+		EXPECT_EQ(std::get<0>(*(v.begin() + 0)), 1);
+		EXPECT_EQ(std::get<1>(*(v.begin() + 0)), 1.0f);
+		EXPECT_EQ(std::get<0>(*(v.begin() + 1)), 0);
+		EXPECT_EQ(std::get<1>(*(v.begin() + 1)), 0.0f);
+	}
 }
