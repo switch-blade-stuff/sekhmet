@@ -22,6 +22,16 @@ namespace sek::engine
 		constexpr static std::size_t page_size = 1024;
 	};
 
+	namespace detail
+	{
+		// clang-format off
+		template<typename T, typename A>
+		using component_entity_set = basic_entity_set<
+		    typename std::allocator_traits<A>::template rebind_alloc<entity>,
+		    requires{ typename component_traits<T>::is_fixed; }>;
+		// clang-format on
+	}	 // namespace detail
+
 	/** @brief Structure used to allocate components and associate them with entities.
 	 *
 	 * Component pools allocate components in pages. Pages are used to reduce the need for re-allocation and copy/move
@@ -30,7 +40,7 @@ namespace sek::engine
 	 * @tparam T Type of components managed by the pool.
 	 * @tparam A Allocator used to allocate memory of the pool. */
 	template<typename T, typename A = std::allocator<T>>
-	class basic_component_pool : basic_entity_set<typename std::allocator_traits<A>::template rebind_alloc<entity>>
+	class basic_component_pool : detail::component_entity_set<T, A>
 	{
 		using pages_t = std::vector<T *, typename std::allocator_traits<A>::template rebind_alloc<T *>>;
 
@@ -43,16 +53,16 @@ namespace sek::engine
 		[[nodiscard]] constexpr static std::size_t component_idx(std::size_t i) noexcept { return i % page_size; }
 
 	public:
+		typedef detail::component_entity_set<T, A> base_set;
+
 		typedef A allocator_type;
 		typedef T component_type;
 
-		typedef basic_entity_set<typename std::allocator_traits<A>::template rebind_alloc<entity>> base_type;
-
 	public:
 		/** Returns reference to the set of entities of the component pool. */
-		[[nodiscard]] constexpr base_type &entities() noexcept { return *this; }
+		[[nodiscard]] constexpr base_set &entities() noexcept { return *this; }
 		/** @copydoc entities */
-		[[nodiscard]] constexpr const base_type &entities() const noexcept { return *this; }
+		[[nodiscard]] constexpr const base_set &entities() const noexcept { return *this; }
 
 	private:
 		[[nodiscard]] constexpr auto &pages() noexcept { return m_pages_alloc.first(); }

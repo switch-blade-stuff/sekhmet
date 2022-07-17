@@ -159,7 +159,10 @@ namespace sek::engine
 
 			constexpr explicit entity_set_impl(const Alloc &alloc) : alloc_base(alloc), m_sparse(), m_dense(alloc) {}
 			constexpr entity_set_impl(size_type n, const Alloc &alloc) : entity_set_impl(alloc) { reserve_impl(n); }
-			constexpr entity_set_impl(const entity_set_impl &other) : m_sparse(other.m_sparse), m_dense(other.m_dense)
+			constexpr entity_set_impl(const entity_set_impl &other)
+				: alloc_base(sek::detail::make_alloc_copy(other.get_allocator())),
+				  m_sparse(other.m_sparse),
+				  m_dense(other.m_dense)
 			{
 				copy_pages(other);
 			}
@@ -188,7 +191,7 @@ namespace sek::engine
 					move_pages(other);
 			}
 			constexpr entity_set_impl(entity_set_impl &&other, const Alloc &alloc)
-				: m_sparse(std::move(other.m_sparse)), m_dense(std::move(other.m_dense), alloc)
+				: alloc_base(alloc), m_sparse(std::move(other.m_sparse)), m_dense(std::move(other.m_dense), alloc)
 			{
 				if (alloc_traits::propagate_on_container_move_assignment::value ||
 					alloc_eq(get_allocator(), other.get_allocator()))
@@ -273,6 +276,8 @@ namespace sek::engine
 
 			constexpr void swap(entity_set_impl &other) noexcept
 			{
+				sek::detail::alloc_assert_swap(get_allocator(), other.get_allocator());
+				sek::detail::alloc_swap(get_allocator(), other.get_allocator());
 				m_sparse.swap(other.m_sparse);
 				m_dense.swap(other.m_dense);
 			}
