@@ -6,7 +6,7 @@
 
 #include "sekhmet/detail/event.hpp"
 
-#include "components.hpp"
+#include "component_pool.hpp"
 
 namespace sek::engine
 {

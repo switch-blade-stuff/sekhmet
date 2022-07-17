@@ -69,3 +69,54 @@ TEST(ecs_tests, entity_test)
 		EXPECT_EQ(set.size(), 2);
 	}
 }
+
+TEST(ecs_tests, pool_test)
+{
+	const sek::engine::entity e0 = {sek::engine::entity::index_type{0}};
+	const sek::engine::entity e1 = {sek::engine::entity::index_type{1}};
+	const sek::engine::entity e2 = {sek::engine::entity::index_type{2}};
+
+	{
+		sek::engine::basic_component_pool<int> p;
+		p.emplace(e0, 0);
+		p.emplace(e1, 1);
+		p.emplace(e2, 2);
+
+		EXPECT_EQ(p.size(), 3);
+		EXPECT_EQ(*(p.begin() + 0), 2);
+		EXPECT_EQ(*(p.begin() + 1), 1);
+		EXPECT_EQ(*(p.begin() + 2), 0);
+
+		const auto order = std::array{e1, e0};
+		p.entities().sort(order.begin(), order.end());
+		EXPECT_EQ(*(p.begin() + 0), 0);
+		EXPECT_EQ(*(p.begin() + 1), 1);
+		EXPECT_EQ(*(p.begin() + 2), 2);
+
+		p.erase(e2);
+		EXPECT_EQ(p.size(), 2);
+		EXPECT_EQ(*p.find(e0), 0);
+		EXPECT_EQ(*p.find(e1), 1);
+	}
+	{
+		struct dummy
+		{
+		};
+
+		sek::engine::basic_component_pool<dummy> p;
+		p.emplace(e0);
+		p.emplace(e1);
+		p.emplace(e2);
+
+		EXPECT_EQ(p.size(), 3);
+		EXPECT_TRUE(p.contains(e0));
+		EXPECT_TRUE(p.contains(e1));
+		EXPECT_TRUE(p.contains(e2));
+
+		p.erase(e2);
+		EXPECT_EQ(p.size(), 2);
+		EXPECT_TRUE(p.contains(e0));
+		EXPECT_TRUE(p.contains(e1));
+		EXPECT_FALSE(p.contains(e2));
+	}
+}
