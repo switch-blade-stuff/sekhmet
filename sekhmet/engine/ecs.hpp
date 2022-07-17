@@ -4,5 +4,4 @@
 
 #pragma once
 
-#include "detail/entity.hpp"
-#include "detail/world.hpp"
+#include "detail/ecs/world.hpp"

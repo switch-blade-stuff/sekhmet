@@ -4,15 +4,40 @@
 
 #pragma once
 
-#include "sekhmet/dense_map.hpp"
+#include "sekhmet/detail/event.hpp"
 
-#include "entity.hpp"
+#include "components.hpp"
 
 namespace sek::engine
 {
 	template<typename...>
 	class entity_query;
 	class entity_world;
+
+	/** @brief Structure used to manage a pool of components and handle component creation, update & removal events. */
+	template<typename T, typename Alloc = std::allocator<T>>
+	class component_storage
+	{
+		friend class entity_world;
+
+		using storage_t = basic_component_pool<T, Alloc>;
+
+	public:
+		typedef event<void(entity_world &, entity)> event_type;
+
+		/** Returns event proxy for the component creation event. */
+		[[nodiscard]] constexpr event_proxy<event_type> on_create() noexcept { return {m_create}; }
+		/** Returns event proxy for the component update event. */
+		[[nodiscard]] constexpr event_proxy<event_type> on_update() noexcept { return {m_update}; }
+		/** Returns event proxy for the component removal event. */
+		[[nodiscard]] constexpr event_proxy<event_type> on_remove() noexcept { return {m_remove}; }
+
+	private:
+		storage_t m_storage;
+		event_type m_create;
+		event_type m_update;
+		event_type m_remove;
+	};
 
 	/** @brief Query used to obtain a set of components to iterate over.
 	 *

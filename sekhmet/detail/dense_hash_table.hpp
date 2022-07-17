@@ -272,7 +272,7 @@ namespace sek::detail
 		typedef dense_table_bucket_iterator<false> local_iterator;
 		typedef dense_table_bucket_iterator<true> const_local_iterator;
 
-		typedef dense_alloc value_allocator_type;
+		typedef dense_alloc allocator_type;
 		typedef sparse_alloc bucket_allocator_type;
 
 	public:
@@ -283,66 +283,35 @@ namespace sek::detail
 		constexpr dense_hash_table &operator=(dense_hash_table &&) = default;
 		constexpr ~dense_hash_table() = default;
 
-		constexpr explicit dense_hash_table(const value_allocator_type &value_alloc)
-			: dense_hash_table{key_equal{}, hash_type{}, value_alloc, bucket_allocator_type{}}
+		constexpr explicit dense_hash_table(const allocator_type &alloc)
+			: dense_hash_table{key_equal{}, hash_type{}, alloc}
 		{
 		}
-		constexpr dense_hash_table(const key_equal &equal,
-								   const hash_type &hash,
-								   const value_allocator_type &value_alloc,
-								   const bucket_allocator_type &bucket_alloc)
-			: dense_hash_table{initial_capacity, equal, hash, value_alloc, bucket_alloc}
+		constexpr dense_hash_table(const key_equal &equal, const hash_type &hash, const allocator_type &alloc)
+			: dense_hash_table{initial_capacity, equal, hash, alloc}
 		{
 		}
-		constexpr dense_hash_table(size_type bucket_count,
-								   const key_equal &equal,
-								   const hash_type &hash,
-								   const value_allocator_type &value_alloc,
-								   const bucket_allocator_type &bucket_alloc)
-			: m_dense_data{value_alloc, equal},
+		constexpr dense_hash_table(size_type bucket_count, const key_equal &equal, const hash_type &hash, const allocator_type &alloc)
+			: m_dense_data{alloc, equal},
 			  m_sparse_data{std::piecewise_construct,
-							std::forward_as_tuple(bucket_count, npos, bucket_alloc),
+							std::forward_as_tuple(bucket_count, npos, bucket_allocator_type{}),
 							std::forward_as_tuple(hash)}
 		{
 		}
-		constexpr dense_hash_table(const dense_hash_table &other, const value_allocator_type &value_alloc)
+		constexpr dense_hash_table(const dense_hash_table &other, const allocator_type &alloc)
 			: m_dense_data{std::piecewise_construct,
-						   std::forward_as_tuple(other.value_vector(), value_alloc),
+						   std::forward_as_tuple(other.value_vector(), alloc),
 						   std::forward_as_tuple(other.m_dense_data.second())},
 			  m_sparse_data{other.m_sparse_data},
 			  max_load_factor{other.max_load_factor}
 		{
 		}
-		constexpr dense_hash_table(const dense_hash_table &other,
-								   const value_allocator_type &value_alloc,
-								   const bucket_allocator_type &bucket_alloc)
-			: m_dense_data{std::piecewise_construct,
-						   std::forward_as_tuple(other.value_vector(), value_alloc),
-						   std::forward_as_tuple(other.m_dense_data.second())},
-			  m_sparse_data{std::piecewise_construct,
-							std::forward_as_tuple(other.bucket_vector(), bucket_alloc),
-							std::forward_as_tuple(other.m_sparse_data.second())},
-			  max_load_factor{other.max_load_factor}
-		{
-		}
 
-		constexpr dense_hash_table(dense_hash_table &&other, const value_allocator_type &value_alloc)
+		constexpr dense_hash_table(dense_hash_table &&other, const allocator_type &alloc)
 			: m_dense_data{std::piecewise_construct,
-						   std::forward_as_tuple(std::move(other.value_vector()), value_alloc),
+						   std::forward_as_tuple(std::move(other.value_vector()), alloc),
 						   std::forward_as_tuple(std::move(other.m_dense_data.second()))},
 			  m_sparse_data{std::move(other.m_sparse_data)},
-			  max_load_factor{other.max_load_factor}
-		{
-		}
-		constexpr dense_hash_table(dense_hash_table &&other,
-								   const value_allocator_type &value_alloc,
-								   const bucket_allocator_type &bucket_alloc)
-			: m_dense_data{std::piecewise_construct,
-						   std::forward_as_tuple(std::move(other.value_vector()), value_alloc),
-						   std::forward_as_tuple(std::move(other.m_dense_data.second()))},
-			  m_sparse_data{std::piecewise_construct,
-							std::forward_as_tuple(std::move(other.bucket_vector()), bucket_alloc),
-							std::forward_as_tuple(std::move(other.m_sparse_data.second()))},
 			  max_load_factor{other.max_load_factor}
 		{
 		}
@@ -538,7 +507,7 @@ namespace sek::detail
 		}
 		// clang-format on
 
-		[[nodiscard]] constexpr auto value_allocator() const noexcept { return value_vector().get_allocator(); }
+		[[nodiscard]] constexpr auto allocator() const noexcept { return value_vector().get_allocator(); }
 		[[nodiscard]] constexpr auto bucket_allocator() const noexcept { return bucket_vector().get_allocator(); }
 		[[nodiscard]] constexpr auto &get_hash() const noexcept { return m_sparse_data.second(); }
 		[[nodiscard]] constexpr auto &get_comp() const noexcept { return m_dense_data.second(); }

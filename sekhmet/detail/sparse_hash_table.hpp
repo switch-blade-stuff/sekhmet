@@ -106,7 +106,7 @@ namespace sek::detail
 		typedef KeyType key_type;
 		typedef ValueType value_type;
 		typedef KeyCompare key_equal;
-		typedef Allocator value_allocator_type;
+		typedef Allocator allocator_type;
 		typedef rebind_alloc_t<Allocator, bucket_type> bucket_allocator_type;
 		typedef KeyHash hash_type;
 
@@ -118,8 +118,8 @@ namespace sek::detail
 		typedef std::ptrdiff_t difference_type;
 
 	private:
-		using value_alloc_traits = std::allocator_traits<value_allocator_type>;
-		using value_ebo_base = ebo_base_helper<value_allocator_type>;
+		using alloc_traits = std::allocator_traits<allocator_type>;
+		using value_ebo_base = ebo_base_helper<allocator_type>;
 		using bucket_alloc_traits = std::allocator_traits<bucket_allocator_type>;
 		using bucket_ebo_base = ebo_base_helper<bucket_allocator_type>;
 
@@ -210,14 +210,13 @@ namespace sek::detail
 		typedef sparse_table_iterator<false> iterator;
 		typedef sparse_table_iterator<true> const_iterator;
 
-		class node_handle : ebo_base_helper<value_allocator_type>
+		class node_handle : ebo_base_helper<allocator_type>
 		{
 			friend class sparse_hash_table;
 
-			using ebo_base = ebo_base_helper<value_allocator_type>;
+			using ebo_base = ebo_base_helper<allocator_type>;
 
-			constexpr explicit node_handle(bucket_type &b, const value_allocator_type &a) noexcept
-				: ebo_base(a), m_bucket(b)
+			constexpr explicit node_handle(bucket_type &b, const allocator_type &a) noexcept : ebo_base(a), m_bucket(b)
 			{
 				b.set_tombstone();
 			}
@@ -244,11 +243,8 @@ namespace sek::detail
 			[[nodiscard]] constexpr bool empty() const noexcept { return !m_bucket.is_occupied(); }
 			[[nodiscard]] constexpr value_type &value() const noexcept { return m_bucket.value(); }
 
-			[[nodiscard]] constexpr value_allocator_type &get_allocator() noexcept { return *ebo_base::get(); }
-			[[nodiscard]] constexpr const value_allocator_type &get_allocator() const noexcept
-			{
-				return *ebo_base::get();
-			}
+			[[nodiscard]] constexpr allocator_type &get_allocator() noexcept { return *ebo_base::get(); }
+			[[nodiscard]] constexpr const allocator_type &get_allocator() const noexcept { return *ebo_base::get(); }
 
 			constexpr void swap(node_handle &other) noexcept
 			{
@@ -320,39 +316,27 @@ namespace sek::detail
 		}
 
 	public:
-		constexpr sparse_hash_table() noexcept(nothrow_alloc_default_construct<value_allocator_type, bucket_allocator_type>) = default;
+		constexpr sparse_hash_table() noexcept(nothrow_alloc_default_construct<allocator_type, bucket_allocator_type>) = default;
 
-		constexpr sparse_hash_table(const key_equal &key_compare,
-									const hash_type &key_hash,
-									const value_allocator_type &value_alloc,
-									const bucket_allocator_type &bucket_alloc)
-			: sparse_hash_table(initial_capacity, key_compare, key_hash, value_alloc, bucket_alloc)
-		{
-		}
 		constexpr sparse_hash_table(size_type capacity,
 									const key_equal &key_compare,
 									const hash_type &key_hash,
-									const value_allocator_type &value_alloc,
-									const bucket_allocator_type &bucket_alloc)
-			: value_ebo_base(value_alloc), bucket_ebo_base(bucket_alloc), compare_ebo_base(key_compare), hash_ebo_base(key_hash)
+									const allocator_type &alloc,
+									const bucket_allocator_type &bucket_alloc = {})
+			: value_ebo_base(alloc), bucket_ebo_base(bucket_alloc), compare_ebo_base(key_compare), hash_ebo_base(key_hash)
 		{
 			if (capacity) [[likely]]
 				m_buckets_data = allocate_buckets(m_buckets_capacity = math::next_pow_2(capacity));
 		}
 
 		constexpr sparse_hash_table(const sparse_hash_table &other)
-			: sparse_hash_table(
-				  other, make_alloc_copy(other.get_value_allocator()), make_alloc_copy(other.get_bucket_allocator()))
-		{
-		}
-		constexpr sparse_hash_table(const sparse_hash_table &other, const value_allocator_type &value_alloc)
-			: sparse_hash_table(other, value_alloc, make_alloc_copy(other.get_bucket_allocator()))
+			: sparse_hash_table(other, make_alloc_copy(other.get_allocator()), make_alloc_copy(other.get_bucket_allocator()))
 		{
 		}
 		constexpr sparse_hash_table(const sparse_hash_table &other,
-									const value_allocator_type &value_alloc,
-									const bucket_allocator_type &bucket_alloc)
-			: value_ebo_base(value_alloc),
+									const allocator_type &alloc,
+									const bucket_allocator_type &bucket_alloc = {})
+			: value_ebo_base(alloc),
 			  bucket_ebo_base(bucket_alloc),
 			  compare_ebo_base(other.get_comp()),
 			  hash_ebo_base(other.get_hash())
@@ -360,36 +344,20 @@ namespace sek::detail
 			insert(other.begin(), other.end());
 		}
 
-		constexpr sparse_hash_table(
-			sparse_hash_table &&other,
-			const value_allocator_type &value_alloc,
-			const bucket_allocator_type &bucket_alloc) noexcept(nothrow_alloc_copy_transfer<value_allocator_type, bucket_allocator_type>)
-			: value_ebo_base(value_alloc),
-			  bucket_ebo_base(bucket_alloc),
-			  compare_ebo_base(std::move(other.get_comp())),
-			  hash_ebo_base(std::move(other.get_hash()))
-		{
-			if (alloc_eq(get_value_allocator(), other.get_value_allocator()) &&
-				alloc_eq(get_bucket_allocator(), other.get_bucket_allocator()))
-				take_data(std::move(other));
-			else
-				move_values(std::move(other));
-		}
-		constexpr sparse_hash_table(sparse_hash_table &&other, const value_allocator_type &value_alloc) noexcept(
-			nothrow_alloc_copy_move_transfer<value_allocator_type, bucket_allocator_type>)
-			: value_ebo_base(value_alloc),
+		constexpr sparse_hash_table(sparse_hash_table &&other, const allocator_type &alloc) noexcept(
+			nothrow_alloc_copy_move_transfer<allocator_type, bucket_allocator_type>)
+			: value_ebo_base(alloc),
 			  bucket_ebo_base(std::move(other.get_bucket_allocator())),
 			  compare_ebo_base(std::move(other.get_comp())),
 			  hash_ebo_base(std::move(other.get_hash()))
 		{
-			if (alloc_eq(get_value_allocator(), other.get_value_allocator()))
+			if (alloc_eq(get_allocator(), other.get_allocator()))
 				take_data(std::move(other));
 			else
 				move_values(std::move(other));
 		}
-		constexpr sparse_hash_table(sparse_hash_table &&other) noexcept(
-			nothrow_alloc_move_construct<value_allocator_type, bucket_allocator_type>)
-			: value_ebo_base(std::move(other.get_value_allocator())),
+		constexpr sparse_hash_table(sparse_hash_table &&other) noexcept(nothrow_alloc_move_construct<allocator_type, bucket_allocator_type>)
+			: value_ebo_base(std::move(other.get_allocator())),
 			  bucket_ebo_base(std::move(other.get_bucket_allocator())),
 			  compare_ebo_base(std::move(other.get_comp())),
 			  hash_ebo_base(std::move(other.get_hash()))
@@ -404,7 +372,7 @@ namespace sek::detail
 		}
 
 		constexpr sparse_hash_table &
-			operator=(sparse_hash_table &&other) noexcept(nothrow_alloc_move_assign<value_allocator_type, bucket_allocator_type>)
+			operator=(sparse_hash_table &&other) noexcept(nothrow_alloc_move_assign<allocator_type, bucket_allocator_type>)
 		{
 			move_assign_impl(std::move(other));
 			return *this;
@@ -429,7 +397,7 @@ namespace sek::detail
 		[[nodiscard]] constexpr size_type max_size() const noexcept
 		{
 			constexpr auto absolute_max = static_cast<size_type>(std::numeric_limits<difference_type>::max());
-			const auto alloc_max = static_cast<size_type>(bucket_alloc_traits::max_size(get_value_allocator()));
+			const auto alloc_max = static_cast<size_type>(bucket_alloc_traits::max_size(get_allocator()));
 
 			/* Max size cannot exceed max load factor of max capacity. */
 			return static_cast<size_type>(static_cast<float>(math::min(absolute_max, alloc_max) / sizeof(value_type)) *
@@ -553,7 +521,7 @@ namespace sek::detail
 			SEK_ASSERT(where.m_bucket_ptr->is_occupied());
 
 			erase_aux(1);
-			return node_handle{*where.m_bucket_ptr, get_value_allocator()};
+			return node_handle{*where.m_bucket_ptr, get_allocator()};
 		}
 		constexpr std::pair<iterator, bool> insert_node(node_handle &&handle)
 		{
@@ -600,11 +568,8 @@ namespace sek::detail
 			return static_cast<float>(m_tombstone_count) / static_cast<float>(bucket_count());
 		}
 
-		[[nodiscard]] constexpr value_allocator_type &get_value_allocator() noexcept { return *value_ebo_base::get(); }
-		[[nodiscard]] constexpr const value_allocator_type &get_value_allocator() const noexcept
-		{
-			return *value_ebo_base::get();
-		}
+		[[nodiscard]] constexpr allocator_type &get_allocator() noexcept { return *value_ebo_base::get(); }
+		[[nodiscard]] constexpr const allocator_type &get_allocator() const noexcept { return *value_ebo_base::get(); }
 		[[nodiscard]] constexpr bucket_allocator_type &get_bucket_allocator() noexcept
 		{
 			return *bucket_ebo_base::get();
@@ -619,11 +584,11 @@ namespace sek::detail
 
 		constexpr void swap(sparse_hash_table &other) noexcept
 		{
-			alloc_assert_swap(get_value_allocator(), other.get_value_allocator());
+			alloc_assert_swap(get_allocator(), other.get_allocator());
 			alloc_assert_swap(get_bucket_allocator(), other.get_bucket_allocator());
 
 			swap_data(other);
-			alloc_swap(get_value_allocator(), other.get_value_allocator());
+			alloc_swap(get_allocator(), other.get_allocator());
 			alloc_swap(get_bucket_allocator(), other.get_bucket_allocator());
 		}
 
@@ -666,15 +631,15 @@ namespace sek::detail
 			compare_ebo_base::operator=(std::forward<compare_ebo_base>(other));
 			hash_ebo_base::operator=(std::forward<hash_ebo_base>(other));
 
-			if ((value_alloc_traits::propagate_on_container_move_assignment::value ||
-				 alloc_eq(get_value_allocator(), other.get_value_allocator())) &&
+			if ((alloc_traits::propagate_on_container_move_assignment::value ||
+				 alloc_eq(get_allocator(), other.get_allocator())) &&
 				(bucket_alloc_traits::propagate_on_container_move_assignment::value ||
 				 alloc_eq(get_bucket_allocator(), other.get_bucket_allocator())))
 			{
-				sparse_hash_table tmp{0, key_equal{}, hash_type{}, get_value_allocator(), get_bucket_allocator()};
+				sparse_hash_table tmp{0, key_equal{}, hash_type{}, get_allocator(), get_bucket_allocator()};
 				swap_data(other);
 				tmp.swap_data(other);
-				alloc_move_assign(get_value_allocator(), other.get_value_allocator());
+				alloc_move_assign(get_allocator(), other.get_allocator());
 				alloc_move_assign(get_bucket_allocator(), other.get_bucket_allocator());
 			}
 			else
@@ -689,13 +654,12 @@ namespace sek::detail
 			hash_ebo_base::operator=(other);
 
 			clear();
-			if constexpr (value_alloc_traits::propagate_on_container_copy_assignment::value ||
-						  !value_alloc_traits::is_always_equal::value ||
+			if constexpr (alloc_traits::propagate_on_container_copy_assignment::value || !alloc_traits::is_always_equal::value ||
 						  bucket_alloc_traits::propagate_on_container_copy_assignment::value ||
 						  !bucket_alloc_traits::is_always_equal::value)
 			{
 				destroy_data();
-				alloc_copy_assign(get_value_allocator(), other.get_value_allocator());
+				alloc_copy_assign(get_allocator(), other.get_allocator());
 				alloc_copy_assign(get_bucket_allocator(), other.get_bucket_allocator());
 			}
 
@@ -784,7 +748,7 @@ namespace sek::detail
 		template<typename... Args>
 		constexpr bucket_type make_bucket(Args &&...args)
 		{
-			auto *value = std::construct_at(get_value_allocator().allocate(1), std::forward<Args>(args)...);
+			auto *value = std::construct_at(get_allocator().allocate(1), std::forward<Args>(args)...);
 			auto hash = get_hash()(key_extract(*value));
 
 			return bucket_type{value, hash};
@@ -794,7 +758,7 @@ namespace sek::detail
 			if (bucket->is_occupied()) [[likely]]
 			{
 				std::destroy_at(bucket->data);
-				get_value_allocator().deallocate(bucket->data, 1);
+				get_allocator().deallocate(bucket->data, 1);
 			}
 		}
 

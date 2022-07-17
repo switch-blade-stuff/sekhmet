@@ -55,8 +55,7 @@ namespace sek
 		typedef typename table_type::size_type size_type;
 		typedef typename table_type::difference_type difference_type;
 
-		typedef typename table_type::value_allocator_type allocator_type;
-		typedef typename table_type::bucket_allocator_type bucket_allocator_type;
+		typedef typename table_type::allocator_type allocator_type;
 		typedef typename table_type::hash_type hash_type;
 		typedef typename table_type::key_equal key_equal;
 
@@ -69,47 +68,35 @@ namespace sek
 		constexpr ~sparse_map() = default;
 
 		/** Constructs a map with the specified allocators.
-		 * @param value_alloc Allocator used to allocate map's elements.
-		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
-		constexpr explicit sparse_map(const allocator_type &value_alloc,
-									  const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: sparse_map(key_equal{}, hash_type{}, value_alloc, bucket_alloc)
-		{
-		}
+		 * @param alloc Allocator used to allocate map's elements. */
+		constexpr explicit sparse_map(const allocator_type &alloc) : sparse_map(key_equal{}, hash_type{}, alloc) {}
 		/** Constructs a map with the specified hasher & allocators.
 		 * @param key_hash Key hasher.
-		 * @param value_alloc Allocator used to allocate map's elements.
-		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
-		constexpr explicit sparse_map(const hash_type &key_hash,
-									  const allocator_type &value_alloc = allocator_type{},
-									  const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: sparse_map(key_equal{}, key_hash, value_alloc, bucket_alloc)
+		 * @param alloc Allocator used to allocate map's elements. */
+		constexpr explicit sparse_map(const hash_type &key_hash, const allocator_type &alloc = allocator_type{})
+			: sparse_map(key_equal{}, key_hash, alloc)
 		{
 		}
 		/** Constructs a map with the specified comparator, hasher & allocators.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param value_alloc Allocator used to allocate map's elements.
-		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
+		 * @param alloc Allocator used to allocate map's elements. */
 		constexpr explicit sparse_map(const key_equal &key_compare,
 									  const hash_type &key_hash = {},
-									  const allocator_type &value_alloc = allocator_type{},
-									  const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: m_table(key_compare, key_hash, value_alloc, bucket_alloc)
+									  const allocator_type &alloc = allocator_type{})
+			: sparse_map(0, key_compare, key_hash, alloc)
 		{
 		}
 		/** Constructs a map with the specified minimum capacity.
 		 * @param capacity Capacity of the map.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param value_alloc Allocator used to allocate map's elements.
-		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
+		 * @param alloc Allocator used to allocate map's elements. */
 		constexpr explicit sparse_map(size_type capacity,
 									  const key_equal &key_compare = {},
 									  const hash_type &key_hash = {},
-									  const allocator_type &value_alloc = allocator_type{},
-									  const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: m_table(capacity, key_compare, key_hash, value_alloc, bucket_alloc)
+									  const allocator_type &alloc = allocator_type{})
+			: m_table(capacity, key_compare, key_hash, alloc)
 		{
 		}
 
@@ -118,16 +105,14 @@ namespace sek
 		 * @param first Iterator to the end of the value sequence.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param value_alloc Allocator used to allocate map's elements.
-		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
+		 * @param alloc Allocator used to allocate map's elements. */
 		template<std::random_access_iterator Iterator>
 		constexpr sparse_map(Iterator first,
 							 Iterator last,
 							 const KeyComp &key_compare = {},
 							 const KeyHash &key_hash = {},
-							 const allocator_type &value_alloc = allocator_type{},
-							 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: sparse_map(static_cast<size_type>(std::distance(first, last)), key_compare, key_hash, value_alloc, bucket_alloc)
+							 const allocator_type &alloc = allocator_type{})
+			: sparse_map(static_cast<size_type>(std::distance(first, last)), key_compare, key_hash, alloc)
 		{
 			insert(first, last);
 		}
@@ -136,16 +121,15 @@ namespace sek
 		 * @param first Iterator to the end of the value sequence.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param value_alloc Allocator used to allocate map's elements.
+		 * @param alloc Allocator used to allocate map's elements.
 		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
 		template<std::forward_iterator Iterator>
 		constexpr sparse_map(Iterator first,
 							 Iterator last,
 							 const KeyComp &key_compare = {},
 							 const KeyHash &key_hash = {},
-							 const allocator_type &value_alloc = allocator_type{},
-							 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: sparse_map(key_compare, key_hash, value_alloc, bucket_alloc)
+							 const allocator_type &alloc = allocator_type{})
+			: sparse_map(key_compare, key_hash, alloc)
 		{
 			insert(first, last);
 		}
@@ -153,62 +137,43 @@ namespace sek
 		 * @param il Initializer list containing values.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param value_alloc Allocator used to allocate map's elements.
+		 * @param alloc Allocator used to allocate map's elements.
 		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
 		constexpr sparse_map(std::initializer_list<value_type> il,
 							 const KeyComp &key_compare = {},
 							 const KeyHash &key_hash = {},
-							 const allocator_type &value_alloc = allocator_type{},
-							 const bucket_allocator_type &bucket_alloc = bucket_allocator_type{})
-			: sparse_map(il.begin(), il.end(), key_compare, key_hash, value_alloc, bucket_alloc)
+							 const allocator_type &alloc = allocator_type{})
+			: sparse_map(il.begin(), il.end(), key_compare, key_hash, alloc)
 		{
 		}
 
-		/** Copy-constructs the map. Both allocators are copied via `select_on_container_copy_construction`.
+		/** Copy-constructs the map. Allocator is copied via `select_on_container_copy_construction`.
 		 * @param other Map to copy data and allocators from. */
 		constexpr sparse_map(const sparse_map &other) noexcept(std::is_nothrow_copy_constructible_v<table_type>)
 			: m_table(other.m_table)
 		{
 		}
-		/** Copy-constructs the map. Bucket allocator is copied via `select_on_container_copy_construction`.
-		 * @param other Map to copy data and bucket allocator from.
-		 * @param value_alloc Allocator used to allocate map's elements. */
-		constexpr sparse_map(const sparse_map &other, const allocator_type &value_alloc) noexcept(
-			std::is_nothrow_constructible_v<table_type, const table_type &, const allocator_type &>)
-			: m_table(other.m_table, value_alloc)
-		{
-		}
 		/** Copy-constructs the map.
-		 * @param other Map to copy data from.
-		 * @param value_alloc Allocator used to allocate map's elements.
-		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
-		constexpr sparse_map(const sparse_map &other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
-			std::is_nothrow_constructible_v<table_type, const table_type &, const allocator_type &, const bucket_allocator_type &>)
-			: m_table(other.m_table, value_alloc, bucket_alloc)
+		 * @param other Map to copy data and bucket allocator from.
+		 * @param alloc Allocator used to allocate map's elements. */
+		constexpr sparse_map(const sparse_map &other, const allocator_type &alloc) noexcept(
+			std::is_nothrow_constructible_v<table_type, const table_type &, const allocator_type &>)
+			: m_table(other.m_table, alloc)
 		{
 		}
 
-		/** Move-constructs the map. Both allocators are move-constructed.
+		/** Move-constructs the map. Allocator is move-constructed.
 		 * @param other Map to move elements and allocators from. */
 		constexpr sparse_map(sparse_map &&other) noexcept(std::is_nothrow_move_constructible_v<table_type>)
 			: m_table(std::move(other.m_table))
 		{
 		}
-		/** Move-constructs the map. Bucket allocator is move-constructed.
-		 * @param other Map to move elements and bucket allocator from.
-		 * @param value_alloc Allocator used to allocate map's elements. */
-		constexpr sparse_map(sparse_map &&other, const allocator_type &value_alloc) noexcept(
-			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &>)
-			: m_table(std::move(other.m_table), value_alloc)
-		{
-		}
 		/** Move-constructs the map.
-		 * @param other Map to move elements from.
-		 * @param value_alloc Allocator used to allocate map's elements.
-		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
-		constexpr sparse_map(sparse_map &&other, const allocator_type &value_alloc, const bucket_allocator_type &bucket_alloc) noexcept(
-			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &, const bucket_allocator_type &>)
-			: m_table(std::move(other.m_table), value_alloc, bucket_alloc)
+		 * @param other Map to move elements and bucket allocator from.
+		 * @param alloc Allocator used to allocate map's elements. */
+		constexpr sparse_map(sparse_map &&other, const allocator_type &alloc) noexcept(
+			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &>)
+			: m_table(std::move(other.m_table), alloc)
 		{
 		}
 
@@ -603,20 +568,7 @@ namespace sek
 			m_table.max_tombstone_factor = f;
 		}
 
-		[[nodiscard]] constexpr allocator_type &get_allocator() noexcept { return m_table.get_value_allocator(); }
-		[[nodiscard]] constexpr const allocator_type &get_allocator() const noexcept
-		{
-			return m_table.get_value_allocator();
-		}
-		[[nodiscard]] constexpr bucket_allocator_type &get_bucket_allocator() noexcept
-		{
-			return m_table.get_bucket_allocator();
-		}
-		[[nodiscard]] constexpr const bucket_allocator_type &get_bucket_allocator() const noexcept
-		{
-			return m_table.get_bucket_allocator();
-		}
-
+		[[nodiscard]] constexpr allocator_type get_allocator() const noexcept { return m_table.get_allocator(); }
 		[[nodiscard]] constexpr hash_type hash_function() const noexcept { return m_table.get_hash(); }
 		[[nodiscard]] constexpr key_equal key_eq() const noexcept { return m_table.get_comp(); }
 

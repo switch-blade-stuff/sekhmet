@@ -26,7 +26,8 @@ if (NOT GTEST_MISSING)
             container_tests.cpp
             math_tests.cpp
             serialization_tests.cpp
-            runtime_tests.cpp)
+            runtime_tests.cpp
+            ecs_tests.cpp)
     sek_init_target_options(${PROJECT_NAME})
     target_compile_definitions(${PROJECT_NAME} PRIVATE TEST_DIR="${CMAKE_CURRENT_LIST_DIR}")
     target_link_libraries(${PROJECT_NAME} PUBLIC ${SEK_PROJECT} gtest)

@@ -89,12 +89,12 @@ namespace sek::engine
 		/** Queues a message for later dispatch.
 		 * @param data Data of the message.
 		 * @note Message data is copied by the queue. */
-		static void queue(const T &data = T{});
+		inline static void queue(const T &data = T{});
 		/** Dispatches all queued messages. */
-		static void dispatch();
+		inline static void dispatch();
 		/** Sends a message immediately, bypassing the queue.
 		 * @param data Data of the message. */
-		static void send(const T &data = T{});
+		inline static void send(const T &data = T{});
 
 		/** @brief Returns proxy for the receive event.
 		 *
@@ -103,7 +103,7 @@ namespace sek::engine
 		 * Event subscribers can return `false` to prematurely terminate message dispatching.
 		 *
 		 * @return Pair where first is the lock used to synchronize message queue, and second is the event proxy. */
-		static std::pair<lock_type, event_proxy<receive_event_type>> on_receive();
+		inline static std::pair<lock_type, event_proxy<receive_event_type>> on_receive();
 		/** @brief Returns proxy for the send event.
 		 *
 		 * Send event is invoked when a message is sent or queued and can be used to filter the message data.
@@ -111,7 +111,7 @@ namespace sek::engine
 		 * Event subscribers can return `false` to prematurely terminate message sending
 		 * (terminated message will not be dispatched to the receive event).
 		 * @return Pair where first is the lock used to synchronize message queue, and second is the event proxy. */
-		static std::pair<lock_type, event_proxy<send_event_type>> on_send();
+		inline static std::pair<lock_type, event_proxy<send_event_type>> on_send();
 	};
 
 	template<std::copyable T, message_scope S>
@@ -173,25 +173,25 @@ namespace sek::engine
 
 	public:
 		/** @copydoc message_queue::queue */
-		static void queue(const T &data = T{});
+		inline static void queue(const T &data = T{});
 		/** @copydoc message_queue::dispatch */
-		static void dispatch();
+		inline static void dispatch();
 		/** @copydoc message_queue::send */
-		static void send(const T &data = T{});
+		inline static void send(const T &data = T{});
 
 		/** @brief Returns proxy for the receive event.
 		 *
 		 * Receive event is invoked when a message is sent or dispatched and is used to listen for message data.
 		 *
 		 * Event subscribers can return `false` to prematurely terminate message dispatching. */
-		static event_proxy<receive_event_type> on_receive();
+		inline static event_proxy<receive_event_type> on_receive();
 		/** @brief Returns proxy for the send event.
 		 *
 		 * Send event is invoked when a message is sent or queued and can be used to filter the message data.
 		 *
 		 * Event subscribers can return `false` to prematurely terminate message sending
 		 * (terminated message will not be dispatched to the receive event). */
-		static event_proxy<send_event_type> on_send();
+		inline static event_proxy<send_event_type> on_send();
 	};
 
 	template<std::copyable T>
