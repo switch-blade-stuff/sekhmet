@@ -670,7 +670,7 @@ namespace sek::engine
 			if (first == begin() && last == end()) [[unlikely]]
 				clear();
 			else
-				while (last-- != first) erase(last);
+				while (first != last) erase(first++);
 		}
 
 		/** Updates generation of an entity contained within the set.
