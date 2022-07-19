@@ -152,6 +152,10 @@ TEST(ecs_tests, pool_test)
 
 TEST(ecs_tests, world_test)
 {
+	struct dummy_t
+	{
+	};
+
 	{
 		sek::engine::entity_world world;
 
@@ -159,15 +163,21 @@ TEST(ecs_tests, world_test)
 		const auto e1 = world.generate();
 		const auto e2 = world.generate();
 		EXPECT_EQ(world.size(), 3);
+		EXPECT_TRUE(world.contains(e0));
+		EXPECT_TRUE(world.contains(e1));
+		EXPECT_TRUE(world.contains(e2));
 
-		auto [si, sf] = world.reserve<int, float>(2);
+		auto [si, sf, sd] = world.reserve<int, float, dummy_t>(2);
 		si.emplace(e0);
 		sf.emplace(e0);
 		si.emplace(e1);
+		sd.emplace(e2);
 
 		EXPECT_TRUE((world.contains_all<int, float>(e0)));
 		EXPECT_FALSE((world.contains_all<int, float>(e1)));
 		EXPECT_TRUE((world.contains_any<int, float>(e1)));
 		EXPECT_TRUE((world.contains_none<int, float>(e2)));
+		EXPECT_TRUE((world.contains_all<dummy_t>(e2)));
+		EXPECT_TRUE((world.contains_any<dummy_t>(e2)));
 	}
 }
