@@ -72,11 +72,92 @@ namespace sek::engine
 		using storage_table = dense_map<type_info, storage_ptr, table_hash, table_cmp>;
 
 	public:
+		typedef entity_t value_type;
 		typedef std::size_t size_type;
+		typedef std::ptrdiff_t difference_type;
+
+	private:
+		class entity_iterator
+		{
+		public:
+			typedef entity_t value_type;
+			typedef const entity_t *pointer;
+			typedef const entity_t &reference;
+			typedef std::size_t size_type;
+			typedef std::ptrdiff_t difference_type;
+			typedef std::bidirectional_iterator_tag iterator_category;
+
+		private:
+			constexpr explicit entity_iterator(pointer ptr) noexcept : m_ptr(ptr) { skip_tombstones(1); }
+
+		public:
+			constexpr entity_iterator() noexcept = default;
+
+			constexpr entity_iterator operator++(int) noexcept
+			{
+				auto temp = *this;
+				++(*this);
+				return temp;
+			}
+			constexpr entity_iterator &operator++() noexcept
+			{
+				++m_ptr;
+				return skip_tombstones(1);
+			}
+			constexpr entity_iterator operator--(int) noexcept
+			{
+				auto temp = *this;
+				--(*this);
+				return temp;
+			}
+			constexpr entity_iterator &operator--() noexcept
+			{
+				--m_ptr;
+				return skip_tombstones(-1);
+			}
+
+			/** Returns pointer to the target entity. */
+			[[nodiscard]] constexpr pointer get() const noexcept { return m_ptr; }
+			/** @copydoc value */
+			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
+			/** Returns reference to the target entity. */
+			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
+
+			[[nodiscard]] constexpr auto operator<=>(const entity_iterator &) const noexcept = default;
+			[[nodiscard]] constexpr bool operator==(const entity_iterator &) const noexcept = default;
+
+			constexpr void swap(entity_iterator &other) noexcept { std::swap(m_ptr, other.m_ptr); }
+			friend constexpr void swap(entity_iterator &a, entity_iterator &b) noexcept { a.swap(b); }
+
+		private:
+			constexpr entity_iterator &skip_tombstones(difference_type offset) noexcept
+			{
+				while (m_ptr->is_tombstone()) m_ptr += offset;
+				return *this;
+			}
+
+			pointer m_ptr = nullptr;
+		};
 
 	public:
 		constexpr entity_world() = default;
 		constexpr ~entity_world() = default;
+
+		/** Returns the size of the world (amount of alive entities). */
+		[[nodiscard]] constexpr size_type size() const noexcept { return m_size; }
+		/** Checks if the world is empty (does not contain alive entities). */
+		[[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
+		/** Returns the max size of the world (absolute maximum of alive entities). */
+		[[nodiscard]] constexpr size_type max_size() const noexcept { return m_entities.max_size(); }
+		/** Returns the capacity of the world (current maximum of alive entities) */
+		[[nodiscard]] constexpr size_type capacity() const noexcept { return m_entities.capacity(); }
+
+		/** Checks if the world contains the specified entity. */
+		[[nodiscard]] constexpr bool contains(entity_t e) const noexcept
+		{
+			const auto idx = e.index().value();
+			return idx < m_entities.size() && m_entities[idx] == e;
+		}
 
 		/** Checks if the world contains an entity with all of the specified components. */
 		template<typename T, typename... Ts>
@@ -123,6 +204,7 @@ namespace sek::engine
 			const auto idx = e.index();
 			m_entities[idx.value()] = entity_t{next_gen, m_next.index()};
 			m_next = entity_t{entity_t::generation_type::tombstone(), idx};
+			--m_size;
 		}
 
 		/** Reserves storage for the specified components.
@@ -146,10 +228,7 @@ namespace sek::engine
 		[[nodiscard]] constexpr entity_t generate_new(entity_t::generation_type gen)
 		{
 			const auto idx = entity_t::index_type{m_entities.size()};
-			if (!gen.is_tombstone())
-				return m_entities.emplace_back(gen, idx);
-			else
-				return m_entities.emplace_back(idx);
+			return (++m_size, !gen.is_tombstone() ? m_entities.emplace_back(gen, idx) : m_entities.emplace_back(idx));
 		}
 
 		template<typename T>
@@ -169,5 +248,6 @@ namespace sek::engine
 		storage_table m_storage;
 		std::vector<entity_t> m_entities;
 		entity_t m_next = entity_t::tombstone();
+		size_type m_size = 0; /* Amount of alive entities within the world. */
 	};
 }	 // namespace sek::engine

@@ -158,11 +158,9 @@ TEST(ecs_tests, world_test)
 		const auto e0 = world.generate();
 		const auto e1 = world.generate();
 		const auto e2 = world.generate();
+		EXPECT_EQ(world.size(), 3);
 
-		const auto storage = world.reserve<int, float>(2);
-		auto &si = get<0>(storage);
-		auto &sf = get<1>(storage);
-
+		auto [si, sf] = world.reserve<int, float>(2);
 		si.emplace(e0);
 		sf.emplace(e0);
 		si.emplace(e1);
