@@ -12,7 +12,8 @@ namespace sek::engine
 	/** @brief Helper type used to obtain traits of a component type.
 	 *
 	 * Component traits must contain a compile-time constant of type `std::size_t` named `page_size`, specifying
-	 * size of allocation pages used by component pools.
+	 * size of allocation pages used by component pools, and an `allocator_type` typedef used to
+	 * specify allocator used for component pools.
 	 *
 	 * Optionally, traits may define an `is_fixed` typedef which, if present, will prevent components of this type
 	 * from being sorted either by a component pool or ordering queries. */
@@ -20,6 +21,8 @@ namespace sek::engine
 	struct component_traits
 	{
 		constexpr static std::size_t page_size = 1024;
+
+		typedef std::allocator<T> allocator_type;
 	};
 
 	namespace detail
@@ -30,8 +33,10 @@ namespace sek::engine
 		// clang-format off
 		template<typename T, typename A>
 		using component_entity_set = basic_entity_set<
-		    typename std::allocator_traits<A>::template rebind_alloc<entity>,
+		    typename std::allocator_traits<A>::template rebind_alloc<entity_t>,
 		    requires{ typename component_traits<T>::is_fixed; }>;
+		template<typename T>
+		using component_alloc = typename component_traits<T>::allocator_type;
 		// clang-format on
 
 		template<typename T, typename A, bool Empty>
@@ -96,7 +101,7 @@ namespace sek::engine
 			}
 
 			template<typename... Args>
-			set_iterator emplace_impl(entity e, Args &&...args)
+			set_iterator emplace_impl(entity_t e, Args &&...args)
 			{
 				const auto pos = base_set::insert(e);
 				try
@@ -111,7 +116,7 @@ namespace sek::engine
 				return pos;
 			}
 			template<typename... Args>
-			set_iterator push_impl(entity e, Args &&...args)
+			set_iterator push_impl(entity_t e, Args &&...args)
 			{
 				const auto pos = base_set::push_back(e);
 				try
@@ -227,12 +232,12 @@ namespace sek::engine
 			constexpr void purge_impl() {}
 
 			template<typename... Args>
-			set_iterator emplace_impl(entity e, Args &&...)
+			set_iterator emplace_impl(entity_t e, Args &&...)
 			{
 				return base_set::insert(e);
 			}
 			template<typename... Args>
-			set_iterator push_impl(entity e, Args &&...)
+			set_iterator push_impl(entity_t e, Args &&...)
 			{
 				return base_set::push_back(e);
 			}
@@ -259,18 +264,17 @@ namespace sek::engine
 	 * Component pools allocate components in pages. Pages are used to reduce the need for re-allocation and copy/move
 	 * operations for components. Every component is then indirectly indexed via an entity via an entity set.
 	 *
-	 * @tparam T Type of components managed by the pool.
-	 * @tparam A Allocator used to allocate memory of the pool. */
-	template<typename T, typename A = std::allocator<T>>
-	class basic_component_pool : detail::component_pool_impl<T, A, std::is_empty_v<T>>
+	 * @tparam T Type of components managed by the pool. */
+	template<typename T>
+	class basic_component_pool : detail::component_pool_impl<T, detail::component_alloc<T>, std::is_empty_v<T>>
 	{
-		using base_t = detail::component_pool_impl<T, A, std::is_empty_v<T>>;
+		using base_t = detail::component_pool_impl<T, detail::component_alloc<T>, std::is_empty_v<T>>;
 
 		template<bool, typename, typename...>
 		friend class detail::component_iterator;
 
 	public:
-		typedef A allocator_type;
+		typedef detail::component_alloc<T> allocator_type;
 		typedef T component_type;
 
 		typedef T value_type;
@@ -479,12 +483,12 @@ namespace sek::engine
 		 * @note If the component type requires fixed storage, `empty` may return erroneous result. */
 		[[nodiscard]] constexpr bool empty() const noexcept { return base_set::empty(); }
 		/** Checks if the specified entity is associated with the pool. */
-		[[nodiscard]] constexpr bool contains(entity e) const noexcept { return base_set::contains(e); }
+		[[nodiscard]] constexpr bool contains(entity_t e) const noexcept { return base_set::contains(e); }
 		/** Returns an iterator to the component associated with the specified entity, or an end iterator
 		 * if the entity is not associated with the pool. */
-		[[nodiscard]] constexpr iterator find(entity e) noexcept { return to_iterator(base_set::find(e).offset()); }
+		[[nodiscard]] constexpr iterator find(entity_t e) noexcept { return to_iterator(base_set::find(e).offset()); }
 		/** @copydoc find */
-		[[nodiscard]] constexpr const_iterator find(entity e) const noexcept
+		[[nodiscard]] constexpr const_iterator find(entity_t e) const noexcept
 		{
 			return to_iterator(base_set::find(e).offset());
 		}
@@ -517,7 +521,7 @@ namespace sek::engine
 		/** Constructs a component for the specified entity in-place (re-using slots if
 		 * component type requires fixed storage) and returns an iterator to it. */
 		template<typename... Args>
-		iterator emplace(entity e, Args &&...args)
+		iterator emplace(entity_t e, Args &&...args)
 			requires std::constructible_from<T, Args...>
 		{
 			return to_iterator(base_t::emplace_impl(e, std::forward<Args>(args)...).offset());
@@ -525,20 +529,20 @@ namespace sek::engine
 		/** Constructs a component for the specified entity in-place (always at the end)
 		 * and returns an iterator to it. */
 		template<typename... Args>
-		iterator emplace_back(entity e, Args &&...args)
+		iterator emplace_back(entity_t e, Args &&...args)
 			requires std::constructible_from<T, Args...>
 		{
 			return to_iterator(base_t::push_impl(e, std::forward<Args>(args)...).offset());
 		}
 		/** Inserts a component for the specified entity (re-using slots if component type
 		 * requires fixed storage) and returns an iterator to it. */
-		iterator insert(entity e, component_type &&value) { return emplace(e, std::forward<T>(value)); }
+		iterator insert(entity_t e, component_type &&value) { return emplace(e, std::forward<T>(value)); }
 		/** @copydoc insert */
-		iterator insert(entity e, const component_type &value) { return emplace(e, value); }
+		iterator insert(entity_t e, const component_type &value) { return emplace(e, value); }
 		/** Inserts a component for the specified entity (always at the end) and returns an iterator to it. */
-		iterator push_back(entity e, component_type &&value) { return emplace_back(e, std::forward<T>(value)); }
+		iterator push_back(entity_t e, component_type &&value) { return emplace_back(e, std::forward<T>(value)); }
 		/** @copydoc push_back */
-		iterator push_back(entity e, const component_type &value) { return emplace_back(e, value); }
+		iterator push_back(entity_t e, const component_type &value) { return emplace_back(e, value); }
 
 		/** Erases a component from the pool and returns iterator to the next component. */
 		iterator erase(const_iterator where)
@@ -548,7 +552,7 @@ namespace sek::engine
 		}
 		/** Erases a component associated with the specified entity from the pool and returns iterator to the next component.
 		 * @note Will cause undefined behavior if the entity is not associated with the pool. */
-		iterator erase(entity e) { return erase(find(e)); }
+		iterator erase(entity_t e) { return erase(find(e)); }
 		/** Erases all components between `[first, last)`. */
 		void erase(const_iterator first, const_iterator last)
 		{
@@ -556,7 +560,7 @@ namespace sek::engine
 		}
 
 		/** Swaps components of the given entities. */
-		void swap(entity a, entity b) { base_set::swap(a, b); }
+		void swap(entity_t a, entity_t b) { base_set::swap(a, b); }
 		/** Swaps components of the pool. */
 		void swap(size_type a_idx, size_type b_idx) { base_set::swap(a_idx, b_idx); }
 		/** @copydoc swap */
@@ -569,14 +573,14 @@ namespace sek::engine
 		friend constexpr void swap(basic_component_pool &a, basic_component_pool &b) { a.swap(b); }
 
 	protected:
-		set_iterator insert(entity e) override
+		set_iterator insert(entity_t e) override
 		{
 			if constexpr (!std::is_default_constructible_v<T>)
 				return base_set::end();
 			else
 				return base_t::emplace_impl(e);
 		}
-		set_iterator push_back(entity e) override
+		set_iterator push_back(entity_t e) override
 		{
 			if constexpr (!std::is_default_constructible_v<T>)
 				return base_set::end();
@@ -613,8 +617,8 @@ namespace sek::engine
 
 		public:
 			typedef std::tuple<component_t<Ts>...> value_type;
-			typedef std::tuple<const entity *, std::conditional_t<IsConst, const component_t<Ts>, component_t<Ts>> *...> pointer;
-			typedef std::tuple<const entity &, std::conditional_t<IsConst, const component_t<Ts>, component_t<Ts>> &...> reference;
+			typedef std::tuple<const entity_t *, std::conditional_t<IsConst, const component_t<Ts>, component_t<Ts>> *...> pointer;
+			typedef std::tuple<const entity_t &, std::conditional_t<IsConst, const component_t<Ts>, component_t<Ts>> &...> reference;
 
 			typedef typename entity_iterator::size_type size_type;
 			typedef typename entity_iterator::difference_type difference_type;
@@ -641,7 +645,7 @@ namespace sek::engine
 		public:
 			constexpr component_iterator() noexcept = default;
 
-			/** Initializes component iterator from an entity set iterator and pointers to component pools. */
+			/** Initializes component iterator from an entity set iterator and component pools. */
 			constexpr component_iterator(entity_iterator pos, pools_t pools) noexcept
 				: component_iterator(pos, pages(pools))
 			{
@@ -651,7 +655,7 @@ namespace sek::engine
 				: component_iterator(pos, pools_t{pools...})
 			{
 			}
-			/** Initializes component iterator from an entity set iterator and references to component pools. */
+			/** @copydoc component_iterator */
 			constexpr component_iterator(entity_iterator pos, const Ts &...pools) noexcept
 				: component_iterator(pos, pools_t{std::addressof(pools)...})
 			{
@@ -789,11 +793,11 @@ namespace sek::engine
 	public:
 		typedef Set entity_set;
 
-		typedef std::tuple<entity, component_t<Ts>...> value_type;
-		typedef std::tuple<const entity *, component_t<Ts> *...> pointer;
-		typedef std::tuple<const entity *, const component_t<Ts> *...> const_pointer;
-		typedef std::tuple<const entity &, component_t<Ts> &...> reference;
-		typedef std::tuple<const entity &, const component_t<Ts> &...> const_reference;
+		typedef std::tuple<entity_t, component_t<Ts>...> value_type;
+		typedef std::tuple<const entity_t *, component_t<Ts> *...> pointer;
+		typedef std::tuple<const entity_t *, const component_t<Ts> *...> const_pointer;
+		typedef std::tuple<const entity_t &, component_t<Ts> &...> reference;
+		typedef std::tuple<const entity_t &, const component_t<Ts> &...> const_reference;
 		typedef typename entity_iterator::size_type size_type;
 		typedef typename entity_iterator::difference_type difference_type;
 
@@ -893,4 +897,81 @@ namespace sek::engine
 	component_set(const S &, const Ts *...) -> component_set<S, Ts...>;
 	template<typename S, typename... Ts>
 	component_set(const S &, const Ts &...) -> component_set<S, Ts...>;
+
+	/** @brief Structure used to indirectly reference a component through an entity. */
+	template<typename T>
+	class component_ptr
+	{
+	public:
+		typedef basic_component_pool<std::remove_cv_t<T>> pool_type;
+		typedef T value_type;
+		typedef value_type *pointer;
+		typedef value_type &reference;
+
+	private:
+		using pool_ptr = std::conditional_t<std::is_const_v<T>, const pool_type, pool_type> *;
+		using pool_ref = std::conditional_t<std::is_const_v<T>, const pool_type, pool_type> &;
+
+	public:
+		/** Initializes a null component pointer. */
+		constexpr component_ptr() noexcept = default;
+
+		/** Initializes a component pointer for an entity and a pool.
+		 * @param e Entity who's component to point to.
+		 * @param pool Pointer to the component pool containing the target component. */
+		constexpr component_ptr(entity_t e, pool_ptr pool) noexcept : m_entity(e), m_pool(pool) {}
+		/** Initializes a component pointer for an entity and a pool.
+		 * @param e Entity who's component to point to.
+		 * @param pool Reference to the component pool containing the target component. */
+		constexpr component_ptr(entity_t e, pool_ref pool) noexcept : component_ptr(e, &pool) {}
+
+		/** Checks if the component pointer has a a bound entity and pool. */
+		[[nodiscard]] constexpr bool empty() const noexcept { return !m_entity.is_tombstone() && m_pool; }
+		/** @copydoc empty */
+		[[nodiscard]] constexpr operator bool() const noexcept { return empty(); }
+
+		/** Returns the associated entity. */
+		[[nodiscard]] constexpr entity_t entity() const noexcept { return m_entity; }
+		/** Returns the bound component pool. */
+		[[nodiscard]] constexpr pool_type *pool() const noexcept { return m_pool; }
+
+		/** Returns pointer to the associated component. */
+		[[nodiscard]] constexpr pointer get() const noexcept { return m_pool->find(m_entity).get(); }
+		/** @copydoc get */
+		[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
+		/** Returns reference to the associated component. */
+		[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
+
+		/** Rebinds pointer to use a different component pool.
+		 * @param pool Pointer to the new pool.
+		 * @return Pointer to the old pool. */
+		constexpr pool_type *reset(pool_type *pool) noexcept { return std::exchange(m_pool, pool); }
+		/** Resets pointer to a null state.
+		 * @return Pointer to the old pool. */
+		constexpr pool_type *reset() noexcept { return reset(nullptr); }
+
+		[[nodiscard]] constexpr bool operator==(const component_ptr &) const noexcept = default;
+		[[nodiscard]] constexpr bool operator!=(const component_ptr &) const noexcept = default;
+
+		constexpr void swap(component_ptr &other) noexcept
+		{
+			using std::swap;
+			swap(m_entity, other.m_entity);
+			swap(m_pool, other.m_pool);
+		}
+		friend constexpr void swap(component_ptr &a, component_ptr &b) noexcept { a.swap(b); }
+
+	private:
+		entity_t m_entity = entity_t::tombstone();
+		pool_ptr m_pool = nullptr;
+	};
+
+	template<typename T>
+	component_ptr(entity_t, basic_component_pool<T> *) -> component_ptr<T>;
+	template<typename T>
+	component_ptr(entity_t, const basic_component_pool<T> *) -> component_ptr<const T>;
+	template<typename T>
+	component_ptr(entity_t, basic_component_pool<T> &) -> component_ptr<T>;
+	template<typename T>
+	component_ptr(entity_t, const basic_component_pool<T> &) -> component_ptr<const T>;
 }	 // namespace sek::engine

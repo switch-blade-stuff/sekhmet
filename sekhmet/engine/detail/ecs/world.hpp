@@ -15,15 +15,15 @@ namespace sek::engine
 	class entity_world;
 
 	/** @brief Structure used to manage a pool of components and handle component creation, update & removal events. */
-	template<typename T, typename Alloc = std::allocator<T>>
+	template<typename T>
 	class component_storage
 	{
 		friend class entity_world;
 
-		using storage_t = basic_component_pool<T, Alloc>;
+		using storage_t = basic_component_pool<T>;
 
 	public:
-		typedef event<void(entity_world &, entity)> event_type;
+		typedef event<void(entity_world &, entity_t)> event_type;
 
 		/** Returns event proxy for the component creation event. */
 		[[nodiscard]] constexpr event_proxy<event_type> on_create() noexcept { return {m_create}; }

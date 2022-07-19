@@ -9,13 +9,13 @@
 TEST(ecs_tests, entity_test)
 {
 	{
-		const auto et1 = sek::engine::entity::tombstone();
-		const auto et2 = sek::engine::entity{et1.generation(), {}};
+		const auto et1 = sek::engine::entity_t::tombstone();
+		const auto et2 = sek::engine::entity_t{et1.generation(), {}};
 
 		EXPECT_EQ(et1, et2);
 		EXPECT_NE(et1.index(), et2.index());
 
-		sek::engine::entity e1 = {};
+		sek::engine::entity_t e1 = {};
 
 		EXPECT_NE(et1, e1);
 		EXPECT_NE(et2, e1);
@@ -23,9 +23,9 @@ TEST(ecs_tests, entity_test)
 		EXPECT_EQ(et2.index(), e1.index());
 	}
 	{
-		const sek::engine::entity e0 = {sek::engine::entity::index_type{0}};
-		const sek::engine::entity e1 = {sek::engine::entity::index_type{1}};
-		const sek::engine::entity e2 = {sek::engine::entity::index_type{2}};
+		const sek::engine::entity_t e0 = {sek::engine::entity_t::index_type{0}};
+		const sek::engine::entity_t e1 = {sek::engine::entity_t::index_type{1}};
+		const sek::engine::entity_t e2 = {sek::engine::entity_t::index_type{2}};
 
 		sek::engine::entity_set set;
 		set.insert(e0);
@@ -47,11 +47,11 @@ TEST(ecs_tests, entity_test)
 		EXPECT_EQ(set.size(), 2);
 	}
 	{
-		const sek::engine::entity e0 = {sek::engine::entity::index_type{0}};
-		const sek::engine::entity e1 = {sek::engine::entity::index_type{1}};
-		const sek::engine::entity e2 = {sek::engine::entity::index_type{2}};
+		const sek::engine::entity_t e0 = {sek::engine::entity_t::index_type{0}};
+		const sek::engine::entity_t e1 = {sek::engine::entity_t::index_type{1}};
+		const sek::engine::entity_t e2 = {sek::engine::entity_t::index_type{2}};
 
-		sek::engine::basic_entity_set<std::allocator<sek::engine::entity>, true> set;
+		sek::engine::basic_entity_set<std::allocator<sek::engine::entity_t>, true> set;
 		set.insert(e0);
 		set.insert(e1);
 		set.insert(e2);
@@ -72,9 +72,9 @@ TEST(ecs_tests, entity_test)
 
 TEST(ecs_tests, pool_test)
 {
-	const sek::engine::entity e0 = {sek::engine::entity::index_type{0}};
-	const sek::engine::entity e1 = {sek::engine::entity::index_type{1}};
-	const sek::engine::entity e2 = {sek::engine::entity::index_type{2}};
+	const sek::engine::entity_t e0 = {sek::engine::entity_t::index_type{0}};
+	const sek::engine::entity_t e1 = {sek::engine::entity_t::index_type{1}};
+	const sek::engine::entity_t e2 = {sek::engine::entity_t::index_type{2}};
 
 	{
 		sek::engine::basic_component_pool<int> p;
@@ -137,5 +137,12 @@ TEST(ecs_tests, pool_test)
 		EXPECT_EQ(std::get<0>(v[0]), e0);
 		EXPECT_EQ(std::get<1>(v[0]), 0);
 		EXPECT_EQ(std::get<2>(v[0]), 0.0f);
+
+		auto iptr = sek::engine::component_ptr{e0, pi};
+		auto fptr = sek::engine::component_ptr{e0, pf};
+		EXPECT_TRUE(iptr);
+		EXPECT_TRUE(fptr);
+		EXPECT_EQ(*iptr, 0);
+		EXPECT_EQ(*fptr, 0.0f);
 	}
 }
