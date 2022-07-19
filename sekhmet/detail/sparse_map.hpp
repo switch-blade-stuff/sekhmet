@@ -11,7 +11,8 @@
 
 namespace sek
 {
-	/** @brief One-to-one sparse table based associative container providing fast insertion & deletion, but higher memory overhead than a tree-based map.
+	/** @brief One-to-one sparse table based associative container providing fast insertion & deletion,
+	 * but higher memory overhead than a tree-based map.
 	 *
 	 * Sparse maps are implemented via an open-addressing hash table.
 	 * This allows for efficient insertion & deletion at the expense of greater memory overhead.

@@ -12,6 +12,8 @@
 #include "sekhmet/detail/assert.hpp"
 #include "sekhmet/detail/ebo_base_helper.hpp"
 
+#include "fwd.hpp"
+
 namespace sek::engine
 {
 	/** @brief An entity is an internal ID used to refer to a group of components.
@@ -46,6 +48,12 @@ namespace sek::engine
 			 * @note Value must be 24-bit max. */
 			constexpr explicit generation_type(value_type value) noexcept : m_value(value << offset) {}
 
+			/** Checks if the entity generation is a tombstone. */
+			[[nodiscard]] constexpr bool is_tombstone() const noexcept
+			{
+				return *this == tombstone();
+			}
+
 			/** Checks if the entity generation is valid. */
 			[[nodiscard]] constexpr bool valid() const noexcept { return (m_value & mask) == mask; }
 			/** Returns the underlying integer value of the generation. */
@@ -76,6 +84,12 @@ namespace sek::engine
 			/** Initializes an entity index from an underlying value type.
 			 * @note Value must be 40-bit max. */
 			constexpr explicit index_type(value_type value) noexcept : m_value(value) {}
+
+			/** Checks if the entity index is a tombstone. */
+			[[nodiscard]] constexpr bool is_tombstone() const noexcept
+			{
+				return *this == tombstone();
+			}
 
 			/** Returns the underlying integer value of the index. */
 			[[nodiscard]] constexpr value_type value() const noexcept { return m_value; }
@@ -399,7 +413,7 @@ namespace sek::engine
 	/** @brief Interface used to associate entities with component indices.
 	 * @tparam Alloc Allocator used to allocate memory of the entity set.
 	 * @tparam IsFixed Whether the entity set should use fixed dense indices, primarily used for component storage. */
-	template<typename Alloc = std::allocator<entity_t>, bool IsFixed = false>
+	template<typename Alloc, bool IsFixed>
 	class basic_entity_set : detail::entity_set_impl<Alloc, IsFixed>
 	{
 		using base_t = detail::entity_set_impl<Alloc, IsFixed>;
@@ -533,7 +547,7 @@ namespace sek::engine
 
 	public:
 		constexpr basic_entity_set() = default;
-		constexpr ~basic_entity_set() = default;
+		virtual ~basic_entity_set() = default;
 
 		constexpr basic_entity_set(const basic_entity_set &) = default;
 		constexpr basic_entity_set &operator=(const basic_entity_set &) = default;

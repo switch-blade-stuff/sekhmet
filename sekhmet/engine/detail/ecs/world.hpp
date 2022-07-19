@@ -4,68 +4,15 @@
 
 #pragma once
 
-#include "sekhmet/detail/event.hpp"
+#include <memory>
 
-#include "component.hpp"
+#include "sekhmet/detail/dense_map.hpp"
+
+#include "../type_info.hpp"
+#include "query.hpp"
 
 namespace sek::engine
 {
-	template<typename...>
-	class entity_query;
-	class entity_world;
-
-	/** @brief Structure used to manage a pool of components and handle component creation, update & removal events. */
-	template<typename T>
-	class component_storage
-	{
-		friend class entity_world;
-
-		using storage_t = basic_component_pool<T>;
-
-	public:
-		typedef event<void(entity_world &, entity_t)> event_type;
-
-		/** Returns event proxy for the component creation event. */
-		[[nodiscard]] constexpr event_proxy<event_type> on_create() noexcept { return {m_create}; }
-		/** Returns event proxy for the component update event. */
-		[[nodiscard]] constexpr event_proxy<event_type> on_update() noexcept { return {m_update}; }
-		/** Returns event proxy for the component removal event. */
-		[[nodiscard]] constexpr event_proxy<event_type> on_remove() noexcept { return {m_remove}; }
-
-	private:
-		storage_t m_storage;
-		event_type m_create;
-		event_type m_update;
-		event_type m_remove;
-	};
-
-	/** @brief Query used to obtain a set of components to iterate over.
-	 *
-	 * Queries are used to obtain a (potentially ordered) set of components from a world to iterate over and can
-	 * capture, exclude and order-by component types.
-	 *
-	 * A query will iterate over all entities that contain captured components, excluding any entity that
-	 * contains excluded components. For example, query capturing `component_a` and excluding `component_b` will
-	 * iterate over entities containing `component_a` but not `component_b`.
-	 *
-	 * Ordering queries sort the respective component types. This requires ordered components to be
-	 * allocated from non-fixed pools. Ordered components' sort order will be locked for as long as the query exists
-	 * and will be automatically updated when components are created or removed.
-	 *
-	 * Ordering queries can "specialize" other queries (ex. ordering query for `component_a` can be specialized
-	 * to order by `component_a` and `component_b`). However, if an ordering query's components are conflicting
-	 * with another query (ex. `component_b`, `component_c` and `component_a`, `component_c`), an exception will
-	 * be thrown, as components will not be sorted. An exception will also be thrown if components' pools do
-	 * not support sorting (are fixed).
-	 *
-	 * @tparam Capture Component types to capture within the query.
-	 * @tparam Exclude Components to exclude from the query.
-	 * @tparam Order Component types to order the query by. */
-	template<typename... Capture, typename... Exclude, typename... Order>
-	class entity_query<type_seq_t<Capture...>, type_seq_t<Exclude...>, type_seq_t<Order...>>
-	{
-	};
-
 	/** @brief A world is a special container used to associate entities with their components.
 	 *
 	 * Internally, a world contains a table of component pools (and dense index arrays) indexed by their type,
@@ -74,9 +21,153 @@ namespace sek::engine
 	 * Worlds also support component events, allowing the user to execute code when a components are created,
 	 * removed or modified.
 	 *
-	 * @warning Operations on entity worlds are not thread-safe and must be synchronized externally
-	 * (ex. through an access guard). */
+	 * @warning Asynchronous operations on entity worlds must be synchronized externally (ex. through an access guard). */
 	class entity_world
 	{
+		struct deleter_t
+		{
+			constexpr void operator()(void *ptr) const { m_delete(ptr); }
+
+			void (*m_delete)(void *);
+		};
+
+		using storage_ptr = std::unique_ptr<void, deleter_t>;
+
+		template<typename T>
+		[[nodiscard]] constexpr static auto *to_storage(storage_ptr &ptr)
+		{
+			return static_cast<component_storage<T> *>(ptr.get());
+		}
+		template<typename T>
+		[[nodiscard]] constexpr static const auto *to_storage(const storage_ptr &ptr)
+		{
+			return static_cast<const component_storage<T> *>(ptr.get());
+		}
+
+		template<typename T, typename... Args>
+		[[nodiscard]] static storage_ptr make_storage(Args &&...args)
+		{
+			using storage_t = component_storage<T>;
+			constexpr auto delete_func = +[](void *ptr) { delete static_cast<storage_t *>(ptr); };
+			return {static_cast<void *>(new storage_t(std::forward<Args>(args)...)), deleter_t{delete_func}};
+		}
+
+		struct table_hash
+		{
+			using is_transparent = std::true_type;
+
+			constexpr hash_t operator()(std::string_view sv) const noexcept { return fnv1a(sv.data(), sv.size()); }
+			constexpr hash_t operator()(const type_info &ti) const noexcept { return operator()(ti.name()); }
+		};
+		struct table_cmp
+		{
+			using is_transparent = std::true_type;
+
+			constexpr bool operator()(std::string_view a, std::string_view b) const noexcept { return a == b; }
+			constexpr bool operator()(const type_info &a, const type_info &b) const noexcept { return a == b; }
+			constexpr bool operator()(const type_info &a, std::string_view b) const noexcept { return a.name() == b; }
+			constexpr bool operator()(std::string_view a, const type_info &b) const noexcept { return a == b.name(); }
+		};
+
+		using storage_table = dense_map<type_info, storage_ptr, table_hash, table_cmp>;
+
+	public:
+		typedef std::size_t size_type;
+
+	public:
+		constexpr entity_world() = default;
+		constexpr ~entity_world() = default;
+
+		/** Checks if the world contains an entity with all of the specified components. */
+		template<typename T, typename... Ts>
+		[[nodiscard]] constexpr bool contains_all(entity_t e) const noexcept
+		{
+			if constexpr (sizeof...(Ts) == 0)
+			{
+				const auto storage = m_storage.find(type_info::get<T>());
+				return storage != m_storage.end() && to_storage<T>(storage->second)->contains(e);
+			}
+			else
+				return contains_all<T>(e) && (contains_all<Ts>(e) && ...);
+		}
+		/** Checks if the world contains an entity with any of the specified components. */
+		template<typename... Ts>
+		[[nodiscard]] constexpr bool contains_any(entity_t e) const noexcept
+		{
+			return (contains_all<Ts>(e) || ...);
+		}
+		/** Checks if the world contains an entity with none of the specified components. */
+		template<typename T, typename... Ts>
+		[[nodiscard]] constexpr bool contains_none(entity_t e) const noexcept
+		{
+			if constexpr (sizeof...(Ts) == 0)
+			{
+				const auto storage = m_storage.find(type_info::get<T>());
+				return storage == m_storage.end() || !to_storage<T>(storage->second)->contains(e);
+			}
+			else
+				return contains_none<T>(e) && (contains_none<Ts>(e) && ...);
+		}
+
+		/** Generates a new entity.
+		 * @param gen Optional generation to use for the entity.
+		 * @return Value of the generated entity. */
+		[[nodiscard]] constexpr entity_t generate(entity_t::generation_type gen = entity_t::generation_type::tombstone())
+		{
+			return m_next.index().is_tombstone() ? generate_new(gen) : generate_existing(gen);
+		}
+		/** Releases an entity. */
+		constexpr void release(entity_t e)
+		{
+			const auto next_gen = entity_t::generation_type{e.generation().value() + 1};
+			const auto idx = e.index();
+			m_entities[idx.value()] = entity_t{next_gen, m_next.index()};
+			m_next = entity_t{entity_t::generation_type::tombstone(), idx};
+		}
+
+		/** Reserves storage for the specified components.
+		 *
+		 * @param n Amount of components to reserve. If set to `0`, only creates the storage pools.
+		 * @return Tuple of references to component storage. */
+		template<typename... Ts>
+		std::tuple<component_storage<Ts> &...> reserve(size_type n = 0)
+		{
+			return std::forward_as_tuple(reserve_impl<Ts>(n)...);
+		}
+
+	private:
+		[[nodiscard]] constexpr entity_t generate_existing(entity_t::generation_type gen)
+		{
+			const auto idx = m_next.index();
+			auto &target = m_entities[idx.value()];
+			m_next = entity_t{entity_t::generation_type::tombstone(), target.index()};
+			return target = entity_t{gen.is_tombstone() ? target.generation() : gen, idx};
+		}
+		[[nodiscard]] constexpr entity_t generate_new(entity_t::generation_type gen)
+		{
+			const auto idx = entity_t::index_type{m_entities.size()};
+			if (!gen.is_tombstone())
+				return m_entities.emplace_back(gen, idx);
+			else
+				return m_entities.emplace_back(idx);
+		}
+
+		template<typename T>
+		component_storage<T> &reserve_impl(size_type n = 0)
+		{
+			const auto type = type_info::get<T>();
+			auto target = m_storage.find(type);
+			if (target == m_storage.end()) [[unlikely]]
+				target = m_storage.emplace(type, make_storage<T>(*this)).first;
+
+			auto &storage = *to_storage<T>(target->second);
+			if (n != 0) [[likely]]
+				storage.reserve(n);
+			return storage;
+		}
+
+		storage_table m_storage;
+		std::vector<entity_t> m_entities;
+		entity_t m_next = entity_t::tombstone();
 	};
 }	 // namespace sek::engine

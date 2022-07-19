@@ -149,3 +149,27 @@ TEST(ecs_tests, pool_test)
 		EXPECT_EQ(*iptr, 10);
 	}
 }
+
+TEST(ecs_tests, world_test)
+{
+	{
+		sek::engine::entity_world world;
+
+		const auto e0 = world.generate();
+		const auto e1 = world.generate();
+		const auto e2 = world.generate();
+
+		const auto storage = world.reserve<int, float>(2);
+		auto &si = get<0>(storage);
+		auto &sf = get<1>(storage);
+
+		si.emplace(e0);
+		sf.emplace(e0);
+		si.emplace(e1);
+
+		EXPECT_TRUE((world.contains_all<int, float>(e0)));
+		EXPECT_FALSE((world.contains_all<int, float>(e1)));
+		EXPECT_TRUE((world.contains_any<int, float>(e1)));
+		EXPECT_TRUE((world.contains_none<int, float>(e2)));
+	}
+}
