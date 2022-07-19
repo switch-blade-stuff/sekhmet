@@ -18,11 +18,7 @@ namespace sek::engine
 	{
 		struct plugin_db
 		{
-			static plugin_db &instance()
-			{
-				static plugin_db value;
-				return value;
-			}
+			static plugin_db instance;
 
 			void filter(auto &&f) const
 			{
@@ -34,10 +30,20 @@ namespace sek::engine
 			dense_map<std::string_view, plugin_data *> plugins;
 		};
 
-		static bool check_version(const version &ver) noexcept
+		plugin_db plugin_db::instance;
+
+		static auto format_plugin(const plugin_data *data)
 		{
-			const auto engine_ver = version{SEK_ENGINE_VERSION};
-			return ver.major() == engine_ver.major() && ver.minor() <= engine_ver.minor();
+			return fmt::format("\"{}\" ({})", data->info.id, data->info.plugin_ver.to_string());
+		}
+
+		static bool is_compatible(const version &a, const version &b) noexcept
+		{
+			return a.major() == b.major() && a.minor() <= b.minor();
+		}
+		static bool is_compatible(const version &ver) noexcept
+		{
+			return is_compatible(ver, version{SEK_ENGINE_VERSION});
 		}
 		static bool enable_guarded(plugin_data *data) noexcept
 		{
@@ -45,13 +51,17 @@ namespace sek::engine
 			{
 				return data->enable();
 			}
+			catch (std::runtime_error &e)
+			{
+				logger::error() << fmt::format(ENABLE_FAIL_MSG "got runtime error: \"{}\"", e.what());
+			}
 			catch (std::exception &e)
 			{
-				logger::error() << fmt::format(ENABLE_FAIL_MSG "got exception: \"{}\"", e.what());
+				logger::error() << fmt::format(ENABLE_FAIL_MSG "got exception: \"{}\". This my lead to a crash", e.what());
 			}
 			catch (...)
 			{
-				logger::error() << fmt::format(ENABLE_FAIL_MSG "unknown exception");
+				logger::error() << fmt::format(ENABLE_FAIL_MSG "unknown exception. This my lead to a crash");
 			}
 			return false;
 		}
@@ -61,36 +71,60 @@ namespace sek::engine
 			{
 				data->disable();
 			}
+			catch (std::runtime_error &e)
+			{
+				logger::error() << fmt::format(DISABLE_FAIL_MSG "got runtime error: \"{}\"", e.what());
+			}
 			catch (std::exception &e)
 			{
-				logger::error() << fmt::format(DISABLE_FAIL_MSG "got exception: \"{}\"", e.what());
-				return;
+				logger::error() << fmt::format(DISABLE_FAIL_MSG "got exception: \"{}\". This my lead to a crash", e.what());
 			}
 			catch (...)
 			{
-				logger::error() << fmt::format(DISABLE_FAIL_MSG "unknown exception");
-				return;
+				logger::error() << fmt::format(DISABLE_FAIL_MSG "unknown exception. This my lead to a crash");
 			}
 		}
 
-		void plugin_data::load(plugin_data *data, void (*init)(void *))
+		void plugin_data::load_impl(plugin_data *data, void (*init)(void *))
 		{
-			auto &db = plugin_db::instance();
-			std::lock_guard<std::shared_mutex> l(db.mtx);
+			auto &db = plugin_db::instance;
 
-			if (!check_version(data->info.engine_ver)) [[unlikely]]
-				logger::error() << fmt::format("Ignoring incompatible plugin \"{}\". "
-											   "Plugin engine version: \"{}\", "
+			if (const auto ver = data->info.engine_ver; !is_compatible(ver)) [[unlikely]]
+			{
+				logger::error() << fmt::format("Ignoring incompatible plugin {}. "
+											   "Plugin's engine version: \"{}\", "
 											   "actual engine version: \"{}\"",
-											   data->info.id,
+											   format_plugin(data),
 											   data->info.engine_ver.to_string(),
 											   SEK_ENGINE_VERSION);
+				return;
+			}
 			else if (data->status != plugin_data::INITIAL) [[unlikely]]
-				logger::error() << fmt::format("Ignoring duplicate plugin \"{}\"", data->info.id);
-			else if (auto res = db.plugins.try_emplace(data->info.id, data); res.second) [[likely]]
 			{
-				logger::info() << fmt::format("Loading plugin \"{}\"", data->info.id);
+				logger::error() << fmt::format("Ignoring plugin {} - already loaded", format_plugin(data));
+				return;
+			}
+			else if (auto res = db.plugins.try_emplace(data->info.id, data); !res.second) [[unlikely]]
+			{
+				if (auto res_ver = res.first->second->info.plugin_ver; is_compatible(res_ver, ver))
+				{
+					logger::warn() << fmt::format("Ignoring plugin {} - lesser version", format_plugin(data));
+					return;
+				}
+				else /* Replace existing plugin. */
+				{
+					logger::info() << fmt::format("Replacing plugin {} with "
+												  "greater version number ({}) ",
+												  format_plugin(data),
+												  ver.to_string());
 
+					disable_guarded(res.first->second);
+					unload_impl(res.first->second);
+				}
+			}
+			else
+			{
+				logger::info() << fmt::format("Loading plugin {}", format_plugin(data));
 				try
 				{
 					init(data);
@@ -107,22 +141,19 @@ namespace sek::engine
 				}
 				db.plugins.erase(res.first);
 			}
-			else
-				logger::warn() << fmt::format("Ignoring duplicate plugin \"{}\"", data->info.id);
 		}
-		void plugin_data::unload(plugin_data *data)
+		void plugin_data::unload_impl(plugin_data *data)
 		{
-			auto &db = plugin_db::instance();
-			std::lock_guard<std::shared_mutex> l(db.mtx);
+			auto &db = plugin_db::instance;
 
 			const auto old_status = std::exchange(data->status, plugin_data::INITIAL);
 			if (old_status == plugin_data::INITIAL) [[unlikely]]
 				return;
 
-			logger::info() << fmt::format("Unloading plugin \"{}\"", data->info.id);
+			logger::info() << fmt::format("Unloading plugin {}", format_plugin(data));
 			if (old_status == plugin_data::ENABLED) [[unlikely]]
 			{
-				logger::warn() << fmt::format("Disabling plugin \"{}\" on unload. "
+				logger::warn() << fmt::format("Plugin is still enabled. Disabling on unload. "
 											  "This may lead to unexpected errors",
 											  data->info.id);
 				disable_guarded(data);
@@ -130,18 +161,28 @@ namespace sek::engine
 
 			db.plugins.erase(data->info.id);
 		}
+		void plugin_data::load(plugin_data *data, void (*init)(void *))
+		{
+			std::lock_guard<std::shared_mutex> l(plugin_db::instance.mtx);
+			load_impl(data, init);
+		}
+		void plugin_data::unload(plugin_data *data)
+		{
+			std::lock_guard<std::shared_mutex> l(plugin_db::instance.mtx);
+			unload_impl(data);
+		}
 	}	 // namespace detail
 
 	std::vector<plugin> plugin::get_loaded()
 	{
 		std::vector<plugin> result;
-		detail::plugin_db::instance().filter([&result](auto *ptr) { result.push_back(plugin{ptr}); });
+		detail::plugin_db::instance.filter([&result](auto *ptr) { result.push_back(plugin{ptr}); });
 		return result;
 	}
 	std::vector<plugin> plugin::get_enabled()
 	{
 		std::vector<plugin> result;
-		detail::plugin_db::instance().filter(
+		detail::plugin_db::instance.filter(
 			[&result](auto *ptr)
 			{
 				if (ptr->status == detail::plugin_data::ENABLED) result.push_back(plugin{ptr});
@@ -150,7 +191,7 @@ namespace sek::engine
 	}
 	plugin plugin::get(std::string_view id)
 	{
-		auto &db = detail::plugin_db::instance();
+		auto &db = detail::plugin_db::instance;
 		std::shared_lock<std::shared_mutex> l(db.mtx);
 
 		if (auto pos = db.plugins.find(id); pos != db.plugins.end()) [[likely]]
@@ -160,14 +201,14 @@ namespace sek::engine
 
 	bool plugin::enabled() const noexcept
 	{
-		std::shared_lock<std::shared_mutex> l(detail::plugin_db::instance().mtx);
+		std::shared_lock<std::shared_mutex> l(detail::plugin_db::instance.mtx);
 		return m_data->status == detail::plugin_data::ENABLED;
 	}
 	bool plugin::enable() const noexcept
 	{
-		std::lock_guard<std::shared_mutex> l(detail::plugin_db::instance().mtx);
+		std::lock_guard<std::shared_mutex> l(detail::plugin_db::instance.mtx);
 
-		logger::info() << fmt::format("Enabling plugin \"{}\"", id());
+		logger::info() << fmt::format("Enabling plugin {}", detail::format_plugin(m_data));
 		if (m_data->status != detail::plugin_data::DISABLED) [[unlikely]]
 			logger::error() << fmt::format(ENABLE_FAIL_MSG "already enabled or not loaded");
 		else if (detail::enable_guarded(m_data)) [[likely]]
@@ -179,9 +220,9 @@ namespace sek::engine
 	}
 	bool plugin::disable() const noexcept
 	{
-		std::lock_guard<std::shared_mutex> l(detail::plugin_db::instance().mtx);
+		std::lock_guard<std::shared_mutex> l(detail::plugin_db::instance.mtx);
 
-		logger::info() << fmt::format("Disabling plugin \"{}\"", id());
+		logger::info() << fmt::format("Disabling plugin {}", detail::format_plugin(m_data));
 		if (m_data->status != detail::plugin_data::ENABLED) [[unlikely]]
 			logger::error() << fmt::format(DISABLE_FAIL_MSG "already disabled or not loaded");
 		else

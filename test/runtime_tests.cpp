@@ -41,7 +41,7 @@ SEK_EXPORT_TYPE(test_child)
 
 static bool plugin_enabled = false;
 
-SEK_PLUGIN("test_plugin")
+SEK_PLUGIN("test_plugin", "0.0.0")
 {
 	sek::engine::logger::info() << fmt::format("Initializing plugin \"{}\"", info.id);
 

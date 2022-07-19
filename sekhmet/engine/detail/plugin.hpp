@@ -17,10 +17,15 @@ namespace sek::engine
 	{
 		struct plugin_info
 		{
-			consteval plugin_info(version eng_ver, std::string_view id) noexcept : engine_ver(eng_ver), id(id) {}
+			consteval plugin_info(version engine_ver, version plugin_ver, std::string_view id) noexcept
+				: engine_ver(engine_ver), plugin_ver(plugin_ver), id(id)
+			{
+			}
 
 			/** Version of the engine the plugin was compiled for. */
 			const version engine_ver;
+			/** Version of the plugin. */
+			const version plugin_ver;
 			/** Id of the plugin. */
 			const std::string_view id;
 		};
@@ -34,7 +39,10 @@ namespace sek::engine
 			};
 
 			SEK_API static void load(plugin_data *data, void (*init)(void *));
+			static void load_impl(plugin_data *data, void (*init)(void *));
+
 			SEK_API static void unload(plugin_data *data);
+			static void unload_impl(plugin_data *data);
 
 			explicit plugin_data(plugin_info info) noexcept : info(info) {}
 
@@ -122,8 +130,9 @@ namespace sek::engine
 }	 // namespace sek::engine
 
 /** @brief Macro used to define a plugin.
- * @param id Unique id used to reference the plugin at runtime. */
-#define SEK_PLUGIN(id)                                                                                                 \
+ * @param id Unique id used to reference the plugin at runtime.
+ * @param ver Version of the plugin in the following format: `"[major].[minor].[patch]"`. */
+#define SEK_PLUGIN(id, ver)                                                                                            \
 	namespace                                                                                                          \
 	{                                                                                                                  \
 		static_assert(SEK_ARRAY_SIZE(id), "Plugin id must not be empty");                                              \
@@ -133,7 +142,7 @@ namespace sek::engine
 		template<>                                                                                                     \
 		struct plugin_instance<(id)> : sek::engine::detail::basic_plugin<plugin_instance<(id)>>                        \
 		{                                                                                                              \
-			plugin_instance() : basic_plugin({sek::version{SEK_ENGINE_VERSION}, (id)})                                 \
+			plugin_instance() : basic_plugin({sek::version{SEK_ENGINE_VERSION}, sek::version{ver}, (id)})              \
 			{                                                                                                          \
 			}                                                                                                          \
 			void init();                                                                                               \
