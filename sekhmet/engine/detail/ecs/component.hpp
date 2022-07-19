@@ -249,9 +249,6 @@ namespace sek::engine
 
 			[[nodiscard]] constexpr T *const *data() const noexcept { return nullptr; }
 
-			constexpr void component_ref(std::size_t) const noexcept {}
-			constexpr void component_ptr(std::size_t) const noexcept {}
-
 			constexpr void swap(component_pool_impl &other) { base_set::swap(other); }
 		};
 	}	 // namespace detail
@@ -390,9 +387,17 @@ namespace sek::engine
 
 			/** Returns reference to the component at index `n` from the iterator.
 			 * Equivalent to `*(*this + n)`. */
-			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return *(*this + n); }
+			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept
+				requires(!std::is_empty_v<T>)
+			{
+				return *(*this + n);
+			}
 			/** Returns reference to the target component. */
-			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
+			[[nodiscard]] constexpr reference operator*() const noexcept
+				requires(!std::is_empty_v<T>)
+			{
+				return *get();
+			}
 
 			[[nodiscard]] constexpr auto operator<=>(const pool_iterator &other) const noexcept
 			{
@@ -439,6 +444,14 @@ namespace sek::engine
 		constexpr explicit basic_component_pool(const allocator_type &alloc) : base_t(alloc) {}
 		/** Initializes component pool using the provided allocator & reserves n elements. */
 		constexpr basic_component_pool(size_type n, const allocator_type &alloc = {}) : base_t(n, alloc) {}
+
+		/** Initializes a component pool from an initializer list of entities (components are default-initialized). */
+		constexpr basic_component_pool(std::initializer_list<entity_t> init_list, const allocator_type &alloc = {})
+			: base_t(init_list.size(), alloc)
+		{
+			for (auto e : init_list) emplace(e);
+		}
+
 		/** Moves component pool using the provided allocator. */
 		constexpr basic_component_pool(basic_component_pool &&other, const allocator_type &alloc)
 			: base_t(std::move(other), alloc)
@@ -493,14 +506,54 @@ namespace sek::engine
 			return to_iterator(base_set::find(e).offset());
 		}
 
+		/** Returns component of the specified entity. */
+		[[nodiscard]] constexpr reference at(entity_t e) noexcept
+			requires(!std::is_empty_v<T>)
+		{
+			return *find(e);
+		}
+		/** @copydoc at */
+		[[nodiscard]] constexpr const_reference at(entity_t e) const noexcept
+			requires(!std::is_empty_v<T>)
+		{
+			return *find(e);
+		}
+		/** @copydoc at */
+		[[nodiscard]] constexpr reference operator[](entity_t e) noexcept
+			requires(!std::is_empty_v<T>)
+		{
+			return at(e);
+		}
+		/** @copydoc at */
+		[[nodiscard]] constexpr const_reference operator[](entity_t e) const noexcept
+			requires(!std::is_empty_v<T>)
+		{
+			return at(e);
+		}
 		/** Returns component located at offset `i`. */
-		[[nodiscard]] constexpr decltype(auto) at(size_type i) noexcept { return base_t::component_ref(i); }
+		[[nodiscard]] constexpr reference at(size_type i) noexcept
+			requires(!std::is_empty_v<T>)
+		{
+			return base_t::component_ref(i);
+		}
 		/** @copydoc at */
-		[[nodiscard]] constexpr decltype(auto) at(size_type i) const noexcept { return base_t::component_ref(i); }
+		[[nodiscard]] constexpr const_reference at(size_type i) const noexcept
+			requires(!std::is_empty_v<T>)
+		{
+			return base_t::component_ref(i);
+		}
 		/** @copydoc at */
-		[[nodiscard]] constexpr decltype(auto) operator[](size_type i) noexcept { return at(i); }
+		[[nodiscard]] constexpr reference operator[](size_type i) noexcept
+			requires(!std::is_empty_v<T>)
+		{
+			return at(i);
+		}
 		/** @copydoc at */
-		[[nodiscard]] constexpr decltype(auto) operator[](size_type i) const noexcept { return at(i); }
+		[[nodiscard]] constexpr const_reference operator[](size_type i) const noexcept
+			requires(!std::is_empty_v<T>)
+		{
+			return at(i);
+		}
 
 		/** Reserves space for `n` components. */
 		void reserve(size_type n) final
@@ -893,6 +946,8 @@ namespace sek::engine
 		std::tuple<const Ts *...> m_ptr;
 	};
 
+	template<typename S, typename... Ts>
+	component_set(const S &, std::tuple<const Ts *...>) -> component_set<S, Ts...>;
 	template<typename S, typename... Ts>
 	component_set(const S &, const Ts *...) -> component_set<S, Ts...>;
 	template<typename S, typename... Ts>

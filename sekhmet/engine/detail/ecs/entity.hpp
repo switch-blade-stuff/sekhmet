@@ -132,7 +132,10 @@ namespace sek::engine
 		value_type m_value = 0;
 	};
 
-	constexpr entity_t entity_t::tombstone() noexcept { return {generation_type::tombstone(), index_type::tombstone()}; }
+	constexpr entity_t entity_t::tombstone() noexcept
+	{
+		return {generation_type::tombstone(), index_type::tombstone()};
+	}
 
 	[[nodiscard]] constexpr hash_t hash(entity_t e) noexcept { return e.value(); }
 
@@ -543,6 +546,24 @@ namespace sek::engine
 		constexpr explicit basic_entity_set(const allocator_type &alloc) : base_t(alloc) {}
 		/** Initializes an entity set from an allocator and reserves n elements. */
 		constexpr basic_entity_set(size_type n, const allocator_type &alloc = {}) : base_t(n, alloc) {}
+
+		template<std::forward_iterator I, std::sentinel_for<I> S>
+		constexpr basic_entity_set(I first, S last, const allocator_type &alloc = {}) : basic_entity_set(alloc)
+		{
+			insert(first, last);
+		}
+		template<std::random_access_iterator I, std::sentinel_for<I> S>
+		constexpr basic_entity_set(I first, S last, const allocator_type &alloc = {})
+			: basic_entity_set(static_cast<size_type>(std::distance(first, last)), alloc)
+		{
+			insert(first, last);
+		}
+		constexpr basic_entity_set(std::initializer_list<entity_t> init_list, const allocator_type &alloc = {})
+			: basic_entity_set(init_list.size(), alloc)
+		{
+			insert(init_list.begin(), init_list.end());
+		}
+
 		/** Copy-constructs an entity set using the provided allocator. */
 		constexpr basic_entity_set(const basic_entity_set &other, const allocator_type &alloc) : base_t(other, alloc) {}
 		/** Move-constructs an entity set using the provided allocator. */
