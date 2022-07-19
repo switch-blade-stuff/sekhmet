@@ -122,7 +122,7 @@ namespace sek::engine
 }	 // namespace sek::engine
 
 /** @brief Macro used to define a plugin.
- * @param id Unique id for the plugin used to reference the plugin at runtime. */
+ * @param id Unique id used to reference the plugin at runtime. */
 #define SEK_PLUGIN(id)                                                                                                 \
 	namespace                                                                                                          \
 	{                                                                                                                  \

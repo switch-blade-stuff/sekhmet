@@ -71,14 +71,10 @@ namespace sek::engine
 
 		using storage_table = dense_map<type_info, storage_ptr, table_hash, table_cmp>;
 
-	public:
-		typedef entity_t value_type;
-		typedef std::size_t size_type;
-		typedef std::ptrdiff_t difference_type;
-
-	private:
 		class entity_iterator
 		{
+			friend class entity_world;
+
 		public:
 			typedef entity_t value_type;
 			typedef const entity_t *pointer;
@@ -140,8 +136,38 @@ namespace sek::engine
 		};
 
 	public:
+		typedef entity_t value_type;
+		typedef const entity_t *pointer;
+		typedef const entity_t *const_pointer;
+		typedef const entity_t &reference;
+		typedef const entity_t &const_reference;
+		typedef entity_iterator iterator;
+		typedef entity_iterator const_iterator;
+		typedef std::reverse_iterator<iterator> reverse_iterator;
+		typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+		typedef std::size_t size_type;
+		typedef std::ptrdiff_t difference_type;
+
+	public:
 		constexpr entity_world() = default;
 		constexpr ~entity_world() = default;
+
+		/** Returns iterator to the first entity in the world. */
+		[[nodiscard]] constexpr auto begin() const noexcept { return iterator{m_entities.data()}; }
+		/** @copydoc begin */
+		[[nodiscard]] constexpr auto cbegin() const noexcept { return const_iterator{m_entities.data()}; }
+		/** Returns iterator one past the last entity in the world. */
+		[[nodiscard]] constexpr auto end() const noexcept { return iterator{m_entities.data() + size()}; }
+		/** @copydoc end */
+		[[nodiscard]] constexpr auto cend() const noexcept { return const_iterator{m_entities.data() + size()}; }
+		/** Returns reverse iterator to the last entity in the world. */
+		[[nodiscard]] constexpr auto rbegin() const noexcept { return reverse_iterator{end()}; }
+		/** @copydoc rbegin */
+		[[nodiscard]] constexpr auto crbegin() const noexcept { return const_reverse_iterator{cend()}; }
+		/** Returns reverse iterator one past the first entity in the world. */
+		[[nodiscard]] constexpr auto rend() const noexcept { return reverse_iterator{begin()}; }
+		/** @copydoc rend */
+		[[nodiscard]] constexpr auto crend() const noexcept { return const_reverse_iterator{cbegin()}; }
 
 		/** Returns the size of the world (amount of alive entities). */
 		[[nodiscard]] constexpr size_type size() const noexcept { return m_size; }
@@ -171,11 +197,23 @@ namespace sek::engine
 			else
 				return contains_all<T>(e) && (contains_all<Ts>(e) && ...);
 		}
+		/** Checks if the entity contains all of the specified components. */
+		template<typename T, typename... Ts>
+		[[nodiscard]] constexpr bool contains_all(const_iterator which) const noexcept
+		{
+			return contains_all<T, Ts...>(*which);
+		}
 		/** Checks if the world contains an entity with any of the specified components. */
-		template<typename... Ts>
+		template<typename T, typename... Ts>
 		[[nodiscard]] constexpr bool contains_any(entity_t e) const noexcept
 		{
-			return (contains_all<Ts>(e) || ...);
+			return contains_all<T>(e) || (contains_all<Ts>(e) || ...);
+		}
+		/** Checks if the entity contains any of the specified components. */
+		template<typename T, typename... Ts>
+		[[nodiscard]] constexpr bool contains_any(const_iterator which) const noexcept
+		{
+			return contains_any<T, Ts...>(*which);
 		}
 		/** Checks if the world contains an entity with none of the specified components. */
 		template<typename T, typename... Ts>
@@ -188,6 +226,12 @@ namespace sek::engine
 			}
 			else
 				return contains_none<T>(e) && (contains_none<Ts>(e) && ...);
+		}
+		/** Checks if the entity contains none of the specified components. */
+		template<typename T, typename... Ts>
+		[[nodiscard]] constexpr bool contains_none(const_iterator which) const noexcept
+		{
+			return contains_none<T, Ts...>(*which);
 		}
 
 		/** Generates a new entity.

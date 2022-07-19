@@ -4,10 +4,9 @@
 
 #include "type_info.hpp"
 
-#include "sekhmet/detail/dense_map.hpp"
-
 #include <fmt/format.h>
-#include <shared_mutex>
+
+template class SEK_API_EXPORT sek::service<sek::shared_guard<sek::engine::type_database>>;
 
 namespace sek::engine
 {
@@ -20,45 +19,23 @@ namespace sek::engine
 		}
 	}	 // namespace detail
 
-	struct type_db
-	{
-		static type_db &instance()
-		{
-			static type_db value;
-			return value;
-		}
-
-		mutable std::shared_mutex mtx;
-		dense_map<std::string_view, detail::type_handle> types;
-	};
-
 	type_info_error::~type_info_error() = default;
 	any_type_error::~any_type_error() = default;
 	any_const_error::~any_const_error() = default;
 	invalid_member_error::~invalid_member_error() = default;
 
-	type_info::data_t &type_info::register_type(handle_t handle) noexcept
+	detail::type_data &type_database::reflect_impl(detail::type_handle handle)
 	{
-		auto &db = type_db::instance();
-		std::lock_guard<std::shared_mutex> l(db.mtx);
-		return *db.types.try_emplace(handle->name, handle).first->second;
+		return *m_types.try_emplace(handle->name, handle).first->second;
 	}
-	type_info type_info::get(std::string_view name) noexcept
+	type_info type_database::get(std::string_view name) const
 	{
-		auto &db = type_db::instance();
-		std::shared_lock<std::shared_mutex> l(db.mtx);
-
-		if (auto handle_iter = db.types.find(name); handle_iter != db.types.end()) [[likely]]
+		if (auto handle_iter = m_types.find(name); handle_iter != m_types.end()) [[likely]]
 			return type_info{handle_iter->second};
 		else
 			return type_info{};
 	}
-	void type_info::reset(std::string_view name) noexcept
-	{
-		auto &db = type_db::instance();
-		std::lock_guard<std::shared_mutex> l(db.mtx);
-		db.types.erase(name);
-	}
+	void type_database::reset(std::string_view name) { m_types.erase(name); }
 
 	static std::string args_type_msg(auto begin, auto end, auto &&name_get)
 	{

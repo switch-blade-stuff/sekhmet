@@ -19,7 +19,7 @@
 #include "logger.hpp"
 #include "zstd_ctx.hpp"
 
-template class SEK_API_EXPORT sek::service<sek::engine::detail::database_guard>;
+template class SEK_API_EXPORT sek::service<sek::shared_guard<sek::engine::asset_database>>;
 
 namespace sek::engine
 {

@@ -473,8 +473,6 @@ namespace sek::engine
 
 			package_info *pkg = nullptr;
 		};
-
-		using database_guard = access_guard<asset_database, std::shared_mutex>;
 	}	 // namespace detail
 
 	/** @brief Structure used to reference an asset.
@@ -797,12 +795,12 @@ namespace sek::engine
 	class package_proxy;
 
 	/** @brief Service used to manage global database of assets and asset packages. */
-	class asset_database : public service<detail::database_guard>
+	class asset_database : public service<shared_guard<asset_database>>
 	{
 		template<bool>
 		friend class package_proxy;
 
-		friend detail::database_guard;
+		friend shared_guard<asset_database>;
 
 	protected:
 		using packages_t = std::vector<asset_package>;
@@ -1053,4 +1051,4 @@ namespace sek::engine
 	constexpr auto asset_database::packages() const noexcept { return package_proxy<false>{*this}; }
 }	 // namespace sek::engine
 
-extern template class SEK_API_IMPORT sek::service<sek::engine::detail::database_guard>;
+extern template class SEK_API_IMPORT sek::service<sek::shared_guard<sek::engine::asset_database>>;

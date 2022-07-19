@@ -9,7 +9,7 @@
 
 #include <fmt/format.h>
 
-template class SEK_API_EXPORT sek::service<sek::engine::detail::config_guard>;
+template class SEK_API_EXPORT sek::service<sek::shared_guard<sek::engine::config_registry>>;
 
 namespace sek::engine
 {

@@ -9,11 +9,15 @@
 #include <stdexcept>
 #include <utility>
 
+#include "sekhmet/detail/access_guard.hpp"
 #include "sekhmet/detail/aligned_storage.hpp"
 #include "sekhmet/detail/assert.hpp"
+#include "sekhmet/detail/dense_map.hpp"
 #include "sekhmet/detail/meta_util.hpp"
+#include "sekhmet/detail/service.hpp"
 
 #include "type_name.hpp"
+#include <shared_mutex>
 
 namespace sek::engine
 {
@@ -391,26 +395,24 @@ namespace sek::engine
 
 	/** @brief Structure used to represent a signature of a constructor or a function. */
 	class signature_info;
-
 	/** @brief Structure used to represent information about a constructor of a reflected type. */
 	class constructor_info;
-
 	/** @brief Structure used to represent information about a function of a reflected type. */
 	class function_info;
-
 	/** @brief Structure used to represent information about an attribute of a reflected type. */
 	class attribute_info;
-
 	/** @brief Structure used to represent information about a parent-child relationship between reflected types. */
 	class parent_info;
-
 	/** @brief Structure used to represent information about a conversion cast of a reflected type. */
 	class conversion_info;
 
+	/** @brief Service used to store a database of reflected type information. */
+	class type_database;
 	/** @brief Structure used to reference reflected information about a type. */
 	class type_info
 	{
 		friend struct detail::type_handle;
+		friend class type_database;
 		friend class any;
 
 		using data_t = detail::type_data;
@@ -424,13 +426,13 @@ namespace sek::engine
 			return handle_t{type_selector<std::remove_cvref_t<T>>};
 		}
 
-		SEK_API static data_t &register_type(handle_t handle) noexcept;
-
 	public:
 		template<typename T, typename... Attr>
 		class type_factory
 		{
-			friend class type_info;
+			template<typename, typename...>
+			friend class type_factory;
+			friend class type_database;
 
 			constexpr explicit type_factory(data_t &data) noexcept : m_data(data) {}
 
@@ -526,27 +528,24 @@ namespace sek::engine
 		/** Returns type info for type `T`.
 		 * @note Removes any const & volatile qualifiers and decays references. */
 		template<typename T>
-		[[nodiscard]] constexpr static type_info get() noexcept
+		[[nodiscard]] constexpr static type_info get()
 		{
 			return type_info{get_handle<T>()};
 		}
 
-		/** Reflects type `T`, making it available for runtime lookup by-name.
+		/** Searches for a reflected type in the type database.
+		 * @return Type info of the type, or an invalid type info if such type is not found. */
+		[[nodiscard]] inline static type_info get(std::string_view name);
+
+		/** Reflects type `T`, making it available for runtime lookup by name.
 		 * @return Type factory for type `T`, which can be used to specify additional information about the type.
 		 * @note Removes any const & volatile qualifiers and decays references. */
 		template<typename T>
-		constexpr static type_factory<T> reflect() noexcept
-		{
-			return type_factory<T>{register_type(get_handle<T>())};
-		}
-		/** Searches for a reflected type in internal database.
-		 * @return Type info of the type, or an invalid type info if such type is not found. */
-		SEK_API static type_info get(std::string_view name) noexcept;
-		/** Resets a reflected type, removing it from internal database.
+		inline static type_factory<T> reflect();
+		/** Resets a reflected type, removing it from the type database.
 		 * @note The type will no longer be available for runtime lookup. */
-		SEK_API static void reset(std::string_view name) noexcept;
-		/** @copydoc reset
-		 * @note Removes any const & volatile qualifiers and decays references. */
+		inline static void reset(std::string_view name);
+		/** @copydoc reset */
 		template<typename T>
 		static void reset() noexcept
 		{
@@ -712,6 +711,47 @@ namespace sek::engine
 	private:
 		const data_t *m_data = nullptr;
 	};
+
+	class type_database : public service<shared_guard<type_database>>
+	{
+		friend shared_guard<type_database>;
+
+	public:
+		/** Searches for a reflected type in the database.
+		 * @return Type info of the type, or an invalid type info if such type is not found. */
+		[[nodiscard]] SEK_API type_info get(std::string_view name) const;
+
+		/** Reflects type `T`, making it available for runtime lookup by name.
+		 * @return Type factory for type `T`, which can be used to specify additional information about the type.
+		 * @note Removes any const & volatile qualifiers and decays references. */
+		template<typename T>
+		constexpr type_info::type_factory<T> reflect()
+		{
+			return type_info::type_factory<T>{reflect_impl(type_info::get_handle<T>())};
+		}
+		/** Resets a reflected type, removing it from the database.
+		 * @note The type will no longer be available for runtime lookup. */
+		SEK_API void reset(std::string_view name);
+		/** @copydoc reset */
+		template<typename T>
+		void reset()
+		{
+			reset(type_name<T>());
+		}
+
+	private:
+		SEK_API detail::type_data &reflect_impl(detail::type_handle handle);
+
+		dense_map<std::string_view, detail::type_handle> m_types;
+	};
+
+	template<typename T>
+	type_info::type_factory<T> type_info::reflect()
+	{
+		return type_database::instance()->access_unique()->template reflect<T>();
+	}
+	type_info type_info::get(std::string_view name) { return type_database::instance()->access_shared()->get(name); }
+	void type_info::reset(std::string_view name) { return type_database::instance()->access_unique()->reset(name); }
 
 	template<typename T>
 	type_info::data_t *type_info::get_data() noexcept
@@ -2091,6 +2131,8 @@ namespace sek::engine
 	}	 // namespace literals
 }	 // namespace sek::engine
 
+extern template class SEK_API_IMPORT sek::service<sek::shared_guard<sek::engine::type_database>>;
+
 /** Macro used to declare an instance of type info for type `T` as extern.
  *
  * @note Type must be exported via `SEK_EXPORT_TYPE`.
@@ -2104,7 +2146,8 @@ namespace sek::engine
  * // my_type.cpp
  * SEK_EXPORT_TYPE(my_type)
  * @endcode*/
-#define SEK_EXTERN_TYPE(T) extern template SEK_API_IMPORT sek::engine::type_info::data_t *sek::engine::type_info::get_data<T>();
+#define SEK_EXTERN_TYPE(T)                                                                                             \
+	extern template SEK_API_IMPORT sek::engine::type_info::data_t *sek::engine::type_info::get_data<T>();
 
 /** Macro used to export instance of type info for type `T`.
  *
@@ -2119,4 +2162,5 @@ namespace sek::engine
  * // my_type.cpp
  * SEK_EXPORT_TYPE(my_type)
  * @endcode */
-#define SEK_EXPORT_TYPE(T) template SEK_API_EXPORT sek::engine::type_info::data_t *sek::engine::type_info::get_data<T>();
+#define SEK_EXPORT_TYPE(T)                                                                                             \
+	template SEK_API_EXPORT sek::engine::type_info::data_t *sek::engine::type_info::get_data<T>();

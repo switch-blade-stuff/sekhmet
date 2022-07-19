@@ -197,4 +197,8 @@ namespace sek
 		value_type m_value = {};
 		mutex_type m_mtx = {};
 	};
+
+	/** @brief Type alias used to define an `access_guard` that uses `std::shared_mutex`. */
+	template<typename T>
+	using shared_guard = access_guard<T, std::shared_mutex>;
 }	 // namespace sek

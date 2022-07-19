@@ -20,13 +20,6 @@ namespace sek::engine
 {
 	class config_registry;
 
-	namespace detail
-	{
-		using namespace sek::detail;
-
-		using config_guard = access_guard<config_registry, std::shared_mutex>;
-	}	 // namespace detail
-
 	/** @brief Runtime exception thrown by the config registry. */
 	class SEK_API config_error : public std::runtime_error
 	{
@@ -269,10 +262,10 @@ namespace sek::engine
 	 * Every entry belongs to a category, and is created at plugin initialization time.
 	 * Categories are de-serialized from individual Json files or loaded directly from Json node trees.
 	 * When a new entry is added, it is de-serialized from the cached category tree. */
-	class config_registry : public service<detail::config_guard>
+	class config_registry : public service<shared_guard<config_registry>>
 	{
 		friend attributes::config_type;
-		friend detail::config_guard;
+		friend shared_guard<config_registry>;
 
 		struct entry_node;
 
@@ -661,7 +654,7 @@ namespace sek::engine
 		void erase_impl(typename entry_set::const_iterator where);
 		void clear_impl();
 
-		detail::basic_pool<entry_node> m_node_pool; /* Pool used to allocate entry nodes. */
+		sek::detail::basic_pool<entry_node> m_node_pool; /* Pool used to allocate entry nodes. */
 
 		entry_set m_categories; /* Categories of the registry. */
 		entry_set m_entries;	/* Entry nodes of the registry. */
@@ -731,4 +724,4 @@ namespace sek::engine
 	}	 // namespace attributes
 }	 // namespace sek::engine
 
-extern template class SEK_API_IMPORT sek::service<sek::engine::detail::config_guard>;
+extern template class SEK_API_IMPORT sek::service<sek::shared_guard<sek::engine::config_registry>>;
