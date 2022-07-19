@@ -104,31 +104,37 @@ namespace sek::engine
 				logger::error() << fmt::format("Ignoring plugin {} - already loaded", format_plugin(data));
 				return;
 			}
-			else if (auto res = db.plugins.try_emplace(data->info.id, data); !res.second) [[unlikely]]
-			{
-				if (auto res_ver = res.first->second->info.plugin_ver; is_compatible(res_ver, ver))
-				{
-					logger::warn() << fmt::format("Ignoring plugin {} - lesser version", format_plugin(data));
-					return;
-				}
-				else /* Replace existing plugin. */
-				{
-					logger::info() << fmt::format("Replacing plugin {} with "
-												  "greater version number ({}) ",
-												  format_plugin(data),
-												  ver.to_string());
-
-					disable_guarded(res.first->second);
-					unload_impl(res.first->second);
-				}
-			}
 			else
 			{
+				bool auto_enable = false;
+				const auto existing = db.plugins.try_emplace(data->info.id, data);
+				if (!existing.second) [[unlikely]]
+				{
+					if (auto existing_ver = existing.first->second->info.plugin_ver; is_compatible(existing_ver, ver))
+					{
+						logger::warn() << fmt::format("Ignoring plugin {} - lesser version", format_plugin(data));
+						return;
+					}
+					else /* Replace existing plugin. */
+					{
+						logger::info() << fmt::format("Replacing plugin {} with "
+													  "greater version number ({}) ",
+													  format_plugin(data),
+													  ver.to_string());
+
+						if ((auto_enable = existing.first->second->status == plugin_data::ENABLED))
+							disable_guarded(existing.first->second);
+						unload_impl(existing.first->second);
+					}
+				}
+
 				logger::info() << fmt::format("Loading plugin {}", format_plugin(data));
 				try
 				{
 					init(data);
 					data->status = plugin_data::DISABLED;
+					if (auto_enable && !enable_guarded(data)) [[unlikely]]
+						logger::warn() << fmt::format("Failed to enable replacement plugin");
 					return;
 				}
 				catch (std::exception &e)
@@ -139,7 +145,7 @@ namespace sek::engine
 				{
 					logger::error() << fmt::format("Failed to load plugin - unknown init exception");
 				}
-				db.plugins.erase(res.first);
+				db.plugins.erase(existing.first);
 			}
 		}
 		void plugin_data::unload_impl(plugin_data *data)
