@@ -91,56 +91,84 @@ namespace sek::engine
 
 		/** @copydoc base_pool::replace */
 		template<typename... Args>
-		iterator replace(entity_t e, Args &&...args)
+		decltype(auto) replace(entity_t e, Args &&...args)
 			requires std::constructible_from<T, Args...>
 		{
-			const auto result = base_pool::replace(e, std::forward<Args>(args)...);
-			dispatch_replace(e);
-			return result;
+			if constexpr (std::is_empty_v<T>)
+			{
+				base_pool::replace(e, std::forward<Args>(args)...);
+				dispatch_replace(e);
+			}
+			else
+			{
+				auto &result = base_pool::replace(e, std::forward<Args>(args)...);
+				dispatch_replace(e);
+				return result;
+			}
 		}
-
 		/** @copydoc base_pool::emplace */
 		template<typename... Args>
-		iterator emplace(entity_t e, Args &&...args)
+		decltype(auto) emplace(entity_t e, Args &&...args)
 			requires std::constructible_from<T, Args...>
 		{
-			const auto result = base_pool::emplace(e, std::forward<Args>(args)...);
-			dispatch_create(e);
-			return result;
-		}
-		/** @copydoc base_pool::emplace_or_replace */
-		template<typename... Args>
-		std::pair<iterator, bool> emplace_or_replace(entity_t e, Args &&...args)
-			requires std::constructible_from<T, Args...>
-		{
-			const auto result = base_pool::emplace_or_replace(e, std::forward<Args>(args)...);
-			if (result.second)
+			if constexpr (std::is_empty_v<T>)
+			{
+				base_pool::emplace(e, std::forward<Args>(args)...);
 				dispatch_create(e);
+			}
 			else
-				dispatch_replace(e);
-			return result;
+			{
+				auto &result = base_pool::emplace(e, std::forward<Args>(args)...);
+				dispatch_create(e);
+				return result;
+			}
 		}
-
 		/** @copydoc base_pool::emplace_back */
 		template<typename... Args>
-		iterator emplace_back(entity_t e, Args &&...args)
+		decltype(auto) emplace_back(entity_t e, Args &&...args)
 			requires std::constructible_from<T, Args...>
 		{
-			const auto result = base_pool::emplace_back(e, std::forward<Args>(args)...);
-			dispatch_create(e);
-			return result;
-		}
-		/** @copydoc base_pool::emplace_back_or_replace */
-		template<typename... Args>
-		std::pair<iterator, bool> emplace_back_or_replace(entity_t e, Args &&...args)
-			requires std::constructible_from<T, Args...>
-		{
-			const auto result = base_pool::emplace_back_or_replace(e, std::forward<Args>(args)...);
-			if (result.second)
+			if constexpr (std::is_empty_v<T>)
+			{
+				base_pool::emplace_back(e, std::forward<Args>(args)...);
 				dispatch_create(e);
+			}
 			else
-				dispatch_replace(e);
-			return result;
+			{
+				auto &result = base_pool::emplace_back(e, std::forward<Args>(args)...);
+				dispatch_create(e);
+				return result;
+			}
+		}
+		/** Emplaces or modifies a component for the specified entity (re-using slots if
+		 * component type requires fixed storage) and returns an iterator to it.
+		 *
+		 * @param e Entity to emplace component for.
+		 * @param args Arguments passed to component's constructor.
+		 * @return Reference to the component (or `void`, if component is empty). */
+		template<typename... Args>
+		decltype(auto) emplace_or_replace(entity_t e, Args &&...args)
+			requires std::constructible_from<T, Args...>
+		{
+			if (!base_pool::contains(e))
+				return emplace(e, std::forward<Args>(args)...);
+			else
+				return replace(e, std::forward<Args>(args)...);
+		}
+		/** Emplaces or modifies a component for the specified entity (always at the end)
+		 * and returns an iterator to it.
+		 *
+		 * @param e Entity to emplace component for.
+		 * @param args Arguments passed to component's constructor.
+		 * @return Reference to the component (or `void`, if component is empty). */
+		template<typename... Args>
+		decltype(auto) emplace_back_or_replace(entity_t e, Args &&...args)
+			requires std::constructible_from<T, Args...>
+		{
+			if (!base_pool::contains(e))
+				return emplace_back(e, std::forward<Args>(args)...);
+			else
+				return replace(e, std::forward<Args>(args)...);
 		}
 
 		/** @copydoc base_pool::insert */
@@ -177,7 +205,6 @@ namespace sek::engine
 				dispatch_replace(e);
 			return result;
 		}
-
 		/** @copydoc base_pool::push_back */
 		iterator push_back(entity_t e, component_type &&value)
 		{

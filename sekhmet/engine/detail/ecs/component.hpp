@@ -83,6 +83,14 @@ namespace sek::engine
 			}
 
 			template<typename... Args>
+			set_iterator replace_impl(entity_t e, Args &&...args)
+			{
+				const auto target = base_set::find(e);
+				SEK_ASSERT(target != base_set::end());
+				component_ref(target.offset()) = T{std::forward<Args>(args)...};
+				return target;
+			}
+			template<typename... Args>
 			set_iterator emplace_impl(entity_t e, Args &&...args)
 			{
 				const auto pos = base_set::insert(e);
@@ -98,7 +106,7 @@ namespace sek::engine
 				return pos;
 			}
 			template<typename... Args>
-			set_iterator push_impl(entity_t e, Args &&...args)
+			set_iterator emplace_back_impl(entity_t e, Args &&...args)
 			{
 				const auto pos = base_set::push_back(e);
 				try
@@ -134,7 +142,6 @@ namespace sek::engine
 			}
 
 			[[nodiscard]] constexpr T *const *data() const noexcept { return m_pages.data(); }
-
 			[[nodiscard]] constexpr T *component_ptr(std::size_t i) const noexcept
 			{
 				const auto idx = page_idx(i);
@@ -175,7 +182,7 @@ namespace sek::engine
 				if constexpr (!std::is_default_constructible_v<T>)
 					return base_set::end();
 				else
-					return push_impl(e);
+					return emplace_back_impl(e);
 			}
 
 			void dense_move(std::size_t from, std::size_t to) final
@@ -229,12 +236,17 @@ namespace sek::engine
 			constexpr void purge_impl() {}
 
 			template<typename... Args>
+			set_iterator replace_impl(entity_t e, Args &&...)
+			{
+				return base_set::find(e);
+			}
+			template<typename... Args>
 			set_iterator emplace_impl(entity_t e, Args &&...)
 			{
 				return base_set::insert(e);
 			}
 			template<typename... Args>
-			set_iterator push_impl(entity_t e, Args &&...)
+			set_iterator emplace_back_impl(entity_t e, Args &&...)
 			{
 				return base_set::push_back(e);
 			}
@@ -242,6 +254,8 @@ namespace sek::engine
 			set_iterator erase_impl(set_iterator where) { return base_set::erase(where); }
 
 			[[nodiscard]] constexpr T *const *data() const noexcept { return nullptr; }
+			[[nodiscard]] constexpr T *component_ptr(std::size_t) const noexcept { return nullptr; }
+			constexpr void component_ref(std::size_t) const noexcept {}
 
 			constexpr void swap(component_pool_impl &other) { base_set::swap(other); }
 		};
@@ -380,16 +394,14 @@ namespace sek::engine
 
 			/** Returns reference to the component at index `n` from the iterator.
 			 * Equivalent to `*(*this + n)`. */
-			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept
-				requires(!std::is_empty_v<T>)
+			[[nodiscard]] constexpr decltype(auto) operator[](difference_type n) const noexcept
 			{
-				return *(*this + n);
+				if constexpr (!std::is_empty_v<T>) return *(*this + n);
 			}
 			/** Returns reference to the target component. */
-			[[nodiscard]] constexpr reference operator*() const noexcept
-				requires(!std::is_empty_v<T>)
+			[[nodiscard]] constexpr decltype(auto) operator*() const noexcept
 			{
-				return *get();
+				if constexpr (!std::is_empty_v<T>) return *get();
 			}
 
 			[[nodiscard]] constexpr auto operator<=>(const pool_iterator &other) const noexcept
@@ -523,6 +535,7 @@ namespace sek::engine
 		{
 			return at(e);
 		}
+
 		/** Returns component located at offset `i`. */
 		[[nodiscard]] constexpr reference at(size_type i) noexcept
 			requires(!std::is_empty_v<T>)
@@ -568,87 +581,45 @@ namespace sek::engine
 		 *
 		 * @param e Entity to emplace component for.
 		 * @param args Arguments passed to component's constructor.
-		 * @return Iterator to the replaced component.
+		 * @return Reference to the replaced component (or `void`, if component is empty).
 		 *
 		 * @warning Using an entity not associated with the pool will result in undefined behavior. */
 		template<typename... Args>
-		iterator replace(entity_t e, Args &&...args)
+		decltype(auto) replace(entity_t e, Args &&...args)
 			requires std::constructible_from<T, Args...>
 		{
-			const auto target = find(e);
-			SEK_ASSERT(target != end());
-			*target = T{std::forward<Args>(args)...};
-			return target;
+			SEK_ASSERT(contains(e));
+			return base_t::component_ref(base_t::replace_impl(e, std::forward<Args>(args)...).offset());
 		}
-
 		/** Constructs a component for the specified entity in-place (re-using slots if
 		 * component type requires fixed storage) and returns an iterator to it.
 		 *
 		 * @param e Entity to emplace component for.
 		 * @param args Arguments passed to component's constructor.
-		 * @return Iterator to the emplaced component.
+		 * @return Reference to the emplaced component (or `void`, if component is empty).
 		 *
 		 * @warning Using an entity already associated with the pool will result in undefined behavior. */
 		template<typename... Args>
-		iterator emplace(entity_t e, Args &&...args)
+		decltype(auto) emplace(entity_t e, Args &&...args)
 			requires std::constructible_from<T, Args...>
 		{
 			SEK_ASSERT(!contains(e));
-			return to_iterator(base_t::emplace_impl(e, std::forward<Args>(args)...).offset());
+			return base_t::component_ref(base_t::emplace_impl(e, std::forward<Args>(args)...).offset());
 		}
-		/** Emplaces or modifies a component for the specified entity (re-using slots if
-		 * component type requires fixed storage) and returns an iterator to it.
-		 *
-		 * @param e Entity to emplace component for.
-		 * @param args Arguments passed to component's constructor.
-		 * @return Pair where first is the iterator to the emplaced component and second is a boolean indicating
-		 * whether the component was emplaced or replaced. */
-		template<typename... Args>
-		std::pair<iterator, bool> emplace_or_replace(entity_t e, Args &&...args)
-			requires std::constructible_from<T, Args...>
-		{
-			if (const auto pos = find(e); pos == end())
-				return {emplace(e, std::forward<Args>(args)...), true};
-			else
-			{
-				*pos = T{std::forward<Args>(args)...};
-				return {pos, false};
-			}
-		}
-
 		/** Constructs a component for the specified entity in-place (always at the end)
 		 * and returns an iterator to it.
 		 *
 		 * @param e Entity to emplace component for.
 		 * @param args Arguments passed to component's constructor.
-		 * @return Iterator to the emplaced component.
+		 * @return Reference to the emplaced component (or `void`, if component is empty).
 		 *
 		 * @warning Using an entity already associated with the pool will result in undefined behavior. */
 		template<typename... Args>
-		iterator emplace_back(entity_t e, Args &&...args)
+		decltype(auto) emplace_back(entity_t e, Args &&...args)
 			requires std::constructible_from<T, Args...>
 		{
 			SEK_ASSERT(!contains(e));
-			return to_iterator(base_t::push_impl(e, std::forward<Args>(args)...).offset());
-		}
-		/** Emplaces or modifies a component for the specified entity (always at the end)
-		 * and returns an iterator to it.
-		 *
-		 * @param e Entity to emplace component for.
-		 * @param args Arguments passed to component's constructor.
-		 * @return Pair where first is the iterator to the emplaced component and second is a boolean indicating
-		 * whether the component was emplaced or replaced. */
-		template<typename... Args>
-		std::pair<iterator, bool> emplace_back_or_replace(entity_t e, Args &&...args)
-			requires std::constructible_from<T, Args...>
-		{
-			if (const auto pos = find(e); pos == end())
-				return {emplace_back(e, std::forward<Args>(args)...), true};
-			else
-			{
-				*pos = T{std::forward<Args>(args)...};
-				return {pos, false};
-			}
+			return base_t::component_ref(base_t::push_impl(e, std::forward<Args>(args)...).offset());
 		}
 
 		/** Inserts a component for the specified entity (re-using slots if component type
@@ -690,7 +661,6 @@ namespace sek::engine
 				return {pos, false};
 			}
 		}
-
 		/** Inserts a component for the specified entity (always at the end) and returns an iterator to it.
 		 *
 		 * @param e Entity to emplace component for.
