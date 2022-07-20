@@ -318,26 +318,27 @@ namespace sek::detail
 	public:
 		constexpr sparse_hash_table() noexcept(nothrow_alloc_default_construct<allocator_type, bucket_allocator_type>) = default;
 
-		constexpr sparse_hash_table(size_type capacity,
-									const key_equal &key_compare,
-									const hash_type &key_hash,
-									const allocator_type &alloc,
-									const bucket_allocator_type &bucket_alloc = {})
-			: value_ebo_base(alloc), bucket_ebo_base(bucket_alloc), compare_ebo_base(key_compare), hash_ebo_base(key_hash)
+		constexpr sparse_hash_table(size_type capacity, const key_equal &key_compare, const hash_type &key_hash, const allocator_type &alloc)
+			: value_ebo_base(alloc),
+			  bucket_ebo_base(bucket_allocator_type{alloc}),
+			  compare_ebo_base(key_compare),
+			  hash_ebo_base(key_hash)
 		{
 			if (capacity) [[likely]]
 				m_buckets_data = allocate_buckets(m_buckets_capacity = math::next_pow_2(capacity));
 		}
 
 		constexpr sparse_hash_table(const sparse_hash_table &other)
-			: sparse_hash_table(other, make_alloc_copy(other.get_allocator()), make_alloc_copy(other.get_bucket_allocator()))
+			: value_ebo_base(make_alloc_copy(other.get_allocator())),
+			  bucket_ebo_base(make_alloc_copy(other.get_bucket_allocator())),
+			  compare_ebo_base(other.get_comp()),
+			  hash_ebo_base(other.get_hash())
 		{
+			insert(other.begin(), other.end());
 		}
-		constexpr sparse_hash_table(const sparse_hash_table &other,
-									const allocator_type &alloc,
-									const bucket_allocator_type &bucket_alloc = {})
+		constexpr sparse_hash_table(const sparse_hash_table &other, const allocator_type &alloc)
 			: value_ebo_base(alloc),
-			  bucket_ebo_base(bucket_alloc),
+			  bucket_ebo_base(bucket_allocator_type{alloc}),
 			  compare_ebo_base(other.get_comp()),
 			  hash_ebo_base(other.get_hash())
 		{
@@ -636,7 +637,7 @@ namespace sek::detail
 				(bucket_alloc_traits::propagate_on_container_move_assignment::value ||
 				 alloc_eq(get_bucket_allocator(), other.get_bucket_allocator())))
 			{
-				sparse_hash_table tmp{0, key_equal{}, hash_type{}, get_allocator(), get_bucket_allocator()};
+				sparse_hash_table tmp{0, key_equal{}, hash_type{}, get_allocator()};
 				swap_data(other);
 				tmp.swap_data(other);
 				alloc_move_assign(get_allocator(), other.get_allocator());

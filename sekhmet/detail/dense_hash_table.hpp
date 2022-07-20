@@ -294,7 +294,7 @@ namespace sek::detail
 		constexpr dense_hash_table(size_type bucket_count, const key_equal &equal, const hash_type &hash, const allocator_type &alloc)
 			: m_dense_data{alloc, equal},
 			  m_sparse_data{std::piecewise_construct,
-							std::forward_as_tuple(bucket_count, npos, bucket_allocator_type{}),
+							std::forward_as_tuple(bucket_count, npos, bucket_allocator_type{alloc}),
 							std::forward_as_tuple(hash)}
 		{
 		}
@@ -302,7 +302,9 @@ namespace sek::detail
 			: m_dense_data{std::piecewise_construct,
 						   std::forward_as_tuple(other.value_vector(), alloc),
 						   std::forward_as_tuple(other.m_dense_data.second())},
-			  m_sparse_data{other.m_sparse_data},
+			  m_sparse_data{std::piecewise_construct,
+							std::forward_as_tuple(other.bucket_vector(), alloc),
+							std::forward_as_tuple(other.m_sparse_data.second())},
 			  max_load_factor{other.max_load_factor}
 		{
 		}
@@ -311,7 +313,9 @@ namespace sek::detail
 			: m_dense_data{std::piecewise_construct,
 						   std::forward_as_tuple(std::move(other.value_vector()), alloc),
 						   std::forward_as_tuple(std::move(other.m_dense_data.second()))},
-			  m_sparse_data{std::move(other.m_sparse_data)},
+			  m_sparse_data{std::piecewise_construct,
+							std::forward_as_tuple(std::move(other.bucket_vector()), alloc),
+							std::forward_as_tuple(std::move(other.m_sparse_data.second()))},
 			  max_load_factor{other.max_load_factor}
 		{
 		}

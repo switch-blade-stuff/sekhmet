@@ -140,8 +140,7 @@ namespace sek::engine
 				return result;
 			}
 		}
-		/** Emplaces or modifies a component for the specified entity (re-using slots if
-		 * component type requires fixed storage) and returns an iterator to it.
+		/** Emplaces or modifies a component for the specified entity (re-using slots if component type requires fixed storage).
 		 *
 		 * @param e Entity to emplace component for.
 		 * @param args Arguments passed to component's constructor.
@@ -155,8 +154,7 @@ namespace sek::engine
 			else
 				return replace(e, std::forward<Args>(args)...);
 		}
-		/** Emplaces or modifies a component for the specified entity (always at the end)
-		 * and returns an iterator to it.
+		/** Emplaces or modifies a component for the specified entity (always at the end).
 		 *
 		 * @param e Entity to emplace component for.
 		 * @param args Arguments passed to component's constructor.
@@ -239,6 +237,8 @@ namespace sek::engine
 				dispatch_replace(e);
 			return result;
 		}
+
+		using base_pool::erase;
 
 	private:
 		constexpr void dispatch_create(entity_t e) const { m_create.dispatch(m_world, e); }

@@ -167,11 +167,10 @@ TEST(ecs_tests, world_test)
 		EXPECT_TRUE(world.contains(e1));
 		EXPECT_TRUE(world.contains(e2));
 
-		auto [si, sf, sd] = world.reserve<int, float, dummy_t>(2);
-		si.emplace(e0);
-		sf.emplace(e0);
-		si.emplace(e1);
-		sd.emplace(e2);
+		world.emplace<int>(e0, 0);
+		world.emplace<int>(e1, 1);
+		world.emplace<float>(e0);
+		world.emplace<dummy_t>(e2);
 
 		EXPECT_TRUE((world.contains_all<int, float>(e0)));
 		EXPECT_FALSE((world.contains_all<int, float>(e1)));
@@ -179,5 +178,8 @@ TEST(ecs_tests, world_test)
 		EXPECT_TRUE((world.contains_none<int, float>(e2)));
 		EXPECT_TRUE((world.contains_all<dummy_t>(e2)));
 		EXPECT_TRUE((world.contains_any<dummy_t>(e2)));
+
+		EXPECT_EQ(world.get<int>(e0), 0);
+		EXPECT_EQ(world.get<int>(e1), 1);
 	}
 }

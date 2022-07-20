@@ -61,14 +61,15 @@ namespace sek::engine
 			}
 			// clang-format on
 
-			constexpr explicit component_pool_impl(const A &alloc) : alloc_base(alloc) {}
-			constexpr component_pool_impl(std::size_t n, const A &alloc) : base_set(n), alloc_base(alloc)
+			constexpr explicit component_pool_impl(const A &alloc) : alloc_base(alloc), m_pages(alloc) {}
+			constexpr component_pool_impl(std::size_t n, const A &alloc)
+				: base_set(n), alloc_base(alloc), m_pages(alloc)
 			{
 				reserve_impl(n);
 			}
 
 			constexpr component_pool_impl(component_pool_impl &&other, const A &alloc)
-				: base_set(std::move(other)), alloc_base(alloc), m_pages(std::move(other.m_pages))
+				: base_set(std::move(other)), alloc_base(alloc), m_pages(std::move(other.m_pages), alloc)
 			{
 				SEK_ASSERT(alloc_traits::propagate_on_container_move_assignment::value ||
 						   sek::detail::alloc_eq(get_allocator(), other.get_allocator()));
@@ -228,9 +229,12 @@ namespace sek::engine
 				noexcept(std::is_nothrow_move_assignable_v<base_set>) = default;
 			// clang-format on
 
-			constexpr explicit component_pool_impl(const A &) {}
-			constexpr component_pool_impl(std::size_t n, const A &) : base_set(n) {}
-			constexpr component_pool_impl(component_pool_impl &&other, const A &) : base_set(std::move(other)) {}
+			constexpr explicit component_pool_impl(const A &alloc) : base_set(alloc) {}
+			constexpr component_pool_impl(std::size_t n, const A &alloc) : base_set(n, alloc) {}
+			constexpr component_pool_impl(component_pool_impl &&other, const A &alloc)
+				: base_set(std::move(other), alloc)
+			{
+			}
 
 			constexpr void reserve_impl(std::size_t) {}
 			constexpr void purge_impl() {}
@@ -577,7 +581,7 @@ namespace sek::engine
 			base_t::purge_impl();
 		}
 
-		/** Replaces a component for the specified entity and returns an iterator to it.
+		/** Replaces a component for the specified entity.
 		 *
 		 * @param e Entity to emplace component for.
 		 * @param args Arguments passed to component's constructor.
@@ -592,7 +596,7 @@ namespace sek::engine
 			return base_t::component_ref(base_t::replace_impl(e, std::forward<Args>(args)...).offset());
 		}
 		/** Constructs a component for the specified entity in-place (re-using slots if
-		 * component type requires fixed storage) and returns an iterator to it.
+		 * component type requires fixed storage).
 		 *
 		 * @param e Entity to emplace component for.
 		 * @param args Arguments passed to component's constructor.
@@ -606,8 +610,7 @@ namespace sek::engine
 			SEK_ASSERT(!contains(e));
 			return base_t::component_ref(base_t::emplace_impl(e, std::forward<Args>(args)...).offset());
 		}
-		/** Constructs a component for the specified entity in-place (always at the end)
-		 * and returns an iterator to it.
+		/** Constructs a component for the specified entity in-place (always at the end).
 		 *
 		 * @param e Entity to emplace component for.
 		 * @param args Arguments passed to component's constructor.

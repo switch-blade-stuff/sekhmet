@@ -49,10 +49,7 @@ namespace sek::engine
 			constexpr explicit generation_type(value_type value) noexcept : m_value(value << offset) {}
 
 			/** Checks if the entity generation is a tombstone. */
-			[[nodiscard]] constexpr bool is_tombstone() const noexcept
-			{
-				return *this == tombstone();
-			}
+			[[nodiscard]] constexpr bool is_tombstone() const noexcept { return *this == tombstone(); }
 
 			/** Checks if the entity generation is valid. */
 			[[nodiscard]] constexpr bool valid() const noexcept { return (m_value & mask) == mask; }
@@ -86,10 +83,7 @@ namespace sek::engine
 			constexpr explicit index_type(value_type value) noexcept : m_value(value) {}
 
 			/** Checks if the entity index is a tombstone. */
-			[[nodiscard]] constexpr bool is_tombstone() const noexcept
-			{
-				return *this == tombstone();
-			}
+			[[nodiscard]] constexpr bool is_tombstone() const noexcept { return *this == tombstone(); }
 
 			/** Returns the underlying integer value of the index. */
 			[[nodiscard]] constexpr value_type value() const noexcept { return m_value; }
@@ -184,7 +178,7 @@ namespace sek::engine
 				copy_pages(other);
 			}
 			constexpr entity_set_impl(const entity_set_impl &other, const Alloc &alloc)
-				: alloc_base(alloc), m_sparse(other.m_sparse), m_dense(other.m_dense, alloc)
+				: alloc_base(alloc), m_sparse(other.m_sparse, alloc), m_dense(other.m_dense, alloc)
 			{
 				copy_pages(other);
 			}
@@ -208,7 +202,7 @@ namespace sek::engine
 					move_pages(other);
 			}
 			constexpr entity_set_impl(entity_set_impl &&other, const Alloc &alloc)
-				: alloc_base(alloc), m_sparse(std::move(other.m_sparse)), m_dense(std::move(other.m_dense), alloc)
+				: alloc_base(alloc), m_sparse(std::move(other.m_sparse), alloc), m_dense(std::move(other.m_dense), alloc)
 			{
 				if (alloc_traits::propagate_on_container_move_assignment::value ||
 					sek::detail::alloc_eq(get_allocator(), other.get_allocator()))
