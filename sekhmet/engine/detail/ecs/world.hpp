@@ -43,18 +43,12 @@ namespace sek::engine
 			{
 				using storage_t = component_storage<T>;
 
-				m_destroy = +[](void *ptr, entity_t e)
-				{
-					const auto storage = static_cast<storage_t *>(ptr);
-					if (const auto target = storage->find(e); target != storage->end()) [[unlikely]]
-						storage->erase(target);
-				};
+				m_contains = +[](void *ptr, entity_t e) { return static_cast<storage_t *>(ptr)->contains(e); };
+				m_erase = +[](void *ptr, entity_t e) { static_cast<storage_t *>(ptr)->erase(e); };
 				m_delete = +[](void *ptr) { delete static_cast<storage_t *>(ptr); };
 				m_ptr = static_cast<void *>(new storage_t(std::forward<Args>(args)...));
 			}
 			constexpr ~storage_entry() { m_delete(m_ptr); }
-
-			constexpr void destroy(entity_t e) { m_destroy(m_ptr, e); }
 
 			template<typename T>
 			[[nodiscard]] constexpr auto *get() noexcept
@@ -67,16 +61,22 @@ namespace sek::engine
 				return static_cast<const component_storage<T> *>(m_ptr);
 			}
 
+			[[nodiscard]] constexpr bool contains(entity_t e) const noexcept { return m_contains(m_ptr, e); }
+
+			constexpr void erase(entity_t e) { m_erase(m_ptr, e); }
+
 			constexpr void swap(storage_entry &other) noexcept
 			{
-				std::swap(m_destroy, other.m_destroy);
+				std::swap(m_contains, other.m_contains);
+				std::swap(m_erase, other.m_erase);
 				std::swap(m_delete, other.m_delete);
 				std::swap(m_ptr, other.m_ptr);
 			}
 			friend constexpr void swap(storage_entry &a, storage_entry &b) noexcept { a.swap(b); }
 
 		private:
-			void (*m_destroy)(void *, entity_t) = +[](void *, entity_t) {};
+			bool (*m_contains)(void *, entity_t) = +[](void *, entity_t) { return false; };
+			void (*m_erase)(void *, entity_t) = +[](void *, entity_t) {};
 			void (*m_delete)(void *) = +[](void *) {};
 			void *m_ptr = nullptr;
 		};
@@ -206,6 +206,12 @@ namespace sek::engine
 		/** Returns the capacity of the world (current maximum of alive entities) */
 		[[nodiscard]] constexpr size_type capacity() const noexcept { return m_entities.capacity(); }
 
+		/** Returns iterator to the specified entity or end iterator if the entity does not exist in the world. */
+		[[nodiscard]] constexpr iterator find(entity_t e) const noexcept
+		{
+			const auto idx = e.index().value();
+			return idx < m_entities.size() && m_entities[idx] == e ? iterator{m_entities.data() + idx} : end();
+		}
 		/** Checks if the world contains the specified entity. */
 		[[nodiscard]] constexpr bool contains(entity_t e) const noexcept
 		{
@@ -262,7 +268,43 @@ namespace sek::engine
 			return contains_none<T, Ts...>(*which);
 		}
 
-		/** Returns component of the specified entity.
+		/** Returns the total amount of components of the entity. */
+		[[nodiscard]] constexpr size_type size(entity_t e) const noexcept
+		{
+			size_type result = 0;
+			for (auto entry : m_storage) result += entry.second.contains(e);
+			return result;
+		}
+		/** @copydoc size */
+		[[nodiscard]] constexpr size_type size(const_iterator which) const noexcept { return size(*which); }
+		/** Checks if the entity is empty (does not have any components). */
+		[[nodiscard]] constexpr bool empty(entity_t e) const noexcept
+		{
+			for (auto entry : m_storage)
+			{
+				if (entry.second.contains(e)) [[unlikely]]
+					return false;
+			}
+			return true;
+		}
+		/** @copydoc empty */
+		[[nodiscard]] constexpr bool empty(const_iterator which) const noexcept { return empty(*which); }
+
+		/** Returns component of the specified entity. */
+		template<typename C>
+		[[nodiscard]] constexpr C &get(const_iterator which) noexcept
+			requires(!std::is_empty_v<C>)
+		{
+			return get<C>(*which);
+		}
+		/** @copydoc get */
+		template<typename C>
+		[[nodiscard]] constexpr const C &get(const_iterator which) const noexcept
+			requires(!std::is_empty_v<C>)
+		{
+			return get<C>(*which);
+		}
+		/** @copydoc get
 		 * @warning Using an entity that does not have the specified component will result in undefined behavior. */
 		template<typename C>
 		[[nodiscard]] constexpr C &get(entity_t e) noexcept
@@ -285,6 +327,7 @@ namespace sek::engine
 		{
 			return m_next.index().is_tombstone() ? generate_new(gen) : generate_existing(gen);
 		}
+
 		/** Releases an entity.
 		 * @warning Releasing an entity that contains components will result in stale references. Use `destroy` instead. */
 		constexpr void release(entity_t e)
@@ -295,12 +338,20 @@ namespace sek::engine
 			m_next = entity_t{entity_t::generation_type::tombstone(), idx};
 			--m_size;
 		}
+		/** @copydoc release */
+		constexpr void release(const_iterator which) { release(*which); }
 		/** Destroys all components belonging to the entity & releases it. */
 		constexpr void destroy(entity_t e)
 		{
-			for (auto entry : m_storage) entry.second.destroy(e);
+			for (auto entry : m_storage)
+			{
+				if (entry.second.contains(e)) [[unlikely]]
+					entry.second.erase(e);
+			}
 			release(e);
 		}
+		/** @copydoc destroy */
+		constexpr void destroy(const_iterator which) { destroy(*which); }
 
 		/** Reserves storage for the specified components.
 		 *
@@ -372,6 +423,38 @@ namespace sek::engine
 			requires std::constructible_from<C, Args...>
 		{
 			return reserve_impl<C>().emplace_back_or_replace(e, std::forward<Args>(args)...);
+		}
+
+		/** Removes a component from the specified entity.
+		 * @warning Using an entity that does not have the specified component will result in undefined behavior. */
+		template<typename C>
+		void erase(entity_t e)
+		{
+			get_storage<C>()->erase(e);
+		}
+		/** @copydoc erase */
+		template<typename C>
+		void erase(const_iterator which)
+		{
+			erase<C>(*which);
+		}
+		/** @copydoc erase
+		 * If the last component was erased, releases the entity.
+		 * @return `true` if the entity was released, `false` otherwise. */
+		template<typename C>
+		bool erase_and_release(entity_t e)
+		{
+			erase<C>(e);
+			const auto is_empty = empty(e);
+			if (is_empty) [[unlikely]]
+				release(e);
+			return is_empty;
+		}
+		/** @copydoc erase_and_release */
+		template<typename C>
+		bool erase_and_release(const_iterator which)
+		{
+			return erase_and_release<C>(*which);
 		}
 
 	private:

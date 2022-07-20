@@ -278,10 +278,12 @@ namespace sek::engine
 				{
 					auto &from = m_dense[last];
 					auto &to = m_dense[idx];
-					*get_sparse(to.index().value()) = entity_t{from.generation(), entity_t::index_type{idx}};
-					*get_sparse(from.index().value()) = entity_t::tombstone();
+					*get_sparse(from.index().value()) = entity_t{from.generation(), entity_t::index_type{idx}};
+					*get_sparse(to.index().value()) = entity_t::tombstone();
 					to = from;
 				}
+				else
+					*get_sparse(m_dense[last].index().value()) = entity_t::tombstone();
 				m_dense.pop_back();
 				return idx;
 			}

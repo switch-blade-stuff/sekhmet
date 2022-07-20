@@ -181,5 +181,11 @@ TEST(ecs_tests, world_test)
 
 		EXPECT_EQ(world.get<int>(e0), 0);
 		EXPECT_EQ(world.get<int>(e1), 1);
+
+		EXPECT_FALSE(world.erase_and_release<float>(e0));
+		EXPECT_FALSE(world.contains_all<float>(e0));
+
+		EXPECT_TRUE(world.erase_and_release<dummy_t>(e2));
+		EXPECT_FALSE(world.contains(e2));
 	}
 }

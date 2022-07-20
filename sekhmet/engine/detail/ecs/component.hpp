@@ -705,7 +705,7 @@ namespace sek::engine
 		/** Erases a component from the pool and returns iterator to the next component. */
 		iterator erase(const_iterator where)
 		{
-			const auto base_pos = base_set::begin() + static_cast<difference_type>(where.offset());
+			const auto base_pos = base_set::begin() + (where - begin());
 			return to_iterator(erase(base_pos).offset());
 		}
 		/** Erases a component associated with the specified entity from the pool and returns iterator to the next component.
