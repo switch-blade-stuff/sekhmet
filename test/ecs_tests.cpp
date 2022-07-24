@@ -43,25 +43,6 @@ TEST(ecs_tests, entity_test)
 		set.erase(e2);
 		EXPECT_EQ(set.size(), 2);
 	}
-	{
-		const sek::engine::entity_t e0 = {sek::engine::entity_t::index_type{0}};
-		const sek::engine::entity_t e1 = {sek::engine::entity_t::index_type{1}};
-		const sek::engine::entity_t e2 = {sek::engine::entity_t::index_type{2}};
-
-		sek::engine::basic_entity_set_old<std::allocator<sek::engine::entity_t>, true> set = {e0, e1, e2};
-
-		EXPECT_EQ(set.size(), 3);
-		EXPECT_EQ(*(set.begin() + 0), e2);
-		EXPECT_EQ(*(set.begin() + 1), e1);
-		EXPECT_EQ(*(set.begin() + 2), e0);
-
-		set.erase(e1);
-		EXPECT_EQ(set.size(), 3);
-		EXPECT_TRUE((set.begin() + 1)->is_tombstone());
-
-		set.pack();
-		EXPECT_EQ(set.size(), 2);
-	}
 }
 
 TEST(ecs_tests, pool_test)
@@ -71,35 +52,35 @@ TEST(ecs_tests, pool_test)
 	const sek::engine::entity_t e2 = {sek::engine::entity_t::index_type{2}};
 
 	{
-		sek::engine::basic_component_pool<int> p = {e0, e1, e2};
+		sek::engine::component_set<int> p = {e0, e1, e2};
 
 		EXPECT_EQ(p.size(), 3);
 
-		p[e0] = 0;
-		p[e1] = 1;
-		p[e2] = 2;
+		p.get(e0) = 0;
+		p.get(e1) = 1;
+		p.get(e2) = 2;
 
-		EXPECT_EQ(*(p.begin() + 0), 2);
-		EXPECT_EQ(*(p.begin() + 1), 1);
-		EXPECT_EQ(*(p.begin() + 2), 0);
+		EXPECT_EQ((p.begin() + 0)->second, 2);
+		EXPECT_EQ((p.begin() + 1)->second, 1);
+		EXPECT_EQ((p.begin() + 2)->second, 0);
 
 		const auto order = std::array{e1, e0};
-		p.entities().sort(order.begin(), order.end());
-		EXPECT_EQ(*(p.begin() + 0), 0);
-		EXPECT_EQ(*(p.begin() + 1), 1);
-		EXPECT_EQ(*(p.begin() + 2), 2);
+		p.sort(order.begin(), order.end());
+		EXPECT_EQ((p.begin() + 0)->second, 0);
+		EXPECT_EQ((p.begin() + 1)->second, 1);
+		EXPECT_EQ((p.begin() + 2)->second, 2);
 
 		p.erase(e2);
 		EXPECT_EQ(p.size(), 2);
-		EXPECT_EQ(*p.find(e0), 0);
-		EXPECT_EQ(*p.find(e1), 1);
+		EXPECT_EQ(p.find(e0)->second, 0);
+		EXPECT_EQ(p.find(e1)->second, 1);
 	}
 	{
 		struct dummy
 		{
 		};
 
-		sek::engine::basic_component_pool<dummy> p;
+		sek::engine::component_set<dummy> p;
 		p.emplace(e0);
 		p.emplace(e1);
 		p.emplace(e2);
@@ -116,23 +97,14 @@ TEST(ecs_tests, pool_test)
 		EXPECT_FALSE(p.contains(e2));
 	}
 	{
-		sek::engine::basic_component_pool<int> pi0;
+		sek::engine::component_set<int> pi0;
 		pi0.emplace(e0, 0);
 		pi0.emplace(e1, 1);
 
-		sek::engine::basic_component_pool<float> pf0;
+		sek::engine::component_set<float> pf0;
 		pf0.emplace(e0, 0.0f);
 		pf0.emplace(e1, 1.0f);
 		pf0.emplace(e2, 2.0f);
-
-		const auto v = sek::engine::component_set{pi0.entities(), pi0, pf0};
-		EXPECT_EQ(v.size(), 2);
-		EXPECT_EQ(std::get<0>(v[1]), e1);
-		EXPECT_EQ(std::get<1>(v[1]), 1);
-		EXPECT_EQ(std::get<2>(v[1]), 1.0f);
-		EXPECT_EQ(std::get<0>(v[0]), e0);
-		EXPECT_EQ(std::get<1>(v[0]), 0);
-		EXPECT_EQ(std::get<2>(v[0]), 0.0f);
 
 		auto iptr = sek::engine::component_ptr{e0, pi0};
 		auto fptr = sek::engine::component_ptr{e0, pf0};
@@ -141,7 +113,7 @@ TEST(ecs_tests, pool_test)
 		EXPECT_EQ(*iptr, 0);
 		EXPECT_EQ(*fptr, 0.0f);
 
-		sek::engine::basic_component_pool<int> pi1;
+		sek::engine::component_set<int> pi1;
 		pi1.emplace(e0, 10);
 
 		EXPECT_EQ(iptr.reset(&pi1), &pi0);

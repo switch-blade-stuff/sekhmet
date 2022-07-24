@@ -310,14 +310,14 @@ namespace sek::engine
 		[[nodiscard]] constexpr C &get(entity_t e) noexcept
 			requires(!std::is_empty_v<C>)
 		{
-			return get_storage<C>()->at(e);
+			return get_storage<C>()->get(e);
 		}
 		/** @copydoc get */
 		template<typename C>
 		[[nodiscard]] constexpr const C &get(entity_t e) const noexcept
 			requires(!std::is_empty_v<C>)
 		{
-			return get_storage<C>()->at(e);
+			return get_storage<C>()->get(e);
 		}
 
 		/** Generates a new entity.
