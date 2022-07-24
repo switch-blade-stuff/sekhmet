@@ -16,7 +16,7 @@ namespace sek::engine
 
 		// clang-format off
 		template<typename T, typename A>
-		using component_entity_set = basic_entity_set<
+		using component_entity_set = basic_entity_set_old<
 		    typename std::allocator_traits<A>::template rebind_alloc<entity_t>,
 		    fixed_component<T>>;
 		// clang-format on
@@ -65,7 +65,7 @@ namespace sek::engine
 			constexpr component_pool_impl(std::size_t n, const A &alloc)
 				: base_set(n), alloc_base(alloc), m_pages(alloc)
 			{
-				reserve_impl(n);
+				m_pages.resize(page_idx(n), nullptr);
 			}
 
 			constexpr component_pool_impl(component_pool_impl &&other, const A &alloc)
@@ -75,7 +75,6 @@ namespace sek::engine
 						   sek::detail::alloc_eq(get_allocator(), other.get_allocator()));
 			}
 
-			constexpr void reserve_impl(std::size_t n) { m_pages.resize(page_idx(n), nullptr); }
 			constexpr void purge_impl()
 			{
 				release_pages();
@@ -91,25 +90,26 @@ namespace sek::engine
 				component_ref(target.offset()) = T{std::forward<Args>(args)...};
 				return target;
 			}
-			template<typename... Args>
-			set_iterator emplace_impl(entity_t e, Args &&...args)
-			{
-				const auto pos = base_set::insert(e);
-				try
-				{
-					std::construct_at(alloc_component(pos.offset()), std::forward<Args>(args)...);
-				}
-				catch (...)
-				{
-					base_set::erase(pos);
-					throw;
-				}
-				return pos;
-			}
+
 			template<typename... Args>
 			set_iterator emplace_back_impl(entity_t e, Args &&...args)
 			{
-				const auto pos = base_set::push_back(e);
+				const auto pos = base_set::push_back_(e);
+				try
+				{
+					std::construct_at(alloc_component(pos.offset()), std::forward<Args>(args)...);
+				}
+				catch (...)
+				{
+					base_set::erase(pos);
+					throw;
+				}
+				return pos;
+			}
+			template<typename... Args>
+			set_iterator emplace_impl(entity_t e, Args &&...args)
+			{
+				const auto pos = base_set::insert_(e);
 				try
 				{
 					std::construct_at(alloc_component(pos.offset()), std::forward<Args>(args)...);
@@ -122,24 +122,17 @@ namespace sek::engine
 				return pos;
 			}
 
-			set_iterator erase_impl(set_iterator where)
+			set_iterator erase_(set_iterator which) override
 			{
 				auto *last = component_ptr(base_set::size() - 1);
-				component_ref(where.offset()) = std::move(*last);
+				component_ref(which.offset()) = std::move(*last);
 				std::destroy_at(last);
-
-				return base_set::erase(where);
+				return base_set::erase_(which);
 			}
-
-			[[nodiscard]] constexpr auto &get_allocator() noexcept { return *alloc_base::get(); }
-			[[nodiscard]] constexpr auto &get_allocator() const noexcept { return *alloc_base::get(); }
-
-			[[nodiscard]] constexpr T *alloc_page() { return alloc_traits::allocate(get_allocator(), page_size); }
-			constexpr void dealloc_page(T *ptr) { alloc_traits::deallocate(get_allocator(), ptr, page_size); }
-			constexpr void release_pages()
+			void reserve_(std::size_t n) final
 			{
-				for (auto page : m_pages)
-					if (page != nullptr) dealloc_page(page);
+				m_pages.resize(page_idx(n), nullptr);
+				base_set::reserve_(n);
 			}
 
 			[[nodiscard]] constexpr T *const *data() const noexcept { return m_pages.data(); }
@@ -158,6 +151,31 @@ namespace sek::engine
 				SEK_ASSERT(ptr != nullptr, "Pool index must be valid");
 				return *ptr;
 			}
+
+			constexpr void swap(component_pool_impl &other)
+			{
+				base_set::swap(other);
+
+				sek::detail::alloc_assert_swap(get_allocator(), other.get_allocator());
+				sek::detail::alloc_swap(get_allocator(), other.get_allocator());
+
+				m_pages.swap(other.m_pages);
+			}
+
+			pages_t m_pages; /* Array of pointers to component pages & page allocator. */
+
+		private:
+			[[nodiscard]] constexpr auto &get_allocator() noexcept { return *alloc_base::get(); }
+			[[nodiscard]] constexpr auto &get_allocator() const noexcept { return *alloc_base::get(); }
+
+			[[nodiscard]] constexpr T *alloc_page() { return alloc_traits::allocate(get_allocator(), page_size); }
+			constexpr void dealloc_page(T *ptr) { alloc_traits::deallocate(get_allocator(), ptr, page_size); }
+			constexpr void release_pages()
+			{
+				for (auto page : m_pages)
+					if (page != nullptr) dealloc_page(page);
+			}
+
 			[[nodiscard]] constexpr T *alloc_component(std::size_t i)
 			{
 				const auto idx = page_idx(i);
@@ -171,44 +189,32 @@ namespace sek::engine
 				return page + off;
 			}
 
-			set_iterator insert(entity_t e) final
-			{
-				if constexpr (!std::is_default_constructible_v<T>)
-					return base_set::end();
-				else
-					return emplace_impl(e);
-			}
-			set_iterator push_back(entity_t e) final
+			set_iterator push_back_(entity_t e) final
 			{
 				if constexpr (!std::is_default_constructible_v<T>)
 					return base_set::end();
 				else
 					return emplace_back_impl(e);
 			}
+			set_iterator insert_(entity_t e) final
+			{
+				if constexpr (!std::is_default_constructible_v<T>)
+					return base_set::end();
+				else
+					return emplace_impl(e);
+			}
 
-			void dense_move(std::size_t from, std::size_t to) final
+			void move_(std::size_t from, std::size_t to) final
 			{
 				auto *from_ptr = component_ptr(from);
 				component_ref(to) = std::move(*from_ptr);
 				std::destroy_at(from_ptr);
 			}
-			void dense_swap(std::size_t lhs, std::size_t rhs) final
+			void swap_(std::size_t lhs, std::size_t rhs) final
 			{
 				using std::swap;
 				swap(component_ref(lhs), component_ref(rhs));
 			}
-
-			constexpr void swap(component_pool_impl &other)
-			{
-				base_set::swap(other);
-
-				sek::detail::alloc_assert_swap(get_allocator(), other.get_allocator());
-				sek::detail::alloc_swap(get_allocator(), other.get_allocator());
-
-				m_pages.swap(other.m_pages);
-			}
-
-			pages_t m_pages; /* Array of pointers to component pages & page allocator. */
 		};
 		template<typename T, typename A>
 		struct component_pool_impl<T, A, true> : public detail::component_entity_set<T, A>
@@ -236,7 +242,6 @@ namespace sek::engine
 			{
 			}
 
-			constexpr void reserve_impl(std::size_t) {}
 			constexpr void purge_impl() {}
 
 			template<typename... Args>
@@ -247,21 +252,29 @@ namespace sek::engine
 			template<typename... Args>
 			set_iterator emplace_impl(entity_t e, Args &&...)
 			{
-				return base_set::insert(e);
+				return base_set::insert_(e);
 			}
 			template<typename... Args>
 			set_iterator emplace_back_impl(entity_t e, Args &&...)
 			{
-				return base_set::push_back(e);
+				return base_set::push_back_(e);
 			}
 
-			set_iterator erase_impl(set_iterator where) { return base_set::erase(where); }
+			set_iterator erase_(set_iterator which) override { return base_set::erase_(which); }
+			void reserve_(std::size_t n) final { base_set::reserve_(n); }
 
 			[[nodiscard]] constexpr T *const *data() const noexcept { return nullptr; }
 			[[nodiscard]] constexpr T *component_ptr(std::size_t) const noexcept { return nullptr; }
 			constexpr void component_ref(std::size_t) const noexcept {}
 
 			constexpr void swap(component_pool_impl &other) { base_set::swap(other); }
+
+		private:
+			set_iterator insert_(entity_t e) final { return emplace_impl(e); }
+			set_iterator push_back_(entity_t e) final { return emplace_back_impl(e); }
+
+			void move_(std::size_t, std::size_t) final {}
+			void swap_(std::size_t, std::size_t) final {}
 		};
 	}	 // namespace detail
 
@@ -566,11 +579,7 @@ namespace sek::engine
 		}
 
 		/** Reserves space for `n` components. */
-		void reserve(size_type n) final
-		{
-			base_set::reserve(n);
-			base_t::reserve_impl(n);
-		}
+		void reserve(size_type n) { base_t::reserve_(n); }
 
 		/** Clears component pool. */
 		void clear() { base_set::clear(); }
@@ -703,10 +712,10 @@ namespace sek::engine
 		}
 
 		/** Erases a component from the pool and returns iterator to the next component. */
-		iterator erase(const_iterator where)
+		iterator erase(const_iterator which)
 		{
-			const auto base_pos = base_set::begin() + (where - begin());
-			return to_iterator(erase(base_pos).offset());
+			const auto base_pos = base_set::begin() + (which - begin());
+			return to_iterator(erase_(base_pos).offset());
 		}
 		/** Erases a component associated with the specified entity from the pool and returns iterator to the next component.
 		 * @note Will cause undefined behavior if the entity is not associated with the pool. */
@@ -731,7 +740,7 @@ namespace sek::engine
 		friend constexpr void swap(basic_component_pool &a, basic_component_pool &b) { a.swap(b); }
 
 	protected:
-		set_iterator erase(set_iterator where) override { return base_t::erase_impl(where); }
+		using base_t::erase_;
 
 	private:
 		using base_t::insert;

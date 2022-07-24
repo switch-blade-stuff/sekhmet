@@ -11,7 +11,7 @@ namespace sek::engine
 	class entity_t;
 
 	template<typename = std::allocator<entity_t>, bool = false>
-	class basic_entity_set;
+	class basic_entity_set_old;
 
 	template<typename T>
 	struct component_traits;
@@ -19,8 +19,6 @@ namespace sek::engine
 	class basic_component_pool;
 	template<typename T>
 	class component_storage;
-	template<typename, typename...>
-	class component_set;
 
 	template<typename...>
 	struct order_by_t

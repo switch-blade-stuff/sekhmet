@@ -248,29 +248,16 @@ namespace sek::engine
 					return nullptr;
 				return m_sparse[idx] + off;
 			}
-			[[nodiscard]] constexpr entity_t &alloc_sparse(size_type i)
+
+			constexpr size_type insert_impl(entity_t e)
 			{
-				const auto idx = page_idx(i);
-
-				/* Make sure sparse page list has enough space. */
-				m_sparse.resize(idx + 1, nullptr);
-
-				/* Allocate the page if it is empty. */
-				auto &page = m_sparse[idx];
-				if (page == nullptr) [[unlikely]]
-					page = make_page();
-				auto &slot = page[page_off(i)];
-				return slot;
-			}
-
-			constexpr size_type insert_impl(entity_t &slot, entity_t e)
-			{
+				auto &slot = insert_sparse(e.index().value());
 				const auto pos = m_dense.size();
 				m_dense.push_back(e);
 				slot = entity_t{e.generation(), entity_t::index_type{pos}};
 				return pos;
 			}
-			constexpr size_type push_impl(entity_t &slot, entity_t e) { return insert_impl(slot, e); }
+			constexpr size_type push_back_impl(entity_t e) { return insert_impl(e); }
 			constexpr size_type erase_impl(size_type idx)
 			{
 				/* Swap with the last one & pop. */
@@ -296,9 +283,30 @@ namespace sek::engine
 				m_dense.swap(other.m_dense);
 			}
 
-		private:
+		protected:
 			[[nodiscard]] constexpr auto &get_allocator() noexcept { return *alloc_base::get(); }
 			[[nodiscard]] constexpr auto &get_allocator() const noexcept { return *alloc_base::get(); }
+
+			[[nodiscard]] constexpr entity_t &alloc_sparse(size_type i)
+			{
+				const auto idx = page_idx(i);
+
+				/* Make sure sparse page list has enough space. */
+				m_sparse.resize(idx + 1, nullptr);
+
+				/* Allocate the page if it is empty. */
+				auto &page = m_sparse[idx];
+				if (page == nullptr) [[unlikely]]
+					page = make_page();
+				auto &slot = page[page_off(i)];
+				return slot;
+			}
+			[[nodiscard]] constexpr entity_t &insert_sparse(size_type i)
+			{
+				auto &slot = alloc_sparse(i);
+				SEK_ASSERT(slot.is_tombstone(), "Sparse entity slot already in use.");
+				return slot;
+			}
 
 			constexpr void move_pages(entity_set_impl &other)
 			{
@@ -366,13 +374,14 @@ namespace sek::engine
 			{
 			}
 
-			constexpr size_type insert_impl(entity_t &slot, entity_t e)
+			constexpr size_type insert_impl(entity_t e)
 			{
 				/* Reuse an existing dense position if possible. */
 				if (m_next.is_tombstone() && m_next.index() == entity_t::index_type::tombstone()) [[unlikely]]
-					return base_t::insert_impl(slot, e);
+					return base_t::insert_impl(e);
 				else
 				{
+					auto &slot = base_t::insert_sparse(e.index().value());
 					const auto idx = m_next.index();
 					const auto pos = idx.value();
 					slot = entity_t(e.generation(), idx);
@@ -410,7 +419,7 @@ namespace sek::engine
 	 * @tparam Alloc Allocator used to allocate memory of the entity set.
 	 * @tparam IsFixed Whether the entity set should use fixed dense indices, primarily used for component storage. */
 	template<typename Alloc, bool IsFixed>
-	class basic_entity_set : detail::entity_set_impl<Alloc, IsFixed>
+	class basic_entity_set_old : detail::entity_set_impl<Alloc, IsFixed>
 	{
 		using base_t = detail::entity_set_impl<Alloc, IsFixed>;
 		using alloc_traits = typename base_t::alloc_traits;
@@ -420,7 +429,7 @@ namespace sek::engine
 
 		class entity_iterator
 		{
-			friend class basic_entity_set;
+			friend class basic_entity_set_old;
 
 		public:
 			typedef entity_t value_type;
@@ -542,42 +551,42 @@ namespace sek::engine
 		typedef std::ptrdiff_t difference_type;
 
 	public:
-		constexpr basic_entity_set() = default;
-		virtual ~basic_entity_set() = default;
+		constexpr basic_entity_set_old() = default;
+		virtual ~basic_entity_set_old() = default;
 
-		constexpr basic_entity_set(const basic_entity_set &) = default;
-		constexpr basic_entity_set &operator=(const basic_entity_set &) = default;
+		constexpr basic_entity_set_old(const basic_entity_set_old &) = default;
+		constexpr basic_entity_set_old &operator=(const basic_entity_set_old &) = default;
 		// clang-format off
-		constexpr basic_entity_set(basic_entity_set &&) noexcept(sek::detail::nothrow_alloc_move_construct<Alloc, sparse_alloc>) = default;
-		constexpr basic_entity_set &operator=(basic_entity_set &&) noexcept(sek::detail::nothrow_alloc_move_assign<Alloc, sparse_alloc>) = default;
+		constexpr basic_entity_set_old(basic_entity_set_old &&) noexcept(sek::detail::nothrow_alloc_move_construct<Alloc, sparse_alloc>) = default;
+		constexpr basic_entity_set_old &operator=(basic_entity_set_old &&) noexcept(sek::detail::nothrow_alloc_move_assign<Alloc, sparse_alloc>) = default;
 		// clang-format on
 
 		/** Initializes an entity set from an allocator. */
-		constexpr explicit basic_entity_set(const allocator_type &alloc) : base_t(alloc) {}
+		constexpr explicit basic_entity_set_old(const allocator_type &alloc) : base_t(alloc) {}
 		/** Initializes an entity set from an allocator and reserves n elements. */
-		constexpr basic_entity_set(size_type n, const allocator_type &alloc = {}) : base_t(n, alloc) {}
+		constexpr basic_entity_set_old(size_type n, const allocator_type &alloc = {}) : base_t(n, alloc) {}
 
 		template<std::forward_iterator I, std::sentinel_for<I> S>
-		constexpr basic_entity_set(I first, S last, const allocator_type &alloc = {}) : basic_entity_set(alloc)
+		constexpr basic_entity_set_old(I first, S last, const allocator_type &alloc = {}) : basic_entity_set_old(alloc)
 		{
 			insert(first, last);
 		}
 		template<std::random_access_iterator I, std::sentinel_for<I> S>
-		constexpr basic_entity_set(I first, S last, const allocator_type &alloc = {})
-			: basic_entity_set(static_cast<size_type>(std::distance(first, last)), alloc)
+		constexpr basic_entity_set_old(I first, S last, const allocator_type &alloc = {})
+			: basic_entity_set_old(static_cast<size_type>(std::distance(first, last)), alloc)
 		{
 			insert(first, last);
 		}
-		constexpr basic_entity_set(std::initializer_list<entity_t> init_list, const allocator_type &alloc = {})
-			: basic_entity_set(init_list.size(), alloc)
+		constexpr basic_entity_set_old(std::initializer_list<entity_t> init_list, const allocator_type &alloc = {})
+			: basic_entity_set_old(init_list.size(), alloc)
 		{
 			insert(init_list.begin(), init_list.end());
 		}
 
 		/** Copy-constructs an entity set using the provided allocator. */
-		constexpr basic_entity_set(const basic_entity_set &other, const allocator_type &alloc) : base_t(other, alloc) {}
+		constexpr basic_entity_set_old(const basic_entity_set_old &other, const allocator_type &alloc) : base_t(other, alloc) {}
 		/** Move-constructs an entity set using the provided allocator. */
-		constexpr basic_entity_set(basic_entity_set &&other, const allocator_type &alloc)
+		constexpr basic_entity_set_old(basic_entity_set_old &&other, const allocator_type &alloc)
 			: base_t(std::move(other.m_sparse), alloc)
 		{
 		}
@@ -638,7 +647,7 @@ namespace sek::engine
 		}
 
 		/** Reserves space for `n` entities. */
-		virtual void reserve(std::size_t n) { base_t::reserve_impl(n); }
+		void reserve(std::size_t n) { reserve_(n); }
 
 		/** Removes all entities from the set. */
 		void clear()
@@ -656,13 +665,6 @@ namespace sek::engine
 			base_t::m_dense.shrink_to_fit();
 		}
 
-		/** Pushes an entity into the set (at the end of the dense array) and returns iterator to it. */
-		virtual iterator push_back(entity_t e) { return to_iterator(base_t::push_impl(insert_sparse(e), e)); }
-		/** Inserts an entity into the set (re-using slots if fixed storage is enabled) and returns iterator to it. */
-		virtual iterator insert(entity_t e) { return to_iterator(base_t::insert_impl(insert_sparse(e), e)); }
-		/** Erases an entity from the set and returns iterator to the next entity. */
-		virtual iterator erase(const_iterator where) { return to_iterator(base_t::erase_impl(where.offset())); }
-
 		// clang-format off
 		/** @copydoc insert
 		 * @param args Arguments passed to constructor of `entity`. */
@@ -673,6 +675,11 @@ namespace sek::engine
 		}
 		// clang-format on
 
+		/** Pushes an entity into the set (at the end of the dense array) and returns iterator to it. */
+		iterator push_back(entity_t e) { return push_back_(e); }
+
+		/** Inserts an entity into the set (re-using slots if fixed storage is enabled) and returns iterator to it. */
+		iterator insert(entity_t e) { return insert_(e); }
 		/** Inserts a range of entities between `[first, last)` into the set (always at the end) and returns iterator to the first entity inserted. */
 		template<std::input_iterator I, std::sentinel_for<I> S>
 		iterator insert(I first, S last)
@@ -682,6 +689,8 @@ namespace sek::engine
 			return to_iterator(offset);
 		}
 
+		/** Erases an entity from the set and returns iterator to the next entity. */
+		iterator erase(const_iterator which) { return erase_(which); }
 		/** @copydoc erase
 		 * @note Will cause undefined behavior if the entity is not present within the set. */
 		iterator erase(entity_t e) { return erase(find(e)); }
@@ -712,7 +721,7 @@ namespace sek::engine
 		/** Swaps entities of the entity set. */
 		void swap(size_type a_idx, size_type b_idx)
 		{
-			dense_swap(a_idx, b_idx);
+			swap_(a_idx, b_idx);
 			auto &e_lhs = base_t::m_dense[a_idx];
 			auto &e_rhs = base_t::m_dense[b_idx];
 			std::swap(*base_t::get_sparse(e_lhs.index().value()), *base_t::get_sparse(e_rhs.index().value()));
@@ -722,6 +731,7 @@ namespace sek::engine
 		void swap(const_iterator a, const_iterator b) { swap(a.offset(), b.offset()); }
 		/** @copydoc swap */
 		void swap(entity_t a, entity_t b) { swap(offset(a), offset(b)); }
+
 		/** Removes tombstone entities (if any) from the set. */
 		void pack()
 		{
@@ -738,7 +748,7 @@ namespace sek::engine
 					to = ptr->index().value();
 					if (to < from)
 					{
-						dense_move(--from, to);
+						move_(--from, to);
 
 						auto &e_from = base_t::m_dense[from];
 						auto &e_to = base_t::m_dense[to];
@@ -776,7 +786,7 @@ namespace sek::engine
 				const auto new_pos = item.offset();
 
 				/* Let any derived type know we are swapping entities & update the sparse index. */
-				dense_swap(old_pos, new_pos);
+				swap_(old_pos, new_pos);
 				slot = entity_t{slot.generation(), entity_t::index_type{new_pos}};
 			}
 		}
@@ -802,30 +812,24 @@ namespace sek::engine
 				}
 		}
 
-		constexpr void swap(basic_entity_set &other) noexcept { base_t::swap(other); }
-		friend constexpr void swap(basic_entity_set &a, basic_entity_set &b) noexcept { a.swap(b); }
+		constexpr void swap(basic_entity_set_old &other) noexcept { base_t::swap(other); }
+		friend constexpr void swap(basic_entity_set_old &a, basic_entity_set_old &b) noexcept { a.swap(b); }
 
 	protected:
-		/** Moves element within the dense array.
-		 * @param from Index of the element to move from.
-		 * @param to Index of the element to move to. */
-		virtual void dense_move(size_type from [[maybe_unused]], size_type to [[maybe_unused]]) {}
-		/** Swaps elements within the dense array.
-		 * @param lhs Index of the left-hand element.
-		 * @param rhs Index of the right-hand element. */
-		virtual void dense_swap(size_type lhs [[maybe_unused]], size_type rhs [[maybe_unused]]) {}
+		virtual iterator push_back_(entity_t e) { return to_iterator(base_t::push_back_impl(e)); }
+		virtual iterator insert_(entity_t e) { return to_iterator(base_t::insert_impl(e)); }
+		virtual iterator erase_(const_iterator which) { return to_iterator(base_t::erase_impl(which.offset())); }
+
+		virtual void reserve_(size_type n) { base_t::reserve_impl(n); }
+
+		virtual void move_(size_type, size_type) {}
+		virtual void swap_(size_type, size_type) {}
 
 	private:
 		[[nodiscard]] constexpr iterator to_iterator(size_type i) const noexcept { return iterator{data(), i + 1}; }
-		[[nodiscard]] constexpr entity_t &insert_sparse(entity_t e)
-		{
-			auto &slot = base_t::alloc_sparse(e.index().value());
-			SEK_ASSERT(slot.is_tombstone(), "Sparse entity slot already in use.");
-			return slot;
-		}
 	};
 
-	using entity_set = basic_entity_set<>;
+	using entity_set = basic_entity_set_old<>;
 }	 // namespace sek::engine
 
 template<>

@@ -245,10 +245,10 @@ namespace sek::engine
 		constexpr void dispatch_replace(entity_t e) const { m_replace.dispatch(m_world, e); }
 		constexpr void dispatch_remove(entity_t e) const { m_remove.dispatch(m_world, e); }
 
-		set_iterator erase(set_iterator where) final
+		set_iterator erase_(set_iterator which) final
 		{
-			dispatch_remove(*where);
-			return base_pool::erase(where);
+			dispatch_remove(*which);
+			return base_pool::erase_(which);
 		}
 
 		entity_world &m_world;

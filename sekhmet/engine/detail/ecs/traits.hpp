@@ -11,8 +11,8 @@ namespace sek::engine
 	/** @brief Helper type used to obtain traits of a component type.
 	 *
 	 * Component traits must contain a compile-time constant of type `std::size_t` named `page_size`, specifying
-	 * size of allocation pages used by component pools, a `pool_type` typedef used to specify the type of
-	 * component pool used for the component.
+	 * size of allocation pages used by component pools, a `allocator_type` typedef used to specify the allocator of
+	 * used to allocate components.
 	 *
 	 * Optionally, traits may define an `is_fixed` typedef which, if present, will prevent components of this type
 	 * from being sorted either by a component pool or ordering queries. */
@@ -20,8 +20,7 @@ namespace sek::engine
 	struct component_traits
 	{
 		constexpr static std::size_t page_size = 1024;
-
-		typedef basic_component_pool<T> pool_type;
+		typedef std::allocator<T> allocator_type;
 	};
 
 	template<typename T>

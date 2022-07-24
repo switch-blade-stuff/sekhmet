@@ -48,7 +48,7 @@ TEST(ecs_tests, entity_test)
 		const sek::engine::entity_t e1 = {sek::engine::entity_t::index_type{1}};
 		const sek::engine::entity_t e2 = {sek::engine::entity_t::index_type{2}};
 
-		sek::engine::basic_entity_set<std::allocator<sek::engine::entity_t>, true> set = {e0, e1, e2};
+		sek::engine::basic_entity_set_old<std::allocator<sek::engine::entity_t>, true> set = {e0, e1, e2};
 
 		EXPECT_EQ(set.size(), 3);
 		EXPECT_EQ(*(set.begin() + 0), e2);
@@ -184,6 +184,8 @@ TEST(ecs_tests, world_test)
 
 		EXPECT_FALSE(world.erase_and_release<float>(e0));
 		EXPECT_FALSE(world.contains_all<float>(e0));
+		EXPECT_EQ(world.size(e0), 1);
+		EXPECT_EQ(world.size(e1), 1);
 
 		EXPECT_TRUE(world.erase_and_release<dummy_t>(e2));
 		EXPECT_FALSE(world.contains(e2));
