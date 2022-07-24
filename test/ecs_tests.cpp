@@ -34,10 +34,10 @@ TEST(ecs_tests, entity_test)
 		EXPECT_EQ(*(set.begin() + 1), e1);
 		EXPECT_EQ(*(set.begin() + 2), e0);
 
-		const auto order = std::array{e1, e0};
+		const auto order = std::array{e0, e1};
 		set.sort(order.begin(), order.end());
-		EXPECT_EQ(*(set.begin() + 0), e0);
-		EXPECT_EQ(*(set.begin() + 1), e1);
+		EXPECT_EQ(*(set.begin() + 0), e1);
+		EXPECT_EQ(*(set.begin() + 1), e0);
 		EXPECT_EQ(*(set.begin() + 2), e2);
 
 		set.erase(e2);

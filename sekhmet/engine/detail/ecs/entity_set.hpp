@@ -215,13 +215,14 @@ namespace sek::engine
 	 * @tparam T Optional component type. If set to void, set does not store components.
 	 * @tparam Alloc Allocator used to allocate memory of the entity set. */
 	template<typename T, typename Alloc>
-	class basic_entity_set : detail::component_pool<T>, public detail::component_typedef<T>
+	class basic_entity_set : detail::component_pool<T>, ebo_base_helper<Alloc>, public detail::component_typedef<T>
 	{
 		constexpr static auto sparse_page_size = SEK_KB(8) / sizeof(entity_t);
 		constexpr static bool entity_only = std::is_void_v<T> || std::is_empty_v<T>;
 
 		using is_fixed = std::bool_constant<fixed_component<T>>;
 		using pool_base = detail::component_pool<T>;
+		using alloc_base = ebo_base_helper<Alloc>;
 
 	public:
 		typedef Alloc allocator_type;
@@ -453,12 +454,14 @@ namespace sek::engine
 
 		// clang-format off
 		constexpr basic_entity_set(const basic_entity_set &other) requires entity_only
-			: m_sparse(other.m_pages), m_dense(other.m_dense)
+			: alloc_base(sek::detail::make_alloc_copy(other.get_allocator())),
+			  m_sparse(other.m_pages),
+			  m_dense(other.m_dense)
 		{
 			copy_sparse(other);
 		}
 		constexpr basic_entity_set(const basic_entity_set &other, const allocator_type &alloc) requires entity_only
-			: m_sparse(other.m_sparse, alloc), m_dense(other.m_dense, alloc)
+			: alloc_base(alloc), m_sparse(other.m_sparse, alloc), m_dense(other.m_dense, alloc)
 		{
 			copy_sparse(other);
 		}
@@ -477,17 +480,23 @@ namespace sek::engine
 		// clang-format on
 
 		constexpr basic_entity_set(basic_entity_set &&other)
-			: pool_base(std::move(other)), m_sparse(std::move(other.m_sparse)), m_dense(std::move(other.m_dense))
+			: pool_base(std::move(other)),
+			  alloc_base(std::move(other)),
+			  m_sparse(std::move(other.m_sparse)),
+			  m_dense(std::move(other.m_dense))
 		{
 			if (!(alloc_traits::propagate_on_container_move_assignment::value ||
-				  sek::detail::alloc_eq(m_dense.get_allocator(), other.get_allocator())))
+				  sek::detail::alloc_eq(get_allocator(), get_allocator())))
 				move_sparse(other);
 		}
 		constexpr basic_entity_set(basic_entity_set &&other, const allocator_type &alloc)
-			: pool_base(std::move(other)), m_sparse(std::move(other.m_sparse), alloc), m_dense(std::move(other.m_dense), alloc)
+			: pool_base(std::move(other)),
+			  alloc_base(alloc),
+			  m_sparse(std::move(other.m_sparse), alloc),
+			  m_dense(std::move(other.m_dense), alloc)
 		{
 			if (!(alloc_traits::propagate_on_container_move_assignment::value ||
-				  sek::detail::alloc_eq(m_dense.get_allocator(), other.get_allocator())))
+				  sek::detail::alloc_eq(get_allocator(), get_allocator())))
 				move_sparse(other);
 		}
 		constexpr basic_entity_set &operator=(basic_entity_set &&other)
@@ -496,7 +505,7 @@ namespace sek::engine
 			m_sparse = std::move(other.m_pages);
 
 			if (alloc_traits::propagate_on_container_move_assignment::value ||
-				sek::detail::alloc_eq(m_dense.get_allocator(), other.get_allocator()))
+				sek::detail::alloc_eq(get_allocator(), get_allocator()))
 				m_dense = std::move(other.m_dense);
 			else
 			{
@@ -506,9 +515,12 @@ namespace sek::engine
 			return *this;
 		}
 
-		constexpr explicit basic_entity_set(const allocator_type &alloc) : m_sparse(alloc), m_dense(alloc) {}
+		constexpr explicit basic_entity_set(const allocator_type &alloc)
+			: alloc_base(alloc), m_sparse(alloc), m_dense(alloc)
+		{
+		}
 		constexpr explicit basic_entity_set(size_type n, const allocator_type &alloc = {})
-			: m_sparse(alloc), m_dense(alloc)
+			: alloc_base(alloc), m_sparse(alloc), m_dense(alloc)
 		{
 			reserve(n);
 		}
@@ -556,7 +568,7 @@ namespace sek::engine
 		[[nodiscard]] constexpr bool contains(entity_t entity) const noexcept
 		{
 			const auto sparse = sparse_ptr(entity.index().value());
-			return sparse == nullptr || sparse->is_tombstone();
+			return sparse != nullptr && !sparse->is_tombstone();
 		}
 
 		/** Returns iterator to the specified entity (and it's component, if any) or an end iterator. */
@@ -781,7 +793,9 @@ namespace sek::engine
 		template<std::forward_iterator I, std::sentinel_for<I> S>
 		constexpr iterator insert(I first, S last)
 		{
+			const auto pos = m_dense.size();
 			for (; first != last; first = std::next(first)) push_back(*first);
+			return to_iterator(pos);
 		}
 
 		/** Inserts an entity and it's component into the set.
@@ -815,9 +829,9 @@ namespace sek::engine
 		}
 
 		/** Erases the entity (and it's component) from the set. */
-		constexpr iterator erase(const_iterator which) { return iterator{this, erase_impl(offset(which)) + 1}; }
+		constexpr iterator erase(const_iterator which) { return to_iterator(erase_impl(offset(which))); }
 		/** @copydoc erase */
-		constexpr iterator erase(entity_t entity) { return iterator{this, erase_impl(offset(entity)) + 1}; }
+		constexpr iterator erase(entity_t entity) { return to_iterator(erase_impl(offset(entity))); }
 		/** Erases all entities between `[first, last)`. */
 		constexpr void erase(const_iterator first, const_iterator last)
 		{
@@ -861,6 +875,9 @@ namespace sek::engine
 		{
 			pool_base::swap(other);
 
+			sek::detail::alloc_assert_swap(get_allocator(), other.get_allocator());
+			sek::detail::alloc_swap(get_allocator(), other.get_allocator());
+
 			using std::swap;
 			swap(m_sparse, other.m_sparse);
 			swap(m_dense, other.m_dense);
@@ -869,6 +886,9 @@ namespace sek::engine
 		friend constexpr void swap(basic_entity_set &a, basic_entity_set &b) noexcept { a.swap(b); }
 
 	private:
+		[[nodiscard]] constexpr auto &get_allocator() noexcept { return *alloc_base::get(); }
+		[[nodiscard]] constexpr auto &get_allocator() const noexcept { return *alloc_base::get(); }
+
 		[[nodiscard]] constexpr auto to_iterator(size_type offset) noexcept { return iterator{this, offset + 1}; }
 		[[nodiscard]] constexpr auto to_iterator(size_type offset) const noexcept
 		{
@@ -877,7 +897,7 @@ namespace sek::engine
 
 		[[nodiscard]] constexpr entity_t *alloc_sparse_page()
 		{
-			return alloc_traits::allocate(m_dense.get_allocator(), sparse_page_size);
+			return alloc_traits::allocate(get_allocator(), sparse_page_size);
 		}
 		[[nodiscard]] constexpr entity_t *make_sparse_page()
 		{
@@ -903,7 +923,7 @@ namespace sek::engine
 		}
 		constexpr void dealloc_sparse_page(entity_t *page)
 		{
-			alloc_traits::deallocate(m_dense.get_allocator(), page, sparse_page_size);
+			alloc_traits::deallocate(get_allocator(), page, sparse_page_size);
 		}
 
 		constexpr void release_pages()
@@ -1012,7 +1032,7 @@ namespace sek::engine
 				sparse_ref(to) = entity_t::tombstone();
 				m_dense[idx] = m_dense[last];
 
-				pool_base::move_value(to, from);
+				pool_base::move_value(idx, last);
 			}
 			else
 				sparse_ref(m_dense[last].index().value()) = entity_t::tombstone();
