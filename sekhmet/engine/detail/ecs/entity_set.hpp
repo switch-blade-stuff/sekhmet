@@ -271,6 +271,9 @@ namespace sek::engine
 
 			constexpr explicit set_ptr(set_ref<IsConst> ref) noexcept : m_ref(ref) {}
 
+			using ref_t = set_ref<IsConst>;
+			using ptr_t = const std::remove_reference_t<ref_t> *;
+
 		public:
 			set_ptr() = delete;
 
@@ -279,9 +282,9 @@ namespace sek::engine
 			constexpr set_ptr(set_ptr &&) noexcept = default;
 			constexpr set_ptr &operator=(set_ptr &&) noexcept = default;
 
-			[[nodiscard]] constexpr set_ref<IsConst> operator*() const noexcept { return m_ref; }
-			[[nodiscard]] constexpr const set_ref<IsConst> *get() const noexcept { return &m_ref; }
-			[[nodiscard]] constexpr const set_ref<IsConst> *operator->() const noexcept { return get(); }
+			[[nodiscard]] constexpr ref_t operator*() const noexcept { return m_ref; }
+			[[nodiscard]] constexpr ptr_t get() const noexcept { return std::addressof(m_ref); }
+			[[nodiscard]] constexpr ptr_t operator->() const noexcept { return get(); }
 
 			[[nodiscard]] constexpr auto operator<=>(const set_ptr<IsConst> &other) const noexcept
 			{
@@ -301,7 +304,7 @@ namespace sek::engine
 					return std::addressof(m_ref.first);
 			}
 
-			set_ref<IsConst> m_ref;
+			ref_t m_ref;
 		};
 		template<bool IsConst>
 		class set_iterator
@@ -443,6 +446,14 @@ namespace sek::engine
 			else
 				return *i;
 		}
+		[[nodiscard]] constexpr static decltype(auto) to_component(iterator i) noexcept
+		{
+			if constexpr (!std::is_void_v<T>) return i->second;
+		}
+		[[nodiscard]] constexpr static decltype(auto) to_component(const_iterator i) noexcept
+		{
+			if constexpr (!std::is_void_v<T>) return i->second;
+		}
 
 	public:
 		constexpr basic_entity_set() = default;
@@ -455,7 +466,7 @@ namespace sek::engine
 		// clang-format off
 		constexpr basic_entity_set(const basic_entity_set &other) requires entity_only
 			: alloc_base(sek::detail::make_alloc_copy(other.get_allocator())),
-			  m_sparse(other.m_pages),
+			  m_sparse(other.m_sparse),
 			  m_dense(other.m_dense)
 		{
 			copy_sparse(other);
@@ -502,7 +513,7 @@ namespace sek::engine
 		constexpr basic_entity_set &operator=(basic_entity_set &&other)
 		{
 			pool_base::operator=(std::move(other));
-			m_sparse = std::move(other.m_pages);
+			m_sparse = std::move(other.m_sparse);
 
 			if (alloc_traits::propagate_on_container_move_assignment::value ||
 				sek::detail::alloc_eq(get_allocator(), get_allocator()))
@@ -607,9 +618,9 @@ namespace sek::engine
 
 		// clang-format off
 		/** Returns reference to the component of the specified entity. */
-		[[nodiscard]] constexpr decltype(auto) get(entity_t entity) noexcept requires(!std::is_void_v<T>) { return find(entity)->second; }
+		[[nodiscard]] constexpr decltype(auto) get(entity_t entity) noexcept requires(!std::is_void_v<T>) { return to_component(find(entity)); }
 		/** @copydoc get */
-		[[nodiscard]] constexpr decltype(auto) get(entity_t entity) const noexcept requires(!std::is_void_v<T>) { return find(entity)->second; }
+		[[nodiscard]] constexpr decltype(auto) get(entity_t entity) const noexcept requires(!std::is_void_v<T>) { return to_component(find(entity)); }
 		// clang-format on
 
 		/** Updates generation of an entity contained within the set.
@@ -621,7 +632,7 @@ namespace sek::engine
 		{
 			const auto idx = e.index();
 			auto &slot = sparse_ref(idx.value());
-			slot = entity_t{gen, slot->index()};
+			slot = entity_t{gen, slot.index()};
 			m_dense[slot.index().value()] = entity_t{gen, idx};
 		}
 

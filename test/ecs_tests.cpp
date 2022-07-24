@@ -6,6 +6,8 @@
 
 #include "sekhmet/engine/ecs.hpp"
 
+template class sek::engine::basic_entity_set<>;
+
 TEST(ecs_tests, entity_test)
 {
 	{
@@ -45,6 +47,16 @@ TEST(ecs_tests, entity_test)
 	}
 }
 
+namespace
+{
+	struct dummy_t
+	{
+	};
+}	 // namespace
+
+template class sek::engine::basic_entity_set<int>;
+template class sek::engine::basic_entity_set<dummy_t>;
+
 TEST(ecs_tests, pool_test)
 {
 	const sek::engine::entity_t e0 = {sek::engine::entity_t::index_type{0}};
@@ -76,11 +88,7 @@ TEST(ecs_tests, pool_test)
 		EXPECT_EQ(p.find(e1)->second, 1);
 	}
 	{
-		struct dummy
-		{
-		};
-
-		sek::engine::component_set<dummy> p;
+		sek::engine::component_set<dummy_t> p;
 		p.emplace(e0);
 		p.emplace(e1);
 		p.emplace(e2);
@@ -124,10 +132,6 @@ TEST(ecs_tests, pool_test)
 
 TEST(ecs_tests, world_test)
 {
-	struct dummy_t
-	{
-	};
-
 	{
 		sek::engine::entity_world world;
 
