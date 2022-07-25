@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "storage.hpp"
+#include "component_set.hpp"
 
 namespace sek::engine
 {

@@ -213,8 +213,9 @@ namespace sek::engine
 
 	/** @brief Structure used to store unique sets of entities and associate entities with components.
 	 * @tparam T Optional component type. If set to void, set does not store components.
-	 * @tparam Alloc Allocator used to allocate memory of the entity set. */
-	template<typename T, typename Alloc>
+	 * @tparam Alloc Allocator used to allocate memory of the entity set.
+	 * @tparam CRTP CRTP mixin used to handle element creation, removal and modification events. */
+	template<typename T, typename CRTP, typename Alloc>
 	class basic_entity_set : detail::component_pool<T>, ebo_base_helper<Alloc>, public detail::component_typedef<T>
 	{
 		constexpr static auto sparse_page_size = SEK_KB(8) / sizeof(entity_t);
@@ -617,35 +618,57 @@ namespace sek::engine
 		[[nodiscard]] constexpr decltype(auto) get(entity_t entity) const noexcept requires(!std::is_void_v<T>) { return to_component(find(entity)); }
 		// clang-format on
 
+		/** Reserves space for `n` entities (and components). */
+		constexpr void reserve(size_type n)
+		{
+			if (n != 0) [[likely]]
+			{
+				pool_base::reserve(n);
+				m_sparse.resize(sparse_idx(n) + 1, nullptr);
+				m_dense.reserve(n);
+			}
+		}
+		/** Removes all entities from the set (destroying components, if needed). */
+		constexpr void clear()
+		{
+			for (size_type i = 0; i < 0; ++i)
+			{
+				const auto dense = m_dense[i];
+				if (dense.is_tombstone()) [[unlikely]]
+					continue;
+
+				mixin_erase(i, dense);
+				sparse_ref(dense.index().value()) = entity_t::tombstone();
+				pool_base::erase(i);
+			}
+		}
+
 		/** Updates generation of an entity contained within the set.
-		 * @param Entity to update generation of. */
-		constexpr void update(entity_t e) { update(e, e.generation()); }
+		 * @param entity Entity to update generation of. */
+		constexpr void update(entity_t entity) { update(entity, entity.generation()); }
 		/** @copydoc update
 		 * @param gen Generation value to use. */
-		constexpr void update(entity_t e, entity_t::generation_type gen)
+		constexpr void update(entity_t entity, entity_t::generation_type gen)
 		{
-			const auto idx = e.index();
+			const auto idx = entity.index();
 			auto &slot = sparse_ref(idx.value());
 			slot = entity_t{gen, slot.index()};
 			m_dense[slot.index().value()] = entity_t{gen, idx};
 		}
 
 		/** Replaces component of an entity.
-		 * @param Entity to replace component of.
-		 * @param value Value of the component.
+		 * @param entity Entity to replace component of.
+		 * @param args Arguments used to construct new instance of the component.
 		 * @return Reference to the component. */
-		template<typename U>
-		constexpr decltype(auto) replace(entity_t e, const U &value)
-			requires(!std::is_void_v<T>)
+		template<typename... Args>
+		constexpr decltype(auto) replace(entity_t entity, Args &&...args)
+			requires(!std::is_void_v<T> && std::is_constructible_v<T, Args...>)
 		{
-			return get(e) = value;
-		}
-		/** @copydoc replace */
-		template<typename U>
-		constexpr decltype(auto) replace(entity_t e, U &&value)
-			requires(!std::is_void_v<T>)
-		{
-			return get(e) = std::move(value);
+			const auto idx = offset(entity);
+			auto &value = to_iterator(idx)->second;
+			value = T{std::forward<Args>(args)...};
+			mixin_replace(idx, entity);
+			return value;
 		}
 
 		/** Swaps entities of the entity set. */
@@ -736,8 +759,8 @@ namespace sek::engine
 				}
 		}
 
-		/** Emplaces the specified entity into the set and constructs it's component in-place (if needed).
-		 * Entity slots can be re-used.
+		/** Emplaces the specified entity into the set and constructs it's component in-place (if any).
+		 * Entity slots are re-used.
 		 *
 		 * @param entity Entity to insert.
 		 * @param args Arguments passed to component's constructor (if any).
@@ -765,8 +788,39 @@ namespace sek::engine
 			return component_ref(emplace_back_impl(entity, std::forward<Args>(args)...));
 		}
 
+		/** Emplaces or modifies a component for the specified entity.
+		 * Entity slots are re-used.
+		 *
+		 * @param e Entity to emplace component for.
+		 * @param args Arguments passed to component's constructor.
+		 * @return Reference to the component (or `void`, if component is empty). */
+		template<typename... Args>
+		constexpr decltype(auto) emplace_or_replace(entity_t e, Args &&...args)
+			requires std::constructible_from<T, Args...>
+		{
+			if (!contains(e))
+				return emplace(e, std::forward<Args>(args)...);
+			else
+				return replace(e, std::forward<Args>(args)...);
+		}
+		/** Emplaces or modifies a component for the specified entity.
+		 * Entities (and components) are always pushed to the end.
+		 *
+		 * @param e Entity to emplace component for.
+		 * @param args Arguments passed to component's constructor.
+		 * @return Reference to the component (or `void`, if component is empty). */
+		template<typename... Args>
+		constexpr decltype(auto) emplace_back_or_replace(entity_t e, Args &&...args)
+			requires std::constructible_from<T, Args...>
+		{
+			if (!contains(e))
+				return emplace_back(e, std::forward<Args>(args)...);
+			else
+				return replace(e, std::forward<Args>(args)...);
+		}
+
 		/** Inserts an entity and it's component into the set.
-		 * Entity slots can be re-used.
+		 * Entity slots are re-used.
 		 *
 		 * @param entity Entity to insert.
 		 *
@@ -774,7 +828,7 @@ namespace sek::engine
 		 * @warning Using an entity already contained within the set will result in undefined behavior. */
 		constexpr iterator insert(entity_t entity) { return iterator{this, emplace_impl(entity) + 1}; }
 		/** Inserts an entity and it's component into the set.
-		 * Entity slots can be re-used.
+		 * Entity slots are re-used.
 		 *
 		 * @param entity Entity to insert.
 		 * @param value Value of the component.
@@ -792,7 +846,86 @@ namespace sek::engine
 		constexpr iterator insert(entity_t entity, U &&value)
 			requires(!std::is_void_v<T>)
 		{
-			return iterator{this, emplace_impl(entity, std::move(value)) + 1};
+			return iterator{this, emplace_impl(entity, std::forward<U>(value)) + 1};
+		}
+
+		/** Attempts to insert an entity and it's component into the set
+		 * Entity slots are re-used.
+		 *
+		 * @param entity Entity to insert.
+		 * @return Pair where first is iterator to the potentially inserted entity & component and second is a boolean
+		 * indicating whether the component was inserted (`true` if inserted, `false` otherwise). */
+		constexpr std::pair<iterator, bool> try_insert(entity_t entity)
+		{
+			if (const auto existing = find(entity); existing == end())
+				return {insert(entity), true};
+			else
+				return {existing, false};
+		}
+		/** @copydoc try_insert
+		 * @param args Value of the component. */
+		template<typename U>
+		constexpr std::pair<iterator, bool> try_insert(entity_t entity, const U &value)
+		{
+			if (const auto existing = find(entity); existing != end())
+				return {insert(entity, value), true};
+			else
+				return {existing, false};
+		}
+		/** @copydoc try_insert */
+		template<typename U>
+		constexpr std::pair<iterator, bool> try_insert(entity_t entity, U &&value)
+		{
+			if (const auto existing = find(entity); existing == end())
+				return {insert(entity, std::forward<U>(value)), true};
+			else
+				return {existing, false};
+		}
+
+		/** Inserts or modifies a component for the specified entity.
+		 * Entity slots are re-used.
+		 *
+		 * @param entity Entity to insert component for.
+		 * @param args Value of the component.
+		 * @return Pair where first is iterator to the potentially inserted entity & component and second is a boolean
+		 * indicating whether the component was inserted or replaced (`true` if inserted, `false` if replaced). */
+		template<typename U>
+		constexpr std::pair<iterator, bool> insert_or_replace(entity_t entity, const U &value)
+			requires(!std::is_void_v<T>)
+		{
+			if (const auto existing = find(entity); existing == end())
+				return {insert(entity, value), true};
+			else
+			{
+				existing->second = value;
+				mixin_replace(offset(existing), entity);
+				return {existing, false};
+			}
+		}
+		/** @copydoc insert_or_replace */
+		template<typename U>
+		constexpr std::pair<iterator, bool> insert_or_replace(entity_t entity, U &&value)
+			requires(!std::is_void_v<T>)
+		{
+			if (const auto existing = find(entity); existing == end())
+				return {insert(entity, std::forward<U>(value)), true};
+			else
+			{
+				existing->second = std::forward<U>(value);
+				mixin_replace(offset(existing), entity);
+				return {existing, false};
+			}
+		}
+
+		/** Inserts entities in the range `[first, last)` into the set (always at the end).
+		 * Components are default-constructed.
+		 * @warning Using entities already present will result in undefined behavior. */
+		template<std::forward_iterator I, std::sentinel_for<I> S>
+		constexpr iterator insert(I first, S last)
+		{
+			const auto off = m_dense.size();
+			for (; first != last; first = std::next(first)) push_back(*first);
+			return to_iterator(off);
 		}
 
 		/** Inserts an entity and it's component into the set.
@@ -822,51 +955,83 @@ namespace sek::engine
 		constexpr iterator push_back(entity_t entity, U &&value)
 			requires(!std::is_void_v<T>)
 		{
-			return iterator{this, emplace_back_impl(entity, std::move(value)) + 1};
+			return iterator{this, emplace_back_impl(entity, std::forward<U>(value)) + 1};
+		}
+
+		/** Attempts to insert an entity and it's component into the set.
+		 * Entities (and components) are always pushed to the end.
+		 *
+		 * @param entity Entity to insert.
+		 * @return Pair where first is iterator to the potentially inserted entity & component and second is a boolean
+		 * indicating whether the component was inserted (`true` if inserted, `false` otherwise). */
+		constexpr std::pair<iterator, bool> try_push_back(entity_t entity)
+		{
+			if (const auto existing = find(entity); existing == end())
+				return {push_back(entity), true};
+			else
+				return {existing, false};
+		}
+		/** @copydoc try_push_back
+		 * @param args Value of the component. */
+		template<typename U>
+		constexpr std::pair<iterator, bool> try_push_back(entity_t entity, const U &value)
+			requires(!std::is_void_v<T>)
+		{
+			if (const auto existing = find(entity); existing != end())
+				return {push_back(entity, value), true};
+			else
+				return {existing, false};
+		}
+		/** @copydoc try_push_back */
+		template<typename U>
+		constexpr std::pair<iterator, bool> try_push_back(entity_t entity, U &&value)
+			requires(!std::is_void_v<T>)
+		{
+			if (const auto existing = find(entity); existing == end())
+				return {push_back(entity, std::forward<U>(value)), true};
+			else
+				return {existing, false};
+		}
+
+		/** Inserts or modifies a component for the specified entity.
+		 * Entities (and components) are always pushed to the end.
+		 *
+		 * @param entity Entity to insert component for.
+		 * @param args Value of the component.
+		 * @return Pair where first is iterator to the potentially inserted entity & component and second is a boolean
+		 * indicating whether the component was inserted or replaced (`true` if inserted, `false` if replaced). */
+		template<typename U>
+		constexpr std::pair<iterator, bool> push_back_or_replace(entity_t entity, const U &value)
+			requires(!std::is_void_v<T>)
+		{
+			if (const auto existing = find(entity); existing == end())
+				return {push_back(entity, value), true};
+			else
+			{
+				existing->second = value;
+				mixin_replace(offset(existing), entity);
+				return {existing, false};
+			}
+		}
+		/** @copydoc push_back_or_replace */
+		template<typename U>
+		constexpr std::pair<iterator, bool> push_back_or_replace(entity_t entity, U &&value)
+			requires(!std::is_void_v<T>)
+		{
+			if (const auto existing = find(entity); existing == end())
+				return {push_back(entity, std::forward<U>(value)), true};
+			else
+			{
+				existing->second = std::forward<U>(value);
+				mixin_replace(offset(existing), entity);
+				return {existing, false};
+			}
 		}
 
 		/** Erases the entity (and it's component) from the set. */
 		constexpr iterator erase(const_iterator which) { return to_iterator(erase_impl(offset(which))); }
 		/** @copydoc erase */
 		constexpr iterator erase(entity_t entity) { return to_iterator(erase_impl(offset(entity))); }
-		/** Erases all entities between `[first, last)`. */
-		constexpr void erase(const_iterator first, const_iterator last)
-		{
-			if (first == begin() && last == end()) [[unlikely]]
-				clear();
-			else
-				for (; first != last; ++first)
-				{
-					if (to_entity(first).is_tombstone()) [[unlikely]]
-						continue;
-
-					erase(first);
-				}
-		}
-
-		/** Reserves space for `n` entities (and components). */
-		constexpr void reserve(size_type n)
-		{
-			if (n != 0) [[likely]]
-			{
-				pool_base::reserve(n);
-				m_sparse.resize(sparse_idx(n) + 1, nullptr);
-				m_dense.reserve(n);
-			}
-		}
-		/** Removes all entities from the set (destroying components, if needed). */
-		constexpr void clear()
-		{
-			for (size_type i = 0; i < 0; ++i)
-			{
-				const auto dense = m_dense[i];
-				if (dense.is_tombstone()) [[unlikely]]
-					continue;
-
-				sparse_ref(dense.index().value()) = entity_t::tombstone();
-				pool_base::erase(i);
-			}
-		}
 
 		constexpr void swap(basic_entity_set &other) noexcept
 		{
@@ -972,6 +1137,22 @@ namespace sek::engine
 			}
 		}
 
+		constexpr size_type mixin_replace(size_type idx, entity_t e)
+		{
+			if constexpr (!std::is_void_v<CRTP>) static_cast<CRTP *>(this)->replace_(e);
+			return idx;
+		}
+		constexpr size_type mixin_insert(size_type idx, entity_t e)
+		{
+			if constexpr (!std::is_void_v<CRTP>) static_cast<CRTP *>(this)->insert_(e);
+			return idx;
+		}
+		constexpr size_type mixin_erase(size_type idx, entity_t e)
+		{
+			if constexpr (!std::is_void_v<CRTP>) static_cast<CRTP *>(this)->erase_(e);
+			return idx;
+		}
+
 		template<typename... Args>
 		constexpr size_type emplace_impl(std::false_type, entity_t e, Args &&...args)
 		{
@@ -1008,12 +1189,12 @@ namespace sek::engine
 		template<typename... Args>
 		constexpr size_type emplace_back_impl(entity_t e, Args &&...args)
 		{
-			return emplace_impl(std::false_type{}, e, std::forward<Args>(args)...);
+			return mixin_insert(emplace_impl(std::false_type{}, e, std::forward<Args>(args)...), e);
 		}
 		template<typename... Args>
 		constexpr size_type emplace_impl(entity_t e, Args &&...args)
 		{
-			return emplace_impl(is_fixed{}, e, std::forward<Args>(args)...);
+			return mixin_insert(emplace_impl(is_fixed{}, e, std::forward<Args>(args)...), e);
 		}
 
 		constexpr size_type erase_impl(std::false_type, size_type idx)
@@ -1044,7 +1225,7 @@ namespace sek::engine
 			pool_base::erase(idx);
 			return idx + 1;
 		}
-		constexpr size_type erase_impl(size_type idx) { return erase_impl(is_fixed{}, idx); }
+		constexpr size_type erase_impl(size_type idx) { return erase_impl(is_fixed{}, mixin_erase(idx, m_dense[idx])); }
 
 		sparse_data m_sparse;
 		dense_data m_dense;
@@ -1053,7 +1234,5 @@ namespace sek::engine
 		entity_t m_next = entity_t::tombstone();
 	};
 
-	template<typename T>
-	using component_set = basic_entity_set<T>;
-	using entity_set = basic_entity_set<void>;
+	using entity_set = basic_entity_set<>;
 }	 // namespace sek::engine

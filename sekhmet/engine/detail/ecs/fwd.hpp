@@ -10,13 +10,11 @@ namespace sek::engine
 {
 	class entity_t;
 
-	template<typename = void, typename = std::allocator<entity_t>>
-	class basic_entity_set;
-
 	template<typename T>
 	struct component_traits;
-	template<typename T>
-	class component_storage;
+
+	template<typename = void, typename = void, typename = std::allocator<entity_t>>
+	class basic_entity_set;
 
 	template<typename...>
 	struct order_by_t

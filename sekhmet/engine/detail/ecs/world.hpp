@@ -41,27 +41,37 @@ namespace sek::engine
 			template<typename T, typename... Args>
 			constexpr explicit storage_entry(type_selector_t<T>, Args &&...args)
 			{
-				using storage_t = component_storage<T>;
+				using storage_t = component_set<T>;
+
+				m_ptr = static_cast<void *>(new storage_t(std::forward<Args>(args)...));
+				m_delete = +[](void *ptr) { delete static_cast<storage_t *>(ptr); };
 
 				m_contains = +[](void *ptr, entity_t e) { return static_cast<storage_t *>(ptr)->contains(e); };
+				m_insert = +[](void *ptr, entity_t e, any_ref a)
+				{
+					const auto &value = *a.try_cast<const T>();
+					static_cast<storage_t *>(ptr)->insert(e, value);
+				};
+				m_insert_default = +[](void *ptr, entity_t e) { static_cast<storage_t *>(ptr)->insert(e); };
 				m_erase = +[](void *ptr, entity_t e) { static_cast<storage_t *>(ptr)->erase(e); };
-				m_delete = +[](void *ptr) { delete static_cast<storage_t *>(ptr); };
-				m_ptr = static_cast<void *>(new storage_t(std::forward<Args>(args)...));
 			}
 			constexpr ~storage_entry() { m_delete(m_ptr); }
 
 			template<typename T>
 			[[nodiscard]] constexpr auto *get() noexcept
 			{
-				return static_cast<component_storage<T> *>(m_ptr);
+				return static_cast<component_set<T> *>(m_ptr);
 			}
 			template<typename T>
 			[[nodiscard]] constexpr auto *get() const noexcept
 			{
-				return static_cast<const component_storage<T> *>(m_ptr);
+				return static_cast<const component_set<T> *>(m_ptr);
 			}
 
 			[[nodiscard]] constexpr bool contains(entity_t e) const noexcept { return m_contains(m_ptr, e); }
+
+			constexpr void insert(entity_t e, any_ref a) const noexcept { return m_insert(m_ptr, e, std::move(a)); }
+			constexpr void insert(entity_t e) const noexcept { return m_insert_default(m_ptr, e); }
 
 			constexpr void erase(entity_t e) { m_erase(m_ptr, e); }
 
@@ -75,10 +85,13 @@ namespace sek::engine
 			friend constexpr void swap(storage_entry &a, storage_entry &b) noexcept { a.swap(b); }
 
 		private:
-			bool (*m_contains)(void *, entity_t) = +[](void *, entity_t) { return false; };
-			void (*m_erase)(void *, entity_t) = +[](void *, entity_t) {};
-			void (*m_delete)(void *) = +[](void *) {};
 			void *m_ptr = nullptr;
+			void (*m_delete)(void *) = +[](void *) {};
+
+			bool (*m_contains)(void *, entity_t);
+			void (*m_insert)(void *, entity_t, any_ref);
+			void (*m_insert_default)(void *, entity_t);
+			void (*m_erase)(void *, entity_t);
 		};
 		struct table_hash
 		{
@@ -358,7 +371,7 @@ namespace sek::engine
 		 * @param n Amount of components to reserve. If set to `0`, only creates the storage pools.
 		 * @return Tuple of references to component storage. */
 		template<typename... Ts>
-		std::tuple<component_storage<Ts> &...> reserve(size_type n = 0)
+		std::tuple<component_set<Ts> &...> reserve(size_type n = 0)
 		{
 			return std::forward_as_tuple(reserve_impl<Ts>(n)...);
 		}
@@ -483,7 +496,7 @@ namespace sek::engine
 		}
 
 		template<typename T>
-		component_storage<T> &reserve_impl(size_type n = 0)
+		component_set<T> &reserve_impl(size_type n = 0)
 		{
 			const auto type = type_info::get<T>();
 			auto target = m_storage.find(type);

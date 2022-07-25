@@ -62,12 +62,14 @@ template class sek::engine::basic_entity_set<dummy_t>;
 
 TEST(ecs_tests, pool_test)
 {
+	sek::engine::entity_world world;
+
 	const sek::engine::entity_t e0 = {sek::engine::entity_t::index_type{0}};
 	const sek::engine::entity_t e1 = {sek::engine::entity_t::index_type{1}};
 	const sek::engine::entity_t e2 = {sek::engine::entity_t::index_type{2}};
 
 	{
-		sek::engine::component_set<int> p;
+		auto p = sek::engine::component_set<int>{world};
 		p.emplace(e0);
 		p.emplace(e1);
 		p.emplace(e2);
@@ -94,7 +96,7 @@ TEST(ecs_tests, pool_test)
 		EXPECT_EQ(p.find(e1)->second, 1);
 	}
 	{
-		sek::engine::component_set<dummy_t> p;
+		auto p = sek::engine::component_set<dummy_t>{world};
 		p.emplace(e0);
 		p.emplace(e1);
 		p.emplace(e2);
@@ -111,11 +113,11 @@ TEST(ecs_tests, pool_test)
 		EXPECT_FALSE(p.contains(e2));
 	}
 	{
-		sek::engine::component_set<int> pi0;
+		auto pi0 = sek::engine::component_set<int>{world};
 		pi0.emplace(e0, 0);
 		pi0.emplace(e1, 1);
 
-		sek::engine::component_set<float> pf0;
+		auto pf0 = sek::engine::component_set<float>{world};
 		pf0.emplace(e0, 0.0f);
 		pf0.emplace(e1, 1.0f);
 		pf0.emplace(e2, 2.0f);
@@ -127,7 +129,7 @@ TEST(ecs_tests, pool_test)
 		EXPECT_EQ(*iptr, 0);
 		EXPECT_EQ(*fptr, 0.0f);
 
-		sek::engine::component_set<int> pi1;
+		auto pi1 = sek::engine::component_set<int>{world};
 		pi1.emplace(e0, 10);
 
 		EXPECT_EQ(iptr.reset(&pi1), &pi0);
@@ -136,9 +138,9 @@ TEST(ecs_tests, pool_test)
 	}
 }
 
-template class sek::engine::component_storage<int>;
-template class sek::engine::component_storage<float>;
-template class sek::engine::component_storage<dummy_t>;
+template class sek::engine::component_set<int>;
+template class sek::engine::component_set<float>;
+template class sek::engine::component_set<dummy_t>;
 
 TEST(ecs_tests, world_test)
 {
