@@ -754,7 +754,7 @@ namespace sek::engine
 
 			[[nodiscard]] constexpr const type_info *get() const noexcept { return &m_info; }
 			[[nodiscard]] constexpr const type_info *operator->() const noexcept { return get(); }
-			[[nodiscard]] constexpr const type_info &operator*() const noexcept { return *get(); }
+			[[nodiscard]] constexpr type_info operator*() const noexcept { return *get(); }
 
 			[[nodiscard]] constexpr bool operator==(const type_pointer &) const noexcept = default;
 
@@ -771,7 +771,7 @@ namespace sek::engine
 		public:
 			typedef type_info value_type;
 			typedef type_pointer pointer;
-			typedef const type_info &reference;
+			typedef type_info reference;
 			typedef typename iter_t::size_type size_type;
 			typedef typename iter_t::difference_type difference_type;
 			typedef typename iter_t::iterator_category iterator_category;
@@ -848,8 +848,8 @@ namespace sek::engine
 		typedef type_info value_type;
 		typedef type_pointer pointer;
 		typedef type_pointer const_pointer;
-		typedef const type_info &reference;
-		typedef const type_info &const_reference;
+		typedef type_info reference;
+		typedef type_info const_reference;
 		typedef type_iterator iterator;
 		typedef type_iterator const_iterator;
 		typedef std::reverse_iterator<iterator> reverse_iterator;
@@ -959,7 +959,7 @@ namespace sek::engine
 		constexpr type_query(const type_database &db) noexcept : m_db(db)
 		{
 			m_types.reserve(m_db.size());
-			for (auto &type : m_db) m_types.insert(type);
+			for (auto type : m_db) m_types.insert(type);
 		}
 
 		/** Returns iterator to the first type captured by the query. */
@@ -990,8 +990,8 @@ namespace sek::engine
 		template<typename P>
 		constexpr type_query &matching(P pred)
 		{
-			for (auto type = begin(), last = end(); type != last; ++type)
-				if (!pred(*type)) m_types.erase(type);
+			for (auto type = end(); type-- != begin();)
+				if (!pred(*type)) type = m_types.erase(type);
 			return *this;
 		}
 
@@ -1000,8 +1000,8 @@ namespace sek::engine
 		{
 			if (auto attrib = m_db.m_attributes.find(name); attrib != m_db.m_attributes.end()) [[likely]]
 			{
-				for (auto type = begin(), last = end(); type != last; ++type)
-					if (!attrib->second.contains(type->name())) m_types.erase(type);
+				for (auto type = end(); type-- != begin();)
+					if (!attrib->second.contains(type->name())) type = m_types.erase(type);
 			}
 			return *this;
 		}
@@ -1032,8 +1032,8 @@ namespace sek::engine
 		template<size_type... Is>
 		constexpr type_query &with_attributes(std::index_sequence<Is...>, auto &attribs)
 		{
-			for (auto type = begin(), last = end(); type != last; ++type)
-				if (!(check_attrib<Is>(type, attribs) && ...)) m_types.erase(type);
+			for (auto type = end(); type-- != begin();)
+				if (!(check_attrib<Is>(type, attribs) && ...)) type = m_types.erase(type);
 			return *this;
 		}
 

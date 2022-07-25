@@ -106,7 +106,7 @@ namespace sek::engine
 			[[nodiscard]] constexpr auto &get_allocator() noexcept { return *alloc_base::get(); }
 			[[nodiscard]] constexpr auto &get_allocator() const noexcept { return *alloc_base::get(); }
 
-			constexpr void assert_alloc(const component_pool &other)
+			constexpr void assert_alloc(const component_pool &other [[maybe_unused]])
 			{
 				SEK_ASSERT(alloc_traits::propagate_on_container_move_assignment::value ||
 						   sek::detail::alloc_eq(get_allocator(), other.get_allocator()));
