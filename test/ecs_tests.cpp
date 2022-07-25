@@ -29,7 +29,10 @@ TEST(ecs_tests, entity_test)
 		const sek::engine::entity_t e1 = {sek::engine::entity_t::index_type{1}};
 		const sek::engine::entity_t e2 = {sek::engine::entity_t::index_type{2}};
 
-		sek::engine::entity_set set = {e0, e1, e2};
+		sek::engine::entity_set set;
+		set.emplace(e0);
+		set.emplace(e1);
+		set.emplace(e2);
 
 		EXPECT_EQ(set.size(), 3);
 		EXPECT_EQ(*(set.begin() + 0), e2);
@@ -64,7 +67,10 @@ TEST(ecs_tests, pool_test)
 	const sek::engine::entity_t e2 = {sek::engine::entity_t::index_type{2}};
 
 	{
-		sek::engine::component_set<int> p = {e0, e1, e2};
+		sek::engine::component_set<int> p;
+		p.emplace(e0);
+		p.emplace(e1);
+		p.emplace(e2);
 
 		EXPECT_EQ(p.size(), 3);
 
@@ -129,6 +135,10 @@ TEST(ecs_tests, pool_test)
 		EXPECT_EQ(*iptr, 10);
 	}
 }
+
+template class sek::engine::component_storage<int>;
+template class sek::engine::component_storage<float>;
+template class sek::engine::component_storage<dummy_t>;
 
 TEST(ecs_tests, world_test)
 {

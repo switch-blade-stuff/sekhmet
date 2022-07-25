@@ -536,12 +536,6 @@ namespace sek::engine
 			reserve(n);
 		}
 
-		constexpr basic_entity_set(std::initializer_list<entity_t> init_list, const allocator_type &alloc = {})
-			: basic_entity_set(init_list.size(), alloc)
-		{
-			insert(init_list.begin(), init_list.end());
-		}
-
 		/** Returns iterator to the first entity (and it's component, if any) of the set. */
 		[[nodiscard]] constexpr iterator begin() noexcept { return iterator{this, size()}; }
 		/** @copydoc begin */
@@ -638,19 +632,20 @@ namespace sek::engine
 
 		/** Replaces component of an entity.
 		 * @param Entity to replace component of.
-		 * @param value Value of the component. */
+		 * @param value Value of the component.
+		 * @return Reference to the component. */
 		template<typename U>
-		constexpr void replace(entity_t e, const U &value)
+		constexpr decltype(auto) replace(entity_t e, const U &value)
 			requires(!std::is_void_v<T>)
 		{
-			get(e) = value;
+			return get(e) = value;
 		}
-		/** @copydoc update */
+		/** @copydoc replace */
 		template<typename U>
-		constexpr void update(entity_t e, U &&value)
+		constexpr decltype(auto) replace(entity_t e, U &&value)
 			requires(!std::is_void_v<T>)
 		{
-			get(e) = std::move(value);
+			return get(e) = std::move(value);
 		}
 
 		/** Swaps entities of the entity set. */
@@ -798,15 +793,6 @@ namespace sek::engine
 			requires(!std::is_void_v<T>)
 		{
 			return iterator{this, emplace_impl(entity, std::move(value)) + 1};
-		}
-
-		/** Inserts all entities in the range `[first, last)`. Components are default-constructed. */
-		template<std::forward_iterator I, std::sentinel_for<I> S>
-		constexpr iterator insert(I first, S last)
-		{
-			const auto pos = m_dense.size();
-			for (; first != last; first = std::next(first)) push_back(*first);
-			return to_iterator(pos);
 		}
 
 		/** Inserts an entity and it's component into the set.

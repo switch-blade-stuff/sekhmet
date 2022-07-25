@@ -75,9 +75,11 @@ namespace sek::engine
 		/** Returns reference to the parent world of the storage. */
 		[[nodiscard]] constexpr entity_world &world() const noexcept { return m_world; }
 
-		/** Returns event proxy for the component creation event. */
+		/** Returns event proxy for the component create event. */
 		[[nodiscard]] constexpr event_proxy<event_type> on_create() noexcept { return {m_create}; }
-		/** Returns event proxy for the component removal event. */
+		/** Returns event proxy for the component replace event. */
+		[[nodiscard]] constexpr event_proxy<event_type> on_replace() noexcept { return {m_replace}; }
+		/** Returns event proxy for the component remove event. */
 		[[nodiscard]] constexpr event_proxy<event_type> on_remove() noexcept { return {m_remove}; }
 
 		/** @copydoc base_set::replace */
@@ -137,6 +139,13 @@ namespace sek::engine
 		}
 
 		/** @copydoc base_set::insert */
+		constexpr iterator insert(entity_t e)
+		{
+			const auto result = base_set::insert(e);
+			dispatch_create(e);
+			return result;
+		}
+		/** @copydoc base_set::insert */
 		constexpr iterator insert(entity_t e, component_type &&value)
 		{
 			const auto result = base_set::insert(e, std::move(value));
@@ -150,24 +159,81 @@ namespace sek::engine
 			dispatch_create(e);
 			return result;
 		}
-		/** @copydoc base_set::insert_or_replace */
+
+		/** Inserts entities in the range `[first, last)` (always at the end).
+		 * Components are default-constructed.
+		 * @warning Using entities already present will result in undefined behavior. */
+		template<std::forward_iterator I, std::sentinel_for<I> S>
+		constexpr iterator insert(I first, S last)
+		{
+			const auto off = base_set::end() - base_set::begin();
+			for (; first != last; first = std::next(first)) push_back(*first);
+			return base_set::begin() + off;
+		}
+
+		/** Inserts or modifies a component for the specified entity (re-using slots if component type requires fixed storage).
+		 *
+		 * @param e Entity to insert component for.
+		 * @param args Value of the component.
+		 * @return Pair where first is iterator to the potentially inserted entity & component and second is a boolean
+		 * indicating whether the component was inserted or replaced (`true` if inserted, `false` if replaced). */
 		constexpr std::pair<iterator, bool> insert_or_replace(entity_t e, component_type &&value)
 		{
-			const auto result = base_set::insert_or_replace(e, std::move(value));
-			if (result.second)
-				dispatch_create(e);
+			if (const auto existing = base_set::find(e); existing == base_set::end())
+				return {insert(e, std::move(value)), true};
 			else
-				dispatch_replace(e);
-			return result;
+			{
+				existing->second = std::move(value);
+				return {existing, false};
+			}
 		}
-		/** @copydoc base_set::insert_or_replace */
+		/** @copydoc insert_or_replace */
 		constexpr std::pair<iterator, bool> insert_or_replace(entity_t e, const component_type &value)
 		{
-			const auto result = base_set::insert_or_replace(e, value);
-			if (result.second)
-				dispatch_create(e);
+			if (const auto existing = base_set::find(e); existing == base_set::end())
+				return {insert(e, value), true};
 			else
-				dispatch_replace(e);
+			{
+				existing->second = value;
+				return {existing, false};
+			}
+		}
+
+		/** Attempts to insert an entity and component (re-using slots if component type requires fixed storage).
+		 *
+		 * @param e Entity to insert component for.
+		 * @return Pair where first is iterator to the potentially inserted entity & component and second is a boolean
+		 * indicating whether the component was inserted (`true` if inserted, `false` otherwise). */
+		constexpr std::pair<iterator, bool> try_insert(entity_t e)
+		{
+			if (const auto existing = base_set::find(e); existing == base_set::end())
+				return {insert(e), true};
+			else
+				return {existing, false};
+		}
+		/** @copydoc try_insert
+		 * @param args Value of the component. */
+		constexpr std::pair<iterator, bool> try_insert(entity_t e, component_type &&value)
+		{
+			if (const auto existing = base_set::find(e); existing == base_set::end())
+				return {insert(e, std::move(value)), true};
+			else
+				return {existing, false};
+		}
+		/** @copydoc try_insert */
+		constexpr std::pair<iterator, bool> try_insert(entity_t e, const component_type &value)
+		{
+			if (const auto existing = base_set::find(e); existing != base_set::end())
+				return {insert(e, value), true};
+			else
+				return {existing, false};
+		}
+
+		/** @copydoc base_set::push_back */
+		constexpr iterator push_back(entity_t e)
+		{
+			const auto result = base_set::push_back(e);
+			dispatch_create(e);
 			return result;
 		}
 		/** @copydoc base_set::push_back */
@@ -184,25 +250,62 @@ namespace sek::engine
 			dispatch_create(e);
 			return result;
 		}
-		/** @copydoc base_set::push_back_or_replace */
+		/** Inserts or modifies a component for the specified entity (always at the end).
+		 *
+		 * @param e Entity to insert component for.
+		 * @param args Value of the component.
+		 * @return Pair where first is iterator to the potentially inserted entity & component and second is a boolean
+		 * indicating whether the component was inserted or replaced (`true` if inserted, `false` if replaced). */
 		constexpr std::pair<iterator, bool> push_back_or_replace(entity_t e, component_type &&value)
 		{
-			const auto result = base_set::push_back_or_replace(e, std::move(value));
-			if (result.second)
-				dispatch_create(e);
+			if (const auto existing = base_set::find(e); existing == base_set::end())
+				return {push_back(e, std::move(value)), true};
 			else
-				dispatch_replace(e);
-			return result;
+			{
+				existing->second = std::move(value);
+				return {existing, false};
+			}
 		}
-		/** @copydoc base_set::push_back_or_replace */
+		/** @copydoc push_back_or_replace */
 		constexpr std::pair<iterator, bool> push_back_or_replace(entity_t e, const component_type &value)
 		{
-			const auto result = base_set::push_back_or_replace(e, value);
-			if (result.second)
-				dispatch_create(e);
+			if (const auto existing = base_set::find(e); existing == base_set::end())
+				return {push_back(e, value), true};
 			else
-				dispatch_replace(e);
-			return result;
+			{
+				existing->second = value;
+				return {existing, false};
+			}
+		}
+
+		/** Attempts to insert an entity and component (always at the end).
+		 *
+		 * @param e Entity to insert component for.
+		 * @return Pair where first is iterator to the potentially inserted entity & component and second is a boolean
+		 * indicating whether the component was inserted (`true` if inserted, `false` otherwise). */
+		constexpr std::pair<iterator, bool> try_push_back(entity_t e)
+		{
+			if (const auto existing = base_set::find(e); existing == base_set::end())
+				return {push_back(e), true};
+			else
+				return {existing, false};
+		}
+		/** @copydoc try_push_back
+		 * @param args Value of the component. */
+		constexpr std::pair<iterator, bool> try_push_back(entity_t e, component_type &&value)
+		{
+			if (const auto existing = base_set::find(e); existing == base_set::end())
+				return {push_back(e, std::move(value)), true};
+			else
+				return {existing, false};
+		}
+		/** @copydoc try_push_back */
+		constexpr std::pair<iterator, bool> try_push_back(entity_t e, const component_type &value)
+		{
+			if (const auto existing = base_set::find(e); existing != base_set::end())
+				return {push_back(e, value), true};
+			else
+				return {existing, false};
 		}
 
 		using base_set::erase;
