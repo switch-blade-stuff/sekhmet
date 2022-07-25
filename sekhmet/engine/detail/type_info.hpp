@@ -13,6 +13,7 @@
 #include "sekhmet/detail/aligned_storage.hpp"
 #include "sekhmet/detail/assert.hpp"
 #include "sekhmet/detail/dense_map.hpp"
+#include "sekhmet/detail/dense_set.hpp"
 #include "sekhmet/detail/meta_util.hpp"
 #include "sekhmet/detail/service.hpp"
 
@@ -24,6 +25,8 @@ namespace sek::engine
 	class any;
 	class any_ref;
 	class type_info;
+	class type_query;
+	class type_database;
 
 	template<typename T>
 	[[nodiscard]] any forward_any(T &&);
@@ -406,8 +409,111 @@ namespace sek::engine
 	/** @brief Structure used to represent information about a conversion cast of a reflected type. */
 	class conversion_info;
 
-	/** @brief Service used to store a database of reflected type information. */
-	class type_database;
+	/** @brief Structure used to create reflected type information. */
+	template<typename T, typename... Attr>
+	class type_factory
+	{
+		template<typename, typename...>
+		friend class type_factory;
+		friend class type_database;
+
+		using handle_t = detail::type_handle;
+
+		constexpr explicit type_factory(handle_t handle) noexcept : m_handle(handle) {}
+
+		// clang-format off
+		template<typename U>
+		constexpr static bool good_cast = requires (T v) { static_cast<U>(v); };
+		template<typename U>
+		constexpr static bool unqualified = std::same_as<std::remove_cvref_t<U>, U>;
+		template<typename U>
+		constexpr static bool different = !std::same_as<std::remove_cvref_t<U>, T>;
+		template<auto F>
+		constexpr static bool member_func = requires {
+												typename func_traits<F>::instance_type;
+												requires std::same_as<std::remove_cv_t<typename func_traits<F>::instance_type>, T>;
+											};
+		template<auto F>
+		constexpr static bool free_func = std::is_function_v<decltype(F)>;
+		// clang-format on
+
+	public:
+		constexpr ~type_factory() { submit(); }
+		constexpr type_factory(const type_factory &) noexcept = default;
+		constexpr type_factory &operator=(const type_factory &) noexcept = default;
+		constexpr type_factory(type_factory &&) noexcept = default;
+		constexpr type_factory &operator=(type_factory &&) noexcept = default;
+
+		// clang-format off
+		/** Adds a constructor to `T`'s list of constructors.
+		 * @tparam Args Signature of the constructor. */
+		template<typename... Args>
+		type_factory &constructor() requires std::constructible_from<T, Args...>
+		{
+			m_handle->template add_ctor<T, Args...>();
+			return *this;
+		}
+		/** Adds a member or member function to `T`'s list of function.
+		 * @note Free functions accepting a pointer to `T` as their first argument will be treated like member functions.
+		 * @param name Name of the function. This name will be used to invoke the function at runtime. */
+		template<auto F>
+		type_factory &function(std::string_view name) requires(member_func<F> || free_func<F>)
+		{
+			using traits = func_traits<F>;
+			m_handle->template add_func<T, F, typename traits::return_type>(typename traits::arg_types{}, name);
+			return *this;
+		}
+		/** Adds `P` to the list of parents of `T`.
+		 * @tparam P Parent type of `T`. */
+		template<typename P>
+		type_factory &parent() requires std::derived_from<T, P> && unqualified<P> && different<P>
+		{
+			m_handle->template add_parent<T, P>();
+			return *this;
+		}
+		/** Adds `U` to `T`'s list of conversions.
+		 * @tparam U Type that `T` can be `static_cast` to. */
+		template<typename U>
+		type_factory &convertible() requires good_cast<U> && unqualified<U> && different<U>
+		{
+			m_handle->template add_conv<T, U>();
+			return *this;
+		}
+		/** Adds an attribute to `T`'s list of attributes.
+		 * @param value Value of the attribute. */
+		template<typename A>
+		auto attribute(A &&value) { return attribute<std::decay_t<A>, A>(std::forward<A>(value)); }
+		/** Adds an attribute to `T`'s list of attributes.
+		 * @tparam A Type of the attribute.
+		 * @param args Arguments used to initialize the attribute. */
+		template<typename A, typename... Args>
+		type_factory<T, A, Attr...> attribute(Args &&...args)
+		{
+			m_handle->template add_attrib<T>(type_seq<A, Attr...>, [&](A *ptr){ std::construct_at(ptr, std::forward<Args>(args)...); });
+			return type_factory<T, A, Attr...>{m_handle};
+		}
+		/** Adds an attribute to `T`'s list of attributes.
+		 * @tparam Value Value of the attribute. */
+		template<auto Value>
+		auto attribute() { return attribute<std::remove_cvref_t<decltype(Value)>, Value>(); }
+		/** @copydoc attribute
+		 * @tparam A Type of the attribute. */
+		template<typename A, auto Value>
+		type_factory<T, A, Attr...> attribute()
+		{
+			m_handle->template add_attrib<T, Value>(type_seq<A, Attr...>);
+			return type_factory<T, A, Attr...>{m_handle};
+		}
+		// clang-format on
+
+		/** Finalizes the type and inserts it into the type database.
+		 * @note After call to `m_handle` type factory is in invalid state. */
+		inline void submit();
+
+	private:
+		handle_t m_handle;
+	};
+
 	/** @brief Structure used to reference reflected information about a type. */
 	class type_info
 	{
@@ -425,104 +531,6 @@ namespace sek::engine
 		{
 			return handle_t{type_selector<std::remove_cvref_t<T>>};
 		}
-
-	public:
-		template<typename T, typename... Attr>
-		class type_factory
-		{
-			template<typename, typename...>
-			friend class type_factory;
-			friend class type_database;
-
-			constexpr explicit type_factory(data_t &data) noexcept : m_data(data) {}
-
-			// clang-format off
-			template<typename U>
-			constexpr static bool good_cast = requires (T v) { static_cast<U>(v); };
-			template<typename U>
-			constexpr static bool unqualified = std::same_as<std::remove_cvref_t<U>, U>;
-			template<typename U>
-			constexpr static bool different = !std::same_as<std::remove_cvref_t<U>, T>;
-			template<auto F>
-			constexpr static bool member_func = requires {
-													typename func_traits<F>::instance_type;
-													requires std::same_as<std::remove_cv_t<typename func_traits<F>::instance_type>, T>;
-												};
-			template<auto F>
-			constexpr static bool free_func = std::is_function_v<decltype(F)>;
-			// clang-format on
-
-		public:
-			constexpr type_factory(const type_factory &) noexcept = default;
-			constexpr type_factory &operator=(const type_factory &) noexcept = default;
-			constexpr type_factory(type_factory &&) noexcept = default;
-			constexpr type_factory &operator=(type_factory &&) noexcept = default;
-
-			// clang-format off
-			/** Adds a constructor to `T`'s list of constructors.
-			 * @tparam Args Signature of the constructor. */
-			template<typename... Args>
-			type_factory &constructor() requires std::constructible_from<T, Args...>
-			{
-				m_data.template add_ctor<T, Args...>();
-				return *this;
-			}
-			/** Adds a member or member function to `T`'s list of function.
-			 * @note Free functions accepting a pointer to `T` as their first argument will be treated like member functions.
-			 * @param name Name of the function. This name will be used to invoke the function at runtime. */
-			template<auto F>
-			type_factory &function(std::string_view name) requires(member_func<F> || free_func<F>)
-			{
-				using traits = func_traits<F>;
-				m_data.template add_func<T, F, typename traits::return_type>(typename traits::arg_types{}, name);
-				return *this;
-			}
-			/** Adds `P` to the list of parents of `T`.
-			 * @tparam P Parent type of `T`. */
-			template<typename P>
-			type_factory &parent() requires std::derived_from<T, P> && unqualified<P> && different<P>
-			{
-				m_data.template add_parent<T, P>();
-				return *this;
-			}
-			/** Adds `U` to `T`'s list of conversions.
-			 * @tparam U Type that `T` can be `static_cast` to. */
-			template<typename U>
-			type_factory &convertible() requires good_cast<U> && unqualified<U> && different<U>
-			{
-				m_data.template add_conv<T, U>();
-				return *this;
-			}
-			/** Adds an attribute to `T`'s list of attributes.
-			 * @param value Value of the attribute. */
-			template<typename A>
-			auto attribute(A &&value) { return attribute<std::decay_t<A>, A>(std::forward<A>(value)); }
-			/** Adds an attribute to `T`'s list of attributes.
-			 * @tparam A Type of the attribute.
-			 * @param args Arguments used to initialize the attribute. */
-			template<typename A, typename... Args>
-			type_factory<T, A, Attr...> attribute(Args &&...args)
-			{
-				m_data.template add_attrib<T>(type_seq<A, Attr...>, [&](A *ptr){ std::construct_at(ptr, std::forward<Args>(args)...); });
-				return type_factory<T, A, Attr...>{m_data};
-			}
-			/** Adds an attribute to `T`'s list of attributes.
-			 * @tparam Value Value of the attribute. */
-			template<auto Value>
-			auto attribute() { return attribute<std::remove_cvref_t<decltype(Value)>, Value>(); }
-			/** @copydoc attribute
-			 * @tparam A Type of the attribute. */
-			template<typename A, auto Value>
-			type_factory<T, A, Attr...> attribute()
-			{
-				m_data.template add_attrib<T, Value>(type_seq<A, Attr...>);
-				return type_factory<T, A, Attr...>{m_data};
-			}
-			// clang-format on
-
-		private:
-			data_t &m_data;
-		};
 
 	public:
 		/** Returns type info for type `T`.
@@ -712,11 +720,172 @@ namespace sek::engine
 		const data_t *m_data = nullptr;
 	};
 
+	[[nodiscard]] constexpr hash_t hash(const type_info &info) noexcept
+	{
+		const auto name = info.name();
+		return fnv1a(name.data(), name.size());
+	}
+
+	/** @brief Service used to store a database of reflected type information. */
 	class type_database : public service<shared_guard<type_database>>
 	{
 		friend shared_guard<type_database>;
+		template<typename, typename...>
+		friend class type_factory;
+		friend class type_query;
+
+		using data_t = dense_map<std::string_view, detail::type_handle>;
+		using attributes_t = dense_map<std::string_view, data_t>;
+
+		[[nodiscard]] constexpr static type_info to_info(detail::type_handle handle) noexcept
+		{
+			return type_info{handle};
+		}
+
+		class type_iterator;
+		class type_pointer
+		{
+			friend class type_iterator;
+
+			constexpr explicit type_pointer(detail::type_handle handle) noexcept : m_info(to_info(handle)) {}
+
+		public:
+			constexpr type_pointer() noexcept = default;
+
+			[[nodiscard]] constexpr const type_info *get() const noexcept { return &m_info; }
+			[[nodiscard]] constexpr const type_info *operator->() const noexcept { return get(); }
+			[[nodiscard]] constexpr const type_info &operator*() const noexcept { return *get(); }
+
+			[[nodiscard]] constexpr bool operator==(const type_pointer &) const noexcept = default;
+
+		private:
+			type_info m_info = {};
+		};
+
+		class type_iterator
+		{
+			friend class type_database;
+
+			using iter_t = typename data_t::const_iterator;
+
+		public:
+			typedef type_info value_type;
+			typedef type_pointer pointer;
+			typedef const type_info &reference;
+			typedef typename iter_t::size_type size_type;
+			typedef typename iter_t::difference_type difference_type;
+			typedef typename iter_t::iterator_category iterator_category;
+
+		private:
+			constexpr explicit type_iterator(iter_t iter) noexcept : m_iter(iter) {}
+
+		public:
+			constexpr type_iterator() noexcept = default;
+
+			constexpr type_iterator operator++(int) noexcept
+			{
+				auto temp = *this;
+				++(*this);
+				return temp;
+			}
+			constexpr type_iterator &operator++() noexcept
+			{
+				++m_iter;
+				return *this;
+			}
+			constexpr type_iterator &operator+=(difference_type n) noexcept
+			{
+				m_iter += n;
+				return *this;
+			}
+			constexpr type_iterator operator--(int) noexcept
+			{
+				auto temp = *this;
+				--(*this);
+				return temp;
+			}
+			constexpr type_iterator &operator--() noexcept
+			{
+				--m_iter;
+				return *this;
+			}
+			constexpr type_iterator &operator-=(difference_type n) noexcept
+			{
+				m_iter -= n;
+				return *this;
+			}
+
+			constexpr type_iterator operator+(difference_type n) const noexcept { return type_iterator{m_iter + n}; }
+			constexpr type_iterator operator-(difference_type n) const noexcept { return type_iterator{m_iter - n}; }
+			constexpr difference_type operator-(const type_iterator &other) const noexcept
+			{
+				return m_iter - other.m_iter;
+			}
+
+			/** Returns pointer to the target element. */
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{m_iter->second}; }
+			/** @copydoc value */
+			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
+			/** Returns reference to the target element. */
+			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
+			/** Returns reference to the element at an offset. */
+			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept
+			{
+				return *pointer{m_iter[n].second};
+			}
+
+			[[nodiscard]] constexpr auto operator<=>(const type_iterator &) const noexcept = default;
+			[[nodiscard]] constexpr bool operator==(const type_iterator &) const noexcept = default;
+
+			constexpr void swap(type_iterator &other) noexcept { std::swap(m_iter, other.m_iter); }
+			friend constexpr void swap(type_iterator &a, type_iterator &b) noexcept { a.swap(b); }
+
+		private:
+			iter_t m_iter;
+		};
 
 	public:
+		typedef type_info value_type;
+		typedef type_pointer pointer;
+		typedef type_pointer const_pointer;
+		typedef const type_info &reference;
+		typedef const type_info &const_reference;
+		typedef type_iterator iterator;
+		typedef type_iterator const_iterator;
+		typedef std::reverse_iterator<iterator> reverse_iterator;
+		typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+		typedef typename data_t::size_type size_type;
+		typedef typename data_t::difference_type difference_type;
+
+	public:
+		/** Returns iterator to the first type of the database. */
+		[[nodiscard]] constexpr iterator begin() const noexcept { return iterator{m_types.begin()}; }
+		/** @copydoc begin */
+		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return const_iterator{m_types.cbegin()}; }
+		/** Returns iterator one past the last type of the database. */
+		[[nodiscard]] constexpr iterator end() const noexcept { return iterator{m_types.end()}; }
+		/** @copydoc end */
+		[[nodiscard]] constexpr const_iterator cend() const noexcept { return const_iterator{m_types.cend()}; }
+		/** Returns reverse iterator to the last type of the database. */
+		[[nodiscard]] constexpr reverse_iterator rbegin() const noexcept { return reverse_iterator{end()}; }
+		/** @copydoc rbegin */
+		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return crbegin(); }
+		/** Returns iterator one past the first type of the database. */
+		[[nodiscard]] constexpr reverse_iterator rend() const noexcept { return reverse_iterator{begin()}; }
+		/** @copydoc end */
+		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return rend(); }
+
+		/** Returns size of the database (total amount of reflected types). */
+		[[nodiscard]] constexpr size_type size() const noexcept { return m_types.size(); }
+		/** Checks if the type database is empty (no types are reflected). */
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_types.empty(); }
+
+		/** Returns a type query for the database. */
+		[[nodiscard]] constexpr type_query query() const noexcept;
+
+		/** Searches for a reflected type in the database.
+		 * @return Iterator to the taraget type, or end iterator if the type was not found. */
+		[[nodiscard]] SEK_API iterator find(std::string_view name) const;
 		/** Searches for a reflected type in the database.
 		 * @return Type info of the type, or an invalid type info if such type is not found. */
 		[[nodiscard]] SEK_API type_info get(std::string_view name) const;
@@ -725,13 +894,16 @@ namespace sek::engine
 		 * @return Type factory for type `T`, which can be used to specify additional information about the type.
 		 * @note Removes any const & volatile qualifiers and decays references. */
 		template<typename T>
-		constexpr type_info::type_factory<T> reflect()
+		constexpr type_factory<T> reflect()
 		{
-			return type_info::type_factory<T>{reflect_impl(type_info::get_handle<T>())};
+			return type_factory<T>{type_info::get_handle<T>()};
 		}
+
 		/** Resets a reflected type, removing it from the database.
 		 * @note The type will no longer be available for runtime lookup. */
 		SEK_API void reset(std::string_view name);
+		/** @copydoc reset */
+		SEK_API void reset(const_iterator which);
 		/** @copydoc reset */
 		template<typename T>
 		void reset()
@@ -740,18 +912,136 @@ namespace sek::engine
 		}
 
 	private:
-		SEK_API detail::type_data &reflect_impl(detail::type_handle handle);
+		SEK_API void reflect_impl(detail::type_handle);
 
-		dense_map<std::string_view, detail::type_handle> m_types;
+		data_t m_types;
+		attributes_t m_attributes;
 	};
 
+	template<typename T, typename... Attr>
+	void type_factory<T, Attr...>::submit()
+	{
+		if (m_handle.get != nullptr) [[likely]]
+		{
+			type_database::instance()->access_unique()->reflect_impl(m_handle);
+			m_handle = {};
+		}
+	}
+
 	template<typename T>
-	type_info::type_factory<T> type_info::reflect()
+	type_factory<T> type_info::reflect()
 	{
 		return type_database::instance()->access_unique()->template reflect<T>();
 	}
 	type_info type_info::get(std::string_view name) { return type_database::instance()->access_shared()->get(name); }
 	void type_info::reset(std::string_view name) { return type_database::instance()->access_unique()->reset(name); }
+
+	/** @brief Structure used to query type database for a set of types. */
+	class type_query
+	{
+		using data_t = dense_set<type_info>;
+
+	public:
+		typedef typename data_t::value_type value_type;
+		typedef typename data_t::pointer pointer;
+		typedef typename data_t::const_pointer const_pointer;
+		typedef typename data_t::reference reference;
+		typedef typename data_t::const_reference const_reference;
+		typedef typename data_t::iterator iterator;
+		typedef typename data_t::const_iterator const_iterator;
+		typedef typename data_t::reverse_iterator reverse_iterator;
+		typedef typename data_t::const_reverse_iterator const_reverse_iterator;
+		typedef typename data_t::size_type size_type;
+		typedef typename data_t::difference_type difference_type;
+
+	public:
+		/** Initializes type query for the specified type database. */
+		constexpr type_query(const type_database &db) noexcept : m_db(db)
+		{
+			m_types.reserve(m_db.size());
+			for (auto &type : m_db) m_types.insert(type);
+		}
+
+		/** Returns iterator to the first type captured by the query. */
+		[[nodiscard]] constexpr iterator begin() const noexcept { return m_types.begin(); }
+		/** @copydoc begin */
+		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return m_types.cbegin(); }
+		/** Returns iterator one past the last type captured by the query. */
+		[[nodiscard]] constexpr iterator end() const noexcept { return m_types.end(); }
+		/** @copydoc end */
+		[[nodiscard]] constexpr const_iterator cend() const noexcept { return m_types.cend(); }
+		/** Returns reverse iterator to the last type captured by the query. */
+		[[nodiscard]] constexpr reverse_iterator rbegin() const noexcept { return m_types.rbegin(); }
+		/** @copydoc rbegin */
+		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return m_types.crbegin(); }
+		/** Returns iterator one past the first type captured by the query. */
+		[[nodiscard]] constexpr reverse_iterator rend() const noexcept { return m_types.rend(); }
+		/** @copydoc end */
+		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return m_types.crend(); }
+
+		/** Returns the number of types captured by the query. */
+		[[nodiscard]] constexpr size_type size() const noexcept { return m_types.size(); }
+		/** Checks if the query is empty. */
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_types.empty(); }
+
+		/** Captures all types for which the passed predicate evaluates to `true`.
+		 * @param pred Predicate to use.
+		 * @return Reference to the query. */
+		template<typename P>
+		constexpr type_query &matching(P pred)
+		{
+			for (auto type = begin(), last = end(); type != last; ++type)
+				if (!pred(*type)) m_types.erase(type);
+			return *this;
+		}
+
+		/** Captures all types with the specified attribute. */
+		constexpr type_query &with_attribute(std::string_view name)
+		{
+			if (auto attrib = m_db.m_attributes.find(name); attrib != m_db.m_attributes.end()) [[likely]]
+			{
+				for (auto type = begin(), last = end(); type != last; ++type)
+					if (!attrib->second.contains(type->name())) m_types.erase(type);
+			}
+			return *this;
+		}
+		/** @copydoc with_attribute */
+		constexpr type_query &with_attribute(type_info type) { return with_attribute(type.name()); }
+		/** @copydoc with_attribute */
+		template<typename A>
+		constexpr type_query &with_attribute()
+		{
+			return with_attribute(type_name<A>());
+		}
+
+		/** Captures all types with all of the specified attributes. */
+		template<typename... As>
+		constexpr type_query &with_attributes()
+		{
+			auto attribs = std::forward_as_tuple(m_db.m_attributes.find(type_name<As>())...);
+			return with_attributes(std::make_index_sequence<sizeof...(As)>{}, attribs);
+		}
+
+	private:
+		template<size_type I>
+		[[nodiscard]] constexpr bool check_attrib(const_iterator type, auto &attribs)
+		{
+			if (auto attrib = std::get<I>(attribs); attrib != m_db.m_attributes.end()) [[likely]]
+				return attrib->second.contains(type->name());
+		}
+		template<size_type... Is>
+		constexpr type_query &with_attributes(std::index_sequence<Is...>, auto &attribs)
+		{
+			for (auto type = begin(), last = end(); type != last; ++type)
+				if (!(check_attrib<Is>(type, attribs) && ...)) m_types.erase(type);
+			return *this;
+		}
+
+		const type_database &m_db;
+		data_t m_types;
+	};
+
+	constexpr type_query type_database::query() const noexcept { return type_query{*this}; }
 
 	template<typename T>
 	type_info::data_t *type_info::get_data() noexcept

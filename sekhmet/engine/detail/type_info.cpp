@@ -24,9 +24,12 @@ namespace sek::engine
 	any_const_error::~any_const_error() = default;
 	invalid_member_error::~invalid_member_error() = default;
 
-	detail::type_data &type_database::reflect_impl(detail::type_handle handle)
+	type_database::iterator type_database::find(std::string_view name) const
 	{
-		return *m_types.try_emplace(handle->name, handle).first->second;
+		if (auto handle_iter = m_types.find(name); handle_iter != m_types.end()) [[likely]]
+			return iterator{handle_iter};
+		else
+			return end();
 	}
 	type_info type_database::get(std::string_view name) const
 	{
@@ -35,7 +38,30 @@ namespace sek::engine
 		else
 			return type_info{};
 	}
-	void type_database::reset(std::string_view name) { m_types.erase(name); }
+
+	void type_database::reflect_impl(detail::type_handle handle)
+	{
+		/* Insert the type into both tables. */
+		auto *data = handle.operator->();
+		m_types.try_emplace(data->name, handle);
+		for (const detail::type_data::attrib_node &attrib : data->attribs)
+			m_attributes[attrib.type->name].emplace(data->name, handle);
+	}
+
+	void type_database::reset(const_iterator which)
+	{
+		/* Erase the type from the attribute table. */
+		const auto *data = which.m_iter->second.operator->();
+		for (const detail::type_data::attrib_node &attrib : data->attribs)
+			m_attributes.at(attrib.type->name).erase(data->name);
+
+		m_types.erase(which.m_iter);
+	}
+	void type_database::reset(std::string_view name)
+	{
+		if (const auto target = find(name); target != end()) [[likely]]
+			reset(target);
+	}
 
 	static std::string args_type_msg(auto begin, auto end, auto &&name_get)
 	{

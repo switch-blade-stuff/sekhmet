@@ -88,7 +88,7 @@ TEST(runtime_tests, type_info_test)
 	// clang-format off
 	sek::engine::type_info::reflect<test_child>()
 		.attribute<int>(0xff).attribute<0xfc>().attribute<test_attribute>()
-		.parent<test_parent_middle>();
+		.parent<test_parent_middle>().submit();
 	// clang-format on
 
 	auto info = sek::engine::type_info::get<test_child>();
@@ -128,7 +128,15 @@ TEST(runtime_tests, type_info_test)
 	EXPECT_EQ(sek::engine::type_info::get<test_child *>().value_type(), info);
 	EXPECT_EQ(sek::engine::type_info::get<const test_child *>().value_type(), sek::engine::type_info::get<test_child>());
 
-	sek::engine::type_info::reset<test_child>();
+	{
+		const auto db = sek::engine::type_database::instance()->access_unique();
+		auto query = db->query().with_attribute<test_attribute>();
+
+		EXPECT_EQ(query.size(), 1);
+		EXPECT_EQ(*query.begin(), info);
+
+		db->reset<test_child>();
+	}
 	EXPECT_FALSE("test_child"_type);
 
 	const auto attribs = info.attributes();
@@ -228,7 +236,7 @@ TEST(runtime_tests, any_test)
 		EXPECT_EQ(a1.cdata(), &data);
 	}
 	{
-		sek::engine::type_info::reflect<int>().convertible<float>();
+		sek::engine::type_info::reflect<int>().convertible<float>().submit();
 
 		const auto info = sek::engine::type_info::get<int>();
 		const auto data = 10;
@@ -253,7 +261,8 @@ TEST(runtime_tests, any_test)
 			.constructor<int, float>().constructor<const test_child_if &>()
 			.parent<test_parent_i>().parent<test_parent_f>()
 			.function<&test_child_if::get_i>("get_i").function<&test_child_if::set_i>("set_i")
-			.function<&test_child_if::get_i_const>("get_i_const");
+			.function<&test_child_if::get_i_const>("get_i_const")
+			.submit();
 		// clang-format on
 		const auto info = sek::engine::type_info::get<test_child_if>();
 		const auto data = test_child_if{10, std::numbers::pi_v<float>};
@@ -384,7 +393,7 @@ TEST(runtime_tests, config_test)
 		EXPECT_TRUE(ptr->value().empty());
 		EXPECT_EQ(ptr->path(), "test_category");
 	}
-	sek::engine::type_info::reflect<test_config>().attribute(make_config_type<test_config>());
+	sek::engine::type_info::reflect<test_config>().attribute(make_config_type<test_config>()).submit();
 	{
 		constexpr auto silent_i = 10;
 		EXPECT_NO_THROW(reg_guard.access_unique()->insert("test_category/test_entry", test_config{silent_i}));
@@ -583,7 +592,7 @@ TEST(runtime_tests, resource_test)
 		auto pkg = asset_package::load(std::filesystem::path(TEST_DIR) / "test_package");
 		db_guard.access_unique()->packages().push_back(pkg);
 	}
-	type_info::reflect<test_resource>().attribute(make_resource_type<test_resource>());
+	type_info::reflect<test_resource>().attribute(make_resource_type<test_resource>()).submit();
 	{
 		std::shared_ptr<test_resource> res;
 		EXPECT_FALSE(res = cache_guard.access_unique()->load<test_resource>("invalid_resource"));
