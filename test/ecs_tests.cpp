@@ -144,6 +144,9 @@ template class sek::engine::component_set<dummy_t>;
 
 TEST(ecs_tests, world_test)
 {
+	using namespace sek::engine::attributes;
+
+	sek::engine::type_info::reflect<dummy_t>().attribute(make_runtime_component<dummy_t>()).submit();
 	{
 		sek::engine::entity_world world;
 
@@ -177,5 +180,12 @@ TEST(ecs_tests, world_test)
 
 		EXPECT_TRUE(world.erase_and_release<dummy_t>(e2));
 		EXPECT_FALSE(world.contains(e2));
+
+		const auto e3 = world.generate();
+
+		const auto dummy_type = sek::engine::type_info::get<dummy_t>();
+		auto &attr = dummy_type.get_attribute<runtime_component>().cast<const runtime_component &>();
+		EXPECT_TRUE(attr.try_insert(world, e3).second);
+		EXPECT_TRUE(world.contains_all<dummy_t>(e3));
 	}
 }

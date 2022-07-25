@@ -291,17 +291,30 @@ namespace sek::engine
 		/** @copydoc empty */
 		[[nodiscard]] constexpr bool empty(const_iterator which) const noexcept { return empty(*which); }
 
+		/** Returns component set for the specified component.
+		 * @note If such storage does not exist, creates it. */
+		template<typename C>
+		[[nodiscard]] constexpr component_set<C> &storage() noexcept
+		{
+			return reserve_impl<C>();
+		}
+		/** Returns component set for the specified component.
+		 * @warning Using component type not present within the worls will result in undefined behavior. */
+		template<typename C>
+		[[nodiscard]] constexpr const component_set<C> &storage() const noexcept
+		{
+			return *get_storage<C>();
+		}
+
 		/** Returns component of the specified entity. */
 		template<typename C>
 		[[nodiscard]] constexpr C &get(const_iterator which) noexcept
-			requires(!std::is_empty_v<C>)
 		{
 			return get<C>(*which);
 		}
 		/** @copydoc get */
 		template<typename C>
 		[[nodiscard]] constexpr const C &get(const_iterator which) const noexcept
-			requires(!std::is_empty_v<C>)
 		{
 			return get<C>(*which);
 		}
@@ -309,14 +322,12 @@ namespace sek::engine
 		 * @warning Using an entity that does not have the specified component will result in undefined behavior. */
 		template<typename C>
 		[[nodiscard]] constexpr C &get(entity_t e) noexcept
-			requires(!std::is_empty_v<C>)
 		{
 			return get_storage<C>()->get(e);
 		}
 		/** @copydoc get */
 		template<typename C>
 		[[nodiscard]] constexpr const C &get(entity_t e) const noexcept
-			requires(!std::is_empty_v<C>)
 		{
 			return get_storage<C>()->get(e);
 		}
@@ -506,4 +517,97 @@ namespace sek::engine
 		entity_t m_next = entity_t::tombstone();
 		size_type m_size = 0; /* Amount of alive entities within the world. */
 	};
+
+	namespace attributes
+	{
+		/** @brief Attribute used to create and erase component types at runtime. */
+		class runtime_component
+		{
+			template<typename T, typename... Args>
+			static auto *make_factory(Args &&...a)
+			{
+				// clang-format off
+				static const auto f = [... args = std::move(a)](entity_world &world, entity_t e) -> decltype(auto)
+				{
+					return world.template emplace<T>(e, std::forward<Args>(args)...);
+				};
+				// clang-format on
+				return &f;
+			}
+
+		public:
+			runtime_component() = delete;
+
+			template<typename T, typename... Args>
+			explicit runtime_component(type_selector_t<T>, Args &&...args)
+			{
+				const auto *factory = make_factory<T>(std::forward<Args>(args)...);
+				using factory_t = decltype(factory);
+
+				m_contains = +[](const entity_world &world, entity_t e) { return world.template contains_all<T>(e); };
+				m_try_insert = +[](const void *ptr, entity_world &world, entity_t e) -> std::pair<any_ref, bool>
+				{
+					const auto &f = *static_cast<factory_t>(ptr);
+					auto &storage = world.template storage<T>();
+					if (const auto existing = storage.find(e); existing != storage.end()) [[likely]]
+						return {any_ref{forward_any(existing->second)}, false};
+					else
+						return {any_ref{forward_any(f(world, e))}, true};
+				};
+				m_insert = +[](const void *ptr, entity_world &world, entity_t e)
+				{
+					const auto &f = *static_cast<factory_t>(ptr);
+					return any_ref{forward_any(f(world, e))};
+				};
+				m_erase = +[](entity_world &world, entity_t e) { world.template erase<T>(e); };
+				m_factory = factory;
+			}
+
+			/** Checks if the world contains the bound component.
+			 * @param world World to check.
+			 * @param entity Entity to check. */
+			[[nodiscard]] bool contains(const entity_world &world, entity_t entity) const
+			{
+				return m_contains(world, entity);
+			}
+
+			/** Attempts to insert the bound component into the specified world for the specified entity.
+			 * @param world World to insert the component into.
+			 * @param entity Entity to insert the component for.
+			 * @return Pair where first is `any_ref` reference to the inserted component and second is a boolean
+			 * indicating whether the component was inserted (`true` if inserted, `false` otherwise). */
+			std::pair<any_ref, bool> try_insert(entity_world &world, entity_t entity) const
+			{
+				return m_try_insert(m_factory, world, entity);
+			}
+			/** Inserts the bound component into the specified world for the specified entity.
+			 * @param world World to insert the component into.
+			 * @param entity Entity to insert the component for.
+			 * @return `any_ref` reference to the inserted component.
+			 * @warning Using entity that already has the bound component will result in undefined behavior. */
+			any_ref insert(entity_world &world, entity_t entity) const { return m_insert(m_factory, world, entity); }
+			/** Erases the component from the entity.
+			 * @param world World to erase the component from.
+			 * @param entity Entity to erase the component from.
+			 * @warning Using entity that does not have the bound component will result in undefined behavior. */
+			void erase(entity_world &world, entity_t entity) const { m_erase(world, entity); }
+
+		private:
+			bool (*m_contains)(const entity_world &, entity_t);
+
+			std::pair<any_ref, bool> (*m_try_insert)(const void *, entity_world &, entity_t);
+			any_ref (*m_insert)(const void *, entity_world &, entity_t);
+			void (*m_erase)(entity_world &, entity_t);
+			const void *m_factory;
+		};
+
+		/** Helper function used to create an instance of `runtime_component` attribute for type `T`.
+		 * @tparam T Component type to make accessible at runtime.
+		 * @param args Optional arguments passed to component's constructor to bind with the runtime factory. */
+		template<typename T, typename... Args>
+		[[nodiscard]] runtime_component make_runtime_component(Args &&...args) noexcept
+		{
+			return runtime_component{type_selector<T>, std::forward<Args>(args)...};
+		}
+	}	 // namespace attributes
 }	 // namespace sek::engine
