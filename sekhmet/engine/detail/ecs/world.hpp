@@ -47,12 +47,6 @@ namespace sek::engine
 				m_delete = +[](void *ptr) { delete static_cast<storage_t *>(ptr); };
 
 				m_contains = +[](void *ptr, entity_t e) { return static_cast<storage_t *>(ptr)->contains(e); };
-				m_insert = +[](void *ptr, entity_t e, any_ref a)
-				{
-					const auto &value = *a.try_cast<const T>();
-					static_cast<storage_t *>(ptr)->insert(e, value);
-				};
-				m_insert_default = +[](void *ptr, entity_t e) { static_cast<storage_t *>(ptr)->insert(e); };
 				m_erase = +[](void *ptr, entity_t e) { static_cast<storage_t *>(ptr)->erase(e); };
 			}
 			constexpr ~storage_entry() { m_delete(m_ptr); }
@@ -70,9 +64,6 @@ namespace sek::engine
 
 			[[nodiscard]] constexpr bool contains(entity_t e) const noexcept { return m_contains(m_ptr, e); }
 
-			constexpr void insert(entity_t e, any_ref a) const noexcept { return m_insert(m_ptr, e, std::move(a)); }
-			constexpr void insert(entity_t e) const noexcept { return m_insert_default(m_ptr, e); }
-
 			constexpr void erase(entity_t e) { m_erase(m_ptr, e); }
 
 			constexpr void swap(storage_entry &other) noexcept
@@ -87,10 +78,7 @@ namespace sek::engine
 		private:
 			void *m_ptr = nullptr;
 			void (*m_delete)(void *) = +[](void *) {};
-
 			bool (*m_contains)(void *, entity_t);
-			void (*m_insert)(void *, entity_t, any_ref);
-			void (*m_insert_default)(void *, entity_t);
 			void (*m_erase)(void *, entity_t);
 		};
 		struct table_hash
