@@ -875,6 +875,8 @@ namespace sek::engine
 
 	protected:
 		void restore_overrides(typename packages_t::const_iterator, typename packages_t::const_iterator);
+		void insert_overrides(typename packages_t::const_iterator);
+
 		SEK_API typename packages_t::const_iterator erase_pkg(typename packages_t::const_iterator,
 															  typename packages_t::const_iterator);
 		typename packages_t::const_iterator erase_pkg(typename packages_t::const_iterator where)
@@ -882,7 +884,6 @@ namespace sek::engine
 			return erase_pkg(where, std::next(where));
 		}
 
-		void insert_overrides(typename packages_t::const_iterator);
 		SEK_API typename packages_t::const_iterator insert_pkg(typename packages_t::const_iterator, const asset_package &);
 		SEK_API typename packages_t::const_iterator insert_pkg(typename packages_t::const_iterator, asset_package &&);
 

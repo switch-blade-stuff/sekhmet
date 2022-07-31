@@ -41,7 +41,7 @@ template <typename T = void> struct basic_data {
 };
 
 #ifdef FMT_SHARED
-// Required for -flto, -fivisibility=hidden and -shared to work
+// Included for -flto, -fivisibility=hidden and -shared to work
 extern template struct basic_data<void>;
 #endif
 

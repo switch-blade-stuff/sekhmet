@@ -9,6 +9,9 @@
 
 namespace sek::engine
 {
+	template<typename = void, typename = void, typename = std::allocator<entity_t>>
+	class basic_entity_set;
+
 	namespace detail
 	{
 		template<typename T>
@@ -213,8 +216,8 @@ namespace sek::engine
 
 	/** @brief Structure used to store unique sets of entities and associate entities with components.
 	 * @tparam T Optional component type. If set to void, set does not store components.
-	 * @tparam Alloc Allocator used to allocate memory of the entity set.
-	 * @tparam CRTP CRTP mixin used to handle element creation, removal and modification events. */
+	 * @tparam CRTP CRTP mixin used to handle element creation, removal and modification events.
+	 * @tparam Alloc Allocator used to allocate memory of the entity set. */
 	template<typename T, typename CRTP, typename Alloc>
 	class basic_entity_set : detail::component_pool<T>, ebo_base_helper<Alloc>, public detail::component_typedef<T>
 	{
@@ -373,15 +376,15 @@ namespace sek::engine
 				return *this;
 			}
 
-			constexpr set_iterator operator+(difference_type n) const noexcept
+			[[nodiscard]] constexpr set_iterator operator+(difference_type n) const noexcept
 			{
 				return set_iterator{m_parent, m_off - n};
 			}
-			constexpr set_iterator operator-(difference_type n) const noexcept
+			[[nodiscard]] constexpr set_iterator operator-(difference_type n) const noexcept
 			{
 				return set_iterator{m_parent, m_off + n};
 			}
-			constexpr difference_type operator-(const set_iterator &other) const noexcept
+			[[nodiscard]] constexpr difference_type operator-(const set_iterator &other) const noexcept
 			{
 				return other.m_off - m_off;
 			}
@@ -592,6 +595,23 @@ namespace sek::engine
 			const auto sparse = sparse_ptr(entity.index().value());
 			if (sparse != nullptr && !sparse->is_tombstone()) [[likely]]
 				return to_iterator(sparse->index().value());
+			else
+				return end();
+		}
+
+		/** Returns iterator to the entity at the specified offset (and it's component, if any) or an end iterator. */
+		[[nodiscard]] constexpr iterator find(size_type i) noexcept
+		{
+			if (i < size() && !m_dense[i].is_tombstone()) [[likely]]
+				return to_iterator(i);
+			else
+				return end();
+		}
+		/** @copydoc find */
+		[[nodiscard]] constexpr const_iterator find(size_type i) const noexcept
+		{
+			if (i < size() && !m_dense[i].is_tombstone()) [[likely]]
+				return to_iterator(i);
 			else
 				return end();
 		}

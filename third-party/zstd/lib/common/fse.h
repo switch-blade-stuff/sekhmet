@@ -676,7 +676,7 @@ MEM_STATIC unsigned FSE_endOfDState(const FSE_DState_t* DStatePtr)
 
 /*!FSE_MAX_SYMBOL_VALUE :
 *  Maximum symbol value authorized.
-*  Required for proper stack allocation */
+*  Included for proper stack allocation */
 #ifndef FSE_MAX_SYMBOL_VALUE
 #  define FSE_MAX_SYMBOL_VALUE 255
 #endif

@@ -207,6 +207,15 @@ namespace sek::engine
 		/** Returns the capacity of the world (current maximum of alive entities) */
 		[[nodiscard]] constexpr size_type capacity() const noexcept { return m_entities.capacity(); }
 
+		/** Releases all entities and destroys all component sets of the world. */
+		constexpr void clear()
+		{
+			m_storage.clear();
+			m_entities.clear();
+			m_next = entity_t::tombstone();
+			m_size = 0;
+		}
+
 		/** Returns iterator to the specified entity or end iterator if the entity does not exist in the world. */
 		[[nodiscard]] constexpr iterator find(entity_t e) const noexcept
 		{
@@ -332,6 +341,27 @@ namespace sek::engine
 			return get_storage<C>()->get(e);
 		}
 
+		/** Creates an entity query for this world. */
+		[[nodiscard]] constexpr auto query() noexcept { return entity_query{*this}; }
+		/** @copydoc query */
+		[[nodiscard]] constexpr auto query() const noexcept { return entity_query{*this}; }
+
+		/** Returns a component view for the specified components.
+		 * @tparam Cs Components viewed by the component view.
+		 * @tparam Opt Optional components of the component view.
+		 * @tparam Alloc Allocator type used for the view. */
+		template<typename... Cs, typename... Opt, typename Alloc = std::allocator<entity_t>>
+		[[nodiscard]] constexpr auto view(optional_t<Opt...> = optional_t<>{}, const Alloc &alloc = Alloc{}) noexcept
+		{
+			return query().include<Cs...>().optional<Opt...>().view<Alloc>(alloc);
+		}
+		/** @copydoc view */
+		template<typename... Cs, typename... Opt, typename Alloc = std::allocator<entity_t>>
+		[[nodiscard]] constexpr auto view(optional_t<Opt...> = optional_t<>{}, const Alloc &alloc = Alloc{}) const noexcept
+		{
+			return query().include<Cs...>().optional<Opt...>().view<Alloc>(alloc);
+		}
+
 		/** Generates a new entity.
 		 * @param gen Optional generation to use for the entity.
 		 * @return Value of the generated entity. */
@@ -370,7 +400,7 @@ namespace sek::engine
 		 * @param n Amount of components to reserve. If set to `0`, only creates the storage pools.
 		 * @return Tuple of references to component storage. */
 		template<typename... Ts>
-		std::tuple<component_set<Ts> &...> reserve(size_type n = 0)
+		constexpr std::tuple<component_set<Ts> &...> reserve(size_type n = 0)
 		{
 			return std::forward_as_tuple(reserve_impl<Ts>(n)...);
 		}
@@ -381,9 +411,9 @@ namespace sek::engine
 		 * @param args Arguments passed to component's constructor.
 		 * @return Reference to the replaced component (or `void`, if component is empty).
 		 *
-		 * @warning Using an entity that does not have the specified component will result in undefined behavior. */
+		 * @warning Using an entity that does not exist or already has the specified component will result in undefined behavior. */
 		template<typename C, typename... Args>
-		decltype(auto) replace(entity_t e, Args &&...args)
+		constexpr decltype(auto) replace(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
 			return reserve_impl<C>().replace(e, std::forward<Args>(args)...);
@@ -394,9 +424,9 @@ namespace sek::engine
 		 * @param args Arguments passed to component's constructor.
 		 * @return Reference to the emplaced component (or `void`, if component is empty).
 		 *
-		 * @warning Using an entity that already has the specified component will result in undefined behavior. */
+		 * @warning Using an entity that does not exist or already has the specified component will result in undefined behavior. */
 		template<typename C, typename... Args>
-		decltype(auto) emplace(entity_t e, Args &&...args)
+		constexpr decltype(auto) emplace(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
 			return reserve_impl<C>().emplace(e, std::forward<Args>(args)...);
@@ -407,9 +437,9 @@ namespace sek::engine
 		 * @param args Arguments passed to component's constructor.
 		 * @return Reference to the emplaced component (or `void`, if component is empty).
 		 *
-		 * @warning Using an entity that already has the specified component will result in undefined behavior. */
+		 * @warning Using an entity that does not exist or already has the specified component will result in undefined behavior. */
 		template<typename C, typename... Args>
-		decltype(auto) emplace_back(entity_t e, Args &&...args)
+		constexpr decltype(auto) emplace_back(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
 			return reserve_impl<C>().emplace(e, std::forward<Args>(args)...);
@@ -420,7 +450,7 @@ namespace sek::engine
 		 * @param args Arguments passed to component's constructor.
 		 * @return Reference to the component (or `void`, if component is empty). */
 		template<typename C, typename... Args>
-		decltype(auto) emplace_or_replace(entity_t e, Args &&...args)
+		constexpr decltype(auto) emplace_or_replace(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
 			return reserve_impl<C>().emplace_or_replace(e, std::forward<Args>(args)...);
@@ -431,22 +461,57 @@ namespace sek::engine
 		 * @param args Arguments passed to component's constructor.
 		 * @return Reference to the component (or `void`, if component is empty). */
 		template<typename C, typename... Args>
-		decltype(auto) emplace_back_or_replace(entity_t e, Args &&...args)
+		constexpr decltype(auto) emplace_back_or_replace(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
 			return reserve_impl<C>().emplace_back_or_replace(e, std::forward<Args>(args)...);
 		}
 
+		/** Generates and inserts an entity with the specified components (re-using slots if component type requires fixed storage).
+		 * @tparam Cs Component types of the entity.
+		 * @return Iterator to the inserted entity. */
+		template<typename... Cs>
+		constexpr iterator insert()
+		{
+			return insert(Cs{}...);
+		}
+		/** @copydoc insert
+		 * @param cs Values of inserted components. */
+		template<typename... Cs>
+		constexpr iterator insert(Cs &&...cs)
+		{
+			const auto entity = generate();
+			(emplace<std::decay_t<Cs>>(entity, std::forward<Cs>(cs)), ...);
+			return iterator{m_entities.data() + entity.index().value()};
+		}
+		/** Generates and inserts an entity with the specified components (always at the end).
+		 * @tparam Cs Component types of the entity.
+		 * @return Iterator to the inserted entity. */
+		template<typename... Cs>
+		constexpr iterator push_back()
+		{
+			return push_back(Cs{}...);
+		}
+		/** @copydoc push_back
+		 * @param cs Values of inserted components. */
+		template<typename... Cs>
+		constexpr iterator push_back(Cs &&...cs)
+		{
+			const auto entity = generate();
+			(emplace_back<std::decay_t<Cs>>(entity, std::forward<Cs>(cs)), ...);
+			return iterator{m_entities.data() + entity.index().value()};
+		}
+
 		/** Removes a component from the specified entity.
 		 * @warning Using an entity that does not have the specified component will result in undefined behavior. */
 		template<typename C>
-		void erase(entity_t e)
+		constexpr void erase(entity_t e)
 		{
 			get_storage<C>()->erase(e);
 		}
 		/** @copydoc erase */
 		template<typename C>
-		void erase(const_iterator which)
+		constexpr void erase(const_iterator which)
 		{
 			erase<C>(*which);
 		}
@@ -454,7 +519,7 @@ namespace sek::engine
 		 * If the last component was erased, releases the entity.
 		 * @return `true` if the entity was released, `false` otherwise. */
 		template<typename C>
-		bool erase_and_release(entity_t e)
+		constexpr bool erase_and_release(entity_t e)
 		{
 			erase<C>(e);
 			const auto is_empty = empty(e);
@@ -464,7 +529,7 @@ namespace sek::engine
 		}
 		/** @copydoc erase_and_release */
 		template<typename C>
-		bool erase_and_release(const_iterator which)
+		constexpr bool erase_and_release(const_iterator which)
 		{
 			return erase_and_release<C>(*which);
 		}
@@ -495,7 +560,7 @@ namespace sek::engine
 		}
 
 		template<typename T>
-		component_set<T> &reserve_impl(size_type n = 0)
+		constexpr component_set<T> &reserve_impl(size_type n = 0)
 		{
 			const auto type = type_info::get<T>();
 			auto target = m_storage.find(type);
@@ -517,97 +582,4 @@ namespace sek::engine
 		entity_t m_next = entity_t::tombstone();
 		size_type m_size = 0; /* Amount of alive entities within the world. */
 	};
-
-	namespace attributes
-	{
-		/** @brief Attribute used to create and erase component types at runtime. */
-		class runtime_component
-		{
-			template<typename T, typename... Args>
-			static auto *make_factory(Args &&...a)
-			{
-				// clang-format off
-				static const auto f = [... args = std::move(a)](entity_world &world, entity_t e) -> decltype(auto)
-				{
-					return world.template emplace<T>(e, std::forward<Args>(args)...);
-				};
-				// clang-format on
-				return &f;
-			}
-
-		public:
-			runtime_component() = delete;
-
-			template<typename T, typename... Args>
-			explicit runtime_component(type_selector_t<T>, Args &&...args)
-			{
-				const auto *factory = make_factory<T>(std::forward<Args>(args)...);
-				using factory_t = decltype(factory);
-
-				m_contains = +[](const entity_world &world, entity_t e) { return world.template contains_all<T>(e); };
-				m_try_insert = +[](const void *ptr, entity_world &world, entity_t e) -> std::pair<any_ref, bool>
-				{
-					const auto &f = *static_cast<factory_t>(ptr);
-					auto &storage = world.template storage<T>();
-					if (const auto existing = storage.find(e); existing != storage.end()) [[likely]]
-						return {any_ref{forward_any(existing->second)}, false};
-					else
-						return {any_ref{forward_any(f(world, e))}, true};
-				};
-				m_insert = +[](const void *ptr, entity_world &world, entity_t e)
-				{
-					const auto &f = *static_cast<factory_t>(ptr);
-					return any_ref{forward_any(f(world, e))};
-				};
-				m_erase = +[](entity_world &world, entity_t e) { world.template erase<T>(e); };
-				m_factory = factory;
-			}
-
-			/** Checks if the world contains the bound component.
-			 * @param world World to check.
-			 * @param entity Entity to check. */
-			[[nodiscard]] bool contains(const entity_world &world, entity_t entity) const
-			{
-				return m_contains(world, entity);
-			}
-
-			/** Attempts to insert the bound component into the specified world for the specified entity.
-			 * @param world World to insert the component into.
-			 * @param entity Entity to insert the component for.
-			 * @return Pair where first is `any_ref` reference to the inserted component and second is a boolean
-			 * indicating whether the component was inserted (`true` if inserted, `false` otherwise). */
-			std::pair<any_ref, bool> try_insert(entity_world &world, entity_t entity) const
-			{
-				return m_try_insert(m_factory, world, entity);
-			}
-			/** Inserts the bound component into the specified world for the specified entity.
-			 * @param world World to insert the component into.
-			 * @param entity Entity to insert the component for.
-			 * @return `any_ref` reference to the inserted component.
-			 * @warning Using entity that already has the bound component will result in undefined behavior. */
-			any_ref insert(entity_world &world, entity_t entity) const { return m_insert(m_factory, world, entity); }
-			/** Erases the component from the entity.
-			 * @param world World to erase the component from.
-			 * @param entity Entity to erase the component from.
-			 * @warning Using entity that does not have the bound component will result in undefined behavior. */
-			void erase(entity_world &world, entity_t entity) const { m_erase(world, entity); }
-
-		private:
-			bool (*m_contains)(const entity_world &, entity_t);
-
-			std::pair<any_ref, bool> (*m_try_insert)(const void *, entity_world &, entity_t);
-			any_ref (*m_insert)(const void *, entity_world &, entity_t);
-			void (*m_erase)(entity_world &, entity_t);
-			const void *m_factory;
-		};
-
-		/** Helper function used to create an instance of `runtime_component` attribute for type `T`.
-		 * @tparam T Component type to make accessible at runtime.
-		 * @param args Optional arguments passed to component's constructor to bind with the runtime factory. */
-		template<typename T, typename... Args>
-		[[nodiscard]] runtime_component make_runtime_component(Args &&...args) noexcept
-		{
-			return runtime_component{type_selector<T>, std::forward<Args>(args)...};
-		}
-	}	 // namespace attributes
 }	 // namespace sek::engine

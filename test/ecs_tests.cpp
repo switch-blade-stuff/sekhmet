@@ -144,9 +144,6 @@ template class sek::engine::component_set<dummy_t>;
 
 TEST(ecs_tests, world_test)
 {
-	using namespace sek::engine::attributes;
-
-	sek::engine::type_info::reflect<dummy_t>().attribute(make_runtime_component<dummy_t>()).submit();
 	{
 		sek::engine::entity_world world;
 
@@ -167,8 +164,8 @@ TEST(ecs_tests, world_test)
 		EXPECT_FALSE((world.contains_all<int, float>(e1)));
 		EXPECT_TRUE((world.contains_any<int, float>(e1)));
 		EXPECT_TRUE((world.contains_none<int, float>(e2)));
-		EXPECT_TRUE((world.contains_all<dummy_t>(e2)));
-		EXPECT_TRUE((world.contains_any<dummy_t>(e2)));
+		EXPECT_TRUE(world.contains_all<dummy_t>(e2));
+		EXPECT_TRUE(world.contains_any<dummy_t>(e2));
 
 		EXPECT_EQ(world.get<int>(e0), 0);
 		EXPECT_EQ(world.get<int>(e1), 1);
@@ -180,12 +177,38 @@ TEST(ecs_tests, world_test)
 
 		EXPECT_TRUE(world.erase_and_release<dummy_t>(e2));
 		EXPECT_FALSE(world.contains(e2));
+	}
+	{
+		sek::engine::entity_world world;
 
-		const auto e3 = world.generate();
+		const auto e0 = *world.insert<int>();
+		const auto e1 = *world.insert(int{1}, float{1});
+		const auto e2 = *world.insert(int{2}, dummy_t{});
 
-		const auto dummy_type = sek::engine::type_info::get<dummy_t>();
-		auto &attr = dummy_type.get_attribute<runtime_component>().cast<const runtime_component &>();
-		EXPECT_TRUE(attr.try_insert(world, e3).second);
-		EXPECT_TRUE(world.contains_all<dummy_t>(e3));
+		auto view = sek::engine::component_view<sek::engine::included_t<int, float>, sek::engine::optional_t<float>>{
+			&world.storage<int>(), &world.storage<float>(), {e0, e1, e2}};
+
+		EXPECT_FALSE(view.empty());
+		view.for_each(
+			[&](sek::engine::entity_t e, const int *i, const float *f)
+			{
+				EXPECT_NE(i, nullptr);
+				if (e == e0)
+				{
+					EXPECT_EQ(f, nullptr);
+					EXPECT_EQ(*i, 0);
+				}
+				else if (e == e1)
+				{
+					EXPECT_NE(f, nullptr);
+					EXPECT_EQ(*i, 1);
+					EXPECT_EQ(*f, 1.0f);
+				}
+				else if (e == e2)
+				{
+					EXPECT_EQ(f, nullptr);
+					EXPECT_EQ(*i, 2);
+				}
+			});
 	}
 }

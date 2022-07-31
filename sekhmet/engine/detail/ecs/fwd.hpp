@@ -10,26 +10,30 @@ namespace sek::engine
 {
 	class entity_t;
 
-	template<typename T>
+	template<typename>
 	struct component_traits;
 
-	template<typename = void, typename = void, typename = std::allocator<entity_t>>
+	template<typename, typename, typename>
 	class basic_entity_set;
+	template<typename>
+	class component_set;
 
 	template<typename...>
-	struct order_by_t
-	{
-	};
+	struct order_by_t;
 	template<typename...>
-	struct include_t
-	{
-	};
+	struct included_t;
 	template<typename...>
-	struct exclude_t
-	{
-	};
+	struct optional_t;
+	template<typename...>
+	struct excluded_t;
+
 	template<typename...>
 	class entity_query;
+
+	template<typename, typename, typename>
+	class component_view;
+	template<typename...>
+	class basic_component_collection;
 
 	class entity_world;
 }	 // namespace sek::engine
