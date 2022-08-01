@@ -245,7 +245,7 @@ namespace sek::engine
 		template<typename Alloc, typename... I, typename... E>
 		[[nodiscard]] constexpr auto view(std::tuple<I *...> inc_data, std::tuple<E *...> exc_data, const Alloc &alloc) const
 		{
-			using view_t = component_view<included_t<Included...>, optional_t<Optional...>, Alloc>;
+			//using view_t = component_view<included_t<Included...>, optional_t<Optional...>, Alloc>;
 		}
 
 		template<typename... I, typename... E>

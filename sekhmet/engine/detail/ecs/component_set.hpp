@@ -55,22 +55,8 @@ namespace sek::engine
 			         std::is_nothrow_move_assignable_v<event_type>) = default;
 		// clang-format on
 
-		constexpr component_set(entity_world &world, const allocator_type &alloc = {}) : base_set(alloc), m_world(world)
-		{
-		}
-		constexpr component_set(entity_world &world, size_type n, const allocator_type &alloc = {})
-			: base_set(n, alloc), m_world(world)
-		{
-		}
-
-		/** Moves storage using the provided allocator. */
-		constexpr component_set(component_set &&other, const allocator_type &alloc)
-			: base_set(std::move(other), alloc),
-			  m_world(other.m_world),
-			  m_create(std::move(other.m_create)),
-			  m_remove(std::move(other.m_remove))
-		{
-		}
+		constexpr component_set(entity_world &world) : m_world(world) {}
+		constexpr component_set(entity_world &world, size_type n) : base_set(n), m_world(world) {}
 
 		/** Returns reference to the parent world of the storage. */
 		[[nodiscard]] constexpr entity_world &world() const noexcept { return m_world; }

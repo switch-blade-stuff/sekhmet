@@ -4,130 +4,175 @@
 
 #pragma once
 
-#include "component_iterator.hpp"
+#include "component_set.hpp"
 
 namespace sek::engine
 {
-	template<typename, typename = optional_t<>, typename = std::allocator<entity_t>>
+	template<typename, typename = excluded_t<>, typename = optional_t<>>
 	class component_view;
 
 	/** @brief Structure used to provide a simple view of components for a set of entities.
-	 * @tparam Cs Component types captured by the view.
+	 * @tparam Inc Component types captured by the view.
+	 * @tparam Inc Component types excluded from the view.
 	 * @tparam Opt Optional components of the view.
 	 * @tparam Alloc Allocator used for internal entity set. */
-	template<typename... Cs, typename... Opt, typename Alloc>
-	class component_view<included_t<Cs...>, optional_t<Opt...>, Alloc>
+	template<typename... Inc, typename... Exc, typename... Opt>
+	class component_view<included_t<Inc...>, excluded_t<Exc...>, optional_t<Opt...>>
 	{
-		using entities_t = std::vector<entity_t, typename std::allocator_traits<Alloc>::template rebind_alloc<entity_t>>;
+		using common_set = detail::entity_set_base;
+
 		template<typename T>
-		using set_t = transfer_cv_t<T, component_set<std::remove_cvref_t<T>>>;
+		using set_t = transfer_cv_t<T, component_set<std::remove_cv_t<T>>>;
+		template<typename T>
+		using set_ptr_t = set_t<T> *;
 
-	public:
-		typedef std::tuple<entity_t, Cs...> value_type;
-		typedef std::size_t size_type;
-		typedef std::ptrdiff_t difference_type;
-		typedef typename entities_t::allocator_type allocator_type;
+		using inc_ptr = std::tuple<set_ptr_t<Inc>...>;
+		using exc_ptr = std::tuple<set_ptr_t<Exc>...>;
 
-	private:
-		struct iterator_base
+		template<typename T>
+		using is_opt = is_in<std::remove_cv_t<T>, std::remove_cv_t<Opt>...>;
+		template<typename T>
+		constexpr static bool is_opt_v = is_opt<T>::value;
+
+		template<typename T>
+		[[nodiscard]] constexpr static bool accept(entity_t e, const inc_ptr &inc) noexcept
 		{
-			constexpr iterator_base() noexcept = default;
-			constexpr iterator_base(const entities_t *ptr, size_type pos) noexcept
-				: m_ptr(ptr), m_pos(static_cast<difference_type>(pos))
+			return std::get<set_ptr_t<T>>(inc)->contains(e);
+		}
+		template<typename T>
+		[[nodiscard]] constexpr static bool reject(entity_t e, const exc_ptr &exc) noexcept
+		{
+			return std::get<set_ptr_t<T>>(exc)->contains(e);
+		}
+
+		class view_iterator
+		{
+			friend class component_view;
+
+		public:
+			typedef entity_t value_type;
+			typedef const entity_t &reference;
+			typedef const entity_t *pointer;
+			typedef std::size_t size_type;
+			typedef std::ptrdiff_t difference_type;
+			typedef std::bidirectional_iterator_tag iterator_category;
+
+		private:
+			constexpr explicit view_iterator(const component_view *view) noexcept : m_view(view) {}
+			constexpr view_iterator(const component_view *view, difference_type off) noexcept
+				: m_view(view), m_off(next_valid(off))
+			{
+			}
+			constexpr view_iterator(const component_view *view, size_type off) noexcept
+				: view_iterator(view, static_cast<difference_type>(off))
 			{
 			}
 
-			constexpr iterator_base &operator+=(difference_type n) noexcept
+		public:
+			constexpr view_iterator() noexcept = default;
+
+			constexpr view_iterator operator++(int) noexcept
 			{
-				m_pos += n;
+				auto temp = *this;
+				++(*this);
+				return temp;
+			}
+			constexpr view_iterator &operator++() noexcept
+			{
+				m_off = next_valid(m_off - 1);
 				return *this;
 			}
-			constexpr iterator_base &operator-=(difference_type n) noexcept
+			constexpr view_iterator operator--(int) noexcept
 			{
-				m_pos -= n;
+				auto temp = *this;
+				--(*this);
+				return temp;
+			}
+			constexpr view_iterator &operator--() noexcept
+			{
+				for (const auto end = m_view->size_hint(); m_off != end && !valid(m_off);) ++m_off;
 				return *this;
 			}
-			[[nodiscard]] constexpr iterator_base operator+(difference_type n) const noexcept
+
+			/** Returns pointer to the target entity. */
+			[[nodiscard]] constexpr pointer get() const noexcept { return get(m_off); }
+			/** @copydoc get */
+			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
+			/** Returns reference to the target entity */
+			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
+
+			[[nodiscard]] constexpr auto operator<=>(const view_iterator &other) const noexcept
 			{
-				return iterator_base{m_ptr, m_pos + n};
+				return m_off <=> other.m_off;
 			}
-			[[nodiscard]] constexpr iterator_base operator-(difference_type n) const noexcept
+			[[nodiscard]] constexpr bool operator==(const view_iterator &other) const noexcept
 			{
-				return iterator_base{m_ptr, m_pos - n};
-			}
-			[[nodiscard]] constexpr difference_type operator-(const iterator_base &other) const noexcept
-			{
-				return m_pos - other.m_pos;
-			}
-
-			[[nodiscard]] constexpr const entity_t *get() const noexcept { return m_ptr->data() + m_pos; }
-
-			template<template_type_instance<component_set> S>
-			[[nodiscard]] constexpr const typename S::component_type *get(const S *ptr) const noexcept
-			{
-				const auto entity = *get();
-				if constexpr (is_in_v<typename S::component_type, std::remove_cv_t<Opt>...>)
-				{
-					if (ptr == nullptr) [[unlikely]]
-						return nullptr;
-
-					const auto pos = ptr->find(entity);
-					if (pos == ptr->end()) [[unlikely]]
-						return nullptr;
-
-					return std::addressof(pos->second);
-				}
-				else
-					return std::addressof(ptr->get(entity));
-			}
-			template<template_type_instance<component_set> S>
-			[[nodiscard]] constexpr typename S::component_type *get(S *ptr) const noexcept
-			{
-				const auto entity = *get();
-				if constexpr (is_in_v<typename S::component_type, std::remove_cv_t<Opt>...>)
-				{
-					if (ptr == nullptr) [[unlikely]]
-						return nullptr;
-
-					const auto pos = ptr->find(entity);
-					if (pos == ptr->end()) [[unlikely]]
-						return nullptr;
-
-					return std::addressof(pos->second);
-				}
-				else
-					return std::addressof(ptr->get(entity));
+				return m_off == other.m_off;
 			}
 
-			[[nodiscard]] constexpr auto operator<=>(const iterator_base &other) const noexcept
+			constexpr void swap(view_iterator &other) noexcept
 			{
-				return m_pos <=> other.m_pos;
+				std::swap(m_view, other.m_view);
+				std::swap(m_off, other.m_off);
 			}
-			[[nodiscard]] constexpr bool operator==(const iterator_base &other) const noexcept
-			{
-				return m_pos == other.m_pos;
-			}
+			friend constexpr void swap(view_iterator &a, view_iterator &b) noexcept { a.swap(b); }
 
-			constexpr void swap(iterator_base &other) noexcept
+		private:
+			[[nodiscard]] constexpr difference_type next_valid(difference_type i) const noexcept
 			{
-				std::swap(m_ptr, other.m_ptr);
-				std::swap(m_pos, other.m_pos);
+				while (i != 0 && !valid(i)) --i;
+				return i;
 			}
+			[[nodiscard]] constexpr pointer get(difference_type i) const noexcept
+			{
+				return m_view->m_set->data() + i - 1;
+			}
+			[[nodiscard]] constexpr bool valid(difference_type i) const noexcept { return m_view->contains(*get(i)); }
 
-			const entities_t *m_ptr = nullptr;
-			difference_type m_pos = 0;
+			const component_view *m_view = nullptr;
+			difference_type m_off = 0;
 		};
 
 	public:
-		typedef basic_component_iterator<iterator_base, Cs...> iterator;
-		typedef basic_component_iterator<iterator_base, Cs...> const_iterator;
-		typedef std::reverse_iterator<iterator> reverse_iterator;
-		typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+		typedef typename view_iterator::value_type value_type;
+		typedef typename view_iterator::pointer pointer;
+		typedef typename view_iterator::pointer const_pointer;
+		typedef typename view_iterator::reference reference;
+		typedef typename view_iterator::reference const_reference;
+		typedef view_iterator iterator;
+		typedef view_iterator const_iterator;
+		typedef std::reverse_iterator<view_iterator> reverse_iterator;
+		typedef std::reverse_iterator<view_iterator> const_reverse_iterator;
+		typedef typename view_iterator::size_type size_type;
+		typedef typename view_iterator::difference_type difference_type;
 
-		typedef typename iterator::pointer pointer;
-		typedef typename const_iterator::pointer const_pointer;
-		typedef typename iterator::reference reference;
-		typedef typename const_iterator::reference const_reference;
+	private:
+		template<typename T>
+		[[nodiscard]] constexpr static const common_set *select_common(T *storage) noexcept
+		{
+			return detail::to_base_set(storage);
+		}
+		template<typename T0, typename T1, typename... Ts>
+		[[nodiscard]] constexpr static const common_set *select_common(T0 *a, T1 *b, Ts *...rest) noexcept
+			requires(is_opt_v<Inc> && ...)
+		{
+			/* If all included types are optional, use the largest set. */
+			return a->size() >= b->size() ? select_common(a, rest...) : select_common(b, rest...);
+		}
+		template<typename T0, typename T1, typename... Ts>
+		[[nodiscard]] constexpr static const common_set *select_common(T0 *a, T1 *b, Ts *...rest) noexcept
+		{
+			/* If there are non-optional types, use the smallest non-optional set. */
+			using S0 = std::remove_cv_t<T0>;
+			using S1 = std::remove_cv_t<T1>;
+
+			if constexpr (is_opt_v<typename S1::component_type>)
+				return select_common(a, rest...);
+			else if constexpr (is_opt_v<typename S0::component_type>)
+				return select_common(b, rest...);
+			else
+				return a->size() < b->size() ? select_common(a, rest...) : select_common(b, rest...);
+		}
 
 	public:
 		component_view() = delete;
@@ -137,69 +182,32 @@ namespace sek::engine
 		constexpr component_view(component_view &&) noexcept = default;
 		constexpr component_view &operator=(component_view &&) noexcept = default;
 
-		/** Initializes component view from a set of entities and pointers to component sets.
-		 * @param storage Pointers to component sets, containing viewed components.
-		 * @param il Initializer list containing viewed entities. */
-		constexpr component_view(set_t<Cs> *...storage, std::initializer_list<entity_t> il)
-			: m_storage(storage...), m_entities(il)
-		{
-		}
-		/** @copydoc component_view
-		 * @param alloc Allocator used to allocate internal memory. */
-		constexpr component_view(set_t<Cs> *...storage, std::initializer_list<entity_t> il, const allocator_type &alloc)
-			: m_storage(storage...), m_entities(il, alloc)
-		{
-		}
-		/** Initializes component view from a set of entities and pointers to component sets.
-		 * @param storage Pointers to component sets, containing viewed components.
-		 * @param first Iterator to the first entity of the view.
-		 * @param last Iterator one past the last entity of the view. */
-		template<std::forward_iterator I, std::sentinel_for<I> S>
-		constexpr component_view(set_t<Cs> *...storage, I first, S last)
-			: m_storage(storage...), m_entities(first, last)
-		{
-		}
-		/** @copydoc component_view
-		 * @param alloc Allocator used to allocate internal memory. */
-		template<std::forward_iterator I, std::sentinel_for<I> S>
-		constexpr component_view(set_t<Cs> *...storage, I first, S last, const allocator_type &alloc)
-			: m_storage(storage...), m_entities(first, last, alloc)
+		/** Initializes component view from pointers to component sets.
+		 * @param inc Pointers to component sets of included components.
+		 * @param exc Pointers to component sets of excluded components.
+		 * @note The smallest component set will be used as the main set. */
+		constexpr component_view(set_ptr_t<Inc>... inc, set_ptr_t<Exc>... exc)
+			: m_included(inc...), m_excluded(exc...), m_set(select_common(inc...))
 		{
 		}
 
-		/** Initializes component view from a vector of entities and pointers to component sets.
-		 * @param storage Pointers to component sets, containing viewed components.
-		 * @param entities Vector containing viewed entities. */
-		constexpr component_view(set_t<Cs> *...storage, const entities_t &entities)
-			: m_storage(storage...), m_entities(entities)
+		/** Rebinds view to use the specified component set as the main set. */
+		template<typename C>
+		constexpr component_view &rebind() noexcept
 		{
-		}
-		/** @copydoc component_view */
-		constexpr component_view(set_t<Cs> *...storage, entities_t &&entities) noexcept
-			: m_storage(storage...), m_entities(std::move(entities))
-		{
-		}
-		/** @copydoc component_view
-		 * @param alloc Allocator used to allocate internal memory. */
-		constexpr component_view(set_t<Cs> *...storage, const entities_t &entities, const allocator_type &alloc)
-			: m_storage(storage...), m_entities(entities, alloc)
-		{
-		}
-		/** @copydoc component_view */
-		constexpr component_view(set_t<Cs> *...storage, entities_t &&entities, const allocator_type &alloc)
-			: m_storage(storage...), m_entities(std::move(entities), alloc)
-		{
+			m_set = std::get<set_ptr_t<C>>(m_included);
+			return *this;
 		}
 
-		/** Returns iterator to the first entity and it's components. */
-		[[nodiscard]] constexpr iterator begin() const noexcept { return to_iterator(0); }
+		/** Returns iterator to the first entity. */
+		[[nodiscard]] constexpr iterator begin() const noexcept { return iterator{this, size_hint()}; }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
 		/** Returns iterator one past the last entity. */
-		[[nodiscard]] constexpr iterator end() const noexcept { return to_iterator(size()); }
+		[[nodiscard]] constexpr iterator end() const noexcept { return iterator{this}; }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
-		/** Returns reverse iterator to the last entity and it's components. */
+		/** Returns reverse iterator to the last entity. */
 		[[nodiscard]] constexpr reverse_iterator rbegin() const noexcept { return reverse_iterator{end()}; }
 		/** @copydoc rbegin */
 		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return rbegin(); }
@@ -208,64 +216,115 @@ namespace sek::engine
 		/** @copydoc rend */
 		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return rend(); }
 
-		/** Returns the size of the view. */
-		[[nodiscard]] constexpr size_type size() const noexcept { return m_entities.size(); }
-		/** Checks if the view is empty. */
-		[[nodiscard]] constexpr bool empty() const noexcept { return m_entities.empty(); }
-
-		/** Returns reference to the first entity and it's components. */
+		/** Returns reference to the first entity. */
 		[[nodiscard]] constexpr reference front() const noexcept { return *begin(); }
-		/** Returns reference to the last entity and it's components. */
+		/** Returns reference to the last entity. */
 		[[nodiscard]] constexpr reference back() const noexcept { return *std::prev(end()); }
-		/** Returns reference to the entity at the specified index and it's components. */
-		[[nodiscard]] constexpr reference at(size_type i) const noexcept { return *to_iterator(i); }
-		/** @copydoc at */
-		[[nodiscard]] constexpr reference operator[](size_type i) const noexcept { return at(i); }
 
-		/** Applies the functor to every entity of the view. */
-		template<std::invocable<entity_t, Cs *...> F>
+		/** Returns the size of the of the main set (approximate size of the view). */
+		[[nodiscard]] constexpr size_type size_hint() const noexcept { return m_set->size(); }
+		/** Checks if the the main set is empty. */
+		[[nodiscard]] constexpr bool empty() const noexcept { return begin() == end(); }
+		/** Checks if the the main set contains the specified entity. */
+		[[nodiscard]] constexpr bool contains(entity_t entity) const noexcept
+		{
+			const auto &inc = m_included;
+			const auto &exc = m_excluded;
+			return ((is_opt_v<Inc> || accept<Inc>(entity, inc)) && ...) && !(reject<Exc>(entity, exc) || ...);
+		}
+
+		/** Returns pointers to components associated with the specified entity.
+		 *
+		 * @param entity Entity to get components for.
+		 * @return Tuple of pointers to entity components, or a single pointer if only one component is specified.
+		 *
+		 * @note Pointers to optional components may be null.
+		 * @warning Using an entity not belonging to the view results in undefined behavior. */
+		template<typename... Ts>
+		[[nodiscard]] constexpr decltype(auto) get(entity_t entity) const noexcept
+		{
+			return get_impl<Ts...>(entity);
+		}
+		/** Returns pointers to components associated with the entity pointed to by the iterator.
+		 *
+		 * @param which Iterator to the entity to get components for.
+		 * @return Tuple of pointers to entity components, or a single pointer if only one component is specified.
+		 * @note Pointers to optional components may be null. */
+		template<typename... Ts>
+		[[nodiscard]] constexpr decltype(auto) get(const_iterator which) const noexcept
+		{
+			return get<Ts...>(*which);
+		}
+
+		/** Applies the functor to every entity of the view.
+		 * Functor may optionally return a value, which if evaluated to `false`, prematurely terminates iteration. */
+		template<std::invocable<entity_t, Inc *...> F>
 		constexpr void for_each(F &&f) const
 		{
-			for_each(std::make_index_sequence<sizeof...(Cs)>{}, std::forward<F>(f));
+			for_each(std::make_index_sequence<sizeof...(Inc)>{}, std::forward<F>(f));
 		}
 
 		constexpr void swap(component_view &other) noexcept
 		{
 			using std::swap;
-			swap(m_storage, other.m_storage);
-			swap(m_entities, other.m_entities);
+			swap(m_included, other.m_included);
+			swap(m_excluded, other.m_excluded);
+			swap(m_set, other.m_set);
 		}
 		friend constexpr void swap(component_view &a, component_view &b) noexcept { a.swap(b); }
 
 	private:
-		template<size_type... Is>
-		[[nodiscard]] constexpr const_iterator to_iterator(std::index_sequence<Is...>, size_type i) const noexcept
+		template<typename T>
+		[[nodiscard]] constexpr auto *storage() const noexcept
 		{
 			using std::get;
-			return const_iterator{iterator_base{&m_entities, i}, get<Is>(m_storage)...};
+			return get<set_ptr_t<T>>(m_included);
 		}
-		[[nodiscard]] constexpr const_iterator to_iterator(size_type i) const noexcept
+
+		template<typename... Ts>
+		[[nodiscard]] constexpr std::tuple<Ts *...> get_impl(entity_t entity) const noexcept
+			requires(sizeof...(Ts) > 1)
 		{
-			return to_iterator(std::make_index_sequence<sizeof...(Cs)>{}, i);
+			return std::forward_as_tuple(get_impl<Ts>(entity)...);
+		}
+		template<typename T>
+		[[nodiscard]] constexpr T *get_impl(entity_t entity) const noexcept
+		{
+			const auto set = storage<T>();
+			if constexpr (is_opt_v<T>) /* Optional types need additional null checks. */
+			{
+				if (set == nullptr) [[unlikely]]
+					return nullptr;
+
+				const auto pos = set->find(entity);
+				if (pos == set->end()) [[unlikely]]
+					return nullptr;
+
+				return std::addressof(pos->second);
+			}
+			else
+				return std::addressof(set->get(entity));
 		}
 
 		template<size_type... Is, typename F>
 		constexpr void for_each(std::index_sequence<Is...>, F &&f) const
 		{
-			for (auto element = begin(), last = end(); element != last; ++element)
+			for (auto entity : *this)
 			{
-				const auto ptr = element.get();
-				if constexpr (std::convertible_to<std::invoke_result_t<F, entity_t, Cs *...>, bool>)
+				const auto elements = get<Inc...>(entity);
+				if constexpr (std::convertible_to<std::invoke_result_t<F, entity_t, Inc *...>, bool>)
 				{
-					if (!std::invoke(f, *ptr.template get<0>(), ptr.template get<1 + Is>()...)) [[unlikely]]
+					if (!std::invoke(std::forward<F>(f), entity, std::get<Is>(elements)...)) [[unlikely]]
 						break;
 				}
 				else
-					std::invoke(f, *ptr.template get<0>(), ptr.template get<1 + Is>()...);
+					std::invoke(std::forward<F>(f), entity, std::get<Is>(elements)...);
 			}
 		}
 
-		std::tuple<set_t<Cs> *...> m_storage;
-		entities_t m_entities;
+		inc_ptr m_included;
+		exc_ptr m_excluded;
+
+		const common_set *m_set;
 	};
 }	 // namespace sek::engine

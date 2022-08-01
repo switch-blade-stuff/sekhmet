@@ -16,21 +16,27 @@ namespace sek::detail
 		fprintf(stderr, "Reached unreachable code at '%s:%lu' in '%s'. This is an internal error.\n", file, line, func);
 		std::abort();
 	}
-	[[maybe_unused]] inline void
-		assert_impl(bool cnd, const char *cnd_str, const char *file, std::size_t line, const char *func, const char *msg)
+
+	inline void assert_constexpr() { throw 0; }
+	constexpr void assert_impl(bool cnd, const char *s, const char *f, std::size_t l, const char *fnc, const char *m)
 	{
 		if (!cnd) [[unlikely]]
 		{
-			fprintf(stderr, "Assertion ");
-			if (cnd_str) [[likely]]
-				fprintf(stderr, "(%s) ", cnd_str);
+			if (std::is_constant_evaluated())
+				assert_constexpr();
+			else
+			{
+				fprintf(stderr, "Assertion ");
+				if (s) [[likely]]
+					fprintf(stderr, "(%s) ", s);
 
-			fprintf(stderr, "failed at '%s:%lu' in '%s'", file, line, func);
-			if (msg) [[likely]]
-				fprintf(stderr, ": %s", msg);
-			fputc('\n', stderr);
+				fprintf(stderr, "failed at '%s:%lu' in '%s'", f, l, fnc);
+				if (m) [[likely]]
+					fprintf(stderr, ": %s", m);
+				fputc('\n', stderr);
 
-			std::abort();
+				std::abort();
+			}
 		}
 	}
 }	 // namespace sek::detail

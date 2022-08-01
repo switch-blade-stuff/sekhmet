@@ -303,16 +303,16 @@ namespace sek::engine
 		/** Returns component set for the specified component.
 		 * @note If such storage does not exist, creates it. */
 		template<typename C>
-		[[nodiscard]] constexpr component_set<C> &storage() noexcept
+		[[nodiscard]] constexpr auto &storage() noexcept
 		{
-			return reserve_impl<C>();
+			return reserve_impl<std::remove_cv_t<C>>();
 		}
 		/** Returns component set for the specified component.
 		 * @warning Using component type not present within the worls will result in undefined behavior. */
 		template<typename C>
-		[[nodiscard]] constexpr const component_set<C> &storage() const noexcept
+		[[nodiscard]] constexpr auto &storage() const noexcept
 		{
-			return *get_storage<C>();
+			return *get_storage<std::remove_cv_t<C>>();
 		}
 
 		/** Returns component of the specified entity. */
@@ -332,34 +332,37 @@ namespace sek::engine
 		template<typename C>
 		[[nodiscard]] constexpr C &get(entity_t e) noexcept
 		{
-			return get_storage<C>()->get(e);
+			return get_storage<std::remove_cv_t<C>>()->get(e);
 		}
 		/** @copydoc get */
 		template<typename C>
 		[[nodiscard]] constexpr const C &get(entity_t e) const noexcept
 		{
-			return get_storage<C>()->get(e);
+			return get_storage<std::remove_cv_t<C>>()->get(e);
 		}
 
-		/** Creates an entity query for this world. */
-		[[nodiscard]] constexpr auto query() noexcept { return entity_query{*this}; }
-		/** @copydoc query */
-		[[nodiscard]] constexpr auto query() const noexcept { return entity_query{*this}; }
+		//		/** Creates an entity query for this world. */
+		//		[[nodiscard]] constexpr auto query() noexcept { return entity_query{*this}; }
+		//		/** @copydoc query */
+		//		[[nodiscard]] constexpr auto query() const noexcept { return entity_query{*this}; }
+		//
 
 		/** Returns a component view for the specified components.
-		 * @tparam Cs Components viewed by the component view.
-		 * @tparam Opt Optional components of the component view.
-		 * @tparam Alloc Allocator type used for the view. */
-		template<typename... Cs, typename... Opt, typename Alloc = std::allocator<entity_t>>
-		[[nodiscard]] constexpr auto view(optional_t<Opt...> = optional_t<>{}, const Alloc &alloc = Alloc{}) noexcept
+		 * @tparam Inc Components included by the component view.
+		 * @tparam Exc Components excluded by the component view.
+		 * @tparam Opt Optional components of the component view. */
+		template<typename... Inc, typename... Exc, typename... Opt>
+		[[nodiscard]] constexpr auto view(excluded_t<Exc...> = excluded_t<>{}, optional_t<Opt...> = optional_t<>{}) noexcept
 		{
-			return query().include<Cs...>().optional<Opt...>().view<Alloc>(alloc);
+			return component_view<included_t<Inc...>, excluded_t<Exc...>, optional_t<Opt...>>{
+				std::addressof(storage<Inc>())..., std::addressof(storage<Exc>())...};
 		}
 		/** @copydoc view */
-		template<typename... Cs, typename... Opt, typename Alloc = std::allocator<entity_t>>
-		[[nodiscard]] constexpr auto view(optional_t<Opt...> = optional_t<>{}, const Alloc &alloc = Alloc{}) const noexcept
+		template<typename... Inc, typename... Exc, typename... Opt>
+		[[nodiscard]] constexpr auto view(excluded_t<Exc...> = excluded_t<>{}, optional_t<Opt...> = optional_t<>{}) const noexcept
 		{
-			return query().include<Cs...>().optional<Opt...>().view<Alloc>(alloc);
+			return component_view<included_t<std::add_const_t<Inc>...>, excluded_t<std::add_const_t<Exc>...>, optional_t<std::add_const_t<Opt>...>>{
+				std::addressof(storage<Inc>())..., std::addressof(storage<Exc>())...};
 		}
 
 		/** Generates a new entity.
@@ -400,9 +403,9 @@ namespace sek::engine
 		 * @param n Amount of components to reserve. If set to `0`, only creates the storage pools.
 		 * @return Tuple of references to component storage. */
 		template<typename... Ts>
-		constexpr std::tuple<component_set<Ts> &...> reserve(size_type n = 0)
+		constexpr std::tuple<component_set<std::remove_cv_t<Ts>> &...> reserve(size_type n = 0)
 		{
-			return std::forward_as_tuple(reserve_impl<Ts>(n)...);
+			return std::forward_as_tuple(reserve_impl<std::remove_cv_t<Ts>>(n)...);
 		}
 
 		/** Replaces a component for an entity.
@@ -416,7 +419,7 @@ namespace sek::engine
 		constexpr decltype(auto) replace(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
-			return reserve_impl<C>().replace(e, std::forward<Args>(args)...);
+			return reserve_impl<std::remove_cv_t<C>>().replace(e, std::forward<Args>(args)...);
 		}
 		/** Constructs a component for the specified entity in-place (re-using slots if component type requires fixed storage).
 		 *
@@ -429,7 +432,7 @@ namespace sek::engine
 		constexpr decltype(auto) emplace(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
-			return reserve_impl<C>().emplace(e, std::forward<Args>(args)...);
+			return reserve_impl<std::remove_cv_t<C>>().emplace(e, std::forward<Args>(args)...);
 		}
 		/** Constructs a component for the specified entity in-place (always at the end).
 		 *
@@ -442,7 +445,7 @@ namespace sek::engine
 		constexpr decltype(auto) emplace_back(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
-			return reserve_impl<C>().emplace(e, std::forward<Args>(args)...);
+			return reserve_impl<std::remove_cv_t<C>>().emplace(e, std::forward<Args>(args)...);
 		}
 		/** Emplaces or modifies a component for the specified entity (re-using slots if component type requires fixed storage).
 		 *
@@ -453,7 +456,7 @@ namespace sek::engine
 		constexpr decltype(auto) emplace_or_replace(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
-			return reserve_impl<C>().emplace_or_replace(e, std::forward<Args>(args)...);
+			return reserve_impl<std::remove_cv_t<C>>().emplace_or_replace(e, std::forward<Args>(args)...);
 		}
 		/** Emplaces or modifies a component for the specified entity (always at the end).
 		 *
@@ -464,7 +467,7 @@ namespace sek::engine
 		constexpr decltype(auto) emplace_back_or_replace(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
-			return reserve_impl<C>().emplace_back_or_replace(e, std::forward<Args>(args)...);
+			return reserve_impl<std::remove_cv_t<C>>().emplace_back_or_replace(e, std::forward<Args>(args)...);
 		}
 
 		/** Generates and inserts an entity with the specified components (re-using slots if component type requires fixed storage).
@@ -481,7 +484,7 @@ namespace sek::engine
 		constexpr iterator insert(Cs &&...cs)
 		{
 			const auto entity = generate();
-			(emplace<std::decay_t<Cs>>(entity, std::forward<Cs>(cs)), ...);
+			(emplace<Cs>(entity, std::forward<Cs>(cs)), ...);
 			return iterator{m_entities.data() + entity.index().value()};
 		}
 		/** Generates and inserts an entity with the specified components (always at the end).
@@ -498,7 +501,7 @@ namespace sek::engine
 		constexpr iterator push_back(Cs &&...cs)
 		{
 			const auto entity = generate();
-			(emplace_back<std::decay_t<Cs>>(entity, std::forward<Cs>(cs)), ...);
+			(emplace_back<Cs>(entity, std::forward<Cs>(cs)), ...);
 			return iterator{m_entities.data() + entity.index().value()};
 		}
 
@@ -507,7 +510,7 @@ namespace sek::engine
 		template<typename C>
 		constexpr void erase(entity_t e)
 		{
-			get_storage<C>()->erase(e);
+			get_storage<std::remove_cv_t<C>>()->erase(e);
 		}
 		/** @copydoc erase */
 		template<typename C>

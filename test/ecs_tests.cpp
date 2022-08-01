@@ -179,19 +179,22 @@ TEST(ecs_tests, world_test)
 		EXPECT_FALSE(world.contains(e2));
 	}
 	{
-		sek::engine::entity_world world;
+		using namespace sek::engine;
+
+		entity_world world;
 
 		const auto e0 = *world.insert<int>();
 		const auto e1 = *world.insert(int{1}, float{1});
 		const auto e2 = *world.insert(int{2}, dummy_t{});
 
-		auto view = sek::engine::component_view<sek::engine::included_t<int, float>, sek::engine::optional_t<float>>{
-			&world.storage<int>(), &world.storage<float>(), {e0, e1, e2}};
-
+		const auto view = world.view<int, const float>(excluded_t<dummy_t>{}, optional_t<float>{});
 		EXPECT_FALSE(view.empty());
+		EXPECT_EQ(view.size_hint(), 3);
+
 		view.for_each(
-			[&](sek::engine::entity_t e, const int *i, const float *f)
+			[&](sek::engine::entity_t e, int *i, const float *f)
 			{
+				EXPECT_NE(e, e2);
 				EXPECT_NE(i, nullptr);
 				if (e == e0)
 				{
@@ -204,11 +207,11 @@ TEST(ecs_tests, world_test)
 					EXPECT_EQ(*i, 1);
 					EXPECT_EQ(*f, 1.0f);
 				}
-				else if (e == e2)
-				{
-					EXPECT_EQ(f, nullptr);
-					EXPECT_EQ(*i, 2);
-				}
+				(*i)++;
 			});
+
+		EXPECT_EQ(world.get<int>(e0), 1);
+		EXPECT_EQ(world.get<int>(e1), 2);
+		EXPECT_EQ(world.get<int>(e2), 2);
 	}
 }

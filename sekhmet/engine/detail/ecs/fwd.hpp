@@ -13,7 +13,7 @@ namespace sek::engine
 	template<typename>
 	struct component_traits;
 
-	template<typename, typename, typename>
+	template<typename, typename>
 	class basic_entity_set;
 	template<typename>
 	class component_set;

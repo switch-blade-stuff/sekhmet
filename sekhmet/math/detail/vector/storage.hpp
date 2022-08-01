@@ -121,7 +121,7 @@ namespace sek::math::detail
 		template<typename, std::size_t, policy_t>
 		friend union mask_data;
 
-		constexpr mask_element(T &ref) noexcept : m_ref(&ref) {}
+		constexpr mask_element(T &ref) noexcept : m_ptr(&ref) {}
 
 		constexpr static void set(auto &ref, auto &&value) { mask_set<std::remove_const_t<T>>{}(ref, value); }
 		constexpr static bool get(auto &ref) { return mask_get<std::remove_const_t<T>>{}(ref); }
@@ -138,13 +138,13 @@ namespace sek::math::detail
 		constexpr mask_element &operator=(U value) noexcept
 			requires(!std::is_const_v<T>)
 		{
-			set(*m_ref, std::move(value));
+			set(*m_ptr, std::move(value));
 			return *this;
 		}
 
-		[[nodiscard]] constexpr operator bool() const noexcept { return get(*m_ref); }
+		[[nodiscard]] constexpr operator bool() const noexcept { return get(*m_ptr); }
 
 	private:
-		T *m_ref;
+		T *m_ptr;
 	};
 }	 // namespace sek::math::detail

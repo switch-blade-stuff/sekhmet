@@ -9,11 +9,183 @@
 
 namespace sek::engine
 {
-	template<typename = void, typename = void, typename = std::allocator<entity_t>>
+	template<typename = void, typename = void>
 	class basic_entity_set;
 
 	namespace detail
 	{
+		class entity_set_base
+		{
+			constexpr static auto sparse_page_size = SEK_KB(8) / sizeof(entity_t);
+
+		public:
+			typedef std::allocator<entity_t> allocator_type;
+			typedef allocator_type entity_allocator;
+			typedef std::size_t size_type;
+			typedef std::ptrdiff_t difference_type;
+
+		private:
+			using alloc_traits = std::allocator_traits<allocator_type>;
+
+			using sparse_alloc = typename alloc_traits::template rebind_alloc<entity_t *>;
+			using sparse_data = std::vector<entity_t *, sparse_alloc>;
+			using dense_alloc = typename alloc_traits::template rebind_alloc<entity_t>;
+			using dense_data = std::vector<entity_t, dense_alloc>;
+
+			[[nodiscard]] constexpr static auto sparse_idx(auto n) noexcept { return n / sparse_page_size; }
+			[[nodiscard]] constexpr static auto sparse_off(auto n) noexcept { return n % sparse_page_size; }
+
+		public:
+			constexpr entity_set_base() = default;
+
+			// clang-format off
+		constexpr entity_set_base(const entity_set_base &other)
+			: m_sparse(other.m_sparse),
+			  m_dense(other.m_dense)
+		{
+			copy_sparse(other);
+		}
+
+		constexpr entity_set_base &operator=(const entity_set_base &other)
+		{
+			if (this != &other)
+			{
+				release_pages();
+				m_sparse = other.m_sparse;
+				m_dense = other.m_dense;
+				copy_sparse(other);
+			}
+			return *this;
+		}
+			// clang-format on
+
+			constexpr entity_set_base(entity_set_base &&other)
+				: m_sparse(std::move(other.m_sparse)), m_dense(std::move(other.m_dense))
+			{
+			}
+			constexpr entity_set_base &operator=(entity_set_base &&other)
+			{
+				m_sparse = std::move(other.m_sparse);
+				m_dense = std::move(other.m_dense);
+				return *this;
+			}
+
+			/** Returns pointer to the dense entity array.
+			 * @note If the set stores "fixed" components, dense array will include tombstones (if any). */
+			[[nodiscard]] constexpr const entity_t *data() const noexcept { return m_dense.data(); }
+
+			/** Returns the amount of entities contained within the set.
+			 * @note If the set stores "fixed" components, size will include the number of tombstones (if any). */
+			[[nodiscard]] constexpr size_type size() const noexcept { return m_dense.size(); }
+			/** Checks if the size of the set is `0`.
+			 * @note If the set stores "fixed" components, may return incorrect value. */
+			[[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
+			/** Checks if the set contains the specified entity. */
+			[[nodiscard]] constexpr bool contains(entity_t entity) const noexcept
+			{
+				const auto sparse = sparse_ptr(entity.index().value());
+				return sparse != nullptr && !sparse->is_tombstone();
+			}
+
+			constexpr void swap(entity_set_base &other) noexcept
+			{
+				using std::swap;
+				swap(m_sparse, other.m_sparse);
+				swap(m_dense, other.m_dense);
+				swap(m_next, other.m_next);
+			}
+			friend constexpr void swap(entity_set_base &a, entity_set_base &b) noexcept { a.swap(b); }
+
+		protected:
+			[[nodiscard]] constexpr entity_t *alloc_sparse_page()
+			{
+				auto alloc = std::allocator<entity_t>{};
+				return alloc_traits::allocate(alloc, sparse_page_size);
+			}
+			[[nodiscard]] constexpr entity_t *make_sparse_page()
+			{
+				auto page = alloc_sparse_page();
+				std::fill_n(page, sparse_page_size, entity_t::tombstone());
+				return page;
+			}
+			[[nodiscard]] constexpr entity_t &insert_sparse(size_type i)
+			{
+				const auto idx = sparse_idx(i);
+
+				/* Make sure page list has enough space. */
+				m_sparse.resize(idx + 1, nullptr);
+
+				/* Allocate the page if it is empty. */
+				auto &page = m_sparse[idx];
+				if (page == nullptr) [[unlikely]]
+					page = make_sparse_page();
+
+				auto &slot = page[sparse_off(i)];
+				SEK_ASSERT(slot.is_tombstone(), "Sparse slot already in use");
+				return slot;
+			}
+			constexpr void dealloc_sparse_page(entity_t *page)
+			{
+				auto alloc = std::allocator<entity_t>{};
+				alloc_traits::deallocate(alloc, page, sparse_page_size);
+			}
+
+			constexpr void release_pages()
+			{
+				for (auto page : m_sparse) dealloc_sparse_page(page);
+			}
+
+			constexpr void reserve_sparse(size_type n)
+			{
+				m_sparse.resize(sparse_idx(n) + 1, nullptr);
+				m_dense.reserve(n);
+			}
+			constexpr void copy_sparse(const entity_set_base &other)
+			{
+				for (size_type i = 0; auto src : other.m_sparse)
+				{
+					auto dst = m_sparse[i++] = alloc_sparse_page();
+					std::uninitialized_copy_n(src, sparse_page_size, dst);
+				}
+			}
+			constexpr void move_sparse(entity_set_base &other)
+			{
+				for (size_type i = 0; auto src : m_sparse)
+				{
+					auto dst = alloc_sparse_page();
+					std::uninitialized_copy_n(src, sparse_page_size, dst);
+					other.dealloc_sparse_page(std::exchange(m_sparse[i++], dst));
+				}
+			}
+
+			[[nodiscard]] constexpr entity_t *sparse_ptr(size_type i) const noexcept
+			{
+				const auto idx = sparse_idx(i);
+				const auto off = sparse_off(i);
+
+				if (idx >= m_sparse.size() || m_sparse[idx] == nullptr) [[unlikely]]
+					return nullptr;
+				return m_sparse[idx] + off;
+			}
+			[[nodiscard]] constexpr entity_t &sparse_ref(size_type i) const noexcept
+			{
+				const auto idx = sparse_idx(i);
+				const auto off = sparse_off(i);
+				return m_sparse[idx][off];
+			}
+
+			sparse_data m_sparse;
+			dense_data m_dense;
+
+			/* Next dense entity available for reuse. */
+			entity_t m_next = entity_t::tombstone();
+		};
+
+		template<typename T, typename U>
+		[[nodiscard]] constexpr entity_set_base *to_base_set(basic_entity_set<T, U> *set) noexcept;
+		template<typename T, typename U>
+		[[nodiscard]] constexpr const entity_set_base *to_base_set(const basic_entity_set<T, U> *set) noexcept;
+
 		template<typename T>
 		class component_pool : ebo_base_helper<typename component_traits<T>::allocator_type>
 		{
@@ -216,35 +388,32 @@ namespace sek::engine
 
 	/** @brief Structure used to store unique sets of entities and associate entities with components.
 	 * @tparam T Optional component type. If set to void, set does not store components.
-	 * @tparam CRTP CRTP mixin used to handle element creation, removal and modification events.
-	 * @tparam Alloc Allocator used to allocate memory of the entity set. */
-	template<typename T, typename CRTP, typename Alloc>
-	class basic_entity_set : detail::component_pool<T>, ebo_base_helper<Alloc>, public detail::component_typedef<T>
+	 * @tparam CRTP CRTP mixin used to handle element creation, removal and modification events. */
+	template<typename T, typename CRTP>
+	class basic_entity_set : detail::component_pool<T>, detail::entity_set_base, public detail::component_typedef<T>
 	{
+		template<typename U, typename V>
+		friend constexpr detail::entity_set_base *detail::to_base_set(basic_entity_set<U, V> *) noexcept;
+		template<typename U, typename V>
+		friend constexpr const detail::entity_set_base *detail::to_base_set(const basic_entity_set<U, V> *) noexcept;
+
 		constexpr static auto sparse_page_size = SEK_KB(8) / sizeof(entity_t);
 		constexpr static bool entity_only = std::is_void_v<T> || std::is_empty_v<T>;
 
 		using is_fixed = std::bool_constant<fixed_component<T>>;
+		using entity_base = detail::entity_set_base;
 		using pool_base = detail::component_pool<T>;
-		using alloc_base = ebo_base_helper<Alloc>;
 
 	public:
-		typedef Alloc allocator_type;
+		typedef typename entity_base::allocator_type allocator_type;
 		typedef allocator_type entity_allocator;
 
+		typedef typename entity_base::size_type size_type;
+		typedef typename entity_base::difference_type difference_type;
+
 	private:
-		using alloc_traits = std::allocator_traits<allocator_type>;
-
-		using sparse_alloc = typename alloc_traits::template rebind_alloc<entity_t *>;
-		using sparse_data = std::vector<entity_t *, sparse_alloc>;
-		using dense_alloc = typename alloc_traits::template rebind_alloc<entity_t>;
-		using dense_data = std::vector<entity_t, dense_alloc>;
-
 		template<typename... Args>
 		constexpr static bool valid_args = (std::is_void_v<T> && sizeof...(Args) == 0) || std::is_constructible_v<T, Args...>;
-
-		[[nodiscard]] constexpr static auto sparse_idx(auto n) noexcept { return n / sparse_page_size; }
-		[[nodiscard]] constexpr static auto sparse_off(auto n) noexcept { return n % sparse_page_size; }
 
 		template<bool IsConst, typename U>
 		struct value_selector
@@ -321,8 +490,8 @@ namespace sek::engine
 			typedef set_value value_type;
 			typedef set_ref<IsConst> reference;
 			typedef set_ptr<IsConst> pointer;
-			typedef typename pool_base::size_type size_type;
-			typedef typename pool_base::difference_type difference_type;
+			typedef typename entity_base::size_type size_type;
+			typedef typename entity_base::difference_type difference_type;
 			typedef std::random_access_iterator_tag iterator_category;
 
 		private:
@@ -439,9 +608,6 @@ namespace sek::engine
 		typedef typename iterator::pointer pointer;
 		typedef typename const_iterator::pointer const_pointer;
 
-		typedef typename iterator::size_type size_type;
-		typedef typename iterator::difference_type difference_type;
-
 	private:
 		[[nodiscard]] constexpr static entity_t to_entity(const_iterator i) noexcept
 		{
@@ -468,77 +634,46 @@ namespace sek::engine
 		}
 
 		// clang-format off
-		constexpr basic_entity_set(const basic_entity_set &other) requires entity_only
-			: alloc_base(sek::detail::make_alloc_copy(other.get_allocator())),
-			  m_sparse(other.m_sparse),
-			  m_dense(other.m_dense)
-		{
-			copy_sparse(other);
-		}
-		constexpr basic_entity_set(const basic_entity_set &other, const allocator_type &alloc) requires entity_only
-			: alloc_base(alloc), m_sparse(other.m_sparse, alloc), m_dense(other.m_dense, alloc)
-		{
-			copy_sparse(other);
-		}
-
+		constexpr basic_entity_set(const basic_entity_set &other) requires entity_only : entity_base(other) {}
 		constexpr basic_entity_set &operator=(const basic_entity_set &other) requires entity_only
 		{
-			if (this != &other)
-			{
-				release_pages();
-				m_sparse = other.m_sparse;
-				m_dense = other.m_dense;
-				copy_sparse(other);
-			}
+			entity_base::operator=(other);
 			return *this;
 		}
 		// clang-format on
 
 		constexpr basic_entity_set(basic_entity_set &&other)
-			: pool_base(std::move(other)),
-			  alloc_base(std::move(other)),
-			  m_sparse(std::move(other.m_sparse)),
-			  m_dense(std::move(other.m_dense))
+			: pool_base(std::move(other)), entity_base(std::move(other))
 		{
-			if (!(alloc_traits::propagate_on_container_move_assignment::value ||
-				  sek::detail::alloc_eq(get_allocator(), get_allocator())))
-				move_sparse(other);
-		}
-		constexpr basic_entity_set(basic_entity_set &&other, const allocator_type &alloc)
-			: pool_base(std::move(other)),
-			  alloc_base(alloc),
-			  m_sparse(std::move(other.m_sparse), alloc),
-			  m_dense(std::move(other.m_dense), alloc)
-		{
-			if (!(alloc_traits::propagate_on_container_move_assignment::value ||
-				  sek::detail::alloc_eq(get_allocator(), get_allocator())))
-				move_sparse(other);
 		}
 		constexpr basic_entity_set &operator=(basic_entity_set &&other)
 		{
 			pool_base::operator=(std::move(other));
-			m_sparse = std::move(other.m_sparse);
-
-			if (alloc_traits::propagate_on_container_move_assignment::value ||
-				sek::detail::alloc_eq(get_allocator(), get_allocator()))
-				m_dense = std::move(other.m_dense);
-			else
-			{
-				m_dense = other.m_dense;
-				move_sparse(other);
-			}
+			entity_base::operator=(std::move(other));
 			return *this;
 		}
 
-		constexpr explicit basic_entity_set(const allocator_type &alloc)
-			: alloc_base(alloc), m_sparse(alloc), m_dense(alloc)
+		/** Initializes an empty set and reserves `n` elements.
+		 * @param n Amount of elements to reserve. */
+		constexpr explicit basic_entity_set(size_type n) { reserve(n); }
+
+		// clang-format off
+		/** Initializes entity set from an initializer list of entities.
+		 * @param il Initializer list containing entities of the set. */
+		constexpr explicit basic_entity_set(std::initializer_list<entity_t> il)
+			requires(entity_only) : basic_entity_set(il.size())
 		{
+			insert(il.begin(), il.end());
 		}
-		constexpr explicit basic_entity_set(size_type n, const allocator_type &alloc = {})
-			: alloc_base(alloc), m_sparse(alloc), m_dense(alloc)
+		/** Initializes entity set from a range of entities.
+		 * @param first Iterator to the first entity.
+		 * @param last Sentinel for the `first` iterator. */
+		template<std::forward_iterator I, std::sentinel_for<I> S>
+		constexpr basic_entity_set(I first, S last) requires(entity_only)
 		{
-			reserve(n);
+			insert(first, last);
 		}
+		// clang-format on
 
 		/** Returns iterator to the first entity (and it's component, if any) of the set. */
 		[[nodiscard]] constexpr iterator begin() noexcept { return iterator{this, size()}; }
@@ -566,19 +701,19 @@ namespace sek::engine
 		/** @copydoc rend */
 		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return rend(); }
 
+		/** Returns pointer to the dense entity array.
+		 * @note If the set stores "fixed" components, dense array will include tombstones (if any). */
+		[[nodiscard]] constexpr const entity_t *data() const noexcept { return entity_base::data(); }
+
 		/** Returns the amount of entities contained within the set.
 		 * @note If the set stores "fixed" components, size will include the number of tombstones (if any). */
-		[[nodiscard]] constexpr size_type size() const noexcept { return m_dense.size(); }
+		[[nodiscard]] constexpr size_type size() const noexcept { return entity_base::size(); }
 		/** Checks if the size of the set is `0`.
 		 * @note If the set stores "fixed" components, may return incorrect value. */
-		[[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
+		[[nodiscard]] constexpr bool empty() const noexcept { return entity_base::empty(); }
 
 		/** Checks if the set contains the specified entity. */
-		[[nodiscard]] constexpr bool contains(entity_t entity) const noexcept
-		{
-			const auto sparse = sparse_ptr(entity.index().value());
-			return sparse != nullptr && !sparse->is_tombstone();
-		}
+		[[nodiscard]] constexpr bool contains(entity_t entity) const noexcept { return entity_base::contains(entity); }
 
 		/** Returns iterator to the specified entity (and it's component, if any) or an end iterator. */
 		[[nodiscard]] constexpr iterator find(entity_t entity) noexcept
@@ -602,7 +737,7 @@ namespace sek::engine
 		/** Returns iterator to the entity at the specified offset (and it's component, if any) or an end iterator. */
 		[[nodiscard]] constexpr iterator find(size_type i) noexcept
 		{
-			if (i < size() && !m_dense[i].is_tombstone()) [[likely]]
+			if (i < size() && !entity_base::m_dense[i].is_tombstone()) [[likely]]
 				return to_iterator(i);
 			else
 				return end();
@@ -610,7 +745,7 @@ namespace sek::engine
 		/** @copydoc find */
 		[[nodiscard]] constexpr const_iterator find(size_type i) const noexcept
 		{
-			if (i < size() && !m_dense[i].is_tombstone()) [[likely]]
+			if (i < size() && !entity_base::m_dense[i].is_tombstone()) [[likely]]
 				return to_iterator(i);
 			else
 				return end();
@@ -644,16 +779,15 @@ namespace sek::engine
 			if (n != 0) [[likely]]
 			{
 				pool_base::reserve(n);
-				m_sparse.resize(sparse_idx(n) + 1, nullptr);
-				m_dense.reserve(n);
+				entity_base::reserve_sparse(n);
 			}
 		}
 		/** Removes all entities from the set (destroying components, if needed). */
 		constexpr void clear()
 		{
-			for (size_type i = 0; i < 0; ++i)
+			for (size_type i = 0; i < size(); ++i)
 			{
-				const auto dense = m_dense[i];
+				const auto dense = entity_base::m_dense[i];
 				if (dense.is_tombstone()) [[unlikely]]
 					continue;
 
@@ -673,7 +807,7 @@ namespace sek::engine
 			const auto idx = entity.index();
 			auto &slot = sparse_ref(idx.value());
 			slot = entity_t{gen, slot.index()};
-			m_dense[slot.index().value()] = entity_t{gen, idx};
+			entity_base::m_dense[slot.index().value()] = entity_t{gen, idx};
 		}
 
 		/** Replaces component of an entity.
@@ -692,37 +826,37 @@ namespace sek::engine
 		}
 
 		/** Swaps entities of the entity set. */
-		void swap(size_type a, size_type b)
+		constexpr void swap(size_type a, size_type b)
 		{
 			pool_base::swap_value(a, b);
-			auto &lhs = m_dense[a];
-			auto &rhs = m_dense[b];
+			auto &lhs = entity_base::m_dense[a];
+			auto &rhs = entity_base::m_dense[b];
 			std::swap(sparse_ref(lhs.index().value()), sparse_ref(rhs.index().value()));
 			std::swap(lhs, rhs);
 		}
 		/** @copydoc swap */
-		void swap(const_iterator a, const_iterator b) { swap(a.offset(), b.offset()); }
+		constexpr void swap(const_iterator a, const_iterator b) { swap(a.offset(), b.offset()); }
 		/** @copydoc swap */
-		void swap(entity_t a, entity_t b) { swap(offset(a), offset(b)); }
+		constexpr void swap(entity_t a, entity_t b) { swap(offset(a), offset(b)); }
 
 		/** Removes tombstones (if any) from the set. */
-		void pack()
+		constexpr void pack()
 		{
 			size_type from = size(), to;
 			auto skip_base = [&]()
 			{
-				while (m_dense[from - 1].is_tombstone()) --from;
+				while (entity_base::m_dense[from - 1].is_tombstone()) --from;
 			};
 			skip_base();
-			for (auto *ptr = &this->m_next; ptr->index() != entity_t::index_type::tombstone(); ptr = &m_dense[to])
+			for (auto *ptr = &this->m_next; ptr->index() != entity_t::index_type::tombstone(); ptr = &entity_base::m_dense[to])
 			{
 				to = ptr->index().value();
 				if (to < from)
 				{
 					pool_base::move_value(to, --from);
 
-					auto &e_from = m_dense[from];
-					auto &e_to = m_dense[to];
+					auto &e_from = entity_base::m_dense[from];
+					auto &e_to = entity_base::m_dense[to];
 					std::swap(e_from, e_to);
 
 					sparse_ref(e_to.index().value()) = entity_t{e_to.generation(), entity_t::index_type{to}};
@@ -730,8 +864,8 @@ namespace sek::engine
 					skip_base();
 				}
 			}
-			m_next = entity_t::tombstone();
-			m_dense.resize(from);
+			entity_base::m_next = entity_t::tombstone();
+			entity_base::m_dense.resize(from);
 		}
 
 		/** Sorts entities `[0, n)` of the set.
@@ -739,13 +873,15 @@ namespace sek::engine
 		 * @param sort Functor to use for sorting. `std::sort` used by default.
 		 * @param args Arguments passed to the sort functor. */
 		template<typename Sort = detail::default_sort, typename... Args>
-		void sort_n(size_type n, Sort sort = {}, Args &&...args)
+		constexpr void sort_n(size_type n, Sort sort = {}, Args &&...args)
 		{
 			SEK_ASSERT(n <= size());
-			SEK_ASSERT(m_next.is_tombstone(), "Dense array must be packed for sorting");
+			SEK_ASSERT(entity_base::m_next.is_tombstone(), "Dense array must be packed for sorting");
 
 			/* Sort dense entity array, then fix sparse entities. */
-			sort(m_dense.begin(), m_dense.begin() + static_cast<std::ptrdiff_t>(n), std::forward<Args>(args)...);
+			sort(entity_base::m_dense.begin(),
+				 entity_base::m_dense.begin() + static_cast<std::ptrdiff_t>(n),
+				 std::forward<Args>(args)...);
 			for (auto item = begin(), last = iterator{this, n}; item != last; ++item)
 			{
 				auto &slot = sparse_ref(to_entity(item).index().value());
@@ -761,14 +897,14 @@ namespace sek::engine
 		 * @param sort Functor to use for sorting. `std::sort` used by default.
 		 * @param args Arguments passed to the sort functor. */
 		template<typename Sort = detail::default_sort, typename... Args>
-		void sort(Sort sort = {}, Args &&...args)
+		constexpr void sort(Sort sort = {}, Args &&...args)
 		{
 			pack();
 			sort_n(size(), sort, std::forward<Args>(args)...);
 		}
 		/** Sorts entities of the set according to the provided order. */
 		template<std::bidirectional_iterator I>
-		void sort(I from, I to)
+		constexpr void sort(I from, I to)
 		{
 			pack();
 			for (auto i = size() - 1; i && to-- != from;)
@@ -1056,79 +1192,25 @@ namespace sek::engine
 		constexpr void swap(basic_entity_set &other) noexcept
 		{
 			pool_base::swap(other);
-
-			sek::detail::alloc_assert_swap(get_allocator(), other.get_allocator());
-			sek::detail::alloc_swap(get_allocator(), other.get_allocator());
-
-			using std::swap;
-			swap(m_sparse, other.m_sparse);
-			swap(m_dense, other.m_dense);
-			swap(m_next, other.m_next);
+			entity_base::swap(other);
 		}
 		friend constexpr void swap(basic_entity_set &a, basic_entity_set &b) noexcept { a.swap(b); }
 
 	private:
-		[[nodiscard]] constexpr auto &get_allocator() noexcept { return *alloc_base::get(); }
-		[[nodiscard]] constexpr auto &get_allocator() const noexcept { return *alloc_base::get(); }
-
 		[[nodiscard]] constexpr auto to_iterator(size_type offset) noexcept { return iterator{this, offset + 1}; }
 		[[nodiscard]] constexpr auto to_iterator(size_type offset) const noexcept
 		{
 			return const_iterator{this, offset + 1};
 		}
 
-		[[nodiscard]] constexpr entity_t *alloc_sparse_page()
-		{
-			return alloc_traits::allocate(get_allocator(), sparse_page_size);
-		}
-		[[nodiscard]] constexpr entity_t *make_sparse_page()
-		{
-			auto page = alloc_sparse_page();
-			std::uninitialized_fill_n(page, sparse_page_size, entity_t::tombstone());
-			return page;
-		}
-		[[nodiscard]] constexpr entity_t &insert_sparse(size_type i)
-		{
-			const auto idx = sparse_idx(i);
-
-			/* Make sure page list has enough space. */
-			m_sparse.resize(idx + 1, nullptr);
-
-			/* Allocate the page if it is empty. */
-			auto &page = m_sparse[idx];
-			if (page == nullptr) [[unlikely]]
-				page = make_sparse_page();
-
-			auto &slot = page[sparse_off(i)];
-			SEK_ASSERT(slot.is_tombstone(), "Sparse slot already in use");
-			return slot;
-		}
-		constexpr void dealloc_sparse_page(entity_t *page)
-		{
-			alloc_traits::deallocate(get_allocator(), page, sparse_page_size);
-		}
-
 		constexpr void release_pages()
 		{
 			pool_base::release_pages();
-			for (auto page : m_sparse) dealloc_sparse_page(page);
+			entity_base::release_pages();
 		}
 
-		[[nodiscard]] constexpr entity_t *sparse_ptr(size_type i) const noexcept
-		{
-			const auto idx = sparse_idx(i);
-			const auto off = sparse_off(i);
-
-			if (idx >= m_sparse.size() || m_sparse[idx] == nullptr) [[unlikely]]
-				return nullptr;
-			return m_sparse[idx] + off;
-		}
-		[[nodiscard]] constexpr entity_t &sparse_ref(size_type i) const noexcept
-		{
-			const auto idx = sparse_idx(i);
-			const auto off = sparse_off(i);
-			return m_sparse[idx][off];
-		}
+		[[nodiscard]] constexpr entity_t *sparse_ptr(size_type i) const noexcept { return entity_base::sparse_ptr(i); }
+		[[nodiscard]] constexpr entity_t &sparse_ref(size_type i) const noexcept { return entity_base::sparse_ref(i); }
 
 		[[nodiscard]] constexpr decltype(auto) component_ptr(size_type i) const noexcept
 		{
@@ -1137,24 +1219,6 @@ namespace sek::engine
 		[[nodiscard]] constexpr decltype(auto) component_ref(size_type i) const noexcept
 		{
 			if constexpr (!std::is_void_v<T>) return pool_base::component_ref(i);
-		}
-
-		constexpr void copy_sparse(const basic_entity_set &other)
-		{
-			for (size_type i = 0; auto src : other.m_sparse)
-			{
-				auto dst = m_sparse[i++] = alloc_sparse_page();
-				std::uninitialized_copy_n(src, sparse_page_size, dst);
-			}
-		}
-		constexpr void move_sparse(basic_entity_set &other)
-		{
-			for (size_type i = 0; auto src : m_sparse)
-			{
-				auto dst = alloc_sparse_page();
-				std::uninitialized_copy_n(src, sparse_page_size, dst);
-				other.dealloc_sparse_page(std::exchange(m_sparse[i++], dst));
-			}
 		}
 
 		constexpr size_type mixin_replace(size_type idx, entity_t e)
@@ -1176,11 +1240,11 @@ namespace sek::engine
 		template<typename... Args>
 		constexpr size_type emplace_impl(std::false_type, entity_t e, Args &&...args)
 		{
-			const auto pos = m_dense.size();
+			const auto pos = entity_base::m_dense.size();
 
 			pool_base::emplace(pos, std::forward<Args>(args)...);
 			auto &slot = insert_sparse(e.index().value());
-			m_dense.push_back(e);
+			entity_base::m_dense.push_back(e);
 			slot = entity_t{e.generation(), entity_t::index_type{pos}};
 
 			return pos;
@@ -1189,18 +1253,18 @@ namespace sek::engine
 		constexpr size_type emplace_impl(std::true_type, entity_t e, Args &&...args)
 		{
 			/* Reuse an existing dense position if possible. */
-			if (m_next.is_tombstone() && m_next.index() == entity_t::index_type::tombstone()) [[unlikely]]
+			if (entity_base::m_next.is_tombstone() && entity_base::m_next.index() == entity_t::index_type::tombstone())
 				return emplace_impl(std::false_type{}, e, std::forward<Args>(args)...);
 			else
 			{
-				const auto idx = m_next.index();
+				const auto idx = entity_base::m_next.index();
 				const auto pos = idx.value();
 
 				pool_base::emplace(pos, std::forward<Args>(args)...);
 				auto &slot = insert_sparse(e.index().value());
 
 				slot = entity_t(e.generation(), idx);
-				m_next = std::exchange(m_dense[pos], e);
+				entity_base::m_next = std::exchange(entity_base::m_dense[pos], e);
 
 				return pos;
 			}
@@ -1220,21 +1284,21 @@ namespace sek::engine
 		constexpr size_type erase_impl(std::false_type, size_type idx)
 		{
 			/* Swap with the last one & pop. */
-			const auto last = m_dense.size() - 1;
+			const auto last = entity_base::m_dense.size() - 1;
 			if (idx < last) [[likely]]
 			{
-				const auto from = m_dense[last].index().value();
-				const auto to = m_dense[idx].index().value();
+				const auto from = entity_base::m_dense[last].index().value();
+				const auto to = entity_base::m_dense[idx].index().value();
 
-				sparse_ref(from) = entity_t{m_dense[last].generation(), entity_t::index_type{idx}};
+				sparse_ref(from) = entity_t{entity_base::m_dense[last].generation(), entity_t::index_type{idx}};
 				sparse_ref(to) = entity_t::tombstone();
-				m_dense[idx] = m_dense[last];
+				entity_base::m_dense[idx] = entity_base::m_dense[last];
 
 				pool_base::move_value(idx, last);
 			}
 			else
-				sparse_ref(m_dense[last].index().value()) = entity_t::tombstone();
-			m_dense.pop_back();
+				sparse_ref(entity_base::m_dense[last].index().value()) = entity_t::tombstone();
+			entity_base::m_dense.pop_back();
 			pool_base::erase(last);
 			return idx;
 		}
@@ -1246,13 +1310,18 @@ namespace sek::engine
 			return idx + 1;
 		}
 		constexpr size_type erase_impl(size_type idx) { return erase_impl(is_fixed{}, mixin_erase(idx, m_dense[idx])); }
-
-		sparse_data m_sparse;
-		dense_data m_dense;
-
-		/* Next dense entity available for reuse. */
-		entity_t m_next = entity_t::tombstone();
 	};
 
 	using entity_set = basic_entity_set<>;
+
+	template<typename T, typename U>
+	[[nodiscard]] constexpr detail::entity_set_base *detail::to_base_set(basic_entity_set<T, U> *set) noexcept
+	{
+		return static_cast<detail::entity_set_base *>(set);
+	}
+	template<typename T, typename U>
+	[[nodiscard]] constexpr const detail::entity_set_base *detail::to_base_set(const basic_entity_set<T, U> *set) noexcept
+	{
+		return static_cast<const detail::entity_set_base *>(set);
+	}
 }	 // namespace sek::engine
