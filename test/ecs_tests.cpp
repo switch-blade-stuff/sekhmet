@@ -200,6 +200,7 @@ TEST(ecs_tests, world_test)
 				{
 					EXPECT_EQ(f, nullptr);
 					EXPECT_EQ(*i, 0);
+					return false;
 				}
 				else if (e == e1)
 				{
@@ -208,9 +209,10 @@ TEST(ecs_tests, world_test)
 					EXPECT_EQ(*f, 1.0f);
 				}
 				(*i)++;
+				return true;
 			});
 
-		EXPECT_EQ(world.get<int>(e0), 1);
+		EXPECT_EQ(world.get<int>(e0), 0);
 		EXPECT_EQ(world.get<int>(e1), 2);
 		EXPECT_EQ(world.get<int>(e2), 2);
 	}

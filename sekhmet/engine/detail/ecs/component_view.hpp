@@ -187,7 +187,7 @@ namespace sek::engine
 		 * @param exc Pointers to component sets of excluded components.
 		 * @note The smallest component set will be used as the main set. */
 		constexpr component_view(set_ptr_t<Inc>... inc, set_ptr_t<Exc>... exc)
-			: m_included(inc...), m_excluded(exc...), m_set(select_common(inc...))
+			: m_set(select_common(inc...)), m_included(inc...), m_excluded(exc...)
 		{
 		}
 
@@ -220,18 +220,18 @@ namespace sek::engine
 		[[nodiscard]] constexpr reference front() const noexcept { return *begin(); }
 		/** Returns reference to the last entity. */
 		[[nodiscard]] constexpr reference back() const noexcept { return *std::prev(end()); }
-
-		/** Returns the size of the of the main set (approximate size of the view). */
-		[[nodiscard]] constexpr size_type size_hint() const noexcept { return m_set->size(); }
-		/** Checks if the the main set is empty. */
+		/** Checks if the the view is empty. */
 		[[nodiscard]] constexpr bool empty() const noexcept { return begin() == end(); }
-		/** Checks if the the main set contains the specified entity. */
+		/** Checks if the the view contains the specified entity. */
 		[[nodiscard]] constexpr bool contains(entity_t entity) const noexcept
 		{
 			const auto &inc = m_included;
 			const auto &exc = m_excluded;
 			return ((is_opt_v<Inc> || accept<Inc>(entity, inc)) && ...) && !(reject<Exc>(entity, exc) || ...);
 		}
+
+		/** Returns the size of the of the main set (approximate size of the view). */
+		[[nodiscard]] constexpr size_type size_hint() const noexcept { return m_set->size(); }
 
 		/** Returns pointers to components associated with the specified entity.
 		 *
@@ -261,7 +261,17 @@ namespace sek::engine
 		template<std::invocable<entity_t, Inc *...> F>
 		constexpr void for_each(F &&f) const
 		{
-			for_each(std::make_index_sequence<sizeof...(Inc)>{}, std::forward<F>(f));
+			for (auto entity : *this)
+			{
+				const auto elements = get<Inc...>(entity);
+				if constexpr (std::convertible_to<std::invoke_result_t<F, entity_t, Inc *...>, bool>)
+				{
+					if (!std::invoke(std::forward<F>(f), entity, std::get<Inc *>(elements)...)) [[unlikely]]
+						break;
+				}
+				else
+					std::invoke(std::forward<F>(f), entity, std::get<Inc *>(elements)...);
+			}
 		}
 
 		constexpr void swap(component_view &other) noexcept
@@ -306,25 +316,8 @@ namespace sek::engine
 				return std::addressof(set->get(entity));
 		}
 
-		template<size_type... Is, typename F>
-		constexpr void for_each(std::index_sequence<Is...>, F &&f) const
-		{
-			for (auto entity : *this)
-			{
-				const auto elements = get<Inc...>(entity);
-				if constexpr (std::convertible_to<std::invoke_result_t<F, entity_t, Inc *...>, bool>)
-				{
-					if (!std::invoke(std::forward<F>(f), entity, std::get<Is>(elements)...)) [[unlikely]]
-						break;
-				}
-				else
-					std::invoke(std::forward<F>(f), entity, std::get<Is>(elements)...);
-			}
-		}
-
+		const common_set *m_set;
 		inc_ptr m_included;
 		exc_ptr m_excluded;
-
-		const common_set *m_set;
 	};
 }	 // namespace sek::engine
