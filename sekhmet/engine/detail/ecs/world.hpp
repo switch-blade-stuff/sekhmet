@@ -300,19 +300,18 @@ namespace sek::engine
 		/** @copydoc empty */
 		[[nodiscard]] constexpr bool empty(const_iterator which) const noexcept { return empty(*which); }
 
-		/** Returns component set for the specified component.
+		/** Returns pointer to the component set for the specified component.
 		 * @note If such storage does not exist, creates it. */
 		template<typename C>
-		[[nodiscard]] constexpr auto &storage() noexcept
+		[[nodiscard]] constexpr auto *storage() noexcept
 		{
-			return reserve_impl<std::remove_cv_t<C>>();
+			return std::addressof(reserve_impl<C>());
 		}
-		/** Returns component set for the specified component.
-		 * @warning Using component type not present within the worls will result in undefined behavior. */
+		/** Returns pointer to the component set for the specified component or `nullptr`. */
 		template<typename C>
-		[[nodiscard]] constexpr auto &storage() const noexcept
+		[[nodiscard]] constexpr const auto *storage() const noexcept
 		{
-			return *get_storage<std::remove_cv_t<C>>();
+			return get_storage<C>();
 		}
 
 		/** Returns component of the specified entity. */
@@ -332,13 +331,13 @@ namespace sek::engine
 		template<typename C>
 		[[nodiscard]] constexpr C &get(entity_t e) noexcept
 		{
-			return get_storage<std::remove_cv_t<C>>()->get(e);
+			return get_storage<C>()->get(e);
 		}
 		/** @copydoc get */
 		template<typename C>
 		[[nodiscard]] constexpr const C &get(entity_t e) const noexcept
 		{
-			return get_storage<std::remove_cv_t<C>>()->get(e);
+			return get_storage<C>()->get(e);
 		}
 
 		//		/** Creates an entity query for this world. */
@@ -354,15 +353,17 @@ namespace sek::engine
 		template<typename... Inc, typename... Exc, typename... Opt>
 		[[nodiscard]] constexpr auto view(excluded_t<Exc...> = excluded_t<>{}, optional_t<Opt...> = optional_t<>{}) noexcept
 		{
-			return component_view<included_t<Inc...>, excluded_t<Exc...>, optional_t<Opt...>>{
-				std::addressof(storage<Inc>())..., std::addressof(storage<Exc>())...};
+			using V = component_view<included_t<Inc...>, excluded_t<Exc...>, optional_t<Opt...>>;
+			return V{storage<Inc>()..., storage<Exc>()...};
 		}
 		/** @copydoc view */
 		template<typename... Inc, typename... Exc, typename... Opt>
 		[[nodiscard]] constexpr auto view(excluded_t<Exc...> = excluded_t<>{}, optional_t<Opt...> = optional_t<>{}) const noexcept
 		{
-			return component_view<included_t<std::add_const_t<Inc>...>, excluded_t<std::add_const_t<Exc>...>, optional_t<std::add_const_t<Opt>...>>{
-				std::addressof(storage<Inc>())..., std::addressof(storage<Exc>())...};
+			// clang-format off
+			using V = component_view<included_t<std::add_const_t<Inc>...>, excluded_t<std::add_const_t<Exc>...>, optional_t<std::add_const_t<Opt>...>>;
+			return V{storage<Inc>()..., storage<Exc>()...};
+			// clang-format on
 		}
 
 		/** Generates a new entity.
@@ -405,7 +406,7 @@ namespace sek::engine
 		template<typename... Ts>
 		constexpr std::tuple<component_set<std::remove_cv_t<Ts>> &...> reserve(size_type n = 0)
 		{
-			return std::forward_as_tuple(reserve_impl<std::remove_cv_t<Ts>>(n)...);
+			return std::forward_as_tuple(reserve_impl<Ts>(n)...);
 		}
 
 		/** Replaces a component for an entity.
@@ -419,7 +420,7 @@ namespace sek::engine
 		constexpr decltype(auto) replace(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
-			return reserve_impl<std::remove_cv_t<C>>().replace(e, std::forward<Args>(args)...);
+			return reserve_impl<C>().replace(e, std::forward<Args>(args)...);
 		}
 		/** Constructs a component for the specified entity in-place (re-using slots if component type requires fixed storage).
 		 *
@@ -432,7 +433,7 @@ namespace sek::engine
 		constexpr decltype(auto) emplace(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
-			return reserve_impl<std::remove_cv_t<C>>().emplace(e, std::forward<Args>(args)...);
+			return reserve_impl<C>().emplace(e, std::forward<Args>(args)...);
 		}
 		/** Constructs a component for the specified entity in-place (always at the end).
 		 *
@@ -445,7 +446,7 @@ namespace sek::engine
 		constexpr decltype(auto) emplace_back(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
-			return reserve_impl<std::remove_cv_t<C>>().emplace(e, std::forward<Args>(args)...);
+			return reserve_impl<C>().emplace(e, std::forward<Args>(args)...);
 		}
 		/** Emplaces or modifies a component for the specified entity (re-using slots if component type requires fixed storage).
 		 *
@@ -456,7 +457,7 @@ namespace sek::engine
 		constexpr decltype(auto) emplace_or_replace(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
-			return reserve_impl<std::remove_cv_t<C>>().emplace_or_replace(e, std::forward<Args>(args)...);
+			return reserve_impl<C>().emplace_or_replace(e, std::forward<Args>(args)...);
 		}
 		/** Emplaces or modifies a component for the specified entity (always at the end).
 		 *
@@ -467,7 +468,7 @@ namespace sek::engine
 		constexpr decltype(auto) emplace_back_or_replace(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
-			return reserve_impl<std::remove_cv_t<C>>().emplace_back_or_replace(e, std::forward<Args>(args)...);
+			return reserve_impl<C>().emplace_back_or_replace(e, std::forward<Args>(args)...);
 		}
 
 		/** Generates and inserts an entity with the specified components (re-using slots if component type requires fixed storage).
@@ -510,7 +511,7 @@ namespace sek::engine
 		template<typename C>
 		constexpr void erase(entity_t e)
 		{
-			get_storage<std::remove_cv_t<C>>()->erase(e);
+			get_storage<C>()->erase(e);
 		}
 		/** @copydoc erase */
 		template<typename C>
@@ -551,30 +552,38 @@ namespace sek::engine
 			return (++m_size, !gen.is_tombstone() ? m_entities.emplace_back(gen, idx) : m_entities.emplace_back(idx));
 		}
 
-		template<typename T>
-		[[nodiscard]] constexpr auto *get_storage() noexcept
+		template<typename T, typename U = std::remove_cv_t<T>>
+		[[nodiscard]] constexpr component_set<U> *get_storage() noexcept
 		{
-			return m_storage.find(type_info::get<T>())->second.template get<T>();
+			const auto set = m_storage.find(type_info::get<U>());
+			if (set != m_storage.end()) [[likely]]
+				return set->second.template get<U>();
+			else
+				return nullptr;
 		}
-		template<typename T>
-		[[nodiscard]] constexpr auto *get_storage() const noexcept
+		template<typename T, typename U = std::remove_cv_t<T>>
+		[[nodiscard]] constexpr const component_set<U> *get_storage() const noexcept
 		{
-			return m_storage.find(type_info::get<T>())->second->template get<T>();
+			const auto set = m_storage.find(type_info::get<U>());
+			if (set != m_storage.end()) [[likely]]
+				return set->second.template get<U>();
+			else
+				return nullptr;
 		}
 
-		template<typename T>
-		constexpr component_set<T> &reserve_impl(size_type n = 0)
+		template<typename T, typename U = std::remove_cv_t<T>>
+		constexpr component_set<U> &reserve_impl(size_type n = 0)
 		{
-			const auto type = type_info::get<T>();
+			const auto type = type_info::get<U>();
 			auto target = m_storage.find(type);
 			if (target == m_storage.end()) [[unlikely]]
 				target = m_storage
 							 .emplace(std::piecewise_construct,
 									  std::forward_as_tuple(type),
-									  std::forward_as_tuple(type_selector<T>, *this))
+									  std::forward_as_tuple(type_selector<U>, *this))
 							 .first;
 
-			auto &storage = *target->second.template get<T>();
+			auto &storage = *target->second.template get<U>();
 			if (n != 0) [[likely]]
 				storage.reserve(n);
 			return storage;
