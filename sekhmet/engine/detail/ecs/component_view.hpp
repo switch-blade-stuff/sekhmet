@@ -13,7 +13,7 @@ namespace sek::engine
 
 	/** @brief Structure used to provide a simple view of components for a set of entities.
 	 * @tparam Inc Component types captured by the view.
-	 * @tparam Inc Component types excluded from the view.
+	 * @tparam Exc Component types excluded from the view.
 	 * @tparam Opt Optional components of the view.
 	 * @tparam Alloc Allocator used for internal entity set. */
 	template<typename... Inc, typename... Exc, typename... Opt>
@@ -33,6 +33,8 @@ namespace sek::engine
 		using is_opt = is_in<std::remove_cv_t<T>, std::remove_cv_t<Opt>...>;
 		template<typename T>
 		constexpr static bool is_opt_v = is_opt<T>::value;
+
+		static_assert(!(is_opt_v<Inc> && ...), "View must have at least 1 non-optional component");
 
 		template<typename T>
 		[[nodiscard]] constexpr static bool accept(entity_t e, const inc_ptr &inc) noexcept
@@ -151,13 +153,6 @@ namespace sek::engine
 		[[nodiscard]] constexpr static const common_set *select_common(T *storage) noexcept
 		{
 			return detail::to_base_set(storage);
-		}
-		template<typename T0, typename T1, typename... Ts>
-		[[nodiscard]] constexpr static const common_set *select_common(T0 *a, T1 *b, Ts *...rest) noexcept
-			requires(is_opt_v<Inc> && ...)
-		{
-			/* If all included types are optional, use the largest set. */
-			return a->size() >= b->size() ? select_common(a, rest...) : select_common(b, rest...);
 		}
 		template<typename T0, typename T1, typename... Ts>
 		[[nodiscard]] constexpr static const common_set *select_common(T0 *a, T1 *b, Ts *...rest) noexcept
