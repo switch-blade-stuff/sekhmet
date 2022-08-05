@@ -14,7 +14,7 @@ namespace sek::engine
 {
 	resource_error::~resource_error() = default;
 
-	[[noreturn]] static void invalid_asset(const asset_ref &asset)
+	[[noreturn]] static void invalid_asset(const asset_handle &asset)
 	{
 		throw resource_error(fmt::format("Asset \"{}\" {{{}}} is not a valid resource", asset.name(), asset.id().to_string()));
 	}
@@ -23,7 +23,7 @@ namespace sek::engine
 		throw resource_error(fmt::format("\"{}\" is not a valid resource type", name));
 	}
 
-	resource_cache::metadata_t::metadata_t(const asset_ref &asset)
+	resource_cache::metadata_t::metadata_t(const asset_handle &asset)
 	{
 		if (auto metadata = asset.metadata(); !metadata.empty()) [[likely]]
 		{
@@ -72,14 +72,17 @@ namespace sek::engine
 			return load_anonymous(meta, src);
 		invalid_type(type.name());
 	}
-	any resource_cache::load_anonymous(const asset_ref &asset)
+	any resource_cache::load_anonymous(const asset_handle &asset)
 	{
 		auto src = asset.open();
 		return load_anonymous(metadata_t{asset}, src);
 	}
 
-	std::pair<std::shared_ptr<void>, resource_cache::metadata_t *> resource_cache::load_impl(const asset_ref &asset, bool copy)
+	std::pair<std::shared_ptr<void>, resource_cache::metadata_t *> resource_cache::load_impl(const asset_handle &asset, bool copy)
 	{
+		if (asset.empty()) [[unlikely]]
+			return {};
+
 		const auto id = asset.id();
 
 		std::shared_ptr<void> ptr;
@@ -116,6 +119,30 @@ namespace sek::engine
 		if (copy) [[unlikely]]
 			ptr = metadata->attr->m_copy(ptr.get());
 		return {ptr, metadata};
+	}
+	std::pair<std::shared_ptr<void>, resource_cache::metadata_t *> resource_cache::load_impl(std::string_view name, bool copy)
+	{
+		asset_handle handle;
+		{
+			auto db = asset_database::instance()->access_shared();
+			if (auto asset = db->find(name); asset != db->end()) [[likely]]
+				handle = *asset;
+			else
+				return {};
+		}
+		return load_impl(handle, copy);
+	}
+	std::pair<std::shared_ptr<void>, resource_cache::metadata_t *> resource_cache::load_impl(uuid id, bool copy)
+	{
+		asset_handle handle;
+		{
+			auto db = asset_database::instance()->access_shared();
+			if (auto asset = db->find(id); asset != db->end()) [[likely]]
+				handle = *asset;
+			else
+				return {};
+		}
+		return load_impl(handle, copy);
 	}
 
 	std::size_t resource_cache::clear(type_info type)

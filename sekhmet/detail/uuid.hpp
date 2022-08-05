@@ -75,6 +75,9 @@ namespace sek
 
 		constexpr static version4_t version4 = {};
 
+		/** Returns a `nil` uuid. */
+		[[nodiscard]] constexpr static uuid nil() noexcept;
+
 	private:
 		template<typename C>
 		constexpr static int parse_digit(C c)
@@ -197,6 +200,8 @@ namespace sek
 
 		alignas(std::uint64_t[2]) std::array<std::byte, 16> m_bytes = {};
 	};
+
+	constexpr uuid uuid::nil() noexcept { return uuid{}; }
 
 	[[nodiscard]] constexpr hash_t hash(const uuid &id) noexcept { return fnv1a(id.m_bytes.data(), id.m_bytes.size()); }
 

@@ -156,7 +156,7 @@ namespace sek::engine
 		struct metadata_t
 		{
 			constexpr metadata_t() noexcept = default;
-			explicit metadata_t(const asset_ref &);
+			explicit metadata_t(const asset_handle &);
 
 			type_info type;			 /* Type info of the resource's type. */
 			const attribute_t *attr; /* Pointer to the cached attribute. */
@@ -164,7 +164,7 @@ namespace sek::engine
 
 		struct cache_entry
 		{
-			explicit cache_entry(const asset_ref &asset) : metadata(asset) {}
+			explicit cache_entry(const asset_handle &asset) : metadata(asset) {}
 
 			metadata_t metadata;	  /* Metadata of the resource. */
 			std::weak_ptr<void> data; /* Weak pointer to the resource's data. */
@@ -183,7 +183,7 @@ namespace sek::engine
 		 * @param asset Asset to load the resource from.
 		 * @return `any` containing the loaded resource.
 		 * @throw resource_error If the asset is not a valid resource. */
-		static SEK_API any load_anonymous(const asset_ref &asset);
+		static SEK_API any load_anonymous(const asset_handle &asset);
 
 	protected:
 		constexpr resource_cache() = default;
@@ -192,15 +192,44 @@ namespace sek::engine
 		/** Loads a resource from an asset.
 		 * @param asset Asset to load the resource from.
 		 * @param copy If set to true, the resource will be copied from the cache.
-		 * @return Shared pointer to the resource.
+		 * @return Shared pointer to the resource or a null pointer if the asset handle is empty.
 		 * @throw resource_error If the asset is not a valid resource. */
-		std::shared_ptr<void> load(const asset_ref &asset, bool copy = false) { return load_impl(asset, copy).first; }
+		std::shared_ptr<void> load(const asset_handle &asset, bool copy = false) { return load_impl(asset, copy).first; }
 		/** @copydoc load
 		 * @note Casts the resource to type `T` using it's type info. */
 		template<typename T>
-		std::shared_ptr<T> load(const asset_ref &asset, bool copy = false)
+		std::shared_ptr<T> load(const asset_handle &asset, bool copy = false)
 		{
 			auto [ptr, metadata] = load_impl(asset, copy);
+			return cast_impl<T>(std::move(ptr), metadata);
+		}
+
+		/** Loads a resource from an asset using it's name.
+		 * @param name Name of the resource's asset.
+		 * @param copy If set to true, the resource will be copied from the cache.
+		 * @return Shared pointer to the resource or a null pointer if such asset does not exist.
+		 * @throw resource_error If the asset exists but is not a valid resource. */
+		std::shared_ptr<void> load(std::string_view name, bool copy = false) { return load_impl(name, copy).first; }
+		/** @copydoc load
+		 * @note Casts the resource to type `T` using it's type info. */
+		template<typename T>
+		std::shared_ptr<T> load(std::string_view name, bool copy = false)
+		{
+			auto [ptr, metadata] = load_impl(name, copy);
+			return cast_impl<T>(std::move(ptr), metadata);
+		}
+		/** Loads a resource from an asset using it's UUID.
+		 * @param id Id of the resource's asset.
+		 * @param copy If set to true, the resource will be copied from the cache.
+		 * @return Shared pointer to the resource or a null pointer if such asset does not exist.
+		 * @throw resource_error If the asset exists but is not a valid resource. */
+		std::shared_ptr<void> load(uuid id, bool copy = false) { return load_impl(id, copy).first; }
+		/** @copydoc load
+		 * @note Casts the resource to type `T` using it's type info. */
+		template<typename T>
+		std::shared_ptr<T> load(uuid id, bool copy = false)
+		{
+			auto [ptr, metadata] = load_impl(id, copy);
 			return cast_impl<T>(std::move(ptr), metadata);
 		}
 
@@ -214,7 +243,9 @@ namespace sek::engine
 		SEK_API void clear();
 
 	protected:
-		SEK_API std::pair<std::shared_ptr<void>, metadata_t *> load_impl(const asset_ref &asset, bool copy);
+		SEK_API std::pair<std::shared_ptr<void>, metadata_t *> load_impl(const asset_handle &asset, bool copy);
+		SEK_API std::pair<std::shared_ptr<void>, metadata_t *> load_impl(std::string_view name, bool copy);
+		SEK_API std::pair<std::shared_ptr<void>, metadata_t *> load_impl(uuid id, bool copy);
 
 		template<typename T>
 		std::shared_ptr<T> cast_impl(std::shared_ptr<void> &&ptr, metadata_t *metadata)

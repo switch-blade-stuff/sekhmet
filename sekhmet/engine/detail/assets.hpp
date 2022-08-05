@@ -25,7 +25,7 @@
 namespace sek::engine
 {
 	class asset_source;
-	class asset_ref;
+	class asset_handle;
 	class asset_package;
 	class asset_database;
 
@@ -140,13 +140,13 @@ namespace sek::engine
 			class entry_iterator;
 			class entry_ptr;
 
-			typedef asset_ref value_type;
+			typedef asset_handle value_type;
 			typedef entry_iterator iterator;
 			typedef entry_iterator const_iterator;
 			typedef std::reverse_iterator<const_iterator> reverse_iterator;
 			typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
-			typedef asset_ref reference;
-			typedef asset_ref const_reference;
+			typedef asset_handle reference;
+			typedef asset_handle const_reference;
 			typedef entry_ptr pointer;
 			typedef entry_ptr const_pointer;
 			typedef std::size_t size_type;
@@ -242,8 +242,8 @@ namespace sek::engine
 			sek::detail::basic_pool<asset_info> info_pool;
 
 #ifdef SEK_EDITOR
-			event<void(const asset_ref &)> asset_added;
-			event<void(const asset_ref &)> asset_removed;
+			event<void(const asset_handle &)> asset_added;
+			event<void(const asset_handle &)> asset_removed;
 #endif
 		};
 
@@ -530,33 +530,40 @@ namespace sek::engine
 		};
 	}	 // namespace detail
 
-	/** @brief Structure used to reference an asset.
+	/** @brief Handle to a unique asset of a package.
 	 * @note Asset packages are kept alive as long as any of their assets are referenced. */
-	class asset_ref
+	class asset_handle
 	{
 		friend class detail::asset_table::entry_iterator;
 		friend class asset_package;
 		friend class asset_database;
 
-		constexpr asset_ref(uuid id, detail::asset_info_ptr &&ptr) noexcept : m_id(std::move(id)), m_ptr(std::move(ptr))
+		constexpr asset_handle(uuid id, detail::asset_info_ptr &&ptr) noexcept
+			: m_id(std::move(id)), m_ptr(std::move(ptr))
 		{
 		}
-		asset_ref(uuid id, detail::asset_info *info) : m_id(std::move(id)), m_ptr(info) { m_ptr.acquire(); }
+		asset_handle(uuid id, detail::asset_info *info) : m_id(std::move(id)), m_ptr(info) { m_ptr.acquire(); }
 
 	public:
-		asset_ref() = delete;
+		/** Initializes an empty asset handle. */
+		constexpr asset_handle() noexcept = default;
 
-		constexpr asset_ref(asset_ref &&) noexcept = default;
-		constexpr asset_ref &operator=(asset_ref &&other) noexcept
+		constexpr asset_handle(asset_handle &&) noexcept = default;
+		constexpr asset_handle &operator=(asset_handle &&other) noexcept
 		{
 			m_id = std::move(other.m_id);
 			m_ptr = std::move(other.m_ptr);
 			return *this;
 		}
-		asset_ref(const asset_ref &) = default;
-		asset_ref &operator=(const asset_ref &) = default;
+		asset_handle(const asset_handle &) = default;
+		asset_handle &operator=(const asset_handle &) = default;
 
-		/** Returns the id of the asset. If the asset reference does not point to an asset, returns a nil uuid. */
+		/** Checks if the asset handle references an asset. */
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_ptr.empty(); }
+		/** @copydoc empty */
+		[[nodiscard]] constexpr operator bool() const noexcept { return !empty(); }
+
+		/** Returns the id of the asset. If the asset handle does not point to an asset, returns a nil uuid. */
 		[[nodiscard]] constexpr uuid id() const noexcept { return m_id; }
 		/** Returns reference to the name of the asset. */
 		[[nodiscard]] constexpr const interned_string &name() const noexcept { return m_ptr->name; }
@@ -575,21 +582,21 @@ namespace sek::engine
 		 * @throw asset_error On failure to open the file or archive containing the metadata. */
 		[[nodiscard]] asset_source metadata() const { return m_ptr->parent->open_metadata(m_ptr.info); }
 
-		constexpr void swap(asset_ref &other) noexcept
+		constexpr void swap(asset_handle &other) noexcept
 		{
 			m_id.swap(other.m_id);
 			m_ptr.swap(other.m_ptr);
 		}
-		friend constexpr void swap(asset_ref &a, asset_ref &b) noexcept { a.swap(b); }
+		friend constexpr void swap(asset_handle &a, asset_handle &b) noexcept { a.swap(b); }
 
-		/** Returns true if both asset references reference the *exact* same asset.
-		 * @note Multiple asset references with the same id may reference different assets.
+		/** Returns true if both asset handles reference the *exact* same asset.
+		 * @note Multiple asset handles with the same id may reference different assets.
 		 * This may happen if the assets were obtained directly from packages (bypassing the database),
 		 * thus no overrides could be resolved. */
-		[[nodiscard]] constexpr bool operator==(const asset_ref &) const noexcept = default;
+		[[nodiscard]] constexpr bool operator==(const asset_handle &) const noexcept = default;
 
 	private:
-		uuid m_id;
+		uuid m_id = uuid::nil();
 		detail::asset_info_ptr m_ptr;
 	};
 
@@ -599,7 +606,7 @@ namespace sek::engine
 		{
 			friend class entry_iterator;
 
-			constexpr explicit entry_ptr(asset_ref &&ref) noexcept : m_ref(std::move(ref)) {}
+			constexpr explicit entry_ptr(asset_handle &&ref) noexcept : m_ref(std::move(ref)) {}
 
 		public:
 			entry_ptr() = delete;
@@ -613,9 +620,9 @@ namespace sek::engine
 				return *this;
 			}
 
-			[[nodiscard]] constexpr const asset_ref *get() const noexcept { return std::addressof(m_ref); }
-			[[nodiscard]] constexpr const asset_ref *operator->() const noexcept { return get(); }
-			[[nodiscard]] constexpr const asset_ref &operator*() const noexcept { return *get(); }
+			[[nodiscard]] constexpr const asset_handle *get() const noexcept { return std::addressof(m_ref); }
+			[[nodiscard]] constexpr const asset_handle *operator->() const noexcept { return get(); }
+			[[nodiscard]] constexpr const asset_handle &operator*() const noexcept { return *get(); }
 
 			constexpr void swap(entry_ptr &other) noexcept { m_ref.swap(other.m_ref); }
 			friend constexpr void swap(entry_ptr &a, entry_ptr &b) noexcept { a.swap(b); }
@@ -623,7 +630,7 @@ namespace sek::engine
 			[[nodiscard]] constexpr bool operator==(const entry_ptr &) const noexcept = default;
 
 		private:
-			asset_ref m_ref;
+			asset_handle m_ref;
 		};
 		class asset_table::entry_iterator
 		{
@@ -632,8 +639,8 @@ namespace sek::engine
 			using uuid_iter = typename uuid_table_t::const_iterator;
 
 		public:
-			typedef asset_ref value_type;
-			typedef asset_ref reference;
+			typedef asset_handle value_type;
+			typedef asset_handle reference;
 			typedef entry_ptr pointer;
 			typedef std::size_t size_type;
 			typedef std::ptrdiff_t difference_type;
@@ -743,7 +750,7 @@ namespace sek::engine
 	/** @brief Reference-counted handle used to reference an asset package. */
 	class asset_package
 	{
-		friend class asset_ref;
+		friend class asset_handle;
 		friend class asset_database;
 
 		using table_t = detail::asset_table;
@@ -832,12 +839,15 @@ namespace sek::engine
 
 #ifdef SEK_EDITOR
 		/** Returns event proxy for asset removal event. */
-		[[nodiscard]] event_proxy<event<void(const asset_ref &)>> on_asset_removed() const
+		[[nodiscard]] event_proxy<event<void(const asset_handle &)>> on_asset_removed() const
 		{
 			return m_ptr->asset_removed;
 		}
 		/** Returns event proxy for asset creation event. */
-		[[nodiscard]] event_proxy<event<void(const asset_ref &)>> on_asset_added() const { return m_ptr->asset_added; }
+		[[nodiscard]] event_proxy<event<void(const asset_handle &)>> on_asset_added() const
+		{
+			return m_ptr->asset_added;
+		}
 #endif
 
 		constexpr void swap(asset_package &other) noexcept { m_ptr.swap(other.m_ptr); }
@@ -849,7 +859,7 @@ namespace sek::engine
 		detail::package_info_ptr m_ptr;
 	};
 
-	inline asset_package asset_ref::package() const { return asset_package{m_ptr->parent}; }
+	inline asset_package asset_handle::package() const { return asset_package{m_ptr->parent}; }
 
 	/** @brief Proxy range used to manipulate load order of asset database's packages.
 	 *
@@ -954,8 +964,8 @@ namespace sek::engine
 		SEK_API void swap(typename packages_t::const_iterator, typename packages_t::const_iterator);
 
 #ifdef SEK_ENGINE
-		void handle_asset_removed(const asset_ref &);
-		void handle_asset_added(const asset_ref &);
+		void handle_asset_removed(const asset_handle &);
+		void handle_asset_added(const asset_handle &);
 #endif
 
 		packages_t m_packages;

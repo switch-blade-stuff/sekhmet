@@ -621,7 +621,7 @@ namespace sek::engine
 #ifdef SEK_ENGINE
 		/* In editor mode, packages may be modified and database needs to be updated accordingly to handle overrides. */
 		pkg->on_asset_removed() += delegate<void(const asset_ref &)>{this, &asset_database::handle_asset_added};
-		pkg->on_asset_added() += delegate<void(const asset_ref &)>{this, &asset_database::handle_asset_added};
+		pkg->on_asset_added() += delegate<void(const asset_handle &)>{this, &asset_database::handle_asset_added};
 #endif
 
 		return pkg;
@@ -644,8 +644,8 @@ namespace sek::engine
 
 #ifdef SEK_ENGINE
 		/* Unsubscribe from any package editor events. */
-		pkg->on_asset_removed() -= delegate<void(const asset_ref &)>{this, &asset_database::handle_asset_added};
-		pkg->on_asset_added() -= delegate<void(const asset_ref &)>{this, &asset_database::handle_asset_added};
+		pkg->on_asset_removed() -= delegate<void(const asset_handle &)>{this, &asset_database::handle_asset_added};
+		pkg->on_asset_added() -= delegate<void(const asset_handle &)>{this, &asset_database::handle_asset_added};
 #endif
 
 		return pkg;
@@ -681,7 +681,7 @@ namespace sek::engine
 	}
 
 #ifdef SEK_ENGINE
-	void asset_database::handle_asset_removed(const asset_ref &asset)
+	void asset_database::handle_asset_removed(const asset_handle &asset)
 	{
 		/* Find load order of the package the asset belongs to. */
 		const auto pred = [ptr = asset.m_ptr->parent](const asset_package &pkg) { return pkg.m_ptr.pkg == ptr; };
@@ -693,7 +693,7 @@ namespace sek::engine
 		/* Restore overrides of the asset. */
 		restore_asset(parent, asset.m_id, asset.m_ptr.info);
 	}
-	void asset_database::handle_asset_added(const asset_ref &asset)
+	void asset_database::handle_asset_added(const asset_handle &asset)
 	{
 		/* Find load order of the package the asset belongs to. */
 		const auto pred = [ptr = asset.m_ptr->parent](const asset_package &pkg) { return pkg.m_ptr.pkg == ptr; };
