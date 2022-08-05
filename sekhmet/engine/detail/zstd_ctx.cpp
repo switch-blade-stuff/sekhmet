@@ -14,7 +14,7 @@
 
 namespace sek::engine
 {
-	/* To avoid conflicts with ZSTD errors, custom error codes start with 0xffff'ffff'0000'0000. */
+	/* To avoid conflicts with ZSTD errors, custom error codes start after full range of `ZSTD_ErrorCode` values. */
 	enum ctx_error_t : std::uint64_t
 	{
 		CTX_ERROR_MASK = ((1ul << (sizeof(ZSTD_ErrorCode) * 8ul)) - 1ul) << 32,

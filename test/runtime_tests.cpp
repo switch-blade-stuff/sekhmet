@@ -540,6 +540,34 @@ TEST(runtime_tests, asset_test)
 		EXPECT_NE(asset, db->end());
 		EXPECT_EQ(asset->name(), "test_archive_asset");
 	}
+	{
+		auto db = db_guard.access_unique();
+		auto proxy = db->packages();
+		proxy.push_back(loose_pkg);
+
+		EXPECT_EQ(proxy.size(), 2);
+		EXPECT_EQ(proxy.begin()[0], archive_pkg);
+		EXPECT_EQ(proxy.begin()[1], loose_pkg);
+
+		auto asset = db->find("c0b16fc9-e969-4dac-97ed-eb8640a144ac"_uuid);
+		EXPECT_NE(asset, db->end());
+		EXPECT_EQ(asset->name(), "test_asset");
+		asset = db->find("3fa20589-5e11-4249-bdfe-4d3e8038a5b3"_uuid);
+		EXPECT_NE(asset, db->end());
+		EXPECT_EQ(asset->name(), "test_asset2");
+
+		proxy.swap(proxy.begin(), proxy.begin() + 1);
+		EXPECT_EQ(proxy.size(), 2);
+		EXPECT_EQ(proxy.begin()[0], loose_pkg);
+		EXPECT_EQ(proxy.begin()[1], archive_pkg);
+
+		asset = db->find("c0b16fc9-e969-4dac-97ed-eb8640a144ac"_uuid);
+		EXPECT_NE(asset, db->end());
+		EXPECT_EQ(asset->name(), "test_asset");
+		asset = db->find("3fa20589-5e11-4249-bdfe-4d3e8038a5b3"_uuid);
+		EXPECT_NE(asset, db->end());
+		EXPECT_EQ(asset->name(), "test_archive_asset");
+	}
 }
 
 #include "sekhmet/engine/resources.hpp"

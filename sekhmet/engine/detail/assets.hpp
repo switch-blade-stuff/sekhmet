@@ -13,6 +13,7 @@
 #include "sekhmet/detail/basic_pool.hpp"
 #include "sekhmet/detail/dense_map.hpp"
 #include "sekhmet/detail/dense_set.hpp"
+#include "sekhmet/detail/event.hpp"
 #include "sekhmet/detail/intern.hpp"
 #include "sekhmet/detail/opt_err.hpp"
 #include "sekhmet/detail/service.hpp"
@@ -43,28 +44,34 @@ namespace sek::engine
 	{
 		struct asset_buffer_t
 		{
+		public:
 			constexpr asset_buffer_t() noexcept = default;
 			constexpr asset_buffer_t(asset_buffer_t &&other) noexcept { swap(other); }
 
-			explicit asset_buffer_t(std::int64_t size) : data(new std::byte[static_cast<std::uint64_t>(size)]{}) {}
-			~asset_buffer_t() { delete[] data; }
+			constexpr explicit asset_buffer_t(const std::byte *data) : m_data(data) {}
+			explicit asset_buffer_t(std::uint64_t size) { m_data = m_owned = new std::byte[size]; }
+			~asset_buffer_t() { delete[] m_owned; }
 
-			constexpr void swap(asset_buffer_t &other) noexcept { std::swap(data, other.data); }
+			constexpr void swap(asset_buffer_t &other) noexcept
+			{
+				std::swap(m_data, other.m_data);
+				std::swap(m_owned, other.m_owned);
+			}
 
-			std::byte *data = nullptr;
+			[[nodiscard]] constexpr const std::byte *data() const noexcept { return m_data; }
+			[[nodiscard]] constexpr std::byte *owned_buff() const noexcept { return m_owned; }
+
+		private:
+			const std::byte *m_data = nullptr;
+			std::byte *m_owned = nullptr;
 		};
 
-		inline asset_source make_asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset);
-		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size);
+		inline asset_source make_asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset) noexcept;
+		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size) noexcept;
 
 		struct package_info;
 		struct asset_info
 		{
-			struct loose_info_t
-			{
-				std::string asset_path; /* Path to asset's main data file. */
-				std::string meta_path;	/* Path to asset's metadata file. */
-			};
 			struct archive_info_t
 			{
 				std::int64_t asset_offset;	 /* Offset into the archive at which asset's data is located. */
@@ -77,16 +84,41 @@ namespace sek::engine
 				/* Metadata is never compressed, since it generally is not large, thus using compression
 				 * will have more overhead than reading directly from a file. */
 			};
-
-			explicit asset_info(package_info *parent) : parent(parent) {}
-			asset_info(type_selector_t<archive_info_t>, package_info *parent) : asset_info(parent) {}
-			asset_info(type_selector_t<loose_info_t>, package_info *parent) : asset_info(parent)
+			struct loose_info_t
 			{
-				std::construct_at(&loose_info);
-			}
+				[[nodiscard]] inline static std::string_view copy_path(std::string_view path)
+				{
+					auto *buff = new char[path.size() + 1];
+					*std::copy_n(path.data(), path.size(), buff) = '\0';
+					return {buff, path.size()};
+				}
+
+				constexpr loose_info_t() noexcept = default;
+				inline ~loose_info_t()
+				{
+					delete[] asset_path.data();
+					delete[] meta_path.data();
+				}
+
+				std::string_view asset_path; /* Path to asset's main data file. */
+				std::string_view meta_path;	 /* Path to asset's metadata file. */
+			};
+
+			constexpr asset_info(asset_info &&other) noexcept { swap(other); }
+			constexpr explicit asset_info(package_info *parent) : parent(parent), padding() {}
+
 			inline ~asset_info();
 
 			[[nodiscard]] constexpr bool has_metadata() const noexcept;
+
+			constexpr void swap(asset_info &other) noexcept
+			{
+				using std::swap;
+				swap(parent, other.parent);
+				swap(name, other.name);
+				swap(tags, other.tags);
+				swap(padding, other.padding);
+			}
 
 			package_info *parent; /* Parent package of the asset. */
 
@@ -95,7 +127,8 @@ namespace sek::engine
 
 			union
 			{
-				archive_info_t archive_info = {};
+				std::byte padding[sizeof(archive_info_t)] = {};
+				archive_info_t archive_info;
 				loose_info_t loose_info;
 			};
 		};
@@ -162,7 +195,21 @@ namespace sek::engine
 			inline asset_info *alloc_info() { return info_pool.allocate(); }
 			inline void dealloc_info(asset_info *info) { info_pool.deallocate(info); }
 
-			void insert_asset(uuid id, asset_info *info);
+			template<typename... Args>
+			inline asset_info *make_info(Args &&...args)
+			{
+				return std::construct_at(alloc_info(), std::forward<Args>(args)...);
+			}
+			inline void delete_info(asset_info *info)
+			{
+				std::destroy_at(info);
+				dealloc_info(info);
+			}
+
+			template<typename... Args>
+			void emplace(uuid id, Args &&...args);
+			void insert(uuid id, asset_info *info);
+			void erase(uuid id);
 
 #ifdef SEK_EDITOR
 			[[nodiscard]] constexpr bool is_project() const noexcept { return flags & IS_PROJECT; }
@@ -190,14 +237,16 @@ namespace sek::engine
 
 			std::filesystem::path path;
 			sek::detail::basic_pool<asset_info> info_pool;
+
+#ifdef SEK_EDITOR
+			event<void(const asset_ref &)> asset_added;
+			event<void(const asset_ref &)> asset_removed;
+#endif
 		};
 
 		inline asset_info::~asset_info()
 		{
-			if (parent->is_archive())
-				std::destroy_at(&archive_info);
-			else
-				std::destroy_at(&loose_info);
+			if (!parent->is_archive()) std::destroy_at(&loose_info);
 		}
 	}	 // namespace detail
 
@@ -217,18 +266,20 @@ namespace sek::engine
 
 	private:
 		constexpr asset_source(std::int64_t size, std::int64_t offset) noexcept : m_size(size), m_offset(offset) {}
-		inline asset_source(detail::asset_buffer_t &&buffer, std::int64_t size) : asset_source(size, -1)
-		{
-			std::construct_at(&m_buffer, std::move(buffer));
-		}
-		inline asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset)
-			: asset_source(size, offset)
+
+		// clang-format off
+		asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset) noexcept : asset_source(size, offset)
 		{
 			std::construct_at(&m_file, std::move(file));
 		}
+		asset_source(detail::asset_buffer_t &&buff, std::int64_t size) noexcept : asset_source(size, -1)
+		{
+			std::construct_at(&m_buffer, std::move(buff));
+		}
+		// clang-format on
 
-		friend inline asset_source detail::make_asset_source(system::native_file &&, std::int64_t, std::int64_t);
-		friend inline asset_source detail::make_asset_source(detail::asset_buffer_t &&, std::int64_t);
+		friend inline asset_source detail::make_asset_source(system::native_file &&, std::int64_t, std::int64_t) noexcept;
+		friend inline asset_source detail::make_asset_source(detail::asset_buffer_t &&, std::int64_t) noexcept;
 
 	public:
 		asset_source(const asset_source &) = delete;
@@ -267,7 +318,7 @@ namespace sek::engine
 			if (has_file())
 				n = file().read(dst, n);
 			else
-				std::copy_n(m_buffer.data + m_read_pos, n, static_cast<std::byte *>(dst));
+				std::copy_n(m_buffer.data() + m_read_pos, n, static_cast<std::byte *>(dst));
 			m_read_pos = new_pos;
 			return n;
 		}
@@ -313,7 +364,7 @@ namespace sek::engine
 		[[nodiscard]] system::native_filemap map() const noexcept { return {m_file, m_offset, m_size}; }
 		/** Returns pointer to the underlying memory buffer.
 		 * @warning Undefined behavior if the asset is not backed by a buffer. */
-		[[nodiscard]] constexpr const std::byte *buffer() const noexcept { return m_buffer.data; }
+		[[nodiscard]] constexpr const std::byte *buffer() const noexcept { return m_buffer.data(); }
 
 		constexpr void swap(asset_source &other) noexcept
 		{
@@ -342,7 +393,7 @@ namespace sek::engine
 		}
 
 		std::int64_t m_size = 0;	 /* Total size of the asset. */
-		std::int64_t m_offset = 0;	 /* Base offset within the file, -1 if not backed by a file. */
+		std::int64_t m_offset = 0;	 /* Base offset within the file, -1 if backed by a buffer. */
 		std::int64_t m_read_pos = 0; /* Current read position with the base offset applied. */
 		union
 		{
@@ -354,11 +405,11 @@ namespace sek::engine
 
 	namespace detail
 	{
-		inline asset_source make_asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset)
+		inline asset_source make_asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset) noexcept
 		{
 			return asset_source{std::move(file), size, offset};
 		}
-		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size)
+		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size) noexcept
 		{
 			return asset_source{std::move(buff), size};
 		}
@@ -776,6 +827,16 @@ namespace sek::engine
 			return m_ptr->match_all(std::forward<P>(pred));
 		}
 
+#ifdef SEK_EDITOR
+		/** Returns event proxy for asset creation event. */
+		[[nodiscard]] event_proxy<event<void(const asset_ref &)>> on_asset_added() const { return m_ptr->asset_added; }
+		/** Returns event proxy for asset removal event. */
+		[[nodiscard]] event_proxy<event<void(const asset_ref &)>> on_asset_removed() const
+		{
+			return m_ptr->asset_removed;
+		}
+#endif
+
 		constexpr void swap(asset_package &other) noexcept { m_ptr.swap(other.m_ptr); }
 		friend constexpr void swap(asset_package &a, asset_package &b) noexcept { a.swap(b); }
 
@@ -875,18 +936,15 @@ namespace sek::engine
 		[[nodiscard]] constexpr auto packages() const noexcept;
 
 	protected:
-		void restore_overrides(typename packages_t::const_iterator, typename packages_t::const_iterator);
-		void insert_overrides(typename packages_t::const_iterator);
+		SEK_API void restore_asset(typename packages_t::const_iterator, uuid, const detail::asset_info *);
+		SEK_API void override_asset(typename packages_t::const_iterator, uuid, detail::asset_info *);
 
-		SEK_API typename packages_t::const_iterator erase_pkg(typename packages_t::const_iterator,
-															  typename packages_t::const_iterator);
-		typename packages_t::const_iterator erase_pkg(typename packages_t::const_iterator where)
-		{
-			return erase_pkg(where, std::next(where));
-		}
-
-		SEK_API typename packages_t::const_iterator insert_pkg(typename packages_t::const_iterator, const asset_package &);
-		SEK_API typename packages_t::const_iterator insert_pkg(typename packages_t::const_iterator, asset_package &&);
+		SEK_API typename packages_t::const_iterator erase(typename packages_t::const_iterator);
+		SEK_API typename packages_t::const_iterator erase(typename packages_t::const_iterator,
+														  typename packages_t::const_iterator);
+		SEK_API typename packages_t::const_iterator insert(typename packages_t::const_iterator, const asset_package &);
+		SEK_API typename packages_t::const_iterator insert(typename packages_t::const_iterator, asset_package &&);
+		SEK_API void swap(typename packages_t::const_iterator, typename packages_t::const_iterator);
 
 		packages_t m_packages;
 		assets_t m_assets;
@@ -1002,26 +1060,27 @@ namespace sek::engine
 
 		/** Removes a package at the specified position from the load order.
 		 * @return Iterator to the package after the erased one. */
-		const_iterator erase(const_iterator where) { return parent()->erase_pkg(where); }
+		const_iterator erase(const_iterator where) { return parent()->erase(where); }
 		/** Removes all packages between [first, last) from the load order.
 		 * @return Iterator to the package after the erased range. */
-		const_iterator erase(const_iterator first, const_iterator last) { return parent()->erase_pkg(first, last); }
+		const_iterator erase(const_iterator first, const_iterator last) { return parent()->erase(first, last); }
 
 		/** Inserts a package at the specified position into the load order.
 		 * @return Iterator to the inserted package. */
-		const_iterator insert(const_iterator where, const asset_package &pkg)
-		{
-			return parent()->insert_pkg(where, pkg);
-		}
+		const_iterator insert(const_iterator where, const asset_package &pkg) { return parent()->insert(where, pkg); }
 		/** @copydoc insert */
 		const_iterator insert(const_iterator where, asset_package &&pkg)
 		{
-			return parent()->insert_pkg(where, std::forward<asset_package>(pkg));
+			return parent()->insert(where, std::forward<asset_package>(pkg));
 		}
 		/** Inserts a package at the end of the load order. */
 		void push_back(const asset_package &pkg) { insert(end(), pkg); }
 		/** @copydoc push_back */
 		void push_back(asset_package &&pkg) { insert(end(), std::forward<asset_package>(pkg)); }
+
+		/** Swaps load order of packages `a` and `b`.
+		 * @return Iterator to the package after the erased range. */
+		void swap(const_iterator a, const_iterator b) { return parent()->swap(a, b); }
 
 		constexpr void swap(package_proxy &other) noexcept { base_t::swap(other); }
 		friend constexpr void swap(package_proxy &a, package_proxy &b) noexcept { a.swap(b); }

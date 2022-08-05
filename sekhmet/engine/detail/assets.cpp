@@ -166,12 +166,12 @@ namespace sek::engine
 						n = size - pos;
 					}
 
-					memcpy(buffer.data + std::exchange(pos, new_pos), src, n);
+					memcpy(buffer.owned_buff() + std::exchange(pos, new_pos), src, n);
 					return n;
 				}
 				asset_buffer_t buffer;
 				std::size_t size, pos;
-			} writer = {asset_buffer_t{src_size}, static_cast<std::size_t>(src_size), 0};
+			} writer = {asset_buffer_t{static_cast<std::uint64_t>(src_size)}, static_cast<std::size_t>(src_size), 0};
 
 			try
 			{
@@ -204,16 +204,15 @@ namespace sek::engine
 			}
 		}
 
-		void package_info::insert_asset(uuid id, asset_info *info)
+		template<typename... Args>
+		void package_info::emplace(uuid id, Args &&...args)
+		{
+			insert(id, make_info(std::forward<Args>(args)...));
+		}
+		void package_info::insert(uuid id, asset_info *info)
 		{
 			if (auto existing = uuid_table.find(id); existing != uuid_table.end())
-			{
-				auto old_info = std::exchange(existing->second, info);
-
-				/* Destroy & de-allocate the old UUID asset. */
-				std::destroy_at(old_info);
-				dealloc_info(old_info);
-			}
+				delete_info(std::exchange(existing->second, info));
 			else
 				uuid_table.emplace(id, info);
 
@@ -224,6 +223,24 @@ namespace sek::engine
 					existing->second = id;
 				else
 					name_table.emplace(info->name, id);
+			}
+		}
+		void package_info::erase(uuid id)
+		{
+			if (const auto id_entry = uuid_table.find(id); id_entry != uuid_table.end())
+			{
+				const auto info = id_entry->second;
+
+				/* Erase the asset from both tables. */
+				uuid_table.erase(id_entry);
+				if (const auto &name = info->name; !name.empty()) /* If the asset has a name, erase the name table entry. */
+				{
+					const auto name_entry = name_table.find(name);
+					if (name_entry != name_table.end() && name_entry->second == id) name_table.erase(name_entry);
+				}
+
+				/* Destroy & de-allocate the old asset. */
+				delete_info(info);
 			}
 		}
 
@@ -333,7 +350,7 @@ namespace sek::engine
 
 					void deserialize(binary_input &archive, package_info &parent) const
 					{
-						std::construct_at(info, type_selector<asset_info::archive_info_t>, &parent);
+						std::construct_at(info, &parent);
 
 						archive >> info->archive_info.asset_offset;
 						archive >> info->archive_info.asset_size;
@@ -350,7 +367,7 @@ namespace sek::engine
 					}
 					void deserialize(json_input &archive, package_info &parent) const
 					{
-						std::construct_at(info, type_selector<asset_info::loose_info_t>, &parent);
+						std::construct_at(info, &parent);
 
 						for (auto iter = archive.begin(), end = archive.end(); iter != end; ++iter)
 						{
@@ -360,9 +377,15 @@ namespace sek::engine
 							else if (key == "tags")
 								iter->read(tags_proxy{info->tags});
 							else if (key == "data")
-								info->loose_info.asset_path = iter->read(std::in_place_type<std::string_view>);
+							{
+								const auto path = iter->read(std::in_place_type<std::string_view>);
+								info->loose_info.asset_path = asset_info::loose_info_t::copy_path(path);
+							}
 							else if (key == "metadata")
-								info->loose_info.meta_path = iter->read(std::in_place_type<std::string_view>);
+							{
+								const auto path = iter->read(std::in_place_type<std::string_view>);
+								info->loose_info.meta_path = asset_info::loose_info_t::copy_path(path);
+							}
 						}
 
 						if (info->loose_info.asset_path.empty()) [[unlikely]]
@@ -393,28 +416,23 @@ namespace sek::engine
 					pkg.uuid_table.reserve(n);
 					pkg.name_table.reserve(n);
 
-					auto next_info = std::unique_ptr<asset_info, info_deleter>{nullptr, info_deleter{pkg}};
+					type_storage<asset_info> next_info;
 					std::size_t total = 0;
 					for (std::size_t i = 0; i < n; ++i)
 					{
-						/* Allocate new asset before deserialization. */
-						if (!next_info) [[likely]]
-							next_info.reset(pkg.alloc_info());
-
 						try
 						{
-							const auto id = read_entry(i, archive, next_info.get());
-							pkg.insert_asset(id, next_info.release());
+							const auto id = read_entry(i, archive, next_info.get<asset_info>());
+							pkg.emplace(id, std::move(*next_info.get<asset_info>()));
 							++total; /* Increment total only after the entry was successfully inserted. */
 						}
 						catch (archive_error &e)
 						{
 							logger::error() << fmt::format("Ignoring malformed asset entry. Parse error: \"{}\"", e.what());
-
-							/* Destroy the asset, as it will be constructed by the deserialization function on next iteration. */
-							std::destroy_at(next_info.get());
-							continue;
 						}
+
+						/* Destroy the asset, as it will be constructed by the deserialization function on next iteration. */
+						std::destroy_at(next_info.get<asset_info>());
 					}
 
 					logger::info() << fmt::format("Loaded {} asset(s)", total);
@@ -516,119 +534,129 @@ namespace sek::engine
 		m_packages.clear();
 	}
 
-	void asset_database::restore_overrides(typename packages_t::const_iterator first, typename packages_t::const_iterator last)
+	void asset_database::override_asset(typename packages_t::const_iterator parent, uuid id, detail::asset_info *info)
+	{
+		auto can_override = [&](detail::package_info *pkg)
+		{
+			auto pred = [pkg](auto &ptr) { return ptr.m_ptr.pkg == pkg; };
+			return std::none_of(parent, m_packages.cend(), pred);
+		};
+
+		auto &uuid_table = m_assets.uuid_table;
+		auto &name_table = m_assets.name_table;
+		/* If the UUID entry does exist, check if it's package is higher in the load order than us.
+		 * If it is, skip the entry. Otherwise, override the entry. */
+		if (auto entry = uuid_table.find(id); entry != uuid_table.end() && !can_override(entry->second->parent)) [[unlikely]]
+			return;
+		uuid_table.insert({id, info});
+
+		/* If the new entry has a name, and such name is already present within the name table,
+		 * check if we can override the name. */
+		if (const auto &name = info->name; !name.empty()) [[likely]]
+		{
+			auto existing = name_table.find(name);
+			if (existing == name_table.end() || can_override(uuid_table.at(existing->second)->parent)) [[likely]]
+				name_table.insert({name, id});
+		}
+	}
+
+	void asset_database::restore_asset(typename packages_t::const_iterator parent, uuid id, const detail::asset_info *info)
 	{
 		auto &uuid_table = m_assets.uuid_table;
 		auto &name_table = m_assets.name_table;
-		while (last-- != first)
+		const auto &name = info->name;
+
+		/* Skip the entry if it is not present within the database. */
+		auto existing_uuid = uuid_table.find(id);
+		if (existing_uuid != uuid_table.end() && existing_uuid->second->parent == parent->m_ptr.pkg) [[likely]]
 		{
-			/* Go through each asset of the package. If the asset is present within the database,
-			 * check if there is a conflicting asset in packages below `first`. If there is, use that asset,
-			 * otherwise, remove the asset. */
-			for (auto &pkg_ptr = last->m_ptr; auto entry : pkg_ptr->uuid_table)
+			/* Find the existing name entry. */
+			auto existing_name = name.empty() ? name_table.end() : name_table.find(name);
+			/* Find conflicting assets within the packages below `first`.
+			 * Name entry is replaced only if it points to the replaced asset. */
+			bool found_uuid = false, found_name = existing_name == name_table.end() || existing_name->second != id;
+			for (auto pkg_iter = parent;;)
 			{
-				const auto entry_id = entry.first;
-				auto &entry_name = entry.second->name;
-
-				/* Skip the entry if it is not present within the database. */
-				auto existing_uuid = uuid_table.find(entry_id);
-				if (existing_uuid == uuid_table.end() || existing_uuid->second->parent != pkg_ptr.pkg) [[unlikely]]
-					continue;
-
-				/* Find the existing name entry. */
-				auto existing_name = entry_name.empty() ? name_table.end() : name_table.find(entry_name);
-				/* Find conflicting assets within the packages below `first`.
-				 * Name entry is replaced only if it points to the replaced asset. */
-				bool need_uuid = true, need_name = existing_name != name_table.end() && existing_name->second == entry_id;
-				for (auto pkg_iter = first;;)
+				if (found_uuid && found_name) [[unlikely]]
+					break;
+				else if (pkg_iter-- == m_packages.begin()) [[unlikely]]
 				{
-					if (!(need_uuid || need_name)) [[unlikely]]
-						break;
-					else if (pkg_iter-- == m_packages.begin()) [[unlikely]]
-					{
-						/* No replacements found, erase the entries. */
-						if (need_name) name_table.erase(existing_name);
-						if (need_uuid) uuid_table.erase(existing_uuid);
-						break;
-					}
+					/* No replacements found, erase the entries. */
+					if (!found_name) name_table.erase(existing_name);
+					if (!found_uuid) uuid_table.erase(existing_uuid);
+					break;
+				}
 
-					if (need_uuid) [[likely]]
+				auto &pkg = *pkg_iter->m_ptr.pkg;
+				if (!found_uuid) [[likely]]
+				{
+					/* If a replacement UUID table entry is found, replace it and clear the flag. */
+					if (auto replacement = pkg.uuid_table.find(id); replacement != pkg.uuid_table.end())
 					{
-						/* If a replacement UUID table entry is found, replace it and clear the flag. */
-						auto replacement = pkg_iter->m_ptr->uuid_table.find(entry_id);
-						if (replacement != pkg_iter->m_ptr->uuid_table.end())
-						{
-							existing_uuid->second = replacement->second;
-							need_uuid = false;
-						}
+						existing_uuid->second = replacement->second;
+						found_uuid = true;
 					}
-					if (need_name) [[likely]]
+				}
+				if (!found_name) [[likely]]
+				{
+					/* If a replacement name table entry is found, replace it and clear the flag. */
+					if (auto replacement = pkg.name_table.find(name); replacement != pkg.name_table.end())
 					{
-						/* If a replacement name table entry is found, replace it and clear the flag. */
-						auto replacement = pkg_iter->m_ptr->name_table.find(entry_name);
-						if (replacement != pkg_iter->m_ptr->name_table.end())
-						{
-							existing_name->second = replacement->second;
-							need_name = false;
-						}
+						existing_name->second = replacement->second;
+						found_name = true;
 					}
 				}
 			}
 		}
 	}
-	typename asset_database::packages_t::const_iterator asset_database::erase_pkg(typename packages_t::const_iterator first,
-																				  typename packages_t::const_iterator last)
+
+	typename asset_database::packages_t::const_iterator asset_database::erase(typename packages_t::const_iterator pkg)
 	{
-		restore_overrides(first, last);
+		for (const auto &[id, info] : pkg->m_ptr->uuid_table) restore_asset(pkg, id, info);
+		return m_packages.erase(pkg);
+	}
+	typename asset_database::packages_t::const_iterator asset_database::erase(typename packages_t::const_iterator first,
+																			  typename packages_t::const_iterator last)
+	{
+		for (auto pkg = last; pkg-- != first;)
+		{
+			/* Go through each asset of the package. If the asset is present within the database,
+			 * check if there is a conflicting asset in packages below `first`. If there is, use that asset,
+			 * otherwise, remove the asset. */
+			for (const auto &[id, info] : pkg->m_ptr->uuid_table) restore_asset(pkg, id, info);
+		}
 		return m_packages.erase(first, last);
 	}
-
-	void asset_database::insert_overrides(typename packages_t::const_iterator where)
-	{
-		auto can_override = [&](detail::package_info *parent)
-		{
-			auto pred = [parent](auto &ptr) { return ptr.m_ptr.pkg == parent; };
-			return std::none_of(where, m_packages.cend(), pred);
-		};
-
-		auto &uuid_table = m_assets.uuid_table;
-		auto &name_table = m_assets.name_table;
-		for (auto entry : where->m_ptr->uuid_table)
-		{
-			const auto entry_id = entry.first;
-
-			/* If the UUID entry does exist, check if it's package is higher in the load order than us.
-			 * If it is, skip the entry. Otherwise, override the entry. */
-			{
-				auto existing = uuid_table.find(entry_id);
-				if (existing == uuid_table.end() || can_override(existing->second->parent)) [[likely]]
-					uuid_table.insert(entry);
-				else
-					continue;
-			}
-
-			/* If the new entry has a name, and such name is already present within the name table,
-			 * check if we can override the name. */
-			if (auto &entry_name = entry.second->name; !entry_name.empty()) [[likely]]
-			{
-				auto existing = name_table.find(entry_name);
-				if (existing == name_table.end() || can_override(uuid_table.at(existing->second)->parent)) [[likely]]
-					name_table.insert({entry_name, entry_id});
-			}
-		}
-	}
-	typename asset_database::packages_t::const_iterator asset_database::insert_pkg(typename packages_t::const_iterator where,
-																				   const asset_package &pkg)
+	typename asset_database::packages_t::const_iterator asset_database::insert(typename packages_t::const_iterator where,
+																			   const asset_package &pkg)
 	{
 		auto result = m_packages.insert(where, pkg);
-		insert_overrides(result);
+		for (auto [id, info] : result->m_ptr->uuid_table) override_asset(result, id, info);
 		return result;
 	}
-	typename asset_database::packages_t::const_iterator asset_database::insert_pkg(typename packages_t::const_iterator where,
-																				   asset_package &&pkg)
+	typename asset_database::packages_t::const_iterator asset_database::insert(typename packages_t::const_iterator where,
+																			   asset_package &&pkg)
 	{
 		auto result = m_packages.insert(where, std::forward<asset_package>(pkg));
-		insert_overrides(result);
+		for (auto [id, info] : result->m_ptr->uuid_table) override_asset(result, id, info);
 		return result;
+	}
+	void asset_database::swap(typename packages_t::const_iterator a, typename packages_t::const_iterator b)
+	{
+		/* Figure out which handle is higher in the lower order. */
+		const auto high = m_packages.begin() + std::distance(m_packages.cbegin(), std::max(a, b));
+		const auto low = m_packages.begin() + std::distance(m_packages.cbegin(), std::min(a, b));
+
+		/* Restore overrides for the higher-order package. Lower-order package does not need to be restored,
+		 * since it's assets would have already been overridden by packages above it and as it is moving up,
+		 * we do not care about the non-overridden ones. */
+		for (const auto &[id, info] : high->m_ptr->uuid_table) restore_asset(high, id, info);
+
+		/* Swap handles of the two packages. */
+		std::iter_swap(high, low);
+
+		/* Override assets at new positions. */
+		for (const auto &[id, info] : high->m_ptr->uuid_table) override_asset(high, id, info);
+		for (const auto &[id, info] : low->m_ptr->uuid_table) override_asset(low, id, info);
 	}
 }	 // namespace sek::engine
