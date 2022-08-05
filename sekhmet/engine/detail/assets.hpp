@@ -828,13 +828,13 @@ namespace sek::engine
 		}
 
 #ifdef SEK_EDITOR
-		/** Returns event proxy for asset creation event. */
-		[[nodiscard]] event_proxy<event<void(const asset_ref &)>> on_asset_added() const { return m_ptr->asset_added; }
 		/** Returns event proxy for asset removal event. */
 		[[nodiscard]] event_proxy<event<void(const asset_ref &)>> on_asset_removed() const
 		{
 			return m_ptr->asset_removed;
 		}
+		/** Returns event proxy for asset creation event. */
+		[[nodiscard]] event_proxy<event<void(const asset_ref &)>> on_asset_added() const { return m_ptr->asset_added; }
 #endif
 
 		constexpr void swap(asset_package &other) noexcept { m_ptr.swap(other.m_ptr); }
@@ -939,12 +939,21 @@ namespace sek::engine
 		SEK_API void restore_asset(typename packages_t::const_iterator, uuid, const detail::asset_info *);
 		SEK_API void override_asset(typename packages_t::const_iterator, uuid, detail::asset_info *);
 
-		SEK_API typename packages_t::const_iterator erase(typename packages_t::const_iterator);
-		SEK_API typename packages_t::const_iterator erase(typename packages_t::const_iterator,
-														  typename packages_t::const_iterator);
+		typename packages_t::const_iterator insert_impl(typename packages_t::iterator);
 		SEK_API typename packages_t::const_iterator insert(typename packages_t::const_iterator, const asset_package &);
 		SEK_API typename packages_t::const_iterator insert(typename packages_t::const_iterator, asset_package &&);
+
+		typename packages_t::const_iterator erase_impl(typename packages_t::iterator);
+		SEK_API typename packages_t::const_iterator erase(typename packages_t::const_iterator,
+														  typename packages_t::const_iterator);
+		SEK_API typename packages_t::const_iterator erase(typename packages_t::const_iterator);
+
 		SEK_API void swap(typename packages_t::const_iterator, typename packages_t::const_iterator);
+
+#ifdef SEK_ENGINE
+		void handle_asset_removed(const asset_ref &);
+		void handle_asset_added(const asset_ref &);
+#endif
 
 		packages_t m_packages;
 		assets_t m_assets;

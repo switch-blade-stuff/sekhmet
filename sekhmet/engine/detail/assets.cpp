@@ -610,37 +610,54 @@ namespace sek::engine
 		}
 	}
 
-	typename asset_database::packages_t::const_iterator asset_database::erase(typename packages_t::const_iterator pkg)
+	typename asset_database::packages_t::const_iterator asset_database::insert_impl(typename packages_t::iterator pkg)
 	{
-		for (const auto &[id, info] : pkg->m_ptr->uuid_table) restore_asset(pkg, id, info);
-		return m_packages.erase(pkg);
-	}
-	typename asset_database::packages_t::const_iterator asset_database::erase(typename packages_t::const_iterator first,
-																			  typename packages_t::const_iterator last)
-	{
-		for (auto pkg = last; pkg-- != first;)
-		{
-			/* Go through each asset of the package. If the asset is present within the database,
-			 * check if there is a conflicting asset in packages below `first`. If there is, use that asset,
-			 * otherwise, remove the asset. */
-			for (const auto &[id, info] : pkg->m_ptr->uuid_table) restore_asset(pkg, id, info);
-		}
-		return m_packages.erase(first, last);
+		/* Override assets of the package. */
+		for (auto [id, info] : pkg->m_ptr->uuid_table) override_asset(pkg, id, info);
+
+#ifdef SEK_ENGINE
+		/* In editor mode, packages may be modified and database needs to be updated accordingly to handle overrides. */
+		pkg->on_asset_removed() += delegate<void(const asset_ref &)>{this, &asset_database::handle_asset_added};
+		pkg->on_asset_added() += delegate<void(const asset_ref &)>{this, &asset_database::handle_asset_added};
+#endif
+
+		return pkg;
 	}
 	typename asset_database::packages_t::const_iterator asset_database::insert(typename packages_t::const_iterator where,
 																			   const asset_package &pkg)
 	{
-		auto result = m_packages.insert(where, pkg);
-		for (auto [id, info] : result->m_ptr->uuid_table) override_asset(result, id, info);
-		return result;
+		return insert_impl(m_packages.insert(where, pkg));
 	}
 	typename asset_database::packages_t::const_iterator asset_database::insert(typename packages_t::const_iterator where,
 																			   asset_package &&pkg)
 	{
-		auto result = m_packages.insert(where, std::forward<asset_package>(pkg));
-		for (auto [id, info] : result->m_ptr->uuid_table) override_asset(result, id, info);
-		return result;
+		return insert_impl(m_packages.insert(where, std::forward<asset_package>(pkg)));
 	}
+
+	typename asset_database::packages_t::const_iterator asset_database::erase_impl(typename packages_t::iterator pkg)
+	{
+		/* Restore assets overridden by the package. */
+		for (const auto &[id, info] : pkg->m_ptr->uuid_table) restore_asset(pkg, id, info);
+
+#ifdef SEK_ENGINE
+		/* Unsubscribe from any package editor events. */
+		pkg->on_asset_removed() -= delegate<void(const asset_ref &)>{this, &asset_database::handle_asset_added};
+		pkg->on_asset_added() -= delegate<void(const asset_ref &)>{this, &asset_database::handle_asset_added};
+#endif
+
+		return pkg;
+	}
+	typename asset_database::packages_t::const_iterator asset_database::erase(typename packages_t::const_iterator first,
+																			  typename packages_t::const_iterator last)
+	{
+		for (auto pkg = last; pkg-- != first;) erase_impl(m_packages.begin() + std::distance(m_packages.cbegin(), pkg));
+		return m_packages.erase(first, last);
+	}
+	typename asset_database::packages_t::const_iterator asset_database::erase(typename packages_t::const_iterator pkg)
+	{
+		return m_packages.erase(erase_impl(m_packages.begin() + std::distance(m_packages.cbegin(), pkg)));
+	}
+
 	void asset_database::swap(typename packages_t::const_iterator a, typename packages_t::const_iterator b)
 	{
 		/* Figure out which handle is higher in the lower order. */
@@ -655,8 +672,35 @@ namespace sek::engine
 		/* Swap handles of the two packages. */
 		std::iter_swap(high, low);
 
-		/* Override assets at new positions. */
+		/* Override assets at new load order positions. */
 		for (const auto &[id, info] : high->m_ptr->uuid_table) override_asset(high, id, info);
 		for (const auto &[id, info] : low->m_ptr->uuid_table) override_asset(low, id, info);
 	}
+
+#ifdef SEK_ENGINE
+	void asset_database::handle_asset_removed(const asset_ref &asset)
+	{
+		/* Find load order of the package the asset belongs to. */
+		const auto pred = [ptr = asset.m_ptr->parent](const asset_package &pkg) { return pkg.m_ptr.pkg == ptr; };
+		const auto parent = std::find_if(m_packages.cbegin(), m_packages.cend(), pred);
+
+		/* Since we are receiving events, package must be present within the database. */
+		SEK_ASSERT(parent != m_packages.cend());
+
+		/* Restore overrides of the asset. */
+		restore_asset(parent, asset.m_id, asset.m_ptr.info);
+	}
+	void asset_database::handle_asset_added(const asset_ref &asset)
+	{
+		/* Find load order of the package the asset belongs to. */
+		const auto pred = [ptr = asset.m_ptr->parent](const asset_package &pkg) { return pkg.m_ptr.pkg == ptr; };
+		const auto parent = std::find_if(m_packages.cbegin(), m_packages.cend(), pred);
+
+		/* Since we are receiving events, package must be present within the database. */
+		SEK_ASSERT(parent != m_packages.cend());
+
+		/* Override asset for the parent package. */
+		override_asset(parent, asset.m_id, asset.m_ptr.info);
+	}
+#endif
 }	 // namespace sek::engine
