@@ -25,32 +25,31 @@ namespace sek::engine
 
 	resource_cache::metadata_t::metadata_t(const asset_ref &asset)
 	{
-		if (auto bytes = asset.metadata(); !bytes.empty()) [[likely]]
+		if (auto metadata = asset.metadata(); !metadata.empty()) [[likely]]
 		{
-			switch (static_cast<std::uint8_t>(bytes.front()))
-			{
-				case 1:
-				{
-					std::string name;
-					for (std::size_t i = 1;; ++i)
-					{
-						if (bytes.size() <= i) [[unlikely]]
-							goto bad_asset;
+			std::uint8_t version = 0;
+			metadata.read(&version, sizeof(version));
 
-						auto c = static_cast<char>(bytes[i]);
-						if (c == '\0') [[unlikely]]
-							break;
-						name += c;
-					}
-					type = type_info::get(name);
-					break;
-				}
-				default: goto bad_asset;
-			}
+			if (version != 1) [[unlikely]]
+				goto bad_asset;
+
+			/* Initialize & read the resource type. */
+			std::string name(static_cast<std::size_t>(metadata.size() - metadata.tell()), '\0');
+			if (metadata.read(name.data(), name.size()) == 0 || name.back() != '\0') [[unlikely]]
+				goto bad_asset;
+
+			/* Trim characters after null terminator & get the type. */
+			name.erase(name.find('\0'));
+			type = type_info::get(name);
+			if (!type) [[unlikely]]
+				goto bad_type;
 
 			attr = type.get_attribute<attribute_t>().as_ptr<const attribute_t>();
 			if (!attr) [[unlikely]]
-				invalid_type(type.name());
+			{
+			bad_type:
+				invalid_type(name);
+			}
 		}
 		else
 		{
@@ -151,7 +150,7 @@ namespace sek::engine
 		{
 			/* Remove the resource from the type cache's set. */
 			auto type_iter = m_types.find(iter->second.metadata.type.name());
-			SEK_ASSERT(type_iter != m_types.end(), "Cached resource's type must be present");
+			SEK_ASSERT(type_iter != m_types.end(), "Cached resource's type must be reflected");
 			type_iter->second.erase(id);
 
 			/* Remove resource cache entry. */

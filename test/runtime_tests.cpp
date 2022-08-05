@@ -485,7 +485,8 @@ TEST(runtime_tests, asset_test)
 		EXPECT_TRUE(asset->has_metadata());
 		auto metadata = asset->metadata();
 		EXPECT_FALSE(metadata.empty());
-		auto metadata_str = std::string_view{std::bit_cast<const char *>(metadata.data()), metadata.size()};
+		std::string metadata_str(static_cast<std::size_t>(metadata.size()), '\0');
+		metadata.read(metadata_str.data(), metadata_str.size());
 		EXPECT_EQ(metadata_str, "test_metadata");
 	}
 	{

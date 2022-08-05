@@ -225,11 +225,14 @@ namespace sek::engine
 			SEK_API void release();
 
 			[[nodiscard]] system::native_file open_archive(std::int64_t offset) const;
+
+			[[nodiscard]] asset_source open_metadata_loose(const asset_info *info) const;
+			[[nodiscard]] asset_source open_metadata_flat(const asset_info *info) const;
+			[[nodiscard]] SEK_API asset_source open_metadata(const asset_info *info) const;
+
 			[[nodiscard]] asset_source open_asset_loose(const asset_info *info) const;
 			[[nodiscard]] asset_source open_asset_flat(const asset_info *info) const;
 			[[nodiscard]] asset_source open_asset_zstd(const asset_info *info) const;
-
-			[[nodiscard]] SEK_API std::vector<std::byte> read_metadata(const asset_info *info) const;
 			[[nodiscard]] SEK_API asset_source open_asset(const asset_info *info) const;
 
 			std::atomic<std::size_t> ref_count = 0;
@@ -322,10 +325,10 @@ namespace sek::engine
 			m_read_pos = new_pos;
 			return n;
 		}
-		/** Seeks the asset source to the specific offset within the asset.
+		/** Seeks the asset source to the specific offset.
 		 * @param off Offset to seek to.
 		 * @param dir Direction in which to seek.
-		 * @return Current position within the asset or a negative integer on error. */
+		 * @return Current position within the asset source or a negative integer on error. */
 		std::int64_t seek(std::int64_t off, seek_dir dir)
 		{
 			if (empty()) [[unlikely]]
@@ -344,26 +347,26 @@ namespace sek::engine
 
 		/** Returns the current read position. */
 		[[nodiscard]] constexpr std::int64_t tell() const noexcept { return m_read_pos; }
-		/** Returns the size of the asset. */
+		/** Returns the size of the asset source data. */
 		[[nodiscard]] constexpr std::int64_t size() const noexcept { return m_size; }
 		/** Checks if the asset source is empty. */
 		[[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
 
-		/** Returns the base file offset of the asset.
-		 * @note If the asset is not backed by a file, returns a negative integer. */
+		/** Returns the base file offset of the asset source.
+		 * @note If the asset source is not backed by a file, returns a negative integer. */
 		[[nodiscard]] constexpr std::int64_t base_offset() const noexcept { return m_offset; }
-		/** Checks if the asset is backed by a file. */
+		/** Checks if the asset source is backed by a file. */
 		[[nodiscard]] constexpr bool has_file() const noexcept { return base_offset() >= 0; }
 		/** Returns reference to the underlying native file.
-		 * @warning Undefined behavior if the asset is not backed by a file. */
+		 * @warning Undefined behavior if the asset source is not backed by a file. */
 		[[nodiscard]] constexpr system::native_file &file() noexcept { return m_file; }
 		/** @copydoc file */
 		[[nodiscard]] constexpr const system::native_file &file() const noexcept { return m_file; }
 		/** Maps the underlying file to memory.
-		 * @warning Undefined behavior if the asset is not backed by a file. */
+		 * @warning Undefined behavior if the asset source is not backed by a file. */
 		[[nodiscard]] system::native_filemap map() const noexcept { return {m_file, m_offset, m_size}; }
 		/** Returns pointer to the underlying memory buffer.
-		 * @warning Undefined behavior if the asset is not backed by a buffer. */
+		 * @warning Undefined behavior if the asset source is backed by a file. */
 		[[nodiscard]] constexpr const std::byte *buffer() const noexcept { return m_buffer.data(); }
 
 		constexpr void swap(asset_source &other) noexcept
@@ -567,10 +570,10 @@ namespace sek::engine
 		[[nodiscard]] asset_source open() const { return m_ptr->parent->open_asset(m_ptr.info); }
 		/** Checks if the asset has metadata. */
 		[[nodiscard]] bool has_metadata() const { return m_ptr->has_metadata(); }
-		/** Returns a vector of bytes containing asset's metadata.
-		 * @note If the asset does not have metadata, returns an empty vector.
+		/** Returns an asset source used to read asset's metadata.
+		 * @note If the asset does not have metadata, returns an empty asset source.
 		 * @throw asset_error On failure to open the file or archive containing the metadata. */
-		[[nodiscard]] std::vector<std::byte> metadata() const { return m_ptr->parent->read_metadata(m_ptr.info); }
+		[[nodiscard]] asset_source metadata() const { return m_ptr->parent->open_metadata(m_ptr.info); }
 
 		constexpr void swap(asset_ref &other) noexcept
 		{

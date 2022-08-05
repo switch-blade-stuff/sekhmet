@@ -87,31 +87,34 @@ namespace sek::engine
 			}
 			return file;
 		}
-		std::vector<std::byte> package_info::read_metadata(const asset_info *info) const
+
+		asset_source package_info::open_metadata_loose(const asset_info *info) const
+		{
+			const auto full_path = path / info->loose_info.meta_path;
+			auto file = system::native_file{full_path, system::native_file::in | system::native_file::atend};
+			if (!file.is_open()) [[unlikely]]
+				throw asset_error(fmt::format("Failed to open asset metadata at path \"{}\"", full_path.string()));
+
+			const auto size = file.tell();
+			file.seek(0, system::native_file::beg);
+			return make_asset_source(std::move(file), size, 0);
+		}
+		asset_source package_info::open_metadata_flat(const asset_info *info) const
+		{
+			const auto offset = info->archive_info.meta_offset;
+			const auto size = info->archive_info.meta_size;
+			return make_asset_source(open_archive(offset), size, offset);
+		}
+		asset_source package_info::open_metadata(const asset_info *info) const
 		{
 			if (!info->has_metadata()) [[unlikely]]
 				return {};
-
-			std::vector<std::byte> result;
-			if (system::native_file file; is_archive())
-			{
-				file = open_archive(info->archive_info.meta_offset);
-				result.resize(static_cast<std::size_t>(info->archive_info.meta_size));
-				file.read(result.data(), result.size());
-			}
-			else if (const auto full_path = path / info->loose_info.meta_path; exists(full_path)) [[likely]]
-			{
-				file = system::native_file{full_path, system::native_file::in | system::native_file::atend};
-				if (!file.is_open()) [[unlikely]]
-					throw asset_error(fmt::format("Failed to open asset metadata at path \"{}\"", full_path.string()));
-
-				result.resize(static_cast<std::size_t>(file.tell()));
-				file.seek(0, system::native_file::beg);
-				file.read(result.data(), result.size());
-			}
-
-			return result;
+			else if ((flags & IS_ARCHIVE) == 0)
+				return open_metadata_loose(info);
+			else
+				return open_metadata_flat(info);
 		}
+
 		asset_source package_info::open_asset_loose(const asset_info *info) const
 		{
 			const auto full_path = path / info->loose_info.asset_path;
