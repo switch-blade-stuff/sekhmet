@@ -8,7 +8,7 @@
 
 #include <fmt/format.h>
 
-template class SEK_API_EXPORT sek::service<sek::access_guard<sek::engine::resource_cache>>;
+template class SEK_API_EXPORT sek::service<sek::access_guard<sek::engine::resource_cache, std::recursive_mutex>>;
 
 namespace sek::engine
 {
@@ -116,20 +116,6 @@ namespace sek::engine
 		if (copy) [[unlikely]]
 			ptr = metadata->attr->m_copy(ptr.get());
 		return {ptr, metadata};
-	}
-	std::pair<std::shared_ptr<void>, resource_cache::metadata_t *> resource_cache::load_impl(uuid id, bool copy)
-	{
-		auto db = asset_database::instance()->access_shared();
-		if (auto asset = db->find(id); asset != db->end()) [[likely]]
-			return load_impl(*asset, copy);
-		return {};
-	}
-	std::pair<std::shared_ptr<void>, resource_cache::metadata_t *> resource_cache::load_impl(std::string_view name, bool copy)
-	{
-		auto db = asset_database::instance()->access_shared();
-		if (auto asset = db->find(name); asset != db->end()) [[likely]]
-			return load_impl(*asset, copy);
-		return {};
 	}
 
 	std::size_t resource_cache::clear(type_info type)

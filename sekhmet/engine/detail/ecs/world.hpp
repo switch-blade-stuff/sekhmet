@@ -376,10 +376,14 @@ namespace sek::engine
 		 *
 		 * @note If more than one component type is specified, verifies that the components are sortable in
 		 * the specified order (as if sorted via a collection or `sort<Cs...>()`). */
-		template<typename... Cs>
+		template<typename C, typename... Cs>
 		[[nodiscard]] constexpr bool sortable() const noexcept;
-		/** @brief Sorts components according to the specified order. Components will be grouped together in order
+		/** Sorts components according to the specified order. Components will be grouped together in order
 		 * to maximize cache performance.
+		 *
+		 * @tparam Parent Component type who's entity order to use for sorting.
+		 * @tparam C First type of the sorted components.
+		 * @tparam Cs Other types of sorted components.
 		 *
 		 * @example
 		 * @code{.cpp}
@@ -389,8 +393,17 @@ namespace sek::engine
 		 *
 		 * @warning Components cannot be sorted if a conflicting collection exists for the specified components
 		 * or any of the component types are fixed. Sorting such components will result in undefined behavior. */
-		template<typename... Cs>
-		constexpr void sort();
+		template<typename Parent, typename C, typename... Cs>
+		constexpr void sort()
+		{
+			SEK_ASSERT(sortable<Parent, Sorted>());
+
+			auto &src = reserve<Parent>();
+			auto &dst = reserve<C>();
+			dst.sort(src.begin(), src.end());
+
+			if constexpr (sizeof...(Cs) != 0) sort<C, Cs...>();
+		}
 
 		// clang-format off
 		/** @brief Sorts components of type `C` using `std::sort` using the passed predicate.
@@ -429,6 +442,8 @@ namespace sek::engine
 		constexpr void sort(S &&sort, P &&pred) requires(std::is_invocable_r_v<bool, P, const C &, const C &> ||
 														 std::is_invocable_r_v<bool, P, entity_t, entity_t>)
 		{
+			SEK_ASSERT(sortable<C>());
+
 			auto *storage = get_storage<C>();
 			if (storage == nullptr) [[unlikely]]
 				return;

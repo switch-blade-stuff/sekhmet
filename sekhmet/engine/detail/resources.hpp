@@ -146,9 +146,9 @@ namespace sek::engine
 	}	 // namespace attributes
 
 	/** @brief Service used to load resources and manage resource cache. */
-	class resource_cache : public service<access_guard<resource_cache>>
+	class resource_cache : public service<access_guard<resource_cache, std::recursive_mutex>>
 	{
-		friend class access_guard<resource_cache>;
+		friend class access_guard<resource_cache, std::recursive_mutex>;
 
 	protected:
 		using attribute_t = attributes::resource_type;
@@ -204,35 +204,6 @@ namespace sek::engine
 			return cast_impl<T>(std::move(ptr), metadata);
 		}
 
-		/** Loads a resource from an asset using it's UUID.
-		 * @param id Id of the resource's asset.
-		 * @param copy If set to true, the resource will be copied from the cache.
-		 * @return Shared pointer to the resource or a null pointer if such asset does not exist.
-		 * @throw resource_error If the asset exists but is not a valid resource. */
-		std::shared_ptr<void> load(uuid id, bool copy = false) { return load_impl(id, copy).first; }
-		/** @copydoc load
-		 * @note Casts the resource to type `T` using it's type info. */
-		template<typename T>
-		std::shared_ptr<T> load(uuid id, bool copy = false)
-		{
-			auto [ptr, metadata] = load_impl(id, copy);
-			return cast_impl<T>(std::move(ptr), metadata);
-		}
-		/** Loads a resource from an asset using it's name.
-		 * @param name Name of the resource's asset.
-		 * @param copy If set to true, the resource will be copied from the cache.
-		 * @return Shared pointer to the resource or a null pointer if such asset does not exist.
-		 * @throw resource_error If the asset exists but is not a valid resource. */
-		std::shared_ptr<void> load(std::string_view name, bool copy = false) { return load_impl(name, copy).first; }
-		/** @copydoc load
-		 * @note Casts the resource to type `T` using it's type info. */
-		template<typename T>
-		std::shared_ptr<T> load(std::string_view name, bool copy = false)
-		{
-			auto [ptr, metadata] = load_impl(name, copy);
-			return cast_impl<T>(std::move(ptr), metadata);
-		}
-
 		/** Removes cache entries of all resources of the specified type.
 		 * @return Amount of resources removed.
 		 * @note Cache entries of relevant types should be cleared on plugin unload to avoid stale references. */
@@ -244,8 +215,6 @@ namespace sek::engine
 
 	protected:
 		SEK_API std::pair<std::shared_ptr<void>, metadata_t *> load_impl(const asset_ref &asset, bool copy);
-		SEK_API std::pair<std::shared_ptr<void>, metadata_t *> load_impl(uuid id, bool copy);
-		SEK_API std::pair<std::shared_ptr<void>, metadata_t *> load_impl(std::string_view name, bool copy);
 
 		template<typename T>
 		std::shared_ptr<T> cast_impl(std::shared_ptr<void> &&ptr, metadata_t *metadata)
@@ -263,4 +232,4 @@ namespace sek::engine
 	};
 }	 // namespace sek::engine
 
-extern template class SEK_API_IMPORT sek::service<sek::access_guard<sek::engine::resource_cache>>;
+extern template class SEK_API_IMPORT sek::service<sek::access_guard<sek::engine::resource_cache, std::recursive_mutex>>;

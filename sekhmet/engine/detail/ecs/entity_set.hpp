@@ -914,7 +914,19 @@ namespace sek::engine
 			pack();
 			sort_n(size(), sort, std::forward<Args>(args)...);
 		}
+
 		/** Sorts entities of the set according to the provided order. */
+		constexpr void sort(const_iterator from, const_iterator to)
+		{
+			pack();
+			for (auto i = size() - 1; i && to-- != from;)
+				if (const auto self = to_entity(to_iterator(i)), other = to_entity(to); contains(other))
+				{
+					if (other != self) swap(self, other);
+					--i;
+				}
+		}
+		/** @copydoc sort */
 		template<std::bidirectional_iterator I>
 		constexpr void sort(I from, I to)
 		{
