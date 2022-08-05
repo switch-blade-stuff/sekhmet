@@ -207,7 +207,8 @@ namespace sek::engine
 		/** Returns the capacity of the world (current maximum of alive entities) */
 		[[nodiscard]] constexpr size_type capacity() const noexcept { return m_entities.capacity(); }
 
-		/** Releases all entities and destroys all component sets of the world. */
+		/** Releases all entities and destroys all component sets of the world.
+		 * @warning References to components and entities (including collections and views) will be invalidated. */
 		constexpr void clear()
 		{
 			m_storage.clear();
@@ -374,8 +375,8 @@ namespace sek::engine
 		 * @return `false` if any of the components are fixed or ordered by a collection, `true` otherwise.
 		 *
 		 * @note If more than one component type is specified, verifies that the components are sortable in
-		 * the specified order (as if sorted via a collection or `sort<Ts...>()`). */
-		template<typename... Ts>
+		 * the specified order (as if sorted via a collection or `sort<Cs...>()`). */
+		template<typename... Cs>
 		[[nodiscard]] constexpr bool sortable() const noexcept;
 		/** @brief Sorts components according to the specified order. Components will be grouped together in order
 		 * to maximize cache performance.
@@ -388,7 +389,7 @@ namespace sek::engine
 		 *
 		 * @warning Components cannot be sorted if a conflicting collection exists for the specified components
 		 * or any of the component types are fixed. Sorting such components will result in undefined behavior. */
-		template<typename... Ts>
+		template<typename... Cs>
 		constexpr void sort();
 
 		// clang-format off
@@ -476,14 +477,22 @@ namespace sek::engine
 		/** @copydoc destroy */
 		constexpr void destroy(const_iterator which) { destroy(*which); }
 
+		/** Reserves storage for the specified component.
+		 * @param n Amount of components to reserve. If set to `0`, only creates the storage pool.
+		 * @return Reference to component storagefor type `C`. */
+		template<typename C>
+		constexpr component_set<std::remove_cv_t<C>> &reserve(size_type n = 0)
+		{
+			return reserve_impl<C>(n);
+		}
 		/** Reserves storage for the specified components.
-		 *
 		 * @param n Amount of components to reserve. If set to `0`, only creates the storage pools.
 		 * @return Tuple of references to component storage. */
-		template<typename... Ts>
-		constexpr std::tuple<component_set<std::remove_cv_t<Ts>> &...> reserve(size_type n = 0)
+		template<typename... Cs>
+		constexpr std::tuple<component_set<std::remove_cv_t<Cs>> &...> reserve(size_type n = 0)
+			requires(sizeof...(Cs) > 1)
 		{
-			return std::forward_as_tuple(reserve_impl<Ts>(n)...);
+			return std::forward_as_tuple(reserve<Cs>(n)...);
 		}
 
 		/** Replaces a component for an entity.

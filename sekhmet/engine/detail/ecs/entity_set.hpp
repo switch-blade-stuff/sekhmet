@@ -251,8 +251,9 @@ namespace sek::engine
 
 			constexpr void reserve(size_type n)
 			{
-				m_pages.resize(page_idx(n) + 1, nullptr);
-				for (size_type i = 0; i < n; ++i)
+				const auto pages = page_idx(n) + 1;
+				m_pages.resize(pages, nullptr);
+				for (size_type i = 0; i < pages; ++i)
 					if (m_pages[i] == nullptr) m_pages[i] = alloc_page();
 			}
 

@@ -147,6 +147,9 @@ TEST(ecs_tests, world_test)
 	{
 		sek::engine::entity_world world;
 
+		world.reserve<int>();
+		world.reserve<float, dummy_t>();
+
 		const auto e0 = world.generate();
 		const auto e1 = world.generate();
 		const auto e2 = world.generate();
@@ -182,6 +185,8 @@ TEST(ecs_tests, world_test)
 		using namespace sek::engine;
 
 		entity_world world;
+
+		world.reserve<int>(1000003);
 
 		for (std::size_t i = 1000000; i-- != 0;) world.insert<int>();
 		const auto e0 = *world.insert<int>();
