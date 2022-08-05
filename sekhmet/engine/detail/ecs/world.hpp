@@ -444,6 +444,15 @@ namespace sek::engine
 		}
 		// clang-format on
 
+		/** Removes tombstones (if any) from component sets of the specified component types. */
+		template<typename C, typename... Cs>
+		constexpr void pack()
+		{
+			if constexpr (sizeof...(Cs) != 0) pack<Cs...>();
+			if (auto *storage = get_storage<C>(); storage != nullptr) [[likely]]
+				storage->pack();
+		}
+
 		/** Generates a new entity.
 		 * @param gen Optional generation to use for the entity.
 		 * @return Value of the generated entity. */
