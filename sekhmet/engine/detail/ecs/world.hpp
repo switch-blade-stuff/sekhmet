@@ -366,6 +366,23 @@ namespace sek::engine
 			// clang-format on
 		}
 
+		// clang-format off
+		/** Sorts components according to the specified order. Components will be grouped together based on the
+		 * availability of the specified components.
+		 *
+		 * @example
+		 * ```cpp
+		 * world.sort<cmp_a, cmp_b>();
+		 * ```
+		 * Sorts component sets to group entities with `cmp_a` and `cmp_b` together. */
+		template<typename... Ts>
+		constexpr void sort();
+		/** @copydoc sort
+		 * @param p Predicate used to preform additional sorting of components. */
+		template<typename... Ts, typename P>
+		constexpr void sort(P &&p) requires std::is_invocable_r_v<bool, P, Ts &...>;
+		// clang-format on
+
 		/** Generates a new entity.
 		 * @param gen Optional generation to use for the entity.
 		 * @return Value of the generated entity. */

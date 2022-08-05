@@ -14,6 +14,7 @@
 #include "sekhmet/detail/dense_map.hpp"
 #include "sekhmet/detail/dense_set.hpp"
 #include "sekhmet/detail/intern.hpp"
+#include "sekhmet/detail/opt_err.hpp"
 #include "sekhmet/detail/service.hpp"
 #include "sekhmet/detail/uuid.hpp"
 #include "sekhmet/system/native_file.hpp"

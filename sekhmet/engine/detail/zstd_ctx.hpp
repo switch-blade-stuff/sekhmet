@@ -187,7 +187,7 @@ namespace sek::engine
 		constexpr static std::uint32_t skip_magic = 0x184d2a50;
 		constexpr static std::size_t max_workers = 32;
 
-		static std::uint32_t get_frame_size(std::uint32_t level, std::uint32_t size_hint);
+		static std::uint32_t get_frame_size(std::uint32_t level, std::uint32_t size_hint) noexcept;
 
 		zstd_thread_ctx();
 		~zstd_thread_ctx() = default;
@@ -331,11 +331,12 @@ namespace sek::engine
 		}
 
 		bool init_decomp_frame(buffer_t &src_buff, buffer_t &dst_buff);
-		void decompress_threaded();
+		std::uint64_t decompress_threaded()noexcept;
+		std::uint64_t decompress_single()noexcept;
 
 		bool init_comp_frame(std::uint32_t frame_size, buffer_t &dst_buff, buffer_t &src_buff);
-		void compress_threaded(std::uint32_t level, std::uint32_t frame_size);
-		void compress_single(std::uint32_t level, std::uint32_t frame_size);
+		std::uint64_t compress_threaded(std::uint32_t level, std::uint32_t frame_size)noexcept;
+		std::uint64_t compress_single(std::uint32_t level, std::uint32_t frame_size)noexcept;
 
 		template<typename F>
 		void spawn_workers(thread_pool &pool, std::size_t n, F &&f);

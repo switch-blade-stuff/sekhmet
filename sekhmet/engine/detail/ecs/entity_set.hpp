@@ -14,8 +14,11 @@ namespace sek::engine
 
 	namespace detail
 	{
+		struct default_sort;
 		class entity_set_base
 		{
+			friend struct default_sort;
+
 			constexpr static auto sparse_page_size = SEK_KB(8) / sizeof(entity_t);
 
 		public:
@@ -413,7 +416,8 @@ namespace sek::engine
 
 	private:
 		template<typename... Args>
-		constexpr static bool valid_args = (std::is_void_v<T> && sizeof...(Args) == 0) || std::is_constructible_v<T, Args...>;
+		constexpr static bool valid_args =
+			(std::is_void_v<T> && sizeof...(Args) == 0) || std::is_constructible_v<T, Args...>;
 
 		template<bool IsConst, typename U>
 		struct value_selector
@@ -609,12 +613,13 @@ namespace sek::engine
 		typedef typename const_iterator::pointer const_pointer;
 
 	private:
-		[[nodiscard]] constexpr static entity_t to_entity(const_iterator i) noexcept
+		[[nodiscard]] constexpr static entity_t to_entity(const_iterator i) noexcept { return to_entity(*i); }
+		[[nodiscard]] constexpr static entity_t to_entity(const_reference ref) noexcept
 		{
 			if constexpr (!std::is_void_v<T>)
-				return i->first;
+				return ref.first;
 			else
-				return *i;
+				return ref;
 		}
 		[[nodiscard]] constexpr static decltype(auto) to_component(iterator i) noexcept
 		{
@@ -871,7 +876,9 @@ namespace sek::engine
 		/** Sorts entities `[0, n)` of the set.
 		 * @param n Amount of elements to sort.
 		 * @param sort Functor to use for sorting. `std::sort` used by default.
-		 * @param args Arguments passed to the sort functor. */
+		 * @param args Arguments passed to the sort functor.
+		 *
+		 * @note Sorting functor iterates over entities of the set. */
 		template<typename Sort = detail::default_sort, typename... Args>
 		constexpr void sort_n(size_type n, Sort sort = {}, Args &&...args)
 		{
@@ -879,9 +886,7 @@ namespace sek::engine
 			SEK_ASSERT(entity_base::m_next.is_tombstone(), "Dense array must be packed for sorting");
 
 			/* Sort dense entity array, then fix sparse entities. */
-			sort(entity_base::m_dense.begin(),
-				 entity_base::m_dense.begin() + static_cast<std::ptrdiff_t>(n),
-				 std::forward<Args>(args)...);
+			invoke_sort(std::forward<Sort>(sort), n, std::forward<Args>(args)...);
 			for (auto item = begin(), last = iterator{this, n}; item != last; ++item)
 			{
 				auto &slot = sparse_ref(to_entity(item).index().value());
@@ -895,7 +900,9 @@ namespace sek::engine
 		}
 		/** Sorts entities of the set.
 		 * @param sort Functor to use for sorting. `std::sort` used by default.
-		 * @param args Arguments passed to the sort functor. */
+		 * @param args Arguments passed to the sort functor.
+		 *
+		 * @note Sorting functor iterates over entities of the set. */
 		template<typename Sort = detail::default_sort, typename... Args>
 		constexpr void sort(Sort sort = {}, Args &&...args)
 		{
@@ -1310,6 +1317,14 @@ namespace sek::engine
 			return idx + 1;
 		}
 		constexpr size_type erase_impl(size_type idx) { return erase_impl(is_fixed{}, mixin_erase(idx, m_dense[idx])); }
+
+		template<typename S, typename... Args>
+		constexpr void invoke_sort(S &&s, size_type n, Args &&...args)
+		{
+			const auto first = entity_base::m_dense.begin();
+			const auto last = first + static_cast<std::ptrdiff_t>(n);
+			std::invoke(std::forward<S>(s), first, last, std::forward<Args>(args)...);
+		}
 	};
 
 	using entity_set = basic_entity_set<>;
