@@ -366,21 +366,81 @@ namespace sek::engine
 			// clang-format on
 		}
 
-		// clang-format off
-		/** Sorts components according to the specified order. Components will be grouped together based on the
-		 * availability of the specified components.
+		/* TODO: Implement component collections. */
+
+		/* TODO: Implement component based sorting. */
+
+		/** Checks if the specified component types are sortable.
+		 * @return `false` if any of the components are fixed or ordered by a collection, `true` otherwise.
+		 *
+		 * @note If more than one component type is specified, verifies that the components are sortable in
+		 * the specified order (as if sorted via a collection or `sort<Ts...>()`). */
+		template<typename... Ts>
+		[[nodiscard]] constexpr bool sortable() const noexcept;
+		/** @brief Sorts components according to the specified order. Components will be grouped together in order
+		 * to maximize cache performance.
 		 *
 		 * @example
-		 * ```cpp
+		 * @code{.cpp}
 		 * world.sort<cmp_a, cmp_b>();
-		 * ```
-		 * Sorts component sets to group entities with `cmp_a` and `cmp_b` together. */
+		 * @endcode
+		 * Sorts component sets to group entities with `cmp_a` and `cmp_b` together.
+		 *
+		 * @warning Components cannot be sorted if a conflicting collection exists for the specified components
+		 * or any of the component types are fixed. Sorting such components will result in undefined behavior. */
 		template<typename... Ts>
 		constexpr void sort();
-		/** @copydoc sort
-		 * @param p Predicate used to preform additional sorting of components. */
-		template<typename... Ts, typename P>
-		constexpr void sort(P &&p) requires std::is_invocable_r_v<bool, P, Ts &...>;
+
+		// clang-format off
+		/** @brief Sorts components of type `C` using `std::sort` using the passed predicate.
+		 *
+		 * Sorting predicate should have one of the following signatures:
+		 * @code{.cpp}
+		 * bool(entity_t, entity_t)
+		 * bool(const C &, const C &)
+		 * @endcode
+		 *
+		 * @param pred Predicate used for sorting.
+		 * @warning Components cannot be sorted if a conflicting collection exists for component type `C`
+		 * or the component type is fixed. Sorting such components will result in undefined behavior. */
+		template<typename C, typename P>
+		constexpr void sort(P &&pred) requires(std::is_invocable_r_v<bool, P, const C &, const C &> ||
+											   std::is_invocable_r_v<bool, P, entity_t, entity_t>)
+		{
+			constexpr auto default_sort = []<typename Pred>(auto first, auto last, Pred &&pred)
+			{
+				std::sort(first, last, std::forward<Pred>(pred));
+			};
+			sort(default_sort, std::forward<P>(pred));
+		}
+		/** @brief Sorts components of type `C` using the passed sort functor.
+		 *
+		 * Sort functor must define an invoke operator (`operator()`) with the following signature:
+		 * @code{.cpp}
+		 * bool(Iter first, Iter last, Pred pred)
+		 * @endcode
+		 * Where `Iter` is a random-access iterator and `Pred` is an implementation-defined predicate.
+		 *
+		 * @copydetails sort
+		 * @param sort Functor used for sorting.
+		 * @note Sorting functor iterates over an implementation-defined range. */
+		template<typename C, typename S, typename P>
+		constexpr void sort(S &&sort, P &&pred) requires(std::is_invocable_r_v<bool, P, const C &, const C &> ||
+														 std::is_invocable_r_v<bool, P, entity_t, entity_t>)
+		{
+			auto *storage = get_storage<C>();
+			if (storage == nullptr) [[unlikely]]
+				return;
+
+			const auto sort_proxy = [storage, &pred](entity_t a, entity_t b) -> bool
+			{
+				if constexpr(std::invocable<P, const C &, const C &>)
+					return pred(storage->get(a), storage->get(b));
+				else
+					return pred(a, b);
+			};
+			storage->sort(std::forward<S>(sort), sort_proxy);
+		}
 		// clang-format on
 
 		/** Generates a new entity.

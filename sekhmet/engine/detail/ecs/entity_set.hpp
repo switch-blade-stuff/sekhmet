@@ -776,6 +776,10 @@ namespace sek::engine
 		[[nodiscard]] constexpr decltype(auto) get(entity_t entity) noexcept requires(!std::is_void_v<T>) { return to_component(find(entity)); }
 		/** @copydoc get */
 		[[nodiscard]] constexpr decltype(auto) get(entity_t entity) const noexcept requires(!std::is_void_v<T>) { return to_component(find(entity)); }
+		/** Returns reference to the component at the specified offset. */
+		[[nodiscard]] constexpr decltype(auto) get(size_type i) noexcept requires(!std::is_void_v<T>) { return to_component(to_iterator(i)); }
+		/** @copydoc get */
+		[[nodiscard]] constexpr decltype(auto) get(size_type i) const noexcept requires(!std::is_void_v<T>) { return to_component(to_iterator(i)); }
 		// clang-format on
 
 		/** Reserves space for `n` entities (and components). */

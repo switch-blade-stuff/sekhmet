@@ -15,7 +15,7 @@ namespace sek::engine
 	 * used to allocate components.
 	 *
 	 * Optionally, traits may define an `is_fixed` typedef which, if present, will prevent components of this type
-	 * from being sorted either by a component pool or ordering queries. */
+	 * from being sorted either by a component pool or component collections. */
 	template<typename T>
 	struct component_traits
 	{
