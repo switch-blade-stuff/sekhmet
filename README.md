@@ -14,17 +14,17 @@ room for skill ceiling.
 
 ### Milestones
 
-[ ] Core engine library.
-[ ] Template-based math library with `constexpr` support.
-[ ] Runtime reflection system.
-[ ] Plugin system.
-[ ] Config management system 
-[ ] Asset/resource system.
-[ ] ECS
-[ ] UI framework/toolkit targeting
-    [ ] X11 
-    [ ] DWM
-[ ] Fully-featured editor.
+- [X] Core engine library.
+- [X] Template-based math library with `constexpr` support.
+- [X] Runtime reflection system.
+- [X] Plugin system.
+- [X] Config management system 
+- [X] Asset/resource system.
+- [ ] ECS
+- [ ] UI framework/toolkit targeting
+   - [ ] X11 
+   - [ ] DWM
+- [ ] Fully-featured editor.
 
 ### License
 
