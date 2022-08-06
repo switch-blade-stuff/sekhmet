@@ -15,7 +15,7 @@ room for skill ceiling.
 ### Milestones
 
 - [X] Core engine library.
-- [X] Template-based math library with `constexpr` support.
+- [X] Template-based math library with `constexpr` and SIMD support.
 - [X] Runtime reflection system.
 - [X] Plugin system.
 - [X] Config management system 
