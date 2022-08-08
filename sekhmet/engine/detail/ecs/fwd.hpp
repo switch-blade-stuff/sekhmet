@@ -13,13 +13,13 @@ namespace sek::engine
 	template<typename>
 	struct component_traits;
 
-	template<typename, typename>
+	template<typename>
 	class basic_entity_set;
 	template<typename>
 	class component_set;
 
 	template<typename...>
-	struct order_by_t;
+	struct collected_t;
 	template<typename...>
 	struct included_t;
 	template<typename...>
@@ -27,13 +27,13 @@ namespace sek::engine
 	template<typename...>
 	struct excluded_t;
 
-	template<typename...>
+	template<typename, typename, typename, typename, typename>
 	class entity_query;
 
+	template<typename, typename, typename, typename>
+	class component_collection;
 	template<typename, typename, typename>
 	class component_view;
-	template<typename...>
-	class basic_component_collection;
 
 	class entity_world;
 }	 // namespace sek::engine

@@ -30,9 +30,9 @@ TEST(ecs_tests, entity_test)
 		const sek::engine::entity_t e2 = {sek::engine::entity_t::index_type{2}};
 
 		sek::engine::entity_set set;
-		set.emplace(e0);
-		set.emplace(e1);
-		set.emplace(e2);
+		set.insert(e0);
+		set.insert(e1);
+		set.insert(e2);
 
 		EXPECT_EQ(set.size(), 3);
 		EXPECT_EQ(*(set.begin() + 0), e2);
@@ -57,8 +57,8 @@ namespace
 	};
 }	 // namespace
 
-template class sek::engine::basic_entity_set<int>;
-template class sek::engine::basic_entity_set<dummy_t>;
+template class sek::engine::component_set<int>;
+template class sek::engine::component_set<dummy_t>;
 
 TEST(ecs_tests, pool_test)
 {
@@ -138,9 +138,7 @@ TEST(ecs_tests, pool_test)
 	}
 }
 
-template class sek::engine::component_set<int>;
 template class sek::engine::component_set<float>;
-template class sek::engine::component_set<dummy_t>;
 
 TEST(ecs_tests, world_test)
 {
@@ -193,11 +191,11 @@ TEST(ecs_tests, world_test)
 		const auto e1 = *world.insert(int{1}, float{1});
 		const auto e2 = *world.insert(int{2}, dummy_t{});
 
-		const auto view = world.view<int, const float>(excluded_t<dummy_t>{}, optional_t<float>{});
-		EXPECT_FALSE(view.empty());
-		EXPECT_EQ(view.size_hint(), 1000003);
+		const auto view1 = world.query().include<int>().exclude<dummy_t>().optional<float>().view();
+		EXPECT_FALSE(view1.empty());
+		EXPECT_EQ(view1.size_hint(), 1000003);
 
-		view.for_each(
+		view1.for_each(
 			[&](sek::engine::entity_t e, int *i, const float *f)
 			{
 				EXPECT_NE(e, e2);
@@ -218,8 +216,18 @@ TEST(ecs_tests, world_test)
 				return true;
 			});
 
-		EXPECT_EQ(world.get<int>(e0), 0);
-		EXPECT_EQ(world.get<int>(e1), 2);
-		EXPECT_EQ(world.get<int>(e2), 2);
+		const auto view2 = world.query().include<int>().optional<float, dummy_t>().view();
+		EXPECT_FALSE(view1.empty());
+		EXPECT_EQ(view1.size_hint(), 1000003);
+
+		std::size_t iterations = 0;
+		view2.for_each([&](auto /*e*/, int *i, auto /*f*/, auto /*d*/) { ++(*i), ++iterations; });
+
+		EXPECT_EQ(iterations, view2.size_hint());
+		EXPECT_EQ(world.get<int>(e0), 1);
+		EXPECT_EQ(world.get<int>(e1), 3);
+		EXPECT_EQ(world.get<int>(e2), 3);
+
+		world.view<int>().for_each([](auto /*e*/, const int *i) { EXPECT_NE(*i, 0); });
 	}
 }
