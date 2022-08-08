@@ -448,7 +448,7 @@ namespace sek::engine
 		 * @param opt Pointers to component sets of optional components. */
 		constexpr explicit component_view(set_ptr_t<I> inc, set_ptr_t<O>... opt) : m_set(inc), m_optional(opt...)
 		{
-			SEK_ASSERT(((inc != nullptr) && ...), "Included component sets can not be null");
+			SEK_ASSERT(inc != nullptr, "Included component set can not be null");
 		}
 
 		/** Returns iterator to the first entity. */

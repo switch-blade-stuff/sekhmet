@@ -184,16 +184,17 @@ TEST(ecs_tests, world_test)
 
 		entity_world world;
 
-		world.reserve<int>(1000003);
+		const auto total = 10003u;
+		world.reserve<int>(total);
 
-		for (std::size_t i = 1000000; i-- != 0;) world.insert<int>();
+		for (std::size_t i = total - 3; i-- != 0;) world.insert<int>();
 		const auto e0 = *world.insert<int>();
 		const auto e1 = *world.insert(int{1}, float{1});
 		const auto e2 = *world.insert(int{2}, dummy_t{});
 
 		const auto view1 = world.query().include<int>().exclude<dummy_t>().optional<float>().view();
 		EXPECT_FALSE(view1.empty());
-		EXPECT_EQ(view1.size_hint(), 1000003);
+		EXPECT_EQ(view1.size_hint(), total);
 
 		view1.for_each(
 			[&](sek::engine::entity_t e, int *i, const float *f)
@@ -218,7 +219,7 @@ TEST(ecs_tests, world_test)
 
 		const auto view2 = world.query().include<int>().optional<float, dummy_t>().view();
 		EXPECT_FALSE(view1.empty());
-		EXPECT_EQ(view1.size_hint(), 1000003);
+		EXPECT_EQ(view1.size_hint(), total);
 
 		std::size_t iterations = 0;
 		view2.for_each([&](auto /*e*/, int *i, auto /*f*/, auto /*d*/) { ++(*i), ++iterations; });

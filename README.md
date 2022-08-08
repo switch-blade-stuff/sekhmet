@@ -18,12 +18,12 @@ room for skill ceiling.
 - [X] Template-based math library with `constexpr` and SIMD support.
 - [X] Runtime reflection system.
 - [X] Plugin system.
-- [X] Config management system 
+- [X] Config management system
 - [X] Asset/resource system.
 - [ ] ECS
 - [ ] UI framework/toolkit targeting
-   - [ ] X11 
-   - [ ] DWM
+    - [ ] X11
+    - [ ] DWM
 - [ ] Fully-featured editor.
 
 ### License

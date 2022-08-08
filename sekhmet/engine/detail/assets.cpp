@@ -419,23 +419,27 @@ namespace sek::engine
 					pkg.uuid_table.reserve(n);
 					pkg.name_table.reserve(n);
 
-					type_storage<asset_info> next_info;
+					std::unique_ptr<asset_info, info_deleter> info{nullptr, info_deleter{pkg}};
 					std::size_t total = 0;
 					for (std::size_t i = 0; i < n; ++i)
 					{
+						uuid id;
+						if (info == nullptr) [[likely]]
+							info.reset(pkg.alloc_info());
+
 						try
 						{
-							const auto id = read_entry(i, archive, next_info.get<asset_info>());
-							pkg.emplace(id, std::move(*next_info.get<asset_info>()));
-							++total; /* Increment total only after the entry was successfully inserted. */
+							id = read_entry(i, archive, info.get());
 						}
 						catch (archive_error &e)
 						{
 							logger::error() << fmt::format("Ignoring malformed asset entry. Parse error: \"{}\"", e.what());
+							std::destroy_at(info.get());
+							continue;
 						}
 
-						/* Destroy the asset, as it will be constructed by the deserialization function on next iteration. */
-						std::destroy_at(next_info.get<asset_info>());
+						pkg.insert(id, info.release());
+						++total; /* Increment total only after the entry was successfully inserted. */
 					}
 
 					logger::info() << fmt::format("Loaded {} asset(s)", total);

@@ -64,10 +64,6 @@ namespace sek::engine
 		class storage_entry
 		{
 		public:
-			storage_entry(const storage_entry &) = delete;
-			storage_entry &operator=(const storage_entry &) = delete;
-
-			constexpr storage_entry() noexcept = default;
 			constexpr storage_entry(storage_entry &&other) noexcept { swap(other); }
 			constexpr storage_entry &operator=(storage_entry &&other) noexcept
 			{
@@ -75,51 +71,23 @@ namespace sek::engine
 				return *this;
 			}
 
-			template<typename T, typename... Args>
-			constexpr explicit storage_entry(type_selector_t<T>, Args &&...args)
-				: m_ptr(new component_set<T>(std::forward<Args>(args)...))
-			{
-				using storage_t = component_set<T>;
-
-				m_contains = +[](void *ptr, entity_t e) { return static_cast<storage_t *>(ptr)->contains(e); };
-				m_erase = +[](void *ptr, entity_t e) { static_cast<storage_t *>(ptr)->erase(e); };
-				m_clear = +[](void *ptr) { static_cast<storage_t *>(ptr)->clear(); };
-			}
-			constexpr ~storage_entry() { m_delete(m_ptr); }
-
 			template<typename T>
-			[[nodiscard]] constexpr auto *get() noexcept
+			constexpr storage_entry(component_set<T> *ptr) noexcept : m_ptr(ptr)
 			{
-				return static_cast<component_set<T> *>(m_ptr);
 			}
-			template<typename T>
-			[[nodiscard]] constexpr auto *get() const noexcept
-			{
-				return static_cast<const component_set<T> *>(m_ptr);
-			}
+			constexpr ~storage_entry() { delete m_ptr; }
 
-			[[nodiscard]] constexpr bool contains(entity_t e) const noexcept { return m_contains(m_ptr, e); }
+			[[nodiscard]] constexpr basic_component_set *get() const noexcept { return m_ptr; }
+			[[nodiscard]] constexpr basic_component_set *operator->() const noexcept { return get(); }
+			[[nodiscard]] constexpr basic_component_set &operator*() const noexcept { return *get(); }
 
-			constexpr void erase(entity_t e) { m_erase(m_ptr, e); }
-			constexpr void clear() { m_clear(m_ptr); }
-
-			constexpr void swap(storage_entry &other) noexcept
-			{
-				std::swap(m_contains, other.m_contains);
-				std::swap(m_erase, other.m_erase);
-				std::swap(m_delete, other.m_delete);
-				std::swap(m_ptr, other.m_ptr);
-			}
+			constexpr void swap(storage_entry &other) noexcept { std::swap(m_ptr, other.m_ptr); }
 			friend constexpr void swap(storage_entry &a, storage_entry &b) noexcept { a.swap(b); }
 
 		private:
 			basic_component_set *m_ptr = nullptr;
-			void (*m_delete)(void *) = +[](void *) {};
-
-			bool (*m_contains)(void *, entity_t);
-			void (*m_erase)(void *, entity_t);
-			void (*m_clear)(void *);
 		};
+
 		struct table_hash
 		{
 			using is_transparent = std::true_type;
@@ -254,7 +222,7 @@ namespace sek::engine
 		 * @warning References to components and entities (except for collections) will be invalidated. */
 		constexpr void clear()
 		{
-			for (auto entry : m_storage) entry.second.clear();
+			for (auto entry : m_storage) entry.second->clear();
 			m_entities.clear();
 			m_next = entity_t::tombstone();
 			m_size = 0;
@@ -286,13 +254,13 @@ namespace sek::engine
 		constexpr void clear(std::string_view type)
 		{
 			if (const auto set = m_storage.find(type); set != m_storage.end()) [[likely]]
-				set->second.clear();
+				set->second->clear();
 		}
 		/** @copydoc clear */
 		constexpr void clear(type_info type)
 		{
 			if (const auto set = m_storage.find(type); set != m_storage.end()) [[likely]]
-				set->second.clear();
+				set->second->clear();
 		}
 
 		/** Returns iterator to the specified entity or end iterator if the entity does not exist in the world. */
@@ -315,7 +283,7 @@ namespace sek::engine
 			if constexpr (sizeof...(Ts) == 0)
 			{
 				const auto storage = m_storage.find(type_info::get<T>());
-				return storage != m_storage.end() && storage->second.template get<T>()->contains(e);
+				return storage != m_storage.end() && storage->second->contains(e);
 			}
 			else
 				return contains_all<T>(e) && (contains_all<Ts>(e) && ...);
@@ -345,7 +313,7 @@ namespace sek::engine
 			if constexpr (sizeof...(Ts) == 0)
 			{
 				const auto storage = m_storage.find(type_info::get<T>());
-				return storage == m_storage.end() || !storage->second.template get<T>()->contains(e);
+				return storage == m_storage.end() || !storage->second->contains(e);
 			}
 			else
 				return contains_none<T>(e) && (contains_none<Ts>(e) && ...);
@@ -361,7 +329,7 @@ namespace sek::engine
 		[[nodiscard]] constexpr size_type size(entity_t e) const noexcept
 		{
 			size_type result = 0;
-			for (auto entry : m_storage) result += entry.second.contains(e);
+			for (auto entry : m_storage) result += entry.second->contains(e);
 			return result;
 		}
 		/** @copydoc size */
@@ -371,7 +339,7 @@ namespace sek::engine
 		{
 			for (auto entry : m_storage)
 			{
-				if (entry.second.contains(e)) [[unlikely]]
+				if (entry.second->contains(e)) [[unlikely]]
 					return false;
 			}
 			return true;
@@ -567,8 +535,9 @@ namespace sek::engine
 		{
 			for (auto entry : m_storage)
 			{
-				if (entry.second.contains(e)) [[unlikely]]
-					entry.second.erase(e);
+				auto &set = *entry.second;
+				if (const auto pos = set.find(e); pos != set.end()) [[unlikely]]
+					set.erase(pos);
 			}
 			release(e);
 		}
@@ -741,7 +710,7 @@ namespace sek::engine
 		{
 			const auto set = m_storage.find(type_info::get<U>());
 			if (set != m_storage.end()) [[likely]]
-				return set->second.template get<U>();
+				return static_cast<component_set<U> *>(set->second.get());
 			else
 				return nullptr;
 		}
@@ -750,7 +719,7 @@ namespace sek::engine
 		{
 			const auto set = m_storage.find(type_info::get<U>());
 			if (set != m_storage.end()) [[likely]]
-				return set->second.template get<U>();
+				return static_cast<const component_set<U> *>(set->second.get());
 			else
 				return nullptr;
 		}
@@ -761,13 +730,9 @@ namespace sek::engine
 			const auto type = type_info::get<U>();
 			auto target = m_storage.find(type);
 			if (target == m_storage.end()) [[unlikely]]
-				target = m_storage
-							 .emplace(std::piecewise_construct,
-									  std::forward_as_tuple(type),
-									  std::forward_as_tuple(type_selector<U>, *this))
-							 .first;
+				target = m_storage.emplace(type, new component_set<U>(*this)).first;
 
-			auto &storage = *target->second.template get<U>();
+			auto &storage = static_cast<component_set<U> &>(*target->second);
 			if (n != 0) [[likely]]
 				storage.reserve(n);
 			return storage;

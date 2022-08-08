@@ -583,7 +583,7 @@ namespace sek::engine
 			const auto idx = sparse_idx(i);
 
 			/* Make sure page list has enough space. */
-			m_sparse.resize(idx + 1, nullptr);
+			if (const auto req = idx + 1; req > m_sparse.size()) m_sparse.resize(req, nullptr);
 
 			/* Allocate the page if it is empty. */
 			auto &page = m_sparse[idx];

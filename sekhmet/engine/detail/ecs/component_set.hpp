@@ -300,7 +300,7 @@ namespace sek::engine
 			constexpr void reserve(size_type n)
 			{
 				const auto pages = page_idx(n) + 1;
-				m_pages.resize(pages, nullptr);
+				if (pages > m_pages.size()) m_pages.resize(pages, nullptr);
 				for (size_type i = 0; i < pages; ++i)
 					if (m_pages[i] == nullptr) m_pages[i] = alloc_page();
 			}
@@ -345,7 +345,7 @@ namespace sek::engine
 				const auto idx = page_idx(i);
 
 				/* Make sure page list has enough space. */
-				m_pages.resize(idx + 1, nullptr);
+				if (const auto req = idx + 1; req > m_pages.size()) m_pages.resize(req, nullptr);
 
 				/* Allocate the page if it is empty. */
 				auto &page = m_pages[idx];
