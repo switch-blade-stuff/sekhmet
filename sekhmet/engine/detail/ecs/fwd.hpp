@@ -27,13 +27,13 @@ namespace sek::engine
 	template<typename...>
 	struct excluded_t;
 
+	class entity_world;
+
 	template<typename, typename, typename, typename, typename>
 	class entity_query;
-
-	template<typename, typename, typename, typename>
-	class component_collection;
 	template<typename, typename, typename>
 	class component_view;
+	template<typename, typename, typename, typename>
+	class component_collection;
 
-	class entity_world;
 }	 // namespace sek::engine

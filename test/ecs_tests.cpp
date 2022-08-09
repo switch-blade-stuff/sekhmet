@@ -55,6 +55,9 @@ namespace
 	struct dummy_t
 	{
 	};
+	struct flag_t
+	{
+	};
 }	 // namespace
 
 template class sek::engine::component_set<int>;
@@ -138,97 +141,213 @@ TEST(ecs_tests, pool_test)
 	}
 }
 
+using namespace sek::engine;
+
 template class sek::engine::component_set<float>;
 
 TEST(ecs_tests, world_test)
 {
-	{
-		sek::engine::entity_world world;
+	entity_world world;
 
-		world.reserve<int>();
-		world.reserve<float, dummy_t>();
+	world.reserve<int>();
+	world.reserve<float, dummy_t>();
 
-		const auto e0 = world.generate();
-		const auto e1 = world.generate();
-		const auto e2 = world.generate();
-		EXPECT_EQ(world.size(), 3);
-		EXPECT_TRUE(world.contains(e0));
-		EXPECT_TRUE(world.contains(e1));
-		EXPECT_TRUE(world.contains(e2));
+	const auto e0 = world.generate();
+	const auto e1 = world.generate();
+	const auto e2 = world.generate();
+	EXPECT_EQ(world.size(), 3);
+	EXPECT_TRUE(world.contains(e0));
+	EXPECT_TRUE(world.contains(e1));
+	EXPECT_TRUE(world.contains(e2));
 
-		world.emplace<int>(e0, 0);
-		world.emplace<int>(e1, 1);
-		world.emplace<float>(e0);
-		world.emplace<dummy_t>(e2);
+	world.emplace<int>(e0, 0);
+	world.emplace<int>(e1, 1);
+	world.emplace<float>(e0);
+	world.emplace<dummy_t>(e2);
 
-		EXPECT_TRUE((world.contains_all<int, float>(e0)));
-		EXPECT_FALSE((world.contains_all<int, float>(e1)));
-		EXPECT_TRUE((world.contains_any<int, float>(e1)));
-		EXPECT_TRUE((world.contains_none<int, float>(e2)));
-		EXPECT_TRUE(world.contains_all<dummy_t>(e2));
-		EXPECT_TRUE(world.contains_any<dummy_t>(e2));
+	EXPECT_TRUE((world.contains_all<int, float>(e0)));
+	EXPECT_FALSE((world.contains_all<int, float>(e1)));
+	EXPECT_TRUE((world.contains_any<int, float>(e1)));
+	EXPECT_TRUE((world.contains_none<int, float>(e2)));
+	EXPECT_TRUE(world.contains_all<dummy_t>(e2));
+	EXPECT_TRUE(world.contains_any<dummy_t>(e2));
 
-		EXPECT_EQ(world.get<int>(e0), 0);
-		EXPECT_EQ(world.get<int>(e1), 1);
+	EXPECT_EQ(world.get<int>(e0), 0);
+	EXPECT_EQ(world.get<int>(e1), 1);
 
-		EXPECT_FALSE(world.erase_and_release<float>(e0));
-		EXPECT_FALSE(world.contains_all<float>(e0));
-		EXPECT_EQ(world.size(e0), 1);
-		EXPECT_EQ(world.size(e1), 1);
+	EXPECT_FALSE(world.erase_and_release<float>(e0));
+	EXPECT_FALSE(world.contains_all<float>(e0));
+	EXPECT_EQ(world.size(e0), 1);
+	EXPECT_EQ(world.size(e1), 1);
 
-		EXPECT_TRUE(world.erase_and_release<dummy_t>(e2));
-		EXPECT_FALSE(world.contains(e2));
-	}
-	{
-		using namespace sek::engine;
+	EXPECT_TRUE(world.erase_and_release<dummy_t>(e2));
+	EXPECT_FALSE(world.contains(e2));
+}
 
-		entity_world world;
+template class sek::engine::component_view<included_t<int>>;
+template class sek::engine::component_view<included_t<int>, excluded_t<dummy_t>>;
+template class sek::engine::component_view<included_t<int>, excluded_t<dummy_t>, optional_t<float>>;
 
-		const auto total = 10003u;
-		world.reserve<int>(total);
+TEST(ecs_tests, view_test)
+{
+	entity_world world;
 
-		for (std::size_t i = total - 3; i-- != 0;) world.insert<int>();
-		const auto e0 = *world.insert<int>();
-		const auto e1 = *world.insert(int{1}, float{1});
-		const auto e2 = *world.insert(int{2}, dummy_t{});
+	const auto total = 1000003u;
+	world.reserve<int>(total);
 
-		const auto view1 = world.query().include<int>().exclude<dummy_t>().optional<float>().view();
-		EXPECT_FALSE(view1.empty());
-		EXPECT_EQ(view1.size_hint(), total);
+	for (std::size_t i = total - 3; i-- != 0;) world.insert<int>();
+	const auto e0 = *world.insert<int>();
+	const auto e1 = *world.insert(int{1}, float{1});
+	const auto e2 = *world.insert(int{2}, dummy_t{});
 
-		view1.for_each(
-			[&](sek::engine::entity_t e, int *i, const float *f)
+	const auto start = std::chrono::system_clock::now();
+
+	const auto view1 = world.query().include<int>().exclude<dummy_t>().optional<float>().view();
+	EXPECT_FALSE(view1.empty());
+	EXPECT_EQ(view1.size_hint(), total);
+
+	view1.for_each(
+		[&](sek::engine::entity_t e, int *i, const float *f)
+		{
+			EXPECT_NE(e, e2);
+			EXPECT_NE(i, nullptr);
+			if (e == e0)
 			{
-				EXPECT_NE(e, e2);
-				EXPECT_NE(i, nullptr);
-				if (e == e0)
-				{
-					EXPECT_EQ(f, nullptr);
-					EXPECT_EQ(*i, 0);
-					return false;
-				}
-				else if (e == e1)
-				{
-					EXPECT_NE(f, nullptr);
-					EXPECT_EQ(*i, 1);
-					EXPECT_EQ(*f, 1.0f);
-				}
-				(*i)++;
-				return true;
-			});
+				EXPECT_EQ(f, nullptr);
+				EXPECT_EQ(*i, 0);
+				return false;
+			}
+			else if (e == e1)
+			{
+				EXPECT_NE(f, nullptr);
+				EXPECT_EQ(*i, 1);
+				EXPECT_EQ(*f, 1.0f);
+			}
+			(*i)++;
+			return true;
+		});
 
-		const auto view2 = world.query().include<int>().optional<float, dummy_t>().view();
-		EXPECT_FALSE(view1.empty());
-		EXPECT_EQ(view1.size_hint(), total);
+	const auto view2 = world.query().include<int>().optional<float, dummy_t>().view();
+	EXPECT_FALSE(view1.empty());
+	EXPECT_EQ(view1.size_hint(), total);
 
-		std::size_t iterations = 0;
-		view2.for_each([&](auto /*e*/, int *i, auto /*f*/, auto /*d*/) { ++(*i), ++iterations; });
+	std::size_t iterations = 0;
+	view2.for_each([&](auto /*e*/, int *i, auto /*f*/, auto /*d*/) { ++(*i), ++iterations; });
 
-		EXPECT_EQ(iterations, view2.size_hint());
-		EXPECT_EQ(world.get<int>(e0), 1);
-		EXPECT_EQ(world.get<int>(e1), 3);
-		EXPECT_EQ(world.get<int>(e2), 3);
+	EXPECT_EQ(iterations, view2.size_hint());
+	EXPECT_EQ(world.get<int>(e0), 1);
+	EXPECT_EQ(world.get<int>(e1), 3);
+	EXPECT_EQ(world.get<int>(e2), 3);
 
-		world.view<int>().for_each([](auto /*e*/, const int *i) { EXPECT_NE(*i, 0); });
-	}
+	world.view<int>().for_each([](auto /*e*/, const int *i) { EXPECT_NE(*i, 0); });
+
+	using namespace std::literals;
+
+	const auto end = std::chrono::system_clock::now();
+	const auto ms = duration_cast<std::chrono::milliseconds>(end - start);
+	const auto ns = duration_cast<std::chrono::nanoseconds>(end - start);
+	printf("%ld fps\n", 1s / ns);
+	printf("%ld ms\n", ms.count());
+	printf("%ld ns\n", ns.count());
+}
+
+template class sek::engine::component_collection<collected_t<flag_t>>;
+template class sek::engine::component_collection<collected_t<int>, included_t<>, excluded_t<>, optional_t<flag_t>>;
+template class sek::engine::component_collection<collected_t<int>, included_t<>, excluded_t<dummy_t>, optional_t<flag_t>>;
+template class sek::engine::component_collection<collected_t<int, float>, included_t<>, excluded_t<dummy_t>, optional_t<flag_t>>;
+template class sek::engine::component_collection<collected_t<>, included_t<int, flag_t>, excluded_t<>, optional_t<>>;
+
+TEST(ecs_tests, collection_test)
+{
+	entity_world world;
+
+	const auto e0 = *world.insert<int>(0);
+	const auto e1 = *world.insert<int, flag_t>(1, {});
+	const auto e2 = *world.insert<int, float, flag_t>(2, 2.0f, {});
+	const auto e3 = *world.insert<int, float, flag_t, dummy_t>(3, 3.0f, {}, {});
+
+	const auto c1 = world.collection<flag_t>();
+	EXPECT_EQ(c1.size(), 3);
+	EXPECT_FALSE(c1.contains(e0));
+	EXPECT_TRUE(c1.contains(e1));
+	EXPECT_TRUE(c1.contains(e2));
+	EXPECT_TRUE(c1.contains(e3));
+
+	const auto c2 = world.query().collect<int>().optional<flag_t>().collection();
+	EXPECT_EQ(c2.size(), 4);
+	EXPECT_TRUE(c2.contains(e0));
+	EXPECT_TRUE(c2.contains(e1));
+	EXPECT_TRUE(c2.contains(e2));
+	EXPECT_TRUE(c2.contains(e3));
+
+	const auto c3 = world.query().collect<int>().optional<flag_t>().exclude<dummy_t>().collection();
+	EXPECT_EQ(c3.size(), 3);
+	EXPECT_TRUE(c3.contains(e0));
+	EXPECT_TRUE(c3.contains(e1));
+	EXPECT_TRUE(c3.contains(e2));
+	EXPECT_FALSE(c3.contains(e3));
+
+	const auto c4 = world.query().collect<int, float>().optional<flag_t>().exclude<dummy_t>().collection();
+	EXPECT_EQ(c4.size(), 1);
+	EXPECT_FALSE(c4.contains(e0));
+	EXPECT_FALSE(c4.contains(e1));
+	EXPECT_TRUE(c4.contains(e2));
+	EXPECT_FALSE(c4.contains(e3));
+
+	const auto c5 = world.query().include<int, flag_t>().collection();
+	EXPECT_EQ(c5.size(), 3);
+	EXPECT_FALSE(c5.contains(e0));
+	EXPECT_TRUE(c5.contains(e1));
+	EXPECT_TRUE(c5.contains(e2));
+	EXPECT_TRUE(c5.contains(e3));
+
+	c1.for_each([&](entity_t e, auto *) { EXPECT_NE(e, e0); });
+	c2.for_each([&](entity_t e, const int *i, auto...) { EXPECT_EQ(e.index().value(), *i); });
+	c3.for_each(
+		[&](entity_t e, const int *i, auto...)
+		{
+			EXPECT_NE(e, e3);
+			EXPECT_LT(*i, 3);
+		});
+	c4.for_each(
+		[&](entity_t e, const int *i, const float *f, auto...)
+		{
+			EXPECT_NE(e, e0);
+			EXPECT_NE(e, e1);
+			EXPECT_NE(e, e3);
+			EXPECT_EQ(*i, 2);
+			EXPECT_EQ(static_cast<int>(*f), *i);
+		});
+	c5.for_each(
+		[&](entity_t e, const int *i, auto...)
+		{
+			EXPECT_NE(e, e0);
+			EXPECT_NE(*i, 0);
+		});
+
+	const auto e4 = *world.insert<int, flag_t>(4, {});
+
+	EXPECT_EQ(c1.size(), 4);
+	EXPECT_TRUE(c1.contains(e4));
+
+	EXPECT_EQ(c2.size(), 5);
+	EXPECT_TRUE(c2.contains(e4));
+
+	EXPECT_EQ(c3.size(), 4);
+	EXPECT_TRUE(c3.contains(e4));
+
+	EXPECT_EQ(c4.size(), 1);
+	EXPECT_FALSE(c4.contains(e4));
+
+	EXPECT_EQ(c5.size(), 4);
+	EXPECT_TRUE(c5.contains(e4));
+
+	EXPECT_EQ(std::addressof(world.get<int>(e4)), c2.get<int>(e4));
+	EXPECT_EQ(std::addressof(world.get<int>(e4)), c3.get<int>(e4));
+	EXPECT_EQ(std::addressof(world.get<int>(e4)), c5.get<int>(e4));
+
+	EXPECT_TRUE(world.is_collected<int>());
+	EXPECT_TRUE(world.is_collected<float>());
+	EXPECT_TRUE(world.is_collected<flag_t>());
+	EXPECT_FALSE(world.is_collected<dummy_t>());
 }

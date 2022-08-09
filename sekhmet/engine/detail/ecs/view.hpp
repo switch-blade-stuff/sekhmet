@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <functional>
+
 #include "component_set.hpp"
 
 namespace sek::engine
@@ -20,7 +22,7 @@ namespace sek::engine
 	{
 		static_assert(sizeof...(I) != 0, "View include at least 1 component type");
 
-		using common_set = basic_component_set;
+		using common_set = generic_component_set;
 
 		template<typename T>
 		using set_ptr_t = transfer_cv_t<T, component_set<std::remove_cv_t<T>>> *;
@@ -89,7 +91,8 @@ namespace sek::engine
 			}
 			constexpr view_iterator &operator--() noexcept
 			{
-				for (const auto end = m_view->size_hint(); m_off != end && !valid(m_off);) ++m_off;
+				for (const auto end = static_cast<difference_type>(m_view->size_hint()); m_off != end && !valid(m_off);)
+					++m_off;
 				return *this;
 			}
 
@@ -283,34 +286,19 @@ namespace sek::engine
 		friend constexpr void swap(component_view &a, component_view &b) noexcept { a.swap(b); }
 
 	private:
-		template<typename T>
-		[[nodiscard]] constexpr auto *get_included() const noexcept
+		template<typename T0, typename T1, typename... Ts>
+		[[nodiscard]] constexpr std::tuple<T0 *, T1 *, Ts *...> get_impl(entity_t e) const noexcept
 		{
-			return std::get<set_ptr_t<T>>(m_included);
+			return std::tuple<T0 *, T1 *, Ts *...>{get_impl<T0>(e), get_impl<T1>(e), get_impl<Ts>(e)...};
 		}
 		template<typename T>
-		[[nodiscard]] constexpr auto *get_optional() const noexcept
+		[[nodiscard]] constexpr T *get_impl(entity_t e) const noexcept
 		{
-			return std::get<set_ptr_t<T>>(m_optional);
-		}
-
-		template<typename T, typename... Ts>
-		[[nodiscard]] constexpr decltype(auto) get_impl(entity_t e) const noexcept
-		{
-			if constexpr (sizeof...(Ts) != 0)
-				return std::tuple<T *, Ts *...>{get_impl<T>(e), get_impl<Ts>(e)...};
-			else if constexpr (is_inc<T>)
-				return static_cast<T *>(std::addressof(get_included<T>()->get(e)));
+			using std::get;
+			if constexpr (is_inc<T>)
+				return std::addressof(get<set_ptr_t<T>>(m_included)->get(e));
 			else
-			{
-				const auto set = get_optional<T>();
-				if (set == nullptr) [[unlikely]]
-					return static_cast<T *>(nullptr);
-				const auto pos = set->find(e);
-				if (pos == set->end()) [[unlikely]]
-					return static_cast<T *>(nullptr);
-				return static_cast<T *>(std::addressof(pos->second));
-			}
+				return detail::opt_set_get(get<set_ptr_t<T>>(m_optional), e);
 		}
 
 		const common_set *m_set;
@@ -322,7 +310,7 @@ namespace sek::engine
 	template<typename I, typename... O>
 	class component_view<included_t<I>, excluded_t<>, optional_t<O...>>
 	{
-		using common_set = basic_component_set;
+		using common_set = generic_component_set;
 
 		template<typename T>
 		using set_t = transfer_cv_t<T, component_set<std::remove_cv_t<T>>>;
@@ -414,7 +402,7 @@ namespace sek::engine
 			[[nodiscard]] constexpr auto operator<=>(const view_iterator &) const noexcept = default;
 			[[nodiscard]] constexpr bool operator==(const view_iterator &) const noexcept = default;
 
-			constexpr void swap(view_iterator &other) noexcept { swap(m_iter, other.m_iter); }
+			constexpr void swap(view_iterator &other) noexcept { m_iter.swap(other.m_iter); }
 			friend constexpr void swap(view_iterator &a, view_iterator &b) noexcept { a.swap(b); }
 
 		private:
@@ -559,39 +547,26 @@ namespace sek::engine
 		friend constexpr void swap(component_view &a, component_view &b) noexcept { a.swap(b); }
 
 	private:
-		template<typename T>
-		[[nodiscard]] constexpr auto *get_optional() const noexcept
+		template<typename T0, typename T1, typename... Ts, typename U>
+		[[nodiscard]] constexpr std::tuple<T0 *, T1 *, Ts *...> get_impl(U &&arg) const noexcept
 		{
-			return std::get<set_ptr_t<T>>(m_optional);
+			return std::tuple<T0 *, T1 *, Ts *...>{get_impl<T0>(arg), get_impl<T1>(arg), get_impl<Ts>(arg)...};
 		}
-
-		template<typename T, typename... Ts>
-		[[nodiscard]] constexpr decltype(auto) get_impl(const_iterator which) const noexcept
+		template<typename T>
+		[[nodiscard]] constexpr T *get_impl(const_iterator which) const noexcept
 		{
-			if constexpr (sizeof...(Ts) != 0)
-				return std::tuple<T *, Ts *...>{get_impl<T>(which), get_impl<Ts>(which)...};
-			else if constexpr (is_inc<T>)
-				return static_cast<T *>(std::addressof(which.m_iter->second));
+			if constexpr (is_inc<T>)
+				return std::addressof(which.m_iter->second);
 			else
 				return get_impl<T>(*which);
 		}
-		template<typename T, typename... Ts>
-		[[nodiscard]] constexpr decltype(auto) get_impl(entity_t e) const noexcept
+		template<typename T>
+		[[nodiscard]] constexpr T *get_impl(entity_t e) const noexcept
 		{
-			if constexpr (sizeof...(Ts) != 0)
-				return std::tuple<T *, Ts *...>{get_impl<T>(e), get_impl<Ts>(e)...};
-			else if constexpr (is_inc<T>)
-				return static_cast<T *>(std::addressof(m_set->get(e)));
+			if constexpr (is_opt<T>)
+				return detail::opt_set_get(std::get<set_ptr_t<T>>(m_optional), e);
 			else
-			{
-				const auto set = get_optional<T>();
-				if (set == nullptr) [[unlikely]]
-					return static_cast<T *>(nullptr);
-				const auto pos = set->find(e);
-				if (pos == set->end()) [[unlikely]]
-					return static_cast<T *>(nullptr);
-				return static_cast<T *>(std::addressof(pos->second));
-			}
+				return std::addressof(m_set->get(e));
 		}
 
 		set_ptr_t<I> m_set;

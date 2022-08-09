@@ -4,43 +4,11 @@
 
 #pragma once
 
-#include "component_set.hpp"
+#include "collection.hpp"
+#include "view.hpp"
 
 namespace sek::engine
 {
-	template<typename... Cs>
-	struct collected_t
-	{
-		using type = type_seq_t<Cs...>;
-
-		constexpr collected_t() noexcept = default;
-		constexpr collected_t(type_seq_t<Cs...>) noexcept {}
-	};
-	template<typename... Cs>
-	struct included_t
-	{
-		using type = type_seq_t<Cs...>;
-
-		constexpr included_t() noexcept = default;
-		constexpr included_t(type_seq_t<Cs...>) noexcept {}
-	};
-	template<typename... Cs>
-	struct optional_t
-	{
-		using type = type_seq_t<Cs...>;
-
-		constexpr optional_t() noexcept = default;
-		constexpr optional_t(type_seq_t<Cs...>) noexcept {}
-	};
-	template<typename... Cs>
-	struct excluded_t
-	{
-		using type = type_seq_t<Cs...>;
-
-		constexpr excluded_t() noexcept = default;
-		constexpr excluded_t(type_seq_t<Cs...>) noexcept {}
-	};
-
 	/** @brief Query structure used to build a component collection or a view.
 	 *
 	 * @tparam W World type used for the query.
@@ -68,7 +36,6 @@ namespace sek::engine
 		template<typename T>
 		constexpr static bool is_opt = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<O>...>;
 
-		static_assert(sizeof...(C) == 0 || is_read_only, "Collections are not available for read-only queries");
 		static_assert(!(is_fixed<C> || ...), "Cannot collect fixed-storage components");
 
 		template<typename... Ts>
@@ -101,39 +68,63 @@ namespace sek::engine
 		template<typename... Cs>
 		constexpr auto include() const
 		{
-			return include_query<Cs...>{*m_parent};
+			return include_query<transfer_cv_t<W, Cs>...>{*m_parent};
 		}
 		/** Returns a new query with `Cs` components added to the excluded components list.
 		 * @return New query instance. */
 		template<typename... Cs>
 		constexpr auto exclude() const
 		{
-			return exclude_query<Cs...>{*m_parent};
+			return exclude_query<transfer_cv_t<W, Cs>...>{*m_parent};
 		}
 		/** Returns a new query with `Cs` components added to the optional components list.
 		 * @return New query instance. */
 		template<typename... Cs>
 		constexpr auto optional() const
 		{
-			return optional_query<Cs...>{*m_parent};
+			return optional_query<transfer_cv_t<W, Cs>...>{*m_parent};
 		}
 
 		/** Returns a new query with `Cs` components added to the collected components list.
 		 * @return New query instance.
+		 * @note Collected components are implicitly included.
 		 * @note Collecting queries are only allowed for non-const worlds. */
 		template<typename... Cs>
 		constexpr auto collect() const
 		{
+			static_assert(!is_read_only, "Collections are not available for read-only queries");
 			return collect_query<Cs...>{*m_parent};
 		}
 		/** Returns a component collection made using this query.
 		 * @note Collections are only allowed for non-const worlds.
 		 * @note Collections sort collected components and track any modifications to component sets. */
-		[[nodiscard]] constexpr auto collection() const;
+		[[nodiscard]] constexpr auto collection() const
+		{
+			static_assert(!is_read_only, "Collections are not available for read-only queries");
+			using handler_t = detail::collection_handler<collected_t<C...>, included_t<I...>, excluded_t<E...>>;
+
+			// clang-format off
+			return component_collection<collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>{
+				handler_t::make_handler(*m_parent),
+				m_parent->template storage<C>()...,
+				m_parent->template storage<I>()...,
+				m_parent->template storage<O>()...
+			};
+			// clang-format on
+		}
 
 		/** Returns a component view made using this query.
 		 * @note Views ignore collected components. */
-		[[nodiscard]] constexpr auto view() const;
+		[[nodiscard]] constexpr auto view() const
+		{
+			// clang-format off
+			return component_view<included_t<I...>, excluded_t<E...>, optional_t<O...>>{
+				m_parent->template storage<I>()...,
+				m_parent->template storage<E>()...,
+				m_parent->template storage<O>()...
+			};
+			// clang-format on
+		}
 
 	private:
 		W *m_parent;
@@ -143,4 +134,30 @@ namespace sek::engine
 	entity_query(W &) -> entity_query<W, collected_t<>, included_t<>, excluded_t<>, optional_t<>>;
 	template<typename W>
 	entity_query(const W &) -> entity_query<const W, collected_t<>, included_t<>, excluded_t<>, optional_t<>>;
+
+	constexpr auto entity_world::query() noexcept { return entity_query{*this}; }
+	constexpr auto entity_world::query() const noexcept { return entity_query{*this}; }
+
+	template<typename... I, typename... E, typename... O>
+	constexpr auto entity_world::view(excluded_t<E...>, optional_t<O...>) noexcept
+	{
+		return query().template include<I...>().template exclude<E...>().template optional<O...>().view();
+	}
+	template<typename... I, typename... E, typename... O>
+	constexpr auto entity_world::view(excluded_t<E...>, optional_t<O...>) const noexcept
+	{
+		return query().template include<I...>().template exclude<E...>().template optional<O...>().view();
+	}
+
+	template<typename... C, typename... I, typename... E, typename... O>
+	constexpr auto entity_world::collection(included_t<I...>, excluded_t<E...>, optional_t<O...>) noexcept
+	{
+		return query()
+			.template collect<C...>()
+			.template include<I...>()
+			.template exclude<E...>()
+			.template optional<O...>()
+			.collection();
+	}
+
 }	 // namespace sek::engine

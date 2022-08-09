@@ -404,29 +404,30 @@ namespace sek
 	template<pointer_like T>
 	constexpr bool is_pointer_like_v<T> = true;
 
-	/** @brief Transfers const & volatile qualifiers from the `From` type to the `To` type. */
+	/** @brief Transfers const & volatile qualifiers from the `From` type to the `To` type.
+	 * Any additional qualifiers of `To` are discarded. */
 	template<typename From, typename To>
 	struct transfer_cv
 	{
-		using type = To;
+		using type = std::remove_cv_t<To>;
 	};
 	template<typename From, typename To>
 	struct transfer_cv<const From, To>
 	{
-		using type = std::add_const_t<std::remove_cv_t<To>>;
+		using type = std::add_const_t<std::remove_volatile_t<To>>;
 	};
 	template<typename From, typename To>
 	struct transfer_cv<volatile From, To>
 	{
-		using type = std::add_volatile_t<std::remove_cv_t<To>>;
+		using type = std::add_volatile_t<std::remove_const_t<To>>;
 	};
 	template<typename From, typename To>
 	struct transfer_cv<const volatile From, To>
 	{
-		using type = std::add_cv_t<std::remove_cv_t<To>>;
+		using type = std::add_cv_t<To>;
 	};
 
-	/** @brief Transfers const & volatile qualifiers from the `From` type to the `To` type. */
+	/** @copydoc transfer_cv */
 	template<typename From, typename To>
 	using transfer_cv_t = typename transfer_cv<From, To>::type;
 

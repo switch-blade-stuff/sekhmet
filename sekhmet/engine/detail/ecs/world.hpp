@@ -9,41 +9,101 @@
 #include "sekhmet/detail/dense_map.hpp"
 
 #include "../type_info.hpp"
-#include "component_collection.hpp"
-#include "component_view.hpp"
-#include "query.hpp"
+#include "component_set.hpp"
 
 namespace sek::engine
 {
+	template<typename... Cs>
+	struct collected_t
+	{
+		using type = type_seq_t<Cs...>;
+
+		constexpr collected_t() noexcept = default;
+		constexpr collected_t(type_seq_t<Cs...>) noexcept {}
+	};
+	template<typename... Cs>
+	struct included_t
+	{
+		using type = type_seq_t<Cs...>;
+
+		constexpr included_t() noexcept = default;
+		constexpr included_t(type_seq_t<Cs...>) noexcept {}
+	};
+	template<typename... Cs>
+	struct optional_t
+	{
+		using type = type_seq_t<Cs...>;
+
+		constexpr optional_t() noexcept = default;
+		constexpr optional_t(type_seq_t<Cs...>) noexcept {}
+	};
+	template<typename... Cs>
+	struct excluded_t
+	{
+		using type = type_seq_t<Cs...>;
+
+		constexpr excluded_t() noexcept = default;
+		constexpr excluded_t(type_seq_t<Cs...>) noexcept {}
+	};
+
 	namespace detail
 	{
+		template<typename...>
+		struct collection_handler;
+
 		class collection_sorter
 		{
 		public:
-			template<typename... Coll, typename... Inc, typename... Exc>
-			constexpr collection_sorter(collection_handler<collected_t<Coll...>, included_t<Inc...>, excluded_t<Exc...>> *h)
+			collection_sorter(const collection_sorter &) = delete;
+			collection_sorter &operator=(const collection_sorter &) = delete;
+
+			constexpr collection_sorter(collection_sorter &&other) noexcept { swap(other); }
+			constexpr collection_sorter &operator=(collection_sorter &&other) noexcept
 			{
-				type_count = sizeof...(Coll) + sizeof...(Inc) + sizeof...(Exc);
-				is_collected = +[](type_info info) -> bool { return ((type_info::get<Coll>() == info) || ...); };
-				is_included = +[](type_info info) -> bool { return ((type_info::get<Inc>() == info) || ...); };
-				is_excluded = +[](type_info info) -> bool { return ((type_info::get<Exc>() == info) || ...); };
+				swap(other);
+				return *this;
+			}
+
+			constexpr ~collection_sorter() { m_delete(m_data); }
+
+			template<typename... C, typename... I, typename... E>
+			constexpr explicit collection_sorter(collection_handler<collected_t<C...>, included_t<I...>, excluded_t<E...>> *h)
+			{
+				type_count = sizeof...(C) + sizeof...(I) + sizeof...(E);
+
+				if constexpr (sizeof...(C) != 0)
+					is_collected = +[](type_info info) -> bool { return ((type_info::get<C>() == info) || ...); };
+				if constexpr (sizeof...(I) != 0)
+					is_included = +[](type_info info) -> bool { return ((type_info::get<I>() == info) || ...); };
+				if constexpr (sizeof...(E) != 0)
+					is_excluded = +[](type_info info) -> bool { return ((type_info::get<E>() == info) || ...); };
 
 				m_delete = +[](void *ptr) { delete static_cast<decltype(h)>(ptr); };
 				m_data = h;
 			}
-			~collection_sorter() { m_delete(m_data); }
 
-			[[nodiscard]] constexpr const void *get() const noexcept { return m_data; }
+			[[nodiscard]] constexpr void *get() const noexcept { return m_data; }
+
+			constexpr void swap(collection_sorter &other) noexcept
+			{
+				std::swap(type_count, other.type_count);
+				std::swap(is_collected, other.is_collected);
+				std::swap(is_included, other.is_included);
+				std::swap(is_excluded, other.is_excluded);
+				std::swap(m_delete, other.m_delete);
+				std::swap(m_data, other.m_data);
+			}
+			friend constexpr void swap(collection_sorter &a, collection_sorter &b) noexcept { a.swap(b); }
 
 			std::size_t type_count; /* Total amount of collected, included & excluded types. */
 
-			bool (*is_collected)(type_info info);
-			bool (*is_included)(type_info info);
-			bool (*is_excluded)(type_info info);
+			bool (*is_collected)(type_info info) = +[](type_info) -> bool { return false; };
+			bool (*is_included)(type_info info) = +[](type_info) -> bool { return false; };
+			bool (*is_excluded)(type_info info) = +[](type_info) -> bool { return false; };
 
 		private:
-			void (*m_delete)(void *);
-			void *m_data;
+			void (*m_delete)(void *) = +[](void *) {};
+			void *m_data = nullptr;
 		};
 	}	 // namespace detail
 
@@ -64,6 +124,9 @@ namespace sek::engine
 		class storage_entry
 		{
 		public:
+			storage_entry(const storage_entry &) = delete;
+			storage_entry &operator=(const storage_entry &) = delete;
+
 			constexpr storage_entry(storage_entry &&other) noexcept { swap(other); }
 			constexpr storage_entry &operator=(storage_entry &&other) noexcept
 			{
@@ -77,15 +140,15 @@ namespace sek::engine
 			}
 			constexpr ~storage_entry() { delete m_ptr; }
 
-			[[nodiscard]] constexpr basic_component_set *get() const noexcept { return m_ptr; }
-			[[nodiscard]] constexpr basic_component_set *operator->() const noexcept { return get(); }
-			[[nodiscard]] constexpr basic_component_set &operator*() const noexcept { return *get(); }
+			[[nodiscard]] constexpr generic_component_set *get() const noexcept { return m_ptr; }
+			[[nodiscard]] constexpr generic_component_set *operator->() const noexcept { return get(); }
+			[[nodiscard]] constexpr generic_component_set &operator*() const noexcept { return *get(); }
 
 			constexpr void swap(storage_entry &other) noexcept { std::swap(m_ptr, other.m_ptr); }
 			friend constexpr void swap(storage_entry &a, storage_entry &b) noexcept { a.swap(b); }
 
 		private:
-			basic_component_set *m_ptr = nullptr;
+			generic_component_set *m_ptr = nullptr;
 		};
 
 		struct table_hash
@@ -190,7 +253,7 @@ namespace sek::engine
 
 	public:
 		constexpr entity_world() = default;
-		constexpr ~entity_world() = default;
+		constexpr ~entity_world() { clear_storage(); }
 
 		/** Returns iterator to the first entity in the world. */
 		[[nodiscard]] constexpr auto begin() const noexcept { return iterator{m_entities.data()}; }
@@ -222,7 +285,7 @@ namespace sek::engine
 		 * @warning References to components and entities (except for collections) will be invalidated. */
 		constexpr void clear()
 		{
-			for (auto entry : m_storage) entry.second->clear();
+			clear_storage();
 			m_entities.clear();
 			m_next = entity_t::tombstone();
 			m_size = 0;
@@ -231,6 +294,7 @@ namespace sek::engine
 		 * @warning References to components and entities (including collections) will be invalidated. */
 		constexpr void purge()
 		{
+			clear_storage();
 			m_sorters.clear();
 			m_storage.clear();
 			m_entities.clear();
@@ -388,36 +452,38 @@ namespace sek::engine
 		}
 
 		/** Creates an entity query for this world. */
-		[[nodiscard]] constexpr auto query() noexcept { return entity_query{*this}; }
+		[[nodiscard]] constexpr auto query() noexcept;
 		/** @copydoc query */
-		[[nodiscard]] constexpr auto query() const noexcept { return entity_query{*this}; }
+		[[nodiscard]] constexpr auto query() const noexcept;
 
 		/** Returns a component view for the specified components.
 		 * @tparam I Components included by the component view.
 		 * @tparam E Components excluded by the component view.
 		 * @tparam O Optional components of the component view. */
 		template<typename... I, typename... E, typename... O>
-		[[nodiscard]] constexpr auto view(excluded_t<E...> = excluded_t<>{}, optional_t<O...> = optional_t<>{}) noexcept
-		{
-			return query().template include<I...>().template exclude<E...>().template optional<O...>().view();
-		}
+		[[nodiscard]] constexpr auto view(excluded_t<E...> = excluded_t<>{}, optional_t<O...> = optional_t<>{}) noexcept;
 		/** @copydoc view */
 		template<typename... I, typename... E, typename... O>
-		[[nodiscard]] constexpr auto view(excluded_t<E...> = excluded_t<>{}, optional_t<O...> = optional_t<>{}) const noexcept
-		{
-			return query().template include<I...>().template exclude<E...>().template optional<O...>().view();
-		}
+		[[nodiscard]] constexpr auto view(excluded_t<E...> = excluded_t<>{}, optional_t<O...> = optional_t<>{}) const noexcept;
 
-		/* TODO: Implement component collections. */
+		/** Returns a component collection for the specified components.
+		 * @tparam C Components collected by the component collection.
+		 * @tparam I Components included by the component view.
+		 * @tparam E Components excluded by the component view.
+		 * @tparam O Optional components of the component view.
+		 * @note Collected component types are implicitly included. */
+		template<typename... C, typename... I, typename... E, typename... O>
+		[[nodiscard]] constexpr auto collection(included_t<I...> = included_t<>{},
+												excluded_t<E...> = excluded_t<>{},
+												optional_t<O...> = optional_t<>{}) noexcept;
 
 		/** Checks if the specified component types are collected (sorted) by a collection.
 		 * @return `true` if any of the components are collected (sorted) by a collection, `false` otherwise. */
 		template<typename... Cs>
 		[[nodiscard]] constexpr bool is_collected() const noexcept
 		{
-			constexpr auto pred = [](const sorter_t &sorter)
-			{ return (sorter.is_collected(type_info::get<Cs>()) || ...); };
-			return std::any_of(m_sorters.begin(), m_sorters.end(), pred);
+			constexpr auto p = [](const sorter_t &sorter) { return (sorter.is_collected(type_info::get<Cs>()) || ...); };
+			return std::any_of(m_sorters.begin(), m_sorters.end(), p);
 		}
 		/** Sorts components according to the specified order. Components will be grouped together in order
 		 * to maximize cache performance.
@@ -530,14 +596,14 @@ namespace sek::engine
 		}
 		/** @copydoc release */
 		constexpr void release(const_iterator which) { release(*which); }
-		/** Destroys all components belonging to the entity & releases it. */
+		/** Destroys all components belonging to the entity and releases it. */
 		constexpr void destroy(entity_t e)
 		{
 			for (auto entry : m_storage)
 			{
-				auto &set = *entry.second;
-				if (const auto pos = set.find(e); pos != set.end()) [[unlikely]]
-					set.erase(pos);
+				auto &set = entry.second;
+				if (const auto pos = set->find(e); pos != set->end()) [[unlikely]]
+					set->erase(pos);
 			}
 			release(e);
 		}
@@ -566,71 +632,87 @@ namespace sek::engine
 		 *
 		 * @param e Entity to emplace component for.
 		 * @param args Arguments passed to component's constructor.
-		 * @return Reference to the replaced component (or `void`, if component is empty).
+		 * @return Pair of references to the entity and the replaced component.
 		 *
 		 * @warning Using an entity that does not exist or already has the specified component will result in undefined behavior. */
 		template<typename C, typename... Args>
 		constexpr decltype(auto) replace(entity_t e, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
-			return reserve_impl<C>().replace(e, std::forward<Args>(args)...);
+			return *reserve_impl<C>().replace(e, std::forward<Args>(args)...);
 		}
-		/** Constructs a component for the specified entity in-place (re-using slots if component type requires fixed storage).
+
+		/** @brief Generates a new entity and constructs a component in-place. Tombstones (if any) are re-used.
+		 * @param args Arguments passed to component's constructor.
+		 * @return Pair of references to the inserted entity and it's replaced component. */
+		template<typename C, typename... Args>
+		constexpr decltype(auto) emplace(Args &&...args)
+		{
+			return emplace(generate(), std::forward<Args>(args)...);
+		}
+		/** @brief Generates a new entity and constructs a component in-place.
+		 * Entities and components are always pushed to the end (tombstones are not re-used).
+		 *
+		 * @copydetails emplace */
+		template<typename C, typename... Args>
+		constexpr decltype(auto) emplace_back(Args &&...args)
+		{
+			return emplace_back(generate(), std::forward<Args>(args)...);
+		}
+		/** @brief Constructs a component for the specified entity in-place. Tombstones (if any) are re-used.
+		 *
+		 * @copydetails emplace
 		 *
 		 * @param e Entity to emplace component for.
-		 * @param args Arguments passed to component's constructor.
-		 * @return Reference to the emplaced component (or `void`, if component is empty).
-		 *
 		 * @warning Using an entity that does not exist or already has the specified component will result in undefined behavior. */
 		template<typename C, typename... Args>
 		constexpr decltype(auto) emplace(entity_t e, Args &&...args)
-			requires std::constructible_from<C, Args...>
 		{
 			return reserve_impl<C>().emplace(e, std::forward<Args>(args)...);
 		}
-		/** Constructs a component for the specified entity in-place (always at the end).
+		/** @brief Constructs a component for the specified entity in-place.
+		 * Entities and components are always pushed to the end (tombstones are not re-used).
+		 *
+		 * @copydetails emplace_back
 		 *
 		 * @param e Entity to emplace component for.
-		 * @param args Arguments passed to component's constructor.
-		 * @return Reference to the emplaced component (or `void`, if component is empty).
-		 *
 		 * @warning Using an entity that does not exist or already has the specified component will result in undefined behavior. */
 		template<typename C, typename... Args>
 		constexpr decltype(auto) emplace_back(entity_t e, Args &&...args)
-			requires std::constructible_from<C, Args...>
 		{
-			return reserve_impl<C>().emplace(e, std::forward<Args>(args)...);
+			return reserve_impl<C>().emplace_back(e, std::forward<Args>(args)...);
 		}
-		/** Emplaces or modifies a component for the specified entity (re-using slots if component type requires fixed storage).
+
+		/** @brief Creates or modifies a component for the specified entity. Tombstones (if any) are re-used.
 		 *
 		 * @param e Entity to emplace component for.
 		 * @param args Arguments passed to component's constructor.
-		 * @return Reference to the component (or `void`, if component is empty). */
+		 * @return Pair where first is a pair of references to the potentially inserted entity and it's component
+		 * and second is a boolean indicating whether the entity was inserted (`true` if inserted, `false` if replaced). */
 		template<typename C, typename... Args>
 		constexpr decltype(auto) emplace_or_replace(entity_t e, Args &&...args)
-			requires std::constructible_from<C, Args...>
 		{
 			return reserve_impl<C>().emplace_or_replace(e, std::forward<Args>(args)...);
 		}
-		/** Emplaces or modifies a component for the specified entity (always at the end).
+		/** @brief Creates or modifies a component for the specified entity.
+		 * Entities and components are always pushed to the end (tombstones are not re-used).
 		 *
-		 * @param e Entity to emplace component for.
-		 * @param args Arguments passed to component's constructor.
-		 * @return Reference to the component (or `void`, if component is empty). */
+		 * @copydetails emplace_or_replace */
 		template<typename C, typename... Args>
 		constexpr decltype(auto) emplace_back_or_replace(entity_t e, Args &&...args)
-			requires std::constructible_from<C, Args...>
 		{
 			return reserve_impl<C>().emplace_back_or_replace(e, std::forward<Args>(args)...);
 		}
 
-		/** Generates and inserts an entity with the specified components (re-using slots if component type requires fixed storage).
+		/** @brief Generates and inserts an entity with the specified components. Tombstones (if any) are re-used.
 		 * @tparam Cs Component types of the entity.
 		 * @return Iterator to the inserted entity. */
 		template<typename... Cs>
 		constexpr iterator insert()
 		{
-			return insert(Cs{}...);
+			const auto entity = generate();
+			(emplace<Cs>(entity), ...);
+			return to_iterator(entity);
 		}
 		/** @copydoc insert
 		 * @param cs Values of inserted components. */
@@ -639,15 +721,18 @@ namespace sek::engine
 		{
 			const auto entity = generate();
 			(emplace<Cs>(entity, std::forward<Cs>(cs)), ...);
-			return iterator{m_entities.data() + entity.index().value()};
+			return to_iterator(entity);
 		}
-		/** Generates and inserts an entity with the specified components (always at the end).
-		 * @tparam Cs Component types of the entity.
-		 * @return Iterator to the inserted entity. */
+		/** @brief Generates and inserts an entity with the specified components.
+		 * Entities and components are always pushed to the end (tombstones are not re-used).
+		 *
+		 * @copydetails insert() */
 		template<typename... Cs>
 		constexpr iterator push_back()
 		{
-			return push_back(Cs{}...);
+			const auto entity = generate();
+			(emplace_back<Cs>(entity), ...);
+			return to_iterator(entity);
 		}
 		/** @copydoc push_back
 		 * @param cs Values of inserted components. */
@@ -656,7 +741,7 @@ namespace sek::engine
 		{
 			const auto entity = generate();
 			(emplace_back<Cs>(entity, std::forward<Cs>(cs)), ...);
-			return iterator{m_entities.data() + entity.index().value()};
+			return to_iterator(entity);
 		}
 
 		/** Removes a component from the specified entity.
@@ -692,17 +777,28 @@ namespace sek::engine
 		}
 
 	private:
+		[[nodiscard]] constexpr iterator to_iterator(entity_t e) const noexcept
+		{
+			return iterator{m_entities.data() + e.index().value()};
+		}
+
+		constexpr void clear_storage()
+		{
+			/* Cannot clear all at once, since sorters require valid references. */
+			for (auto entry : m_storage) entry.second->clear();
+		}
+
+		[[nodiscard]] constexpr entity_t generate_new(entity_t::generation_type gen)
+		{
+			const auto idx = entity_t::index_type{m_entities.size()};
+			return (++m_size, !gen.is_tombstone() ? m_entities.emplace_back(gen, idx) : m_entities.emplace_back(idx));
+		}
 		[[nodiscard]] constexpr entity_t generate_existing(entity_t::generation_type gen)
 		{
 			const auto idx = m_next.index();
 			auto &target = m_entities[idx.value()];
 			m_next = entity_t{entity_t::generation_type::tombstone(), target.index()};
 			return target = entity_t{gen.is_tombstone() ? target.generation() : gen, idx};
-		}
-		[[nodiscard]] constexpr entity_t generate_new(entity_t::generation_type gen)
-		{
-			const auto idx = entity_t::index_type{m_entities.size()};
-			return (++m_size, !gen.is_tombstone() ? m_entities.emplace_back(gen, idx) : m_entities.emplace_back(idx));
 		}
 
 		template<typename T, typename U = std::remove_cv_t<T>>
@@ -772,17 +868,17 @@ namespace sek::engine
 		{
 			constexpr auto pred = [](const sorter_t &s) -> bool
 			{
-				if (const auto order = (0lu + ... + s.is_collected(type_info::get<Coll>())); order == 0)
-					return true;
+				if (const auto overlap = (0lu + ... + s.is_collected(type_info::get<Coll>())); overlap == 0)
+					return false;
 				else
 				{
 					const auto weak = (0lu + ... + s.is_included(type_info::get<Inc>())) +
 									  (0lu + ... + s.is_excluded(type_info::get<Exc>()));
-					const auto count = weak + order;
-					return (count == sizeof...(Coll) + sizeof...(Inc) + sizeof...(Exc)) || (count == s.type_count);
+					const auto count = weak + overlap;
+					return !(count == (sizeof...(Coll) + sizeof...(Inc) + sizeof...(Exc)) || count == s.type_count);
 				}
 			};
-			return !std::all_of(m_sorters.begin(), m_sorters.end(), pred);
+			return std::any_of(m_sorters.begin(), m_sorters.end(), pred);
 		}
 
 		storage_table m_storage;
@@ -802,19 +898,19 @@ namespace sek::engine
 				auto sorter = world.find_sorter(collected_t<C...>{}, included_t<I...>{}, excluded_t<E...>{});
 				if (sorter.first == sorter.second)
 				{
-					SEK_ASSERT(world.has_conflicts(collected_t<C...>{}, included_t<I...>{}, excluded_t<E...>{}),
+					SEK_ASSERT(!world.has_conflicts(collected_t<C...>{}, included_t<I...>{}, excluded_t<E...>{}),
 							   "Conflicting collections detected");
 
 					// clang-format off
-					constexpr auto sub_include = []<typename T>(component_set<T> &set, const void *n, const void *p, collection_handler *h)
+					[[maybe_unused]] constexpr auto sub_include = []<typename T>(component_set<T> &set, const void *n, const void *p, collection_handler *h)
 					{
-						set.on_create().subscribe_before(n, delegate{h, &collection_handler::template handle_create<T>});
-						set.on_remove().subscribe_before(p, delegate{h, &collection_handler::template handle_remove<T>});
+						set.on_create().subscribe_before(n, delegate{func_t<&collection_handler::template handle_create<T>>{}, h});
+						set.on_remove().subscribe_before(p, delegate{func_t<&collection_handler::template handle_remove<T>>{}, h});
 					};
-					constexpr auto sub_exclude = []<typename T>(component_set<T> &set, const void *n, const void *p, collection_handler *h)
+					[[maybe_unused]] constexpr auto sub_exclude = []<typename T>(component_set<T> &set, const void *n, const void *p, collection_handler *h)
 					{
-						set.on_create().subscribe_before(p, delegate{h, &collection_handler::template handle_remove<T>});
-						set.on_remove().subscribe_before(n, delegate{h, &collection_handler::template handle_create<T>});
+						set.on_create().subscribe_before(p, delegate{func_t<&collection_handler::template handle_remove<T>>{}, h});
+						set.on_remove().subscribe_before(n, delegate{func_t<&collection_handler::template handle_create<T>>{}, h});
 					};
 					// clang-format on
 
@@ -823,10 +919,9 @@ namespace sek::engine
 					 * least-restricted one. */
 					const auto next = world.next_sorter(collected_t<C...>{}, included_t<I...>{}, excluded_t<E...>{});
 					const auto prev = world.prev_sorter(collected_t<C...>{}, included_t<I...>{}, excluded_t<E...>{});
-					const void *next_handler, *prev_handler = nullptr;
 
-					next_handler = (next.first == next.second ? next_handler : next.first->get());
-					prev_handler = (prev.first == prev.second ? prev_handler : prev.first->get());
+					const void *next_handler = (next.first == next.second ? nullptr : next.first->get());
+					const void *prev_handler = (prev.first == prev.second ? nullptr : prev.first->get());
 					auto *handler = new collection_handler{};
 
 					/* Handle addition and removal of new components for both included and excluded types. */
@@ -836,7 +931,9 @@ namespace sek::engine
 
 					/* Go through all collected entities & sort their components. */
 					handler->template sort_entities<C...>(world);
-					world.m_sorters.emplace(handler);
+
+					world.m_sorters.emplace_back(handler);
+					return handler;
 				}
 				return static_cast<collection_handler *>(sorter.first->get());
 			}
@@ -845,18 +942,23 @@ namespace sek::engine
 			constexpr void sort_entities(entity_world &world)
 			{
 				using std::get;
-				const auto storage = std::forward_as_tuple(world.template get_storage<T, Ts...>());
-				for (auto count = get<component_set<T> *>(storage).size(), i = 0; i != count; ++i)
+				const auto storage = std::tuple<component_set<T> *, component_set<Ts> *...>(world.get_storage<T>(),
+																							world.get_storage<Ts>()...);
+				for (std::size_t count = get<component_set<T> *>(storage)->size(), i = 0; i != count; ++i)
 				{
 					const auto entity = get<component_set<T> *>(storage)->data()[i];
-					const auto accept =
-						(get<component_set<Ts> *>(storage)->contains(entity) && ...) &&
-						((std::is_same_v<T, I> || world.template get_storage<I>()->contains(entity)) && ...) &&
-						((std::is_same_v<T, E> || !world.template get_storage<E>()->contains(entity)) && ...);
+					const auto accept = (get<component_set<Ts> *>(storage)->contains(entity) && ...) &&
+										((std::is_same_v<T, I> || world.get_storage<I>()->contains(entity)) && ...) &&
+										((std::is_same_v<T, E> || !world.get_storage<E>()->contains(entity)) && ...);
 					if (accept && size <= i)
 					{
+						constexpr auto swap_elements = []<typename U>(component_set<U> *storage, std::size_t a, entity_t e)
+						{
+							const auto b = storage->offset(e);
+							storage->swap(a, b);
+						};
 						const auto last_pos = size++;
-						(get<component_set<C> *>(storage)->swap(last_pos, entity), ...);
+						(swap_elements(get<component_set<C> *>(storage), last_pos, entity), ...);
 					}
 				}
 			}
@@ -864,10 +966,10 @@ namespace sek::engine
 			void handle_create(entity_world &world, entity_t entity)
 			{
 				using std::get;
-				const auto storage = world.template reserve<C...>();
+				const auto storage = std::tuple<component_set<C> &...>{world.template reserve<C...>()};
 				const auto accept = ((std::is_same_v<T, C> || get<component_set<C> &>(storage).contains(entity)) && ...) &&
-									((std::is_same_v<T, I> || world.template reserve<I>().contains(entity)) && ...) &&
-									((std::is_same_v<T, E> || !world.template reserve<E>().contains(entity)) && ...);
+									((std::is_same_v<T, I> || world.reserve<I>().contains(entity)) && ...) &&
+									((std::is_same_v<T, E> || !world.reserve<E>().contains(entity)) && ...);
 
 				/* If the offset of the accepted entity is greater than the current size of the collection,
 				 * it should be appended to the collection. */
@@ -886,11 +988,11 @@ namespace sek::engine
 			void handle_remove(entity_world &world, entity_t entity)
 			{
 				using std::get;
-				const auto storage = world.template reserve<C...>();
+				const auto storage = std::tuple<component_set<C> &...>{world.template reserve<C...>()};
 
 				/* If the removed entity is collected by the collection, decrement the collection size and
 				 * remove the entity by swapping it to the end. */
-				if (get<0>(storage).contains(entity) && get<0>(storage).index(entity) < size)
+				if (get<0>(storage).contains(entity) && get<0>(storage).offset(entity) < size)
 				{
 					constexpr auto swap_elements = []<typename U>(component_set<U> &storage, std::size_t a, entity_t e)
 					{
@@ -902,7 +1004,7 @@ namespace sek::engine
 				}
 			}
 
-			std::size_t size;
+			std::size_t size = 0;
 		};
 		template<typename... I, typename... E>
 		struct collection_handler<collected_t<>, included_t<I...>, excluded_t<E...>>
@@ -912,18 +1014,18 @@ namespace sek::engine
 				auto sorter = world.find_sorter(collected_t<>{}, included_t<I...>{}, excluded_t<E...>{});
 				if (sorter.first == sorter.second)
 				{
-					SEK_ASSERT(has_conflicts(collected_t<>{}, included_t<I...>{}, excluded_t<E...>{}),
+					SEK_ASSERT(!world.has_conflicts(collected_t<>{}, included_t<I...>{}, excluded_t<E...>{}),
 							   "Conflicting collections detected");
 
-					constexpr auto sub_include = []<typename T>(component_set<T> &set, collection_handler *h)
+					[[maybe_unused]] constexpr auto sub_include = []<typename T>(component_set<T> &set, collection_handler *h)
 					{
-						set.on_create() += delegate{h, &collection_handler::template handle_create<T>};
-						set.on_remove() += delegate{h, &collection_handler::template handle_remove<T>};
+						set.on_create() += delegate{func_t<&collection_handler::template handle_create<T>>{}, h};
+						set.on_remove() += delegate{func_t<&collection_handler::template handle_remove<T>>{}, h};
 					};
-					constexpr auto sub_exclude = []<typename T>(component_set<T> &set, collection_handler *h)
+					[[maybe_unused]] constexpr auto sub_exclude = []<typename T>(component_set<T> &set, collection_handler *h)
 					{
-						set.on_create() += delegate{h, &collection_handler::template handle_remove<T>};
-						set.on_remove() += delegate{h, &collection_handler::template handle_create<T>};
+						set.on_create() += delegate{func_t<&collection_handler::template handle_remove<T>>{}, h};
+						set.on_remove() += delegate{func_t<&collection_handler::template handle_create<T>>{}, h};
 					};
 					auto *handler = new collection_handler{};
 
@@ -932,10 +1034,11 @@ namespace sek::engine
 					(sub_exclude(world.template reserve<E>(), handler), ...);
 
 					/* Fill the collection with the contents of a view. */
-					for (const auto entity : world.template view<I...>(excluded_t<E...>{}))
-						handler->entities.emplace(entity);
+					const auto view = world.template view<I...>(excluded_t<E...>{});
+					handler->entities.insert(view.begin(), view.end());
 
-					return std::to_address(world.m_sorters.emplace(handler));
+					world.m_sorters.emplace_back(handler);
+					return handler;
 				}
 				else
 					return static_cast<collection_handler *>(sorter.first->get());
@@ -945,8 +1048,8 @@ namespace sek::engine
 			void handle_create(entity_world &world, entity_t entity)
 			{
 				/* If the entity is accepted, try to insert it into the set. */
-				if (((std::is_same_v<C, I> || world.template reserve<I>().contains(entity)) && ...) &&
-					((std::is_same_v<C, E> || !world.template reserve<E>().contains(entity)) && ...))
+				if (((std::is_same_v<C, I> || world.reserve<I>().contains(entity)) && ...) &&
+					((std::is_same_v<C, E> || !world.reserve<E>().contains(entity)) && ...))
 					entities.try_insert(entity);
 			}
 			template<typename C>
@@ -956,83 +1059,35 @@ namespace sek::engine
 				entities.erase(entity);
 			}
 
-			[[nodiscard]] constexpr auto size() const noexcept { return entities.size(); }
-			[[nodiscard]] constexpr auto empty() const noexcept { return entities.empty(); }
-			[[nodiscard]] constexpr auto contains(entity_t e) const noexcept { return entities.contains(e); }
-
-			[[nodiscard]] constexpr auto get_offset(entity_t e) const noexcept { return entities.offset(e); }
-			[[nodiscard]] constexpr auto get_entity(std::ptrdiff_t i) const noexcept { return &entities.at(i); }
-
 			entity_set entities;
 		};
+
+		template<typename T>
+		constexpr auto opt_set_get(component_set<T> *set, entity_t e) noexcept -> T *
+		{
+			if (set == nullptr) [[unlikely]]
+				return nullptr;
+
+			const auto pos = set->find(e);
+			if (pos == set->end()) [[unlikely]]
+				return nullptr;
+
+			return std::addressof(pos->second);
+		}
+		template<typename T>
+		constexpr auto opt_set_get(const component_set<T> *set, entity_t e) noexcept -> std::add_const_t<T> *
+		{
+			if (set == nullptr) [[unlikely]]
+				return nullptr;
+
+			const auto pos = set->find(e);
+			if (pos == set->end()) [[unlikely]]
+				return nullptr;
+
+			return std::addressof(pos->second);
+		}
 	}	 // namespace detail
 
-	template<typename W, typename... C, typename... I, typename... E, typename... O>
-	constexpr auto entity_query<W, collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>::view() const
-	{
-		// clang-format off
-		return component_view<included_t<I...>, excluded_t<E...>, optional_t<O...>>{
-			m_parent->template storage<I>()...,
-			m_parent->template storage<E>()...,
-			m_parent->template storage<O>()...
-		};
-		// clang-format on
-	}
-	template<typename W, typename... C, typename... I, typename... E, typename... O>
-	constexpr auto entity_query<W, collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>::collection() const
-	{
-		static_assert(!is_read_only, "Collections are not available for read-only queries");
-
-		using handler_t = detail::collection_handler<included_t<C...>, included_t<I...>, excluded_t<E...>>;
-
-		// clang-format off
-		return component_collection<included_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>{
-			handler_t::make_handler(*m_parent),
-			m_parent->template storage<C>()...,
-			m_parent->template storage<I>()...,
-			m_parent->template storage<E>()...,
-			m_parent->template storage<O>()...
-		};
-		// clang-format on
-	}
-	template<typename... C, typename... I, typename... E, typename... O>
-	constexpr bool component_collection<collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>::empty() const noexcept
-	{
-		return m_handler == nullptr || m_handler->empty();
-	}
-	template<typename... C, typename... I, typename... E, typename... O>
-	constexpr typename component_collection<collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>::size_type
-		component_collection<collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>::size() const noexcept
-	{
-		return m_handler != nullptr ? m_handler->size() : 0;
-	}
-
-	template<typename... C, typename... I, typename... E, typename... O>
-	constexpr typename component_collection<collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>::iterator
-		component_collection<collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>::find(entity_t entity) const noexcept
-	{
-		if (contains(entity)) [[likely]]
-			return iterator{this, m_handler->offset(entity) + 1};
-		else
-			return end();
-	}
-	template<typename... C, typename... I, typename... E, typename... O>
-	constexpr bool component_collection<collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>::contains(
-		entity_t entity) const noexcept
-	{
-		return m_handler != nullptr ? m_handler->contains(entity) : 0;
-	}
-
-	template<typename... C, typename... I, typename... E, typename... O>
-	constexpr typename component_collection<collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>::pointer
-		component_collection<collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>::get_entity(difference_type i) const noexcept
-	{
-		return m_handler->get_entity(i);
-	}
-	template<typename... C, typename... I, typename... E, typename... O>
-	constexpr typename component_collection<collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>::size_type
-		component_collection<collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>::get_offset(entity_t e) const noexcept
-	{
-		return m_handler->get_offset(e);
-	}
+	/* TODO: Implement generic component set iteration (i.e. world returns a view of generic component sets or generic
+	 * set directly and the user can then iterate over those). */
 }	 // namespace sek::engine

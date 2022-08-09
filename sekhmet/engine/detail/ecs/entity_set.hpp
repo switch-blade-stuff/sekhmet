@@ -308,7 +308,7 @@ namespace sek::engine
 		/** Returns pointer to the dense array of entities.
 		 * @note Dense array may include tombstones (if any). */
 		[[nodiscard]] constexpr const entity_t *data() const noexcept { return m_dense.data(); }
-		/** Returns reference to the entity located at the specified dense offset. */
+		/** Returns reference to the entity located at the specified offset within the set. */
 		[[nodiscard]] constexpr reference at(size_type i) const noexcept { return data()[i]; }
 
 		/** Returns the amount of entities contained within the set.
@@ -538,11 +538,21 @@ namespace sek::engine
 		/** Erases the entity from the set using swap & pop (without leaving tombstones). */
 		constexpr iterator erase(const_iterator which) { return to_iterator(erase_(offset(which))); }
 		/** @copydoc erase */
-		constexpr iterator erase(entity_t entity) { return to_iterator(erase_(offset(entity))); }
+		constexpr iterator erase(entity_t entity)
+		{
+			if (const auto pos = find(entity); pos != end()) [[likely]]
+				return erase(pos);
+			return end();
+		}
 		/** Erases the entity from the set in-place, leaving a tombstone. */
 		constexpr iterator fixed_erase(const_iterator which) { return to_iterator(fixed_erase_(offset(which))); }
 		/** @copydoc fixed_erase */
-		constexpr iterator fixed_erase(entity_t entity) { return to_iterator(fixed_erase_(offset(entity))); }
+		constexpr iterator fixed_erase(entity_t entity)
+		{
+			if (const auto pos = find(entity); pos != end()) [[likely]]
+				return fixed_erase(pos);
+			return end();
+		}
 
 		/** Returns allocator used for the entity set. */
 		[[nodiscard]] constexpr allocator_type get_allocator() const noexcept { return *alloc_base::get(); }

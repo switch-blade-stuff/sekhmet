@@ -4,4 +4,5 @@
 
 #pragma once
 
+#include "detail/ecs/query.hpp"
 #include "detail/ecs/world.hpp"

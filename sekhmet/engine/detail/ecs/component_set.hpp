@@ -13,7 +13,7 @@
 namespace sek::engine
 {
 	/** @brief Structure used to store a set of entities and provide a type-erased access to their components. */
-	class basic_component_set : basic_entity_set<std::allocator<entity_t>>
+	class generic_component_set : basic_entity_set<std::allocator<entity_t>>
 	{
 		template<typename>
 		friend class component_set;
@@ -37,27 +37,27 @@ namespace sek::engine
 		typedef typename base_set::size_type size_type;
 
 	protected:
-		constexpr basic_component_set(type_info type, entity_world &world) : m_world(&world), m_type(type) {}
-		constexpr basic_component_set(type_info type, entity_world &world, size_type n)
+		constexpr generic_component_set(type_info type, entity_world &world) : m_world(&world), m_type(type) {}
+		constexpr generic_component_set(type_info type, entity_world &world, size_type n)
 			: base_set(n), m_world(&world), m_type(type)
 		{
 		}
 
 		// clang-format off
-		constexpr basic_component_set(basic_component_set &&)
+		constexpr generic_component_set(generic_component_set &&)
 			noexcept(std::is_nothrow_move_constructible_v<base_set> &&
 					 std::is_nothrow_move_constructible_v<event_type>) = default;
-		constexpr basic_component_set &operator=(basic_component_set &&)
+		constexpr generic_component_set &operator=(generic_component_set &&)
 			noexcept(std::is_nothrow_move_assignable_v<base_set> &&
 			         std::is_nothrow_move_assignable_v<event_type>) = default;
 		// clang-format on
 
 	public:
-		basic_component_set() = delete;
-		basic_component_set(const basic_component_set &) = delete;
-		basic_component_set &operator=(const basic_component_set &) = delete;
+		generic_component_set() = delete;
+		generic_component_set(const generic_component_set &) = delete;
+		generic_component_set &operator=(const generic_component_set &) = delete;
 
-		constexpr virtual ~basic_component_set() = default;
+		constexpr virtual ~generic_component_set() = default;
 
 		/** @copydoc base_set::begin */
 		[[nodiscard]] constexpr iterator begin() noexcept { return base_set::begin(); }
@@ -398,10 +398,10 @@ namespace sek::engine
 
 	/** @brief Type-specific implementation of component set. */
 	template<typename T>
-	class component_set final : public basic_component_set
+	class component_set final : public generic_component_set
 	{
 		using pool_t = detail::component_pool<T>;
-		using base_t = basic_component_set;
+		using base_t = generic_component_set;
 		using base_iter = typename base_t::iterator;
 
 	public:
@@ -679,6 +679,13 @@ namespace sek::engine
 			base_t::reserve(n);
 			reserve_impl(n);
 		}
+
+		/** @copydoc base_t::swap(size_type, size_type) */
+		constexpr void swap(size_type a, size_type b) { base_t::swap(a, b); }
+		/** @copydoc base_t::swap(entity_t, entity_t) */
+		constexpr void swap(entity_t a, entity_t b) { base_t::swap(a, b); }
+		/** @copydoc base_t::swap(base_iter, base_iter) */
+		constexpr void swap(const_iterator a, const_iterator b) { base_t::swap(offset(a), offset(b)); }
 
 		// clang-format off
 		/** @brief Replaces component of the specified entity with an in-place constructed instance.
@@ -1142,7 +1149,7 @@ namespace sek::engine
 		constexpr void move_(size_type to, size_type from) final { m_pool.move_value(to, from); }
 		constexpr void swap_(size_type lhs, size_type rhs) final { m_pool.swap_value(lhs, rhs); }
 
-		/* basic_component_set overrides */
+		/* generic_component_set overrides */
 		[[nodiscard]] any_ref get_any(base_iter entity) noexcept final { return get_any(entity.offset()); }
 		[[nodiscard]] any_ref get_any(base_iter entity) const noexcept final { return get_any(entity.offset()); }
 
@@ -1159,6 +1166,7 @@ namespace sek::engine
 
 		/* Hide these from public API. */
 		using base_t::erase;
+		using base_t::swap;
 
 		pool_t m_pool;
 	};
