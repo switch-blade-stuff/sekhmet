@@ -252,6 +252,12 @@ namespace sek::engine
 		typedef std::ptrdiff_t difference_type;
 
 	public:
+		entity_world(const entity_world &) = delete;
+		entity_world &operator=(const entity_world &) = delete;
+
+		constexpr entity_world(entity_world &&) noexcept = default;
+		constexpr entity_world &operator=(entity_world &&) noexcept = default;
+
 		constexpr entity_world() = default;
 		constexpr ~entity_world() { clear_storage(); }
 

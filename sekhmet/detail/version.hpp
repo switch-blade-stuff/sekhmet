@@ -100,8 +100,8 @@ namespace sek
 		constexpr basic_version() noexcept = default;
 		template<std::integral... Args>
 		constexpr basic_version(Args... args) noexcept
-			requires std::conjunction_v<std::is_constructible<Components, Args>
-										...> : detail::basic_version_base<0, Components...>(args...)
+			requires std::conjunction_v<std::is_constructible<Components, Args>...>
+		: detail::basic_version_base<0, Components...>(args...)
 		{
 		}
 
@@ -293,7 +293,8 @@ namespace sek
 {
 	using version_base_t = basic_version<std::uint16_t, std::uint16_t, std::uint32_t>;
 
-	/** @brief Structure holding 3 integers representing a version number. Equivalent to `basic_version<std::uint16_t, std::uint16_t, std::uint32_t>`. */
+	/** @brief Structure holding 3 integers representing a "semantic" version number or a compatible version number
+	 * format. Equivalent to `basic_version<std::uint16_t, std::uint16_t, std::uint32_t>`. */
 	struct version : version_base_t
 	{
 		constexpr version() noexcept = default;
