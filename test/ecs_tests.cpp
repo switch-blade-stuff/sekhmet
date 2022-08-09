@@ -63,7 +63,7 @@ namespace
 template class sek::engine::component_set<int>;
 template class sek::engine::component_set<dummy_t>;
 
-TEST(ecs_tests, pool_test)
+TEST(ecs_tests, set_test)
 {
 	sek::engine::entity_world world;
 
@@ -72,61 +72,61 @@ TEST(ecs_tests, pool_test)
 	const sek::engine::entity_t e2 = {sek::engine::entity_t::index_type{2}};
 
 	{
-		auto p = sek::engine::component_set<int>{world};
-		p.emplace(e0);
-		p.emplace(e1);
-		p.emplace(e2);
+		auto s = sek::engine::component_set<int>{world};
+		s.emplace(e0);
+		s.emplace(e1);
+		s.emplace(e2);
 
-		EXPECT_EQ(p.size(), 3);
+		EXPECT_EQ(s.size(), 3);
 
-		p.get(e0) = 0;
-		p.get(e1) = 1;
-		p.get(e2) = 2;
+		s.get(e0) = 0;
+		s.get(e1) = 1;
+		s.get(e2) = 2;
 
-		EXPECT_EQ((p.begin() + 0)->second, 2);
-		EXPECT_EQ((p.begin() + 1)->second, 1);
-		EXPECT_EQ((p.begin() + 2)->second, 0);
+		EXPECT_EQ((s.begin() + 0)->second, 2);
+		EXPECT_EQ((s.begin() + 1)->second, 1);
+		EXPECT_EQ((s.begin() + 2)->second, 0);
 
 		const auto order = std::array{e1, e0};
-		p.sort(order.begin(), order.end());
-		EXPECT_EQ((p.begin() + 0)->second, 0);
-		EXPECT_EQ((p.begin() + 1)->second, 1);
-		EXPECT_EQ((p.begin() + 2)->second, 2);
+		s.sort(order.begin(), order.end());
+		EXPECT_EQ((s.begin() + 0)->second, 0);
+		EXPECT_EQ((s.begin() + 1)->second, 1);
+		EXPECT_EQ((s.begin() + 2)->second, 2);
 
-		p.erase(e2);
-		EXPECT_EQ(p.size(), 2);
-		EXPECT_EQ(p.find(e0)->second, 0);
-		EXPECT_EQ(p.find(e1)->second, 1);
+		s.erase(e2);
+		EXPECT_EQ(s.size(), 2);
+		EXPECT_EQ(s.find(e0)->second, 0);
+		EXPECT_EQ(s.find(e1)->second, 1);
 	}
 	{
-		auto p = sek::engine::component_set<dummy_t>{world};
-		p.emplace(e0);
-		p.emplace(e1);
-		p.emplace(e2);
+		auto s = sek::engine::component_set<dummy_t>{world};
+		s.emplace(e0);
+		s.emplace(e1);
+		s.emplace(e2);
 
-		EXPECT_EQ(p.size(), 3);
-		EXPECT_TRUE(p.contains(e0));
-		EXPECT_TRUE(p.contains(e1));
-		EXPECT_TRUE(p.contains(e2));
+		EXPECT_EQ(s.size(), 3);
+		EXPECT_TRUE(s.contains(e0));
+		EXPECT_TRUE(s.contains(e1));
+		EXPECT_TRUE(s.contains(e2));
 
-		p.erase(e2);
-		EXPECT_EQ(p.size(), 2);
-		EXPECT_TRUE(p.contains(e0));
-		EXPECT_TRUE(p.contains(e1));
-		EXPECT_FALSE(p.contains(e2));
+		s.erase(e2);
+		EXPECT_EQ(s.size(), 2);
+		EXPECT_TRUE(s.contains(e0));
+		EXPECT_TRUE(s.contains(e1));
+		EXPECT_FALSE(s.contains(e2));
 	}
 	{
-		auto pi0 = sek::engine::component_set<int>{world};
-		pi0.emplace(e0, 0);
-		pi0.emplace(e1, 1);
+		auto si0 = sek::engine::component_set<int>{world};
+		si0.emplace(e0, 0);
+		si0.emplace(e1, 1);
 
-		auto pf0 = sek::engine::component_set<float>{world};
-		pf0.emplace(e0, 0.0f);
-		pf0.emplace(e1, 1.0f);
-		pf0.emplace(e2, 2.0f);
+		auto sf0 = sek::engine::component_set<float>{world};
+		sf0.emplace(e0, 0.0f);
+		sf0.emplace(e1, 1.0f);
+		sf0.emplace(e2, 2.0f);
 
-		auto iptr = sek::engine::component_ptr{e0, pi0};
-		auto fptr = sek::engine::component_ptr{e0, pf0};
+		auto iptr = sek::engine::component_ptr{e0, si0};
+		auto fptr = sek::engine::component_ptr{e0, sf0};
 		EXPECT_TRUE(iptr);
 		EXPECT_TRUE(fptr);
 		EXPECT_EQ(*iptr, 0);
@@ -135,9 +135,28 @@ TEST(ecs_tests, pool_test)
 		auto pi1 = sek::engine::component_set<int>{world};
 		pi1.emplace(e0, 10);
 
-		EXPECT_EQ(iptr.reset(&pi1), &pi0);
+		EXPECT_EQ(iptr.reset(&pi1), &si0);
 		EXPECT_TRUE(iptr);
 		EXPECT_EQ(*iptr, 10);
+	}
+	{
+		const auto a0 = sek::engine::forward_any<int>(0);
+		const auto a1 = sek::engine::forward_any<int>(1);
+
+		auto s = sek::engine::component_set<int>{world};
+		auto &gs = static_cast<sek::engine::generic_component_set &>(s);
+
+		gs.insert(e0, a0);
+		gs.insert(e1, a1);
+
+		EXPECT_TRUE(s.contains(e0));
+		EXPECT_TRUE(s.contains(e1));
+
+		EXPECT_EQ(gs.get_any(e0).cast<int>(), a0.cast<int>());
+		EXPECT_EQ(gs.get_any(e1).cast<int>(), a1.cast<int>());
+
+		EXPECT_EQ(gs.get_any(e0).as_ptr<int>(), &s.get(e0));
+		EXPECT_EQ(gs.get_any(e1).as_ptr<int>(), &s.get(e1));
 	}
 }
 
