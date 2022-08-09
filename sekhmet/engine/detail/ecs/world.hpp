@@ -123,10 +123,10 @@ namespace sek::engine
 
 		struct storage_ptr
 		{
-			storage_ptr() = delete;
 			storage_ptr(const storage_ptr &) = delete;
 			storage_ptr &operator=(const storage_ptr &) = delete;
 
+			constexpr storage_ptr() noexcept = default;
 			constexpr storage_ptr(storage_ptr &&other) noexcept { swap(other); }
 			constexpr storage_ptr &operator=(storage_ptr &&other) noexcept
 			{
@@ -433,9 +433,8 @@ namespace sek::engine
 	public:
 		entity_world(const entity_world &) = delete;
 		entity_world &operator=(const entity_world &) = delete;
-
-		constexpr entity_world(entity_world &&) noexcept = default;
-		constexpr entity_world &operator=(entity_world &&) noexcept = default;
+		entity_world(entity_world &&) = delete;
+		entity_world &operator=(entity_world &&) = delete;
 
 		constexpr entity_world() = default;
 		constexpr ~entity_world() { clear_storage(); }
