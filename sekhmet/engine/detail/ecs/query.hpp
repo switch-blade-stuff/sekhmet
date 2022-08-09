@@ -12,7 +12,7 @@ namespace sek::engine
 	/** @brief Query structure used to build a component collection or a view.
 	 *
 	 * @tparam W World type used for the query.
-	 * @tparam C Component types collected by the query.
+	 * @tparam C Component types collected by the query (owned by a collection made from the query).
 	 * @tparam I Component types included by the query.
 	 * @tparam E Component types excluded from the query.
 	 * @tparam O Component types optional to the query (must be included).
@@ -21,7 +21,7 @@ namespace sek::engine
 	 * @note Collected components cannot be fixed-storage (`component_traits::is_fixed` must not be defined).
 	 * @note Collecting queries can only be created for non-constant worlds. */
 	template<typename W, typename... C, typename... I, typename... E, typename... O>
-	class entity_query<W, collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>
+	class entity_query<W, owned_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>
 	{
 		friend class entity_world;
 
@@ -40,16 +40,16 @@ namespace sek::engine
 
 		template<typename... Ts>
 		using collect_query =
-			entity_query<W, collected_t<C..., Ts...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>;
+			entity_query<W, owned_t<C..., Ts...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>;
 		template<typename... Ts>
 		using include_query =
-			entity_query<W, collected_t<C...>, included_t<I..., Ts...>, excluded_t<E...>, optional_t<O...>>;
+			entity_query<W, owned_t<C...>, included_t<I..., Ts...>, excluded_t<E...>, optional_t<O...>>;
 		template<typename... Ts>
 		using exclude_query =
-			entity_query<W, collected_t<C...>, included_t<I...>, excluded_t<E..., Ts...>, optional_t<O...>>;
+			entity_query<W, owned_t<C...>, included_t<I...>, excluded_t<E..., Ts...>, optional_t<O...>>;
 		template<typename... Ts>
 		using optional_query =
-			entity_query<W, collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O..., Ts...>>;
+			entity_query<W, owned_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O..., Ts...>>;
 
 	public:
 		entity_query() = delete;
@@ -85,7 +85,7 @@ namespace sek::engine
 			return optional_query<transfer_cv_t<W, Cs>...>{*m_parent};
 		}
 
-		/** Returns a new query with `Cs` components added to the collected components list.
+		/** Returns a new query with `Cs` components added to the collected (owned) components list.
 		 * @return New query instance.
 		 * @note Collected components are implicitly included.
 		 * @note Collecting queries are only allowed for non-const worlds. */
@@ -97,14 +97,14 @@ namespace sek::engine
 		}
 		/** Returns a component collection made using this query.
 		 * @note Collections are only allowed for non-const worlds.
-		 * @note Collections sort collected components and track any modifications to component sets. */
+		 * @note Collections sort owned components and track any modifications to component sets. */
 		[[nodiscard]] constexpr auto collection() const
 		{
 			static_assert(!is_read_only, "Collections are not available for read-only queries");
-			using handler_t = detail::collection_handler<collected_t<C...>, included_t<I...>, excluded_t<E...>>;
+			using handler_t = detail::collection_handler<owned_t<C...>, included_t<I...>, excluded_t<E...>>;
 
 			// clang-format off
-			return component_collection<collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>{
+			return component_collection<owned_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>{
 				handler_t::make_handler(*m_parent),
 				m_parent->template storage<C>()...,
 				m_parent->template storage<I>()...,
@@ -131,9 +131,9 @@ namespace sek::engine
 	};
 
 	template<typename W>
-	entity_query(W &) -> entity_query<W, collected_t<>, included_t<>, excluded_t<>, optional_t<>>;
+	entity_query(W &) -> entity_query<W, owned_t<>, included_t<>, excluded_t<>, optional_t<>>;
 	template<typename W>
-	entity_query(const W &) -> entity_query<const W, collected_t<>, included_t<>, excluded_t<>, optional_t<>>;
+	entity_query(const W &) -> entity_query<const W, owned_t<>, included_t<>, excluded_t<>, optional_t<>>;
 
 	constexpr auto entity_world::query() noexcept { return entity_query{*this}; }
 	constexpr auto entity_world::query() const noexcept { return entity_query{*this}; }

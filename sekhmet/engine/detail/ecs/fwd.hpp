@@ -19,7 +19,7 @@ namespace sek::engine
 	class component_set;
 
 	template<typename...>
-	struct collected_t;
+	struct owned_t;
 	template<typename...>
 	struct included_t;
 	template<typename...>

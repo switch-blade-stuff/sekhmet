@@ -283,11 +283,11 @@ TEST(ecs_tests, view_test)
 	printf("%.2f ns\n", ns.count());
 }
 
-template class sek::engine::component_collection<collected_t<flag_t>>;
-template class sek::engine::component_collection<collected_t<int>, included_t<>, excluded_t<>, optional_t<flag_t>>;
-template class sek::engine::component_collection<collected_t<int>, included_t<>, excluded_t<dummy_t>, optional_t<flag_t>>;
-template class sek::engine::component_collection<collected_t<int, float>, included_t<>, excluded_t<dummy_t>, optional_t<flag_t>>;
-template class sek::engine::component_collection<collected_t<>, included_t<int, flag_t>, excluded_t<>, optional_t<>>;
+template class sek::engine::component_collection<owned_t<flag_t>>;
+template class sek::engine::component_collection<owned_t<int>, included_t<>, excluded_t<>, optional_t<flag_t>>;
+template class sek::engine::component_collection<owned_t<int>, included_t<>, excluded_t<dummy_t>, optional_t<flag_t>>;
+template class sek::engine::component_collection<owned_t<int, float>, included_t<>, excluded_t<dummy_t>, optional_t<flag_t>>;
+template class sek::engine::component_collection<owned_t<>, included_t<int, flag_t>, excluded_t<>, optional_t<>>;
 
 TEST(ecs_tests, collection_test)
 {

@@ -14,12 +14,12 @@
 namespace sek::engine
 {
 	template<typename... Cs>
-	struct collected_t
+	struct owned_t
 	{
 		using type = type_seq_t<Cs...>;
 
-		constexpr collected_t() noexcept = default;
-		constexpr collected_t(type_seq_t<Cs...>) noexcept {}
+		constexpr owned_t() noexcept = default;
+		constexpr owned_t(type_seq_t<Cs...>) noexcept {}
 	};
 	template<typename... Cs>
 	struct included_t
@@ -67,7 +67,7 @@ namespace sek::engine
 			constexpr ~collection_sorter() { m_delete(m_data); }
 
 			template<typename... C, typename... I, typename... E>
-			constexpr explicit collection_sorter(collection_handler<collected_t<C...>, included_t<I...>, excluded_t<E...>> *h)
+			constexpr explicit collection_sorter(collection_handler<owned_t<C...>, included_t<I...>, excluded_t<E...>> *h)
 			{
 				type_count = sizeof...(C) + sizeof...(I) + sizeof...(E);
 
@@ -680,7 +680,7 @@ namespace sek::engine
 		[[nodiscard]] constexpr auto view(excluded_t<E...> = excluded_t<>{}, optional_t<O...> = optional_t<>{}) const noexcept;
 
 		/** Returns a component collection for the specified components.
-		 * @tparam C Components collected by the component collection.
+		 * @tparam C Components owned (sorted) by the component collection.
 		 * @tparam I Components included by the component view.
 		 * @tparam E Components excluded by the component view.
 		 * @tparam O Optional components of the component view.
@@ -690,8 +690,8 @@ namespace sek::engine
 												excluded_t<E...> = excluded_t<>{},
 												optional_t<O...> = optional_t<>{}) noexcept;
 
-		/** Checks if the specified component types are collected (sorted) by a collection.
-		 * @return `true` if any of the components are collected (sorted) by a collection, `false` otherwise. */
+		/** Checks if the specified component types are collected (owned) by a collection.
+		 * @return `true` if any of the components are collected (owned) by a collection, `false` otherwise. */
 		template<typename... Cs>
 		[[nodiscard]] constexpr bool is_collected() const noexcept
 		{
@@ -712,8 +712,8 @@ namespace sek::engine
 		 * Sorts component sets to group entities with `cmp_a` and `cmp_b` together.
 		 *
 		 * @note Sorting in-place components will invalidate references to said components.
-		 * @warning Components cannot be sorted if a conflicting collection exists for the specified components.
-		 * Sorting such components will result in undefined behavior. */
+		 * @warning Components cannot be sorted if a conflicting collection exists for the specified components
+		 * (i.e. they are owned by a collection). Sorting such components will result in undefined behavior. */
 		template<typename Parent, typename C, typename... Cs>
 		constexpr void sort()
 		{
@@ -736,8 +736,8 @@ namespace sek::engine
 		 * @param pred Predicate used for sorting.
 		 *
 		 * @note Sorting in-place components will invalidate references to said components.
-		 * @warning Components cannot be sorted if a conflicting collection exists for component type `C`.
-		 * Sorting such components will result in undefined behavior. */
+		 * @warning Components cannot be sorted if a conflicting collection exists  for component type `C`
+		 * (i.e. they are owned by a collection). Sorting such components will result in undefined behavior. */
 		template<typename C, typename P>
 		constexpr void sort(P &&pred) requires(std::is_invocable_r_v<bool, P, const C &, const C &> ||
 											   std::is_invocable_r_v<bool, P, entity_t, entity_t>)
@@ -1046,7 +1046,7 @@ namespace sek::engine
 		}
 
 		template<typename... Coll, typename... Inc, typename... Exc>
-		[[nodiscard]] constexpr auto find_sorter(collected_t<Coll...>, included_t<Inc...>, excluded_t<Exc...>) const noexcept
+		[[nodiscard]] constexpr auto find_sorter(owned_t<Coll...>, included_t<Inc...>, excluded_t<Exc...>) const noexcept
 		{
 			constexpr auto pred = [](const sorter_t &sorter) -> bool
 			{
@@ -1058,7 +1058,7 @@ namespace sek::engine
 			return std::pair{std::find_if(m_sorters.begin(), m_sorters.end(), pred), m_sorters.end()};
 		}
 		template<typename... Coll, typename... Inc, typename... Exc>
-		[[nodiscard]] constexpr auto next_sorter(collected_t<Coll...>, included_t<Inc...>, excluded_t<Exc...>) const noexcept
+		[[nodiscard]] constexpr auto next_sorter(owned_t<Coll...>, included_t<Inc...>, excluded_t<Exc...>) const noexcept
 		{
 			constexpr auto pred = [](const sorter_t &s) -> bool
 			{
@@ -1068,14 +1068,14 @@ namespace sek::engine
 			return std::pair{std::find_if(m_sorters.begin(), m_sorters.end(), pred), m_sorters.end()};
 		}
 		template<typename... Coll, typename... Inc, typename... Exc>
-		[[nodiscard]] constexpr auto prev_sorter(collected_t<Coll...>, included_t<Inc...>, excluded_t<Exc...>) const noexcept
+		[[nodiscard]] constexpr auto prev_sorter(owned_t<Coll...>, included_t<Inc...>, excluded_t<Exc...>) const noexcept
 		{
 			constexpr auto pred = [](const sorter_t &s) -> bool
 			{ return (s.is_collected(type_info::get<Coll>()) || ...); };
 			return std::pair{std::find_if(m_sorters.begin(), m_sorters.end(), pred), m_sorters.end()};
 		}
 		template<typename... Coll, typename... Inc, typename... Exc>
-		[[nodiscard]] constexpr bool has_conflicts(collected_t<Coll...>, included_t<Inc...>, excluded_t<Exc...>) const noexcept
+		[[nodiscard]] constexpr bool has_conflicts(owned_t<Coll...>, included_t<Inc...>, excluded_t<Exc...>) const noexcept
 		{
 			constexpr auto pred = [](const sorter_t &s) -> bool
 			{
@@ -1102,14 +1102,14 @@ namespace sek::engine
 	namespace detail
 	{
 		template<typename... C, typename... I, typename... E>
-		struct collection_handler<collected_t<C...>, included_t<I...>, excluded_t<E...>>
+		struct collection_handler<owned_t<C...>, included_t<I...>, excluded_t<E...>>
 		{
 			[[nodiscard]] static collection_handler *make_handler(entity_world &world)
 			{
-				auto sorter = world.find_sorter(collected_t<C...>{}, included_t<I...>{}, excluded_t<E...>{});
+				auto sorter = world.find_sorter(owned_t<C...>{}, included_t<I...>{}, excluded_t<E...>{});
 				if (sorter.first == sorter.second)
 				{
-					SEK_ASSERT(!world.has_conflicts(collected_t<C...>{}, included_t<I...>{}, excluded_t<E...>{}),
+					SEK_ASSERT(!world.has_conflicts(owned_t<C...>{}, included_t<I...>{}, excluded_t<E...>{}),
 							   "Conflicting collections detected");
 
 					// clang-format off
@@ -1128,8 +1128,8 @@ namespace sek::engine
 					/* Next collection should be the more restricted one, while the previous is the less restricted one.
 					 * Since collections sort their components, the most-restricted collection will sort inside the
 					 * least-restricted one. */
-					const auto next = world.next_sorter(collected_t<C...>{}, included_t<I...>{}, excluded_t<E...>{});
-					const auto prev = world.prev_sorter(collected_t<C...>{}, included_t<I...>{}, excluded_t<E...>{});
+					const auto next = world.next_sorter(owned_t<C...>{}, included_t<I...>{}, excluded_t<E...>{});
+					const auto prev = world.prev_sorter(owned_t<C...>{}, included_t<I...>{}, excluded_t<E...>{});
 
 					const void *next_handler = (next.first == next.second ? nullptr : next.first->get());
 					const void *prev_handler = (prev.first == prev.second ? nullptr : prev.first->get());
@@ -1218,14 +1218,14 @@ namespace sek::engine
 			std::size_t size = 0;
 		};
 		template<typename... I, typename... E>
-		struct collection_handler<collected_t<>, included_t<I...>, excluded_t<E...>>
+		struct collection_handler<owned_t<>, included_t<I...>, excluded_t<E...>>
 		{
 			[[nodiscard]] static collection_handler *make_handler(entity_world &world)
 			{
-				auto sorter = world.find_sorter(collected_t<>{}, included_t<I...>{}, excluded_t<E...>{});
+				auto sorter = world.find_sorter(owned_t<>{}, included_t<I...>{}, excluded_t<E...>{});
 				if (sorter.first == sorter.second)
 				{
-					SEK_ASSERT(!world.has_conflicts(collected_t<>{}, included_t<I...>{}, excluded_t<E...>{}),
+					SEK_ASSERT(!world.has_conflicts(owned_t<>{}, included_t<I...>{}, excluded_t<E...>{}),
 							   "Conflicting collections detected");
 
 					[[maybe_unused]] constexpr auto sub_include = []<typename T>(component_set<T> &set, collection_handler *h)

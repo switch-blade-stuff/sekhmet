@@ -13,19 +13,33 @@ namespace sek::engine
 	template<typename, typename = included_t<>, typename = excluded_t<>, typename = optional_t<>>
 	class component_collection;
 
-	/** @brief Structure used to provide a simple view of components for a set of entities.
-	 * @tparam C Component types collected (sorted) by the collection.
+	/** @brief Structure used to collect and provide a view of components for a set of entities.
+	 *
+	 * Collections are used to automatically sort (collect) components in order to achieve improved cache locality
+	 * than a `component_view`, as well as to track modification to relevant component sets.
+	 *
+	 * Collections are automatically updated when a entity is added or removed from any of the observed
+	 * component types. Collections that own (sort) components will also automatically re-sort owned components.
+	 *
+	 * If no owned components are specified, collections can act as an event-aware view which tracks
+	 * modifications of relevant component sets.
+	 *
+	 * @note Use of owning collections is not recommended for commonly used component types, as they will prevent
+	 * creation of other collections (or regular sorting) of owned types and will potentially result in
+	 * frequent sorting of component sets.
+	 *
+	 * @tparam C Component types owned (sorted) by the collection.
 	 * @tparam I Component types captured by the collection.
 	 * @tparam E Component types excluded from the collection.
 	 * @tparam O Optional components of the collection.
 	 * @tparam Alloc Allocator used for internal entity set. */
 	template<typename... C, typename... I, typename... E, typename... O>
-	class component_collection<collected_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>
+	class component_collection<owned_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>
 	{
 		template<typename, typename, typename, typename, typename>
 		friend class entity_query;
 
-		using handler_t = detail::collection_handler<collected_t<C...>, included_t<I...>, excluded_t<E...>>;
+		using handler_t = detail::collection_handler<owned_t<C...>, included_t<I...>, excluded_t<E...>>;
 
 		template<typename T>
 		using set_ptr_t = transfer_cv_t<T, component_set<std::remove_cv_t<T>>> *;
@@ -224,7 +238,7 @@ namespace sek::engine
 		[[nodiscard]] constexpr size_type offset(entity_t entity) const noexcept
 		{
 			/* Collections are always sorted from the first set, meaning index of the entity in the first set
-			 * is the same for all sorted (collected) component sets . */
+			 * is the same for all sorted (owned) component sets . */
 			return std::get<0>(m_collected)->offset(entity);
 		}
 
@@ -348,12 +362,12 @@ namespace sek::engine
 	};
 
 	template<typename... I, typename... E, typename... O>
-	class component_collection<collected_t<>, included_t<I...>, excluded_t<E...>, optional_t<O...>>
+	class component_collection<owned_t<>, included_t<I...>, excluded_t<E...>, optional_t<O...>>
 	{
 		template<typename, typename, typename, typename, typename>
 		friend class entity_query;
 
-		using handler_t = detail::collection_handler<collected_t<>, included_t<I...>, excluded_t<E...>>;
+		using handler_t = detail::collection_handler<owned_t<>, included_t<I...>, excluded_t<E...>>;
 
 		template<typename T>
 		using set_ptr_t = transfer_cv_t<T, component_set<std::remove_cv_t<T>>> *;
