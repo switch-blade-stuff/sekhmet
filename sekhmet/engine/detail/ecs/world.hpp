@@ -121,58 +121,237 @@ namespace sek::engine
 		template<typename...>
 		friend struct detail::collection_handler;
 
-		class storage_entry
+		struct storage_ptr
 		{
-		public:
-			storage_entry(const storage_entry &) = delete;
-			storage_entry &operator=(const storage_entry &) = delete;
+			storage_ptr() = delete;
+			storage_ptr(const storage_ptr &) = delete;
+			storage_ptr &operator=(const storage_ptr &) = delete;
 
-			constexpr storage_entry(storage_entry &&other) noexcept { swap(other); }
-			constexpr storage_entry &operator=(storage_entry &&other) noexcept
+			constexpr storage_ptr(storage_ptr &&other) noexcept { swap(other); }
+			constexpr storage_ptr &operator=(storage_ptr &&other) noexcept
 			{
 				swap(other);
 				return *this;
 			}
 
-			template<typename T>
-			constexpr storage_entry(component_set<T> *ptr) noexcept : m_ptr(ptr)
-			{
-			}
-			constexpr ~storage_entry() { delete m_ptr; }
+			constexpr storage_ptr(generic_component_set *ptr) noexcept : m_ptr(ptr) {}
+			constexpr ~storage_ptr() { delete m_ptr; }
 
-			[[nodiscard]] constexpr generic_component_set *get() const noexcept { return m_ptr; }
-			[[nodiscard]] constexpr generic_component_set *operator->() const noexcept { return get(); }
-			[[nodiscard]] constexpr generic_component_set &operator*() const noexcept { return *get(); }
+			[[nodiscard]] constexpr auto *get() const noexcept { return m_ptr; }
+			[[nodiscard]] constexpr auto *operator->() const noexcept { return get(); }
+			[[nodiscard]] constexpr auto &operator*() const noexcept { return *get(); }
 
-			constexpr void swap(storage_entry &other) noexcept { std::swap(m_ptr, other.m_ptr); }
-			friend constexpr void swap(storage_entry &a, storage_entry &b) noexcept { a.swap(b); }
+			constexpr void swap(storage_ptr &other) noexcept { std::swap(m_ptr, other.m_ptr); }
+			friend constexpr void swap(storage_ptr &a, storage_ptr &b) noexcept { a.swap(b); }
 
 		private:
 			generic_component_set *m_ptr = nullptr;
 		};
 
-		struct table_hash
+		struct storage_hash
 		{
 			using is_transparent = std::true_type;
 
-			constexpr hash_t operator()(std::string_view sv) const noexcept { return fnv1a(sv.data(), sv.size()); }
+			constexpr hash_t operator()(const storage_ptr &ptr) const noexcept { return operator()(ptr->type()); }
 			constexpr hash_t operator()(const type_info &ti) const noexcept { return operator()(ti.name()); }
+			constexpr hash_t operator()(std::string_view sv) const noexcept { return fnv1a(sv.data(), sv.size()); }
 		};
-		struct table_cmp
+		struct storage_cmp
 		{
 			using is_transparent = std::true_type;
 
-			constexpr bool operator()(std::string_view a, std::string_view b) const noexcept { return a == b; }
+			constexpr bool operator()(const storage_ptr &a, const storage_ptr &b) const noexcept
+			{
+				return a->type() == b->type();
+			}
+
+			constexpr bool operator()(const storage_ptr &a, const type_info &b) const noexcept
+			{
+				return a->type() == b;
+			}
+			constexpr bool operator()(const type_info &a, const storage_ptr &b) const noexcept
+			{
+				return a == b->type();
+			}
+
+			constexpr bool operator()(const storage_ptr &a, std::string_view b) const noexcept
+			{
+				return a->type().name() == b;
+			}
+			constexpr bool operator()(std::string_view a, const storage_ptr &b) const noexcept
+			{
+				return a == b->type().name();
+			}
+
 			constexpr bool operator()(const type_info &a, const type_info &b) const noexcept { return a == b; }
+			constexpr bool operator()(std::string_view a, std::string_view b) const noexcept { return a == b; }
 			constexpr bool operator()(const type_info &a, std::string_view b) const noexcept { return a.name() == b; }
 			constexpr bool operator()(std::string_view a, const type_info &b) const noexcept { return a == b.name(); }
 		};
 
-		using storage_table = dense_map<type_info, storage_entry, table_hash, table_cmp>;
-
-		template<typename... Ts>
-		using handler_t = detail::collection_handler<Ts...>;
+		using storage_set = dense_set<storage_ptr, storage_hash, storage_cmp>;
 		using sorter_t = detail::collection_sorter;
+
+		template<bool IsConst>
+		class storage_view
+		{
+			friend class entity_world;
+
+			using storage_iter = typename storage_set::iterator;
+
+			class view_iterator
+			{
+				friend class storage_view;
+
+			public:
+				typedef generic_component_set value_type;
+				typedef std::conditional_t<IsConst, const value_type, value_type> *pointer;
+				typedef std::conditional_t<IsConst, const value_type, value_type> &reference;
+				typedef typename storage_iter::size_type size_type;
+				typedef typename storage_iter::difference_type difference_type;
+				typedef typename storage_iter::iterator_category iterator_category;
+
+			private:
+				constexpr explicit view_iterator(storage_iter iter) noexcept : m_iter(iter) {}
+
+			public:
+				constexpr view_iterator() noexcept = default;
+
+				constexpr view_iterator operator++(int) noexcept
+				{
+					auto temp = *this;
+					++(*this);
+					return temp;
+				}
+				constexpr view_iterator &operator++() noexcept
+				{
+					++m_iter;
+					return *this;
+				}
+				constexpr view_iterator &operator+=(difference_type n) noexcept
+				{
+					m_iter += n;
+					return *this;
+				}
+				constexpr view_iterator operator--(int) noexcept
+				{
+					auto temp = *this;
+					--(*this);
+					return temp;
+				}
+				constexpr view_iterator &operator--() noexcept
+				{
+					--m_iter;
+					return *this;
+				}
+				constexpr view_iterator &operator-=(difference_type n) noexcept
+				{
+					m_iter -= n;
+					return *this;
+				}
+
+				[[nodiscard]] constexpr view_iterator operator+(difference_type n) const noexcept
+				{
+					return view_iterator{m_iter + n};
+				}
+				[[nodiscard]] constexpr view_iterator operator-(difference_type n) const noexcept
+				{
+					return view_iterator{m_iter - n};
+				}
+				[[nodiscard]] constexpr difference_type operator-(const view_iterator &other) const noexcept
+				{
+					return m_iter - other.m_iter;
+				}
+
+				/** Returns pointer to the target element. */
+				[[nodiscard]] constexpr pointer get() const noexcept { return m_iter->get(); }
+				/** @copydoc value */
+				[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
+				/** Returns reference to the target element. */
+				[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
+				/** Returns reference to the element at an offset. */
+				[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return *m_iter[n]; }
+
+				[[nodiscard]] constexpr auto operator<=>(const view_iterator &) const noexcept = default;
+				[[nodiscard]] constexpr bool operator==(const view_iterator &) const noexcept = default;
+
+				constexpr void swap(view_iterator &other) noexcept { m_iter.swap(other.m_iter); }
+				friend constexpr void swap(view_iterator &a, view_iterator &b) noexcept { a.swap(b); }
+
+			private:
+				storage_iter m_iter;
+			};
+
+		public:
+			typedef generic_component_set value_type;
+			typedef view_iterator iterator;
+			typedef view_iterator const_iterator;
+			typedef std::reverse_iterator<iterator> reverse_iterator;
+			typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+
+			typedef typename iterator::pointer pointer;
+			typedef typename iterator::pointer const_pointer;
+			typedef typename iterator::reference reference;
+			typedef typename iterator::reference const_reference;
+			typedef typename iterator::size_type size_type;
+			typedef typename iterator::difference_type difference_type;
+
+		private:
+			constexpr storage_view(storage_iter first, storage_iter last) noexcept : m_begin(first), m_end(last) {}
+
+		public:
+			storage_view() = delete;
+
+			constexpr storage_view(const storage_view &) noexcept = default;
+			constexpr storage_view &operator=(const storage_view &) noexcept = default;
+			constexpr storage_view(storage_view &&) noexcept = default;
+			constexpr storage_view &operator=(storage_view &&) noexcept = default;
+
+			/** Returns iterator to the first element of the view. */
+			[[nodiscard]] constexpr iterator begin() const noexcept { return iterator{m_begin}; }
+			/** @copydoc begin */
+			[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
+			/** Returns iterator one past the last element of the view. */
+			[[nodiscard]] constexpr iterator end() const noexcept { return iterator{m_end}; }
+			/** @copydoc end */
+			[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
+			/** Returns reverse iterator to the last element of the view. */
+			[[nodiscard]] constexpr reverse_iterator rbegin() const noexcept { return reverse_iterator{end()}; }
+			/** @copydoc rbegin */
+			[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return rbegin(); }
+			/** Returns iterator one past the last element of the view. */
+			[[nodiscard]] constexpr reverse_iterator rend() const noexcept { return reverse_iterator{begin()}; }
+			/** @copydoc rend */
+			[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return rend(); }
+
+			/** Returns reference to the first element of the view. */
+			[[nodiscard]] constexpr reference front() const noexcept { return *begin(); }
+			/** Returns reference to the last element of the view. */
+			[[nodiscard]] constexpr reference back() const noexcept { return *std::prev(end()); }
+			/** Returns reference to the `n`th element of the view. */
+			[[nodiscard]] constexpr reference at(size_type i) const noexcept
+			{
+				return begin()[static_cast<difference_type>(i)];
+			}
+			/** @copydoc at */
+			[[nodiscard]] constexpr reference operator[](size_type i) const noexcept { return at(i); }
+
+			/** Returns the total amount of elements in the view. */
+			[[nodiscard]] constexpr size_type size() const noexcept { return static_cast<size_type>(m_end - m_begin); }
+			/** Checks if the view is empty. */
+			[[nodiscard]] constexpr bool empty() const noexcept { return m_end == m_begin; }
+
+			constexpr void swap(storage_view &other) noexcept
+			{
+				m_begin.swap(other.m_begin);
+				m_end.swap(other.m_end);
+			}
+			friend constexpr void swap(storage_view &a, storage_view &b) noexcept { a.swap(b); }
+
+		private:
+			storage_iter m_begin;
+			storage_iter m_end;
+		};
 
 		class entity_iterator
 		{
@@ -321,13 +500,13 @@ namespace sek::engine
 		constexpr void clear(std::string_view type)
 		{
 			if (const auto set = m_storage.find(type); set != m_storage.end()) [[likely]]
-				set->second->clear();
+				set->get()->clear();
 		}
 		/** @copydoc clear */
 		constexpr void clear(type_info type)
 		{
 			if (const auto set = m_storage.find(type); set != m_storage.end()) [[likely]]
-				set->second->clear();
+				set->get()->clear();
 		}
 
 		/** Returns iterator to the specified entity or end iterator if the entity does not exist in the world. */
@@ -350,7 +529,7 @@ namespace sek::engine
 			if constexpr (sizeof...(Ts) == 0)
 			{
 				const auto storage = m_storage.find(type_info::get<T>());
-				return storage != m_storage.end() && storage->second->contains(e);
+				return storage != m_storage.end() && storage->get()->contains(e);
 			}
 			else
 				return contains_all<T>(e) && (contains_all<Ts>(e) && ...);
@@ -380,7 +559,7 @@ namespace sek::engine
 			if constexpr (sizeof...(Ts) == 0)
 			{
 				const auto storage = m_storage.find(type_info::get<T>());
-				return storage == m_storage.end() || !storage->second->contains(e);
+				return storage == m_storage.end() || !storage->get()->contains(e);
 			}
 			else
 				return contains_none<T>(e) && (contains_none<Ts>(e) && ...);
@@ -396,7 +575,7 @@ namespace sek::engine
 		[[nodiscard]] constexpr size_type size(entity_t e) const noexcept
 		{
 			size_type result = 0;
-			for (auto entry : m_storage) result += entry.second->contains(e);
+			for (auto &set : m_storage) result += set->contains(e);
 			return result;
 		}
 		/** @copydoc size */
@@ -404,15 +583,47 @@ namespace sek::engine
 		/** Checks if the entity is empty (does not have any components). */
 		[[nodiscard]] constexpr bool empty(entity_t e) const noexcept
 		{
-			for (auto entry : m_storage)
-			{
-				if (entry.second->contains(e)) [[unlikely]]
-					return false;
-			}
-			return true;
+			return std::ranges::none_of(m_storage, [e](auto &set) { return set->contains(e); });
 		}
 		/** @copydoc empty */
 		[[nodiscard]] constexpr bool empty(const_iterator which) const noexcept { return empty(*which); }
+
+		/** Returns a view of type-erased generic component sets of the world. */
+		[[nodiscard]] constexpr storage_view<false> storage() noexcept { return {m_storage.begin(), m_storage.end()}; }
+		/** @copydoc storage */
+		[[nodiscard]] constexpr storage_view<true> storage() const noexcept
+		{
+			return {m_storage.begin(), m_storage.end()};
+		}
+
+		/** Returns a pointer to the type-erased generic component set for the specified type or `nullptr`. */
+		[[nodiscard]] constexpr generic_component_set *storage(std::string_view name) noexcept
+		{
+			if (const auto set = m_storage.find(name); set != m_storage.end()) [[likely]]
+				return set->get();
+			return nullptr;
+		}
+		/** @copydoc storage */
+		[[nodiscard]] constexpr generic_component_set *storage(const type_info &type) noexcept
+		{
+			if (const auto set = m_storage.find(type); set != m_storage.end()) [[likely]]
+				return set->get();
+			return nullptr;
+		}
+		/** @copydoc storage */
+		[[nodiscard]] constexpr const generic_component_set *storage(std::string_view name) const noexcept
+		{
+			if (const auto set = m_storage.find(name); set != m_storage.end()) [[likely]]
+				return set->get();
+			return nullptr;
+		}
+		/** @copydoc storage */
+		[[nodiscard]] constexpr const generic_component_set *storage(const type_info &type) const noexcept
+		{
+			if (const auto set = m_storage.find(type); set != m_storage.end()) [[likely]]
+				return set->get();
+			return nullptr;
+		}
 
 		/** Returns pointer to the component set for the specified component.
 		 * @note If such storage does not exist, creates it. */
@@ -602,9 +813,8 @@ namespace sek::engine
 		/** Destroys all components belonging to the entity and releases it. */
 		constexpr void destroy(entity_t e)
 		{
-			for (auto entry : m_storage)
+			for (auto &set : m_storage)
 			{
-				auto &set = entry.second;
 				if (const auto pos = set->find(e); pos != set->end()) [[unlikely]]
 					set->erase(pos);
 			}
@@ -788,7 +998,7 @@ namespace sek::engine
 		constexpr void clear_storage()
 		{
 			/* Cannot clear all at once, since collection handlers require valid references. */
-			for (auto entry : m_storage) entry.second->clear();
+			for (auto &set : m_storage) set->clear();
 		}
 
 		[[nodiscard]] constexpr entity_t generate_new(entity_t::generation_type gen)
@@ -809,7 +1019,7 @@ namespace sek::engine
 		{
 			const auto set = m_storage.find(type_info::get<U>());
 			if (set != m_storage.end()) [[likely]]
-				return static_cast<component_set<U> *>(set->second.get());
+				return static_cast<component_set<U> *>(set->get());
 			else
 				return nullptr;
 		}
@@ -818,7 +1028,7 @@ namespace sek::engine
 		{
 			const auto set = m_storage.find(type_info::get<U>());
 			if (set != m_storage.end()) [[likely]]
-				return static_cast<const component_set<U> *>(set->second.get());
+				return static_cast<const component_set<U> *>(set->get());
 			else
 				return nullptr;
 		}
@@ -826,15 +1036,14 @@ namespace sek::engine
 		template<typename T, typename U = std::remove_cv_t<T>>
 		constexpr component_set<U> &reserve_impl(size_type n = 0)
 		{
-			const auto type = type_info::get<U>();
-			auto target = m_storage.find(type);
+			auto target = m_storage.find(type_info::get<U>());
 			if (target == m_storage.end()) [[unlikely]]
-				target = m_storage.emplace(type, new component_set<U>(*this)).first;
+				target = m_storage.emplace(new component_set<U>(*this)).first;
 
-			auto &storage = static_cast<component_set<U> &>(*target->second);
+			auto *storage = static_cast<component_set<U> *>(target->get());
 			if (n != 0) [[likely]]
-				storage.reserve(n);
-			return storage;
+				storage->reserve(n);
+			return *storage;
 		}
 
 		template<typename... Coll, typename... Inc, typename... Exc>
@@ -884,7 +1093,7 @@ namespace sek::engine
 			return std::any_of(m_sorters.begin(), m_sorters.end(), pred);
 		}
 
-		storage_table m_storage;
+		storage_set m_storage;
 		std::vector<sorter_t> m_sorters;
 		std::vector<entity_t> m_entities;
 		entity_t m_next = entity_t::tombstone();
@@ -1090,7 +1299,4 @@ namespace sek::engine
 			return std::addressof(pos->second);
 		}
 	}	 // namespace detail
-
-	/* TODO: Implement generic component set iteration (i.e. world returns a view of generic component sets or generic
-	 * set directly and the user can then iterate over those). */
 }	 // namespace sek::engine

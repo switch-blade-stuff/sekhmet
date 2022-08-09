@@ -6,18 +6,20 @@
 
 #include "sekhmet/engine/ecs.hpp"
 
+using namespace sek::engine;
+
 template class sek::engine::basic_entity_set<>;
 
 TEST(ecs_tests, entity_test)
 {
 	{
-		const auto et1 = sek::engine::entity_t::tombstone();
-		const auto et2 = sek::engine::entity_t{et1.generation(), {}};
+		const auto et1 = entity_t::tombstone();
+		const auto et2 = entity_t{et1.generation(), {}};
 
 		EXPECT_EQ(et1, et2);
 		EXPECT_NE(et1.index(), et2.index());
 
-		sek::engine::entity_t e1 = {};
+		entity_t e1 = {};
 
 		EXPECT_NE(et1, e1);
 		EXPECT_NE(et2, e1);
@@ -25,11 +27,11 @@ TEST(ecs_tests, entity_test)
 		EXPECT_EQ(et2.index(), e1.index());
 	}
 	{
-		const sek::engine::entity_t e0 = {sek::engine::entity_t::index_type{0}};
-		const sek::engine::entity_t e1 = {sek::engine::entity_t::index_type{1}};
-		const sek::engine::entity_t e2 = {sek::engine::entity_t::index_type{2}};
+		const entity_t e0 = {entity_t::index_type{0}};
+		const entity_t e1 = {entity_t::index_type{1}};
+		const entity_t e2 = {entity_t::index_type{2}};
 
-		sek::engine::entity_set set;
+		entity_set set;
 		set.insert(e0);
 		set.insert(e1);
 		set.insert(e2);
@@ -65,14 +67,14 @@ template class sek::engine::component_set<dummy_t>;
 
 TEST(ecs_tests, set_test)
 {
-	sek::engine::entity_world world;
+	entity_world world;
 
-	const sek::engine::entity_t e0 = {sek::engine::entity_t::index_type{0}};
-	const sek::engine::entity_t e1 = {sek::engine::entity_t::index_type{1}};
-	const sek::engine::entity_t e2 = {sek::engine::entity_t::index_type{2}};
+	const entity_t e0 = {entity_t::index_type{0}};
+	const entity_t e1 = {entity_t::index_type{1}};
+	const entity_t e2 = {entity_t::index_type{2}};
 
 	{
-		auto s = sek::engine::component_set<int>{world};
+		auto s = component_set<int>{world};
 		s.emplace(e0);
 		s.emplace(e1);
 		s.emplace(e2);
@@ -99,7 +101,7 @@ TEST(ecs_tests, set_test)
 		EXPECT_EQ(s.find(e1)->second, 1);
 	}
 	{
-		auto s = sek::engine::component_set<dummy_t>{world};
+		auto s = component_set<dummy_t>{world};
 		s.emplace(e0);
 		s.emplace(e1);
 		s.emplace(e2);
@@ -116,23 +118,23 @@ TEST(ecs_tests, set_test)
 		EXPECT_FALSE(s.contains(e2));
 	}
 	{
-		auto si0 = sek::engine::component_set<int>{world};
+		auto si0 = component_set<int>{world};
 		si0.emplace(e0, 0);
 		si0.emplace(e1, 1);
 
-		auto sf0 = sek::engine::component_set<float>{world};
+		auto sf0 = component_set<float>{world};
 		sf0.emplace(e0, 0.0f);
 		sf0.emplace(e1, 1.0f);
 		sf0.emplace(e2, 2.0f);
 
-		auto iptr = sek::engine::component_ptr{e0, si0};
-		auto fptr = sek::engine::component_ptr{e0, sf0};
+		auto iptr = component_ptr{e0, si0};
+		auto fptr = component_ptr{e0, sf0};
 		EXPECT_TRUE(iptr);
 		EXPECT_TRUE(fptr);
 		EXPECT_EQ(*iptr, 0);
 		EXPECT_EQ(*fptr, 0.0f);
 
-		auto pi1 = sek::engine::component_set<int>{world};
+		auto pi1 = component_set<int>{world};
 		pi1.emplace(e0, 10);
 
 		EXPECT_EQ(iptr.reset(&pi1), &si0);
@@ -140,11 +142,11 @@ TEST(ecs_tests, set_test)
 		EXPECT_EQ(*iptr, 10);
 	}
 	{
-		const auto a0 = sek::engine::forward_any<int>(0);
-		const auto a1 = sek::engine::forward_any<int>(1);
+		const auto a0 = forward_any<int>(0);
+		const auto a1 = forward_any<int>(1);
 
-		auto s = sek::engine::component_set<int>{world};
-		auto &gs = static_cast<sek::engine::generic_component_set &>(s);
+		auto s = component_set<int>{world};
+		auto &gs = static_cast<generic_component_set &>(s);
 
 		gs.insert(e0, a0);
 		gs.insert(e1, a1);
@@ -159,8 +161,6 @@ TEST(ecs_tests, set_test)
 		EXPECT_EQ(gs.get_any(e1).as_ptr<int>(), &s.get(e1));
 	}
 }
-
-using namespace sek::engine;
 
 template class sek::engine::component_set<float>;
 
@@ -201,6 +201,19 @@ TEST(ecs_tests, world_test)
 
 	EXPECT_TRUE(world.erase_and_release<dummy_t>(e2));
 	EXPECT_FALSE(world.contains(e2));
+
+	const auto sv = world.storage();
+	EXPECT_FALSE(sv.empty());
+	EXPECT_EQ(sv.size(), 3);
+
+	auto &gs = sv.front();
+	const auto t = gs.type();
+	EXPECT_EQ(&gs, world.storage(t));
+
+	const auto e3 = world.generate();
+	gs.insert(e3, t.construct());
+	EXPECT_TRUE(gs.contains(e3));
+	EXPECT_FALSE(world.empty(e3));
 }
 
 template class sek::engine::component_view<included_t<int>>;
@@ -226,7 +239,7 @@ TEST(ecs_tests, view_test)
 	EXPECT_EQ(view1.size_hint(), total);
 
 	view1.for_each(
-		[&](sek::engine::entity_t e, int *i, const float *f)
+		[&](entity_t e, int *i, const float *f)
 		{
 			EXPECT_NE(e, e2);
 			EXPECT_NE(i, nullptr);

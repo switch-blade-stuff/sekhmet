@@ -160,15 +160,15 @@ namespace sek::detail
 				return *this;
 			}
 
-			constexpr dense_table_iterator operator+(difference_type n) const noexcept
+			[[nodiscard]] constexpr dense_table_iterator operator+(difference_type n) const noexcept
 			{
 				return dense_table_iterator{m_ptr + n};
 			}
-			constexpr dense_table_iterator operator-(difference_type n) const noexcept
+			[[nodiscard]] constexpr dense_table_iterator operator-(difference_type n) const noexcept
 			{
 				return dense_table_iterator{m_ptr - n};
 			}
-			constexpr difference_type operator-(const dense_table_iterator &other) const noexcept
+			[[nodiscard]] constexpr difference_type operator-(const dense_table_iterator &other) const noexcept
 			{
 				return m_ptr - other.m_ptr;
 			}
