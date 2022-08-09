@@ -244,11 +244,11 @@ TEST(ecs_tests, view_test)
 	using namespace std::literals;
 
 	const auto end = std::chrono::system_clock::now();
-	const auto ms = duration_cast<std::chrono::milliseconds>(end - start);
-	const auto ns = duration_cast<std::chrono::nanoseconds>(end - start);
-	printf("%ld fps\n", 1s / ns);
-	printf("%ld ms\n", ms.count());
-	printf("%ld ns\n", ns.count());
+	const auto ms = duration_cast<std::chrono::duration<double, std::milli>>(end - start);
+	const auto ns = duration_cast<std::chrono::duration<double, std::nano>>(end - start);
+	printf("%.2f fps\n", 1s / ns);
+	printf("%.2f ms\n", ms.count());
+	printf("%.2f ns\n", ns.count());
 }
 
 template class sek::engine::component_collection<collected_t<flag_t>>;
@@ -267,34 +267,35 @@ TEST(ecs_tests, collection_test)
 	const auto e3 = *world.insert<int, float, flag_t, dummy_t>(3, 3.0f, {}, {});
 
 	const auto c1 = world.collection<flag_t>();
+	const auto c2 = world.query().collect<int>().optional<flag_t>().collection();
+	const auto c3 = world.query().collect<int>().optional<flag_t>().exclude<dummy_t>().collection();
+	const auto c4 = world.query().collect<int, float>().optional<flag_t>().exclude<dummy_t>().collection();
+	const auto c5 = world.query().include<int, flag_t>().collection();
+
 	EXPECT_EQ(c1.size(), 3);
 	EXPECT_FALSE(c1.contains(e0));
 	EXPECT_TRUE(c1.contains(e1));
 	EXPECT_TRUE(c1.contains(e2));
 	EXPECT_TRUE(c1.contains(e3));
 
-	const auto c2 = world.query().collect<int>().optional<flag_t>().collection();
 	EXPECT_EQ(c2.size(), 4);
 	EXPECT_TRUE(c2.contains(e0));
 	EXPECT_TRUE(c2.contains(e1));
 	EXPECT_TRUE(c2.contains(e2));
 	EXPECT_TRUE(c2.contains(e3));
 
-	const auto c3 = world.query().collect<int>().optional<flag_t>().exclude<dummy_t>().collection();
 	EXPECT_EQ(c3.size(), 3);
 	EXPECT_TRUE(c3.contains(e0));
 	EXPECT_TRUE(c3.contains(e1));
 	EXPECT_TRUE(c3.contains(e2));
 	EXPECT_FALSE(c3.contains(e3));
 
-	const auto c4 = world.query().collect<int, float>().optional<flag_t>().exclude<dummy_t>().collection();
 	EXPECT_EQ(c4.size(), 1);
 	EXPECT_FALSE(c4.contains(e0));
 	EXPECT_FALSE(c4.contains(e1));
 	EXPECT_TRUE(c4.contains(e2));
 	EXPECT_FALSE(c4.contains(e3));
 
-	const auto c5 = world.query().include<int, flag_t>().collection();
 	EXPECT_EQ(c5.size(), 3);
 	EXPECT_FALSE(c5.contains(e0));
 	EXPECT_TRUE(c5.contains(e1));
@@ -342,6 +343,8 @@ TEST(ecs_tests, collection_test)
 	EXPECT_EQ(c5.size(), 4);
 	EXPECT_TRUE(c5.contains(e4));
 
+	EXPECT_EQ(std::addressof(world.get<flag_t>(e4)), c1.get<flag_t>(e4));
+	EXPECT_EQ(std::addressof(world.get<flag_t>(e4)), c5.get<flag_t>(e4));
 	EXPECT_EQ(std::addressof(world.get<int>(e4)), c2.get<int>(e4));
 	EXPECT_EQ(std::addressof(world.get<int>(e4)), c3.get<int>(e4));
 	EXPECT_EQ(std::addressof(world.get<int>(e4)), c5.get<int>(e4));

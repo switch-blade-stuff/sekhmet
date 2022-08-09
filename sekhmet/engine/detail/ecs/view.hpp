@@ -298,7 +298,7 @@ namespace sek::engine
 			if constexpr (is_inc<T>)
 				return std::addressof(get<set_ptr_t<T>>(m_included)->get(e));
 			else
-				return detail::opt_set_get(get<set_ptr_t<T>>(m_optional), e);
+				return detail::get_opt(get<set_ptr_t<T>>(m_optional), e);
 		}
 
 		const common_set *m_set;
@@ -564,7 +564,7 @@ namespace sek::engine
 		[[nodiscard]] constexpr T *get_impl(entity_t e) const noexcept
 		{
 			if constexpr (is_opt<T>)
-				return detail::opt_set_get(std::get<set_ptr_t<T>>(m_optional), e);
+				return detail::get_opt(std::get<set_ptr_t<T>>(m_optional), e);
 			else
 				return std::addressof(m_set->get(e));
 		}

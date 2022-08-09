@@ -338,7 +338,7 @@ namespace sek::engine
 			else if constexpr (is_inc<T>)
 				return std::addressof(get<set_ptr_t<T>>(m_included)->get(e));
 			else
-				return detail::opt_set_get(get<set_ptr_t<T>>(m_optional), e);
+				return detail::get_opt(get<set_ptr_t<T>>(m_optional), e);
 		}
 
 		handler_t *m_handler = nullptr;
@@ -632,7 +632,7 @@ namespace sek::engine
 			if constexpr (is_inc<T>)
 				return std::addressof(get<set_ptr_t<T>>(m_included)->get(e));
 			else
-				return detail::opt_set_get(get<set_ptr_t<T>>(m_optional), e);
+				return detail::get_opt(get<set_ptr_t<T>>(m_optional), e);
 		}
 
 		handler_t *m_handler = nullptr;

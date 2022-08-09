@@ -282,7 +282,7 @@ namespace sek::engine
 		[[nodiscard]] constexpr size_type capacity() const noexcept { return m_entities.capacity(); }
 
 		/** Releases all entities and destroys all components.
-		 * @warning References to components and entities (except for collections) will be invalidated. */
+		 * @warning References to the world (except for collections) will be invalidated. */
 		constexpr void clear()
 		{
 			clear_storage();
@@ -290,16 +290,13 @@ namespace sek::engine
 			m_next = entity_t::tombstone();
 			m_size = 0;
 		}
-		/** Clears the world and destroys storage (releasing references to reflected type info).
-		 * @warning References to components and entities (including collections) will be invalidated. */
+		/** Clears the world and destroys component storage (releasing references to reflected type info).
+		 * @warning References to the world (including collections) will be invalidated. */
 		constexpr void purge()
 		{
-			clear_storage();
-			m_sorters.clear();
+			clear();
 			m_storage.clear();
-			m_entities.clear();
-			m_next = entity_t::tombstone();
-			m_size = 0;
+			m_sorters.clear();
 		}
 
 		/** Destroys all components of specified types.
@@ -784,7 +781,7 @@ namespace sek::engine
 
 		constexpr void clear_storage()
 		{
-			/* Cannot clear all at once, since sorters require valid references. */
+			/* Cannot clear all at once, since collection handlers require valid references. */
 			for (auto entry : m_storage) entry.second->clear();
 		}
 
@@ -955,7 +952,7 @@ namespace sek::engine
 						constexpr auto swap_elements = []<typename U>(component_set<U> *storage, std::size_t a, entity_t e)
 						{
 							const auto b = storage->offset(e);
-							storage->swap(a, b);
+							if (a != b) storage->swap(a, b);
 						};
 						const auto last_pos = size++;
 						(swap_elements(get<component_set<C> *>(storage), last_pos, entity), ...);
@@ -978,7 +975,7 @@ namespace sek::engine
 					constexpr auto swap_elements = []<typename U>(component_set<U> &storage, std::size_t a, entity_t e)
 					{
 						const auto b = storage.offset(e);
-						storage.swap(a, b);
+						if (a != b) storage.swap(a, b);
 					};
 					const auto last_pos = size++;
 					(swap_elements(get<component_set<C> &>(storage), last_pos, entity), ...);
@@ -997,7 +994,7 @@ namespace sek::engine
 					constexpr auto swap_elements = []<typename U>(component_set<U> &storage, std::size_t a, entity_t e)
 					{
 						const auto b = storage.offset(e);
-						storage.swap(a, b);
+						if (a != b) storage.swap(a, b);
 					};
 					const auto last_pos = --size;
 					(swap_elements(get<component_set<C> &>(storage), last_pos, entity), ...);
@@ -1063,7 +1060,7 @@ namespace sek::engine
 		};
 
 		template<typename T>
-		constexpr auto opt_set_get(component_set<T> *set, entity_t e) noexcept -> T *
+		constexpr auto get_opt(component_set<T> *set, entity_t e) noexcept -> T *
 		{
 			if (set == nullptr) [[unlikely]]
 				return nullptr;
@@ -1075,7 +1072,7 @@ namespace sek::engine
 			return std::addressof(pos->second);
 		}
 		template<typename T>
-		constexpr auto opt_set_get(const component_set<T> *set, entity_t e) noexcept -> std::add_const_t<T> *
+		constexpr auto get_opt(const component_set<T> *set, entity_t e) noexcept -> std::add_const_t<T> *
 		{
 			if (set == nullptr) [[unlikely]]
 				return nullptr;
