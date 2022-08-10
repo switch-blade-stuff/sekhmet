@@ -6,16 +6,19 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <utility>
 
 #include "define.h"
 
 namespace sek::detail
 {
+#ifndef __cpp_lib_unreachable
 	[[noreturn]] [[maybe_unused]] inline void assert_never_reached_impl(const char *file, std::size_t line, const char *func)
 	{
 		fprintf(stderr, "Reached unreachable code at '%s:%lu' in '%s'. This is an internal error.\n", file, line, func);
 		std::abort();
 	}
+#endif
 
 	inline void assert_constexpr() { throw 0; }
 	constexpr void assert_impl(bool cnd, const char *s, const char *f, std::size_t l, const char *fnc, const char *m)
@@ -48,7 +51,11 @@ namespace sek::detail
 #define SEK_ASSERT_ALWAYS(...) SEK_GET_MACRO_2(__VA_ARGS__, SEK_ASSERT_2, SEK_ASSERT_1)(__VA_ARGS__)
 
 /** Asserts that the code should never be reached. */
+#ifndef __cpp_lib_unreachable
 #define SEK_NEVER_REACHED sek::detail::assert_never_reached_impl((SEK_FILE), (SEK_LINE), (SEK_PRETTY_FUNC))
+#else
+#define SEK_NEVER_REACHED std::unreachable();
+#endif
 
 #if !defined(SEK_NO_DEBUG_ASSERT) && !defined(NDEBUG)
 /** Assert that supports an optional message, prints the enclosing function name and terminates using exit(1).

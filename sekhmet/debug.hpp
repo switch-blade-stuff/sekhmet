@@ -5,3 +5,4 @@
 #pragma once
 
 #include "detail/assert.hpp"
+#include "detail/profiler.hpp"

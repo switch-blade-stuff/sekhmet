@@ -6,7 +6,6 @@
 
 #include <iterator>
 
-#include "../math/utility.hpp"
 #include "alloc_util.hpp"
 #include "assert.hpp"
 #include "ebo_base_helper.hpp"
@@ -650,7 +649,7 @@ namespace sek
 		{
 			constexpr auto absolute_max = static_cast<size_type>(std::numeric_limits<difference_type>::max());
 			const auto alloc_max = static_cast<size_type>(value_alloc_traits::max_size(get_allocator()));
-			return math::min(absolute_max, alloc_max) / sizeof(value_type);
+			return std::min(absolute_max, alloc_max) / sizeof(value_type);
 		}
 		/** Returns current capacity of the list. */
 		[[nodiscard]] constexpr size_type capacity() const noexcept { return m_capacity; }

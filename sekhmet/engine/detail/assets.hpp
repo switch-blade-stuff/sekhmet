@@ -14,8 +14,8 @@
 #include "sekhmet/detail/dense_map.hpp"
 #include "sekhmet/detail/dense_set.hpp"
 #include "sekhmet/detail/event.hpp"
+#include "sekhmet/detail/expected.hpp"
 #include "sekhmet/detail/intern.hpp"
-#include "sekhmet/detail/opt_err.hpp"
 #include "sekhmet/detail/service.hpp"
 #include "sekhmet/detail/uuid.hpp"
 #include "sekhmet/system/native_file.hpp"
@@ -261,149 +261,22 @@ namespace sek::engine
 	class asset_source
 	{
 	public:
-		typedef typename system::native_file::seek_dir seek_dir;
+		typedef typename system::native_file::seek_basis seek_basis;
 
-		constexpr static seek_dir beg = system::native_file::beg;
-		constexpr static seek_dir cur = system::native_file::cur;
-		constexpr static seek_dir end = system::native_file::end;
+		constexpr static seek_basis seek_set = system::native_file::seek_set;
+		constexpr static seek_basis seek_cur = system::native_file::seek_cur;
+		constexpr static seek_basis seek_end = system::native_file::seek_end;
 
 	private:
 		constexpr asset_source(std::int64_t size, std::int64_t offset) noexcept : m_size(size), m_offset(offset) {}
 
-		// clang-format off
-		asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset) noexcept : asset_source(size, offset)
-		{
-			std::construct_at(&m_file, std::move(file));
-		}
-		asset_source(detail::asset_buffer_t &&buff, std::int64_t size) noexcept : asset_source(size, -1)
-		{
-			std::construct_at(&m_buffer, std::move(buff));
-		}
-		// clang-format on
-
-		friend inline asset_source detail::make_asset_source(system::native_file &&, std::int64_t, std::int64_t) noexcept;
-		friend inline asset_source detail::make_asset_source(detail::asset_buffer_t &&, std::int64_t) noexcept;
-
 	public:
-		asset_source(const asset_source &) = delete;
-		asset_source &operator=(const asset_source &) = delete;
-
-		/** Initializes an empty asset source. */
-		constexpr asset_source() noexcept : padding{} {}
-		constexpr asset_source(asset_source &&other) noexcept : asset_source() { swap(other); }
-		constexpr asset_source &operator=(asset_source &&other) noexcept
-		{
-			swap(other);
-			return *this;
-		}
-
-		~asset_source()
-		{
-			if (has_file())
-				std::destroy_at(&m_file);
-			else
-				std::destroy_at(&m_buffer);
-		}
-
-		/** Reads asset data from the underlying file or buffer.
-		 * @param dst Destination buffer.
-		 * @param n Amount of bytes to read.
-		 * @return Total amount of bytes read. */
-		std::size_t read(void *dst, std::size_t n)
-		{
-			auto new_pos = m_read_pos + static_cast<std::int64_t>(n);
-			if (new_pos > m_size || new_pos < 0) [[unlikely]]
-			{
-				n = static_cast<std::size_t>(m_size - m_read_pos);
-				new_pos = m_size;
-			}
-
-			if (has_file())
-				n = file().read(dst, n);
-			else
-				std::copy_n(m_buffer.data() + m_read_pos, n, static_cast<std::byte *>(dst));
-			m_read_pos = new_pos;
-			return n;
-		}
-		/** Seeks the asset source to the specific offset.
-		 * @param off Offset to seek to.
-		 * @param dir Direction in which to seek.
-		 * @return Current position within the asset source or a negative integer on error. */
-		std::int64_t seek(std::int64_t off, seek_dir dir)
-		{
-			if (empty()) [[unlikely]]
-				return off == 0 ? 0 : -1;
-			else
-			{
-				if (dir == beg)
-					return seek_pos(base_offset() + off);
-				else if (dir == cur)
-					return seek_pos(m_read_pos + off);
-				else if (dir == end)
-					return seek_pos(size() + off);
-			}
-			return -1;
-		}
-
-		/** Returns the current read position. */
-		[[nodiscard]] constexpr std::int64_t tell() const noexcept { return m_read_pos; }
-		/** Returns the size of the asset source data. */
-		[[nodiscard]] constexpr std::int64_t size() const noexcept { return m_size; }
-		/** Checks if the asset source is empty. */
-		[[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
-
-		/** Returns the base file offset of the asset source.
-		 * @note If the asset source is not backed by a file, returns a negative integer. */
-		[[nodiscard]] constexpr std::int64_t base_offset() const noexcept { return m_offset; }
-		/** Checks if the asset source is backed by a file. */
-		[[nodiscard]] constexpr bool has_file() const noexcept { return base_offset() >= 0; }
-		/** Returns reference to the underlying native file.
-		 * @warning Undefined behavior if the asset source is not backed by a file. */
-		[[nodiscard]] constexpr system::native_file &file() noexcept { return m_file; }
-		/** @copydoc file */
-		[[nodiscard]] constexpr const system::native_file &file() const noexcept { return m_file; }
-		/** Maps the underlying file to memory.
-		 * @warning Undefined behavior if the asset source is not backed by a file. */
-		[[nodiscard]] system::native_filemap map() const noexcept { return {m_file, m_offset, m_size}; }
-		/** Returns pointer to the underlying memory buffer.
-		 * @warning Undefined behavior if the asset source is backed by a file. */
-		[[nodiscard]] constexpr const std::byte *buffer() const noexcept { return m_buffer.data(); }
-
-		constexpr void swap(asset_source &other) noexcept
-		{
-			using std::swap;
-			swap(m_size, other.m_size);
-			swap(m_offset, other.m_offset);
-			swap(m_read_pos, other.m_read_pos);
-			swap(padding, other.padding);
-		}
-		friend constexpr void swap(asset_source &a, asset_source &b) noexcept { a.swap(b); }
-
 	private:
-		std::int64_t seek_pos(std::int64_t new_pos)
-		{
-			if (new_pos > m_size || new_pos < 0) [[unlikely]]
-				return -1;
-			else if (has_file())
-			{
-				const auto file_pos = file().seek(new_pos, beg);
-				if (file_pos < 0) [[unlikely]]
-					return -1;
-				return (m_read_pos = file_pos - base_offset());
-			}
-			else
-				return m_read_pos = new_pos;
-		}
+		std::uint64_t m_size = 0;	  /* Total (accessible) size of the data. */
+		std::uint64_t m_offset = 0;	  /* Base offset of the data within the source. */
+		std::uint64_t m_read_pos = 0; /* Current read position with the base offset applied. */
 
-		std::int64_t m_size = 0;	 /* Total size of the asset. */
-		std::int64_t m_offset = 0;	 /* Base offset within the file, -1 if backed by a buffer. */
-		std::int64_t m_read_pos = 0; /* Current read position with the base offset applied. */
-		union
-		{
-			std::byte padding[sizeof(system::native_file)];
-			detail::asset_buffer_t m_buffer;
-			system::native_file m_file;
-		};
+		/* TODO: Implement functor-based read & write operations. */
 	};
 
 	namespace detail

@@ -39,7 +39,7 @@
 	template<typename U, std::size_t M, policy_t Q>                                                                        \
 	friend constexpr basic_vec<U, M, Q> max(const basic_vec<U, M, Q> &, const basic_vec<U, M, Q> &) noexcept;                  \
 	template<typename U, std::size_t M, policy_t Q>                                                                        \
-	friend constexpr basic_vec<U, M, Q> min(const basic_vec<U, M, Q> &, const basic_vec<U, M, Q> &) noexcept;
+	friend constexpr basic_vec<U, M, Q> std::min(const basic_vec<U, M, Q> &, const basic_vec<U, M, Q> &) noexcept;
 
 namespace sek::math
 {
@@ -131,7 +131,7 @@ namespace sek::math
 	template<typename U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr basic_vec<U, M, Q> max(const basic_vec<U, M, Q> &a, const basic_vec<U, M, Q> &b) noexcept;
 	template<typename U, std::size_t M, policy_t Q>
-	[[nodiscard]] constexpr basic_vec<U, M, Q> min(const basic_vec<U, M, Q> &a, const basic_vec<U, M, Q> &b) noexcept;
+	[[nodiscard]] constexpr basic_vec<U, M, Q> std::min(const basic_vec<U, M, Q> &a, const basic_vec<U, M, Q> &b) noexcept;
 	template<std::floating_point U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr basic_vec<U, M, Q> clamp(const basic_vec<U, M, Q> &value,
 													  const basic_vec<U, M, Q> &min_val,
@@ -139,9 +139,9 @@ namespace sek::math
 
 	template<std::floating_point U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr basic_vec<U, M, Q>
-		fmin(const basic_vec<U, M, Q> &a, const basic_vec<U, M, Q> &b, const basic_vec<U, M, Q> &epsilon) noexcept;
+		fstd::min(const basic_vec<U, M, Q> &a, const basic_vec<U, M, Q> &b, const basic_vec<U, M, Q> &epsilon) noexcept;
 	template<std::floating_point U, std::size_t M, policy_t Q>
-	[[nodiscard]] constexpr basic_vec<U, M, Q> fmin(const basic_vec<U, M, Q> &a,
+	[[nodiscard]] constexpr basic_vec<U, M, Q> fstd::min(const basic_vec<U, M, Q> &a,
 													 const basic_vec<U, M, Q> &b,
 													 U epsilon = std::numeric_limits<U>::epsilon()) noexcept;
 	template<std::floating_point U, std::size_t M, policy_t Q>

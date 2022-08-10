@@ -91,7 +91,7 @@ namespace sek::math
 				vector_interleave(out, l, r, mask);
 			}
 			template<typename T, std::size_t N, policy_t P>
-			constexpr void vector_min(vector_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r) noexcept
+			constexpr void vector_std::min(vector_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r) noexcept
 			{
 				mask_data<T, N, P> mask;
 				vector_le(mask, l, r);

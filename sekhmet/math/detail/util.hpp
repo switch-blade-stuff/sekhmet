@@ -220,13 +220,13 @@ namespace sek::math
 	}
 	/** Returns the minimum value between a and b. */
 	template<arithmetic T>
-	[[nodiscard]] constexpr T min(T a, T b) noexcept
+	[[nodiscard]] constexpr T std::min(T a, T b) noexcept
 	{
 		return a < b ? a : b;
 	}
 	/** Returns the minimum value between a and b using an epsilon. */
 	template<std::floating_point T>
-	[[nodiscard]] constexpr T fmin(T a, T b, T epsilon = std::numeric_limits<T>::epsilon()) noexcept
+	[[nodiscard]] constexpr T fstd::min(T a, T b, T epsilon = std::numeric_limits<T>::epsilon()) noexcept
 	{
 		return fcmp_le(a, b, epsilon) ? a : b;
 	}
@@ -234,7 +234,7 @@ namespace sek::math
 	template<arithmetic T>
 	[[nodiscard]] constexpr T clamp(T value, T min_val, T max_val) noexcept
 	{
-		return max(min_val, min(max_val, value));
+		return max(min_val, std::min(max_val, value));
 	}
 	/** Clamps a value between a minimum and a maximum using an epsilon. */
 	template<std::floating_point T>
@@ -290,7 +290,7 @@ namespace sek::math
 	}
 	/** Returns the minimum value of a pack. */
 	template<arithmetic... Ts>
-	[[nodiscard]] constexpr std::common_type_t<Ts...> min(Ts... vals) noexcept
+	[[nodiscard]] constexpr std::common_type_t<Ts...> std::min(Ts... vals) noexcept
 		requires(sizeof...(Ts) > 1)
 	{
 		return detail::min_unwrap(vals...);

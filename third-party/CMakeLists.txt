@@ -22,5 +22,24 @@ set(RAPIDJSON_BUILD_CXX17 ON CACHE BOOL "Enable RapidJSON C++17 support")
 add_subdirectory(${RAPIDJSON_SOURCE_DIR} ./rapidjson)
 include_directories(${RAPIDJSON_SOURCE_DIR}/include)
 
+# Add & include ASIO
+set(ASIO_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/asio)
+set(ASIO_COMPILE_SRC ON CACHE BOOL "Enable ASIO binary compilation")
+
+# ASIO config
+add_compile_definitions(ASIO_DISABLE_THREADS)
+add_compile_definitions(ASIO_NO_DEPRECATED)
+add_compile_definitions(ASIO_NO_TYPEID)
+add_compile_definitions(ASIO_DYN_LINK)
+
+# Use URING on linux instead of EPOLL
+if (LINUX)
+    add_compile_definitions(ASIO_HAS_IO_URING)
+    add_compile_definitions(ASIO_HAS_EPOLL)
+endif ()
+
+add_subdirectory(${ASIO_SOURCE_DIR} ./asio)
+include_directories(${ASIO_SOURCE_DIR}/include)
+
 # Link all libraries
-target_link_libraries(${PROJECT_NAME} PUBLIC fmt libzstd_static)
+target_link_libraries(${PROJECT_NAME} PUBLIC fmt libzstd_static asio)

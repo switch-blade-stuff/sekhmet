@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <bit>
 
-#include "../math/utility.hpp"
 #include "alloc_util.hpp"
 #include "assert.hpp"
 #include "ebo_base_helper.hpp"
@@ -401,7 +400,7 @@ namespace sek::detail
 			const auto alloc_max = static_cast<size_type>(bucket_alloc_traits::max_size(get_allocator()));
 
 			/* Max size cannot exceed max load factor of max capacity. */
-			return static_cast<size_type>(static_cast<float>(math::min(absolute_max, alloc_max) / sizeof(value_type)) *
+			return static_cast<size_type>(static_cast<float>(min(absolute_max, alloc_max) / sizeof(value_type)) *
 										  max_load_factor);
 		}
 		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return m_buckets_capacity; }

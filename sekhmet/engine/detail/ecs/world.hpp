@@ -121,6 +121,7 @@ namespace sek::engine
 		template<typename...>
 		friend struct detail::collection_handler;
 
+#if !defined(__cpp_lib_constexpr_memory) || __cpp_lib_constexpr_memory < 202202L
 		struct storage_ptr
 		{
 			storage_ptr(const storage_ptr &) = delete;
@@ -147,6 +148,9 @@ namespace sek::engine
 		private:
 			generic_component_set *m_ptr = nullptr;
 		};
+#else
+		using storage_ptr = std::unique_ptr<generic_component_set>;
+#endif
 
 		struct storage_hash
 		{

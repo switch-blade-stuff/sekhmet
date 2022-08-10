@@ -6,8 +6,7 @@
 
 #include <zstd.h>
 
-#include "sekhmet/math/utility.hpp"
-#include "sekhmet/opt_err.hpp"
+#include "sekhmet/expected.hpp"
 
 #include "logger.hpp"
 #include <zstd_errors.h>
@@ -82,7 +81,7 @@ namespace sek::engine
 	struct zstd_thread_ctx::zstd_dstream
 	{
 		/* Each worker thread receives it's own ZSTD_DStream. This allows us to re-use worker state. */
-		[[nodiscard]] static opt_err<zstd_dstream *, std::uint64_t> instance()
+		[[nodiscard]] static expected<zstd_dstream *, std::uint64_t> instance()
 		{
 			thread_local zstd_dstream stream;
 			return stream.init(); /* ZSTD stream must be initialized before each decompression operation. */
@@ -91,10 +90,10 @@ namespace sek::engine
 		zstd_dstream() : ptr(ZSTD_createDStream()) { SEK_ASSERT(ptr != nullptr); }
 		~zstd_dstream() { ZSTD_freeDStream(ptr); }
 
-		opt_err<zstd_dstream *, std::uint64_t> init() noexcept
+		expected<zstd_dstream *, std::uint64_t> init() noexcept
 		{
 			if (const auto code = ZSTD_initDStream(ptr); ZSTD_isError(code)) [[unlikely]]
-				return sek::erropt_t<uint64_t>{code};
+				return sek::unexpected<uint64_t>{code};
 			return this;
 		}
 		std::uint64_t decompress_frame(buffer_t &src_buff, buffer_t &dst_buff) noexcept
@@ -147,7 +146,7 @@ namespace sek::engine
 	{
 		zstd_dstream *stream;
 		if (auto result = zstd_dstream::instance(); result) [[likely]]
-			stream = result.value();
+			stream = *result;
 		else
 			return result.error();
 
@@ -188,7 +187,7 @@ namespace sek::engine
 	{
 		zstd_dstream *stream;
 		if (auto result = zstd_dstream::instance(); result) [[likely]]
-			stream = result.value();
+			stream = *result;
 		else
 			return result.error();
 
@@ -218,7 +217,7 @@ namespace sek::engine
 	struct zstd_thread_ctx::zstd_cstream
 	{
 		/* Each worker thread receives it's own ZSTD_CStream. This allows us to re-use worker state. */
-		[[nodiscard]] static opt_err<zstd_cstream *, std::uint64_t> instance(std::uint32_t level)
+		[[nodiscard]] static expected<zstd_cstream *, std::uint64_t> instance(std::uint32_t level)
 		{
 			thread_local zstd_cstream stream;
 			return stream.init(level); /* ZSTD stream must be initialized before each compression operation. */
@@ -227,10 +226,10 @@ namespace sek::engine
 		zstd_cstream() : ptr(ZSTD_createCStream()) { SEK_ASSERT(ptr != nullptr); }
 		~zstd_cstream() { ZSTD_freeCStream(ptr); }
 
-		opt_err<zstd_cstream *, std::uint64_t> init(std::uint32_t level)
+		expected<zstd_cstream *, std::uint64_t> init(std::uint32_t level)
 		{
 			if (const auto code = ZSTD_initCStream(ptr, static_cast<int>(level)); ZSTD_isError(code)) [[unlikely]]
-				return sek::erropt_t<std::uint64_t>{code};
+				return sek::unexpected<std::uint64_t>{code};
 			return this;
 		}
 		std::uint64_t reset_session()
@@ -297,7 +296,7 @@ namespace sek::engine
 	{
 		zstd_cstream *stream;
 		if (auto result = zstd_cstream::instance(level); result) [[likely]]
-			stream = result.value();
+			stream = *result;
 		else
 			return result.error();
 
@@ -339,7 +338,7 @@ namespace sek::engine
 	{
 		zstd_cstream *stream;
 		if (auto result = zstd_cstream::instance(level); result) [[likely]]
-			stream = result.value();
+			stream = *result;
 		else
 			return result.error();
 
@@ -429,7 +428,7 @@ namespace sek::engine
 		init(r, w);
 
 		/* If there is only 1 worker or frame available, do single-threaded decompression. */
-		if (const auto tasks = math::min(pool.size(), max_workers, frames); tasks > 1) [[unlikely]]
+		if (const auto tasks = min(pool.size(), max_workers, frames); tasks > 1) [[unlikely]]
 			spawn_workers(pool, tasks, [this]() { return decompress_threaded(); });
 		else
 			assert_error(decompress_single());
@@ -444,12 +443,12 @@ namespace sek::engine
 
 	std::size_t zstd_thread_ctx::compress(thread_pool &pool, read_t r, write_t w, std::uint32_t level, std::uint32_t frame_size)
 	{
-		level = level == 0 ? static_cast<std::uint32_t>(ZSTD_defaultCLevel()) : math::min(level, 20u);
+		level = level == 0 ? static_cast<std::uint32_t>(ZSTD_defaultCLevel()) : std::min(level, 20u);
 		frame_size = get_frame_size(level, frame_size);
 		init(r, w);
 
 		/* If there is only 1 worker available, do single-threaded compression. */
-		if (const auto workers = math::min(pool.size(), max_workers); workers > 1) [[unlikely]]
+		if (const auto workers = std::min(pool.size(), max_workers); workers > 1) [[unlikely]]
 			spawn_workers(pool, workers, [this, level, frame_size]() { return compress_threaded(level, frame_size); });
 		else
 			assert_error(compress_single(level, frame_size));
@@ -457,7 +456,7 @@ namespace sek::engine
 	}
 	std::size_t zstd_thread_ctx::compress_st(read_t r, write_t w, std::uint32_t level, std::uint32_t frame_size)
 	{
-		level = level == 0 ? static_cast<std::uint32_t>(ZSTD_defaultCLevel()) : math::min(level, 20u);
+		level = level == 0 ? static_cast<std::uint32_t>(ZSTD_defaultCLevel()) : std::min(level, 20u);
 		frame_size = get_frame_size(level, frame_size);
 		init(r, w);
 

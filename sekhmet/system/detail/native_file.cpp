@@ -6,8 +6,6 @@
 
 #include <cstring>
 
-#include "sekhmet/math/utility.hpp"
-
 #if defined(SEK_OS_UNIX)
 #include "unix/native_file.cpp"	   // NOLINT
 #elif defined(SEK_OS_WIN)
@@ -20,106 +18,125 @@ namespace sek::system
 
 	native_file::~native_file()
 	{
-		close();
+		close(std::nothrow);
 		delete[] m_buffer;
 	}
 
-	bool native_file::open(const typename std::filesystem::path::value_type *path, openmode mode)
+	void native_file::open(const path_char *path, openmode mode) { return_if(open(std::nothrow, path, mode)); }
+
+	void native_file::close() { return_if(close(std::nothrow)); }
+	void native_file::flush() { return_if(flush(std::nothrow)); }
+	void native_file::sync() { return_if(sync(std::nothrow)); }
+
+	std::size_t native_file::read(void *dst, std::size_t n) { return return_if(read(std::nothrow, dst, n)); }
+	std::size_t native_file::write(const void *src, std::size_t n) { return return_if(write(std::nothrow, src, n)); }
+
+	std::uint64_t native_file::seek(std::int64_t off, seek_basis dir)
 	{
-		bool success = m_handle.open(path, mode);
-		if (success) [[likely]]
-		{
-			m_mode = mode;
-			return true;
-		}
-		return false;
+		return return_if(seek(std::nothrow, off, dir));
 	}
-	bool native_file::close()
+	std::uint64_t native_file::setpos(std::uint64_t pos) { return return_if(setpos(std::nothrow, pos)); }
+	std::uint64_t native_file::resize(std::uint64_t size) { return return_if(resize(std::nothrow, size)); }
+
+	std::uint64_t native_file::size() const { return return_if(size(std::nothrow)); }
+	std::uint64_t native_file::tell() const { return return_if(tell(std::nothrow)); }
+
+	expected<void, std::error_code> native_file::open(std::nothrow_t, const path_char *path, openmode mode) noexcept
 	{
-		const auto result = flush();
-		return m_handle.close() && result;
+		auto result = m_handle.open(path, mode);
+		if (result.has_value()) [[likely]]
+			m_mode = mode;
+		return result;
 	}
 
-	bool native_file::flush()
+	expected<void, std::error_code> native_file::close(std::nothrow_t) noexcept
 	{
-		if (m_reading) /* Un-read buffered input. */
-		{
-			m_reading = false;
-			return m_handle.seek(m_buffer_pos - std::exchange(m_input_size, 0), cur) >= 0;
-		}
-		else if (m_writing) /* Flush buffered output */
-		{
-			m_writing = false;
-			return m_handle.write(m_buffer, static_cast<std::size_t>(m_buffer_pos)) == std::exchange(m_buffer_pos, 0);
-		}
-		return true;
+		if (auto result = flush(std::nothrow); result.has_value()) [[likely]]
+			return m_handle.close();
+		else
+			return result;
 	}
-	std::int64_t native_file::seek(std::int64_t off, seek_dir dir)
+	expected<void, std::error_code> native_file::flush(std::nothrow_t) noexcept
 	{
-		if (dir == cur)
+		if (std::exchange(m_reading, false)) /* Un-read buffered input. */
 		{
-			/* If the new offset is within the current buffer, update the buffer position. */
-			const auto new_pos = m_buffer_pos + off;
-			if (((m_input_size && new_pos <= m_input_size) || new_pos <= m_buffer_size) && new_pos >= 0)
-				return m_handle.tell() + (m_buffer_pos = new_pos);
+			const auto size = std::exchange(m_input_size, 0);
+			const auto pos = std::exchange(m_buffer_pos, 0);
+			m_reading = false;
+
+			return m_handle.seek(static_cast<std::int64_t>(pos - size), seek_cur);
 		}
-		if (!flush()) [[unlikely]]
-			return -1;
+		else if (std::exchange(m_writing, false)) /* Flush buffered output */
+		{
+			const auto pos = std::exchange(m_buffer_pos, 0);
+			m_writing = false;
+
+			return m_handle.write(m_buffer, static_cast<std::size_t>(pos));
+		}
+	}
+	expected<void, std::error_code> native_file::sync(std::nothrow_t) noexcept
+	{
+		if (auto result = flush(std::nothrow); result.has_value()) [[likely]]
+			return m_handle.sync();
+		else
+			return result;
+	}
+
+	expected<std::uint64_t, std::error_code> native_file::seek(std::nothrow_t, std::int64_t off, seek_basis dir) noexcept
+	{
+		if (dir == seek_cur) /* If the new offset is within the current buffer, update the buffer position. */
+		{
+			const auto new_pos = static_cast<std::int64_t>(m_buffer_pos) + off;
+			if (new_pos >= 0 && (m_reading && new_pos <= m_input_size) || (m_writing && new_pos <= m_buffer_size))
+			{
+				const auto pos = m_buffer_pos = static_cast<std::uint64_t>(new_pos);
+				const auto result = m_handle.tell();
+				if (!result.has_value()) [[unlikely]]
+					return unexpected{result.error()};
+				return *result + pos;
+			}
+		}
+		/* Otherwise, flush the buffer & seek the file directly. */
+		if (const auto result = flush(std::nothrow); !result.has_value()) [[unlikely]]
+			return unexpected{result.error()};
 		return m_handle.seek(off, dir);
 	}
-	std::int64_t native_file::tell() const { return m_handle.tell(); }
-
-	std::size_t native_file::write(const void *src, std::size_t n)
+	expected<std::uint64_t, std::error_code> native_file::setpos(std::nothrow_t, std::uint64_t pos) noexcept
 	{
-		if (m_mode & out) [[likely]]
-		{
-			if (m_reading) /* Un-read buffered input. */
-			{
-				if (m_handle.seek(m_buffer_pos - m_input_size, cur) < 0) [[unlikely]]
-					return 0;
-				m_input_size = 0;
-				m_reading = false;
-			}
-			else if (m_buffer == nullptr) [[unlikely]] /* Allocate new buffer if needed. */
-			{
-				/* Unbuffered mode. */
-				if (m_mode & direct) [[unlikely]]
-				{
-					const auto result = m_handle.write(src, n);
-					return result > 0 ? static_cast<std::size_t>(result) : 0;
-				}
-
-				m_buffer = new std::byte[init_buffer_size];
-				m_buffer_size = init_buffer_size;
-			}
-
-			for (std::size_t total = 0, write_n; total < n; total += write_n)
-			{
-				write_n = math::min(n, static_cast<std::size_t>(m_buffer_size - m_buffer_pos));
-				memcpy(m_buffer + m_buffer_pos, src, write_n);
-
-				/* Flush to the file if needed. */
-				if ((m_buffer_pos += static_cast<std::int64_t>(write_n)) == m_buffer_size)
-				{
-					auto flush_n = m_handle.write(m_buffer, static_cast<std::size_t>(write_n));
-					if (flush_n != m_buffer_size) [[unlikely]]
-						return static_cast<std::size_t>(total);
-					m_buffer_pos = 0;
-				}
-			}
-			m_writing = m_buffer_pos != 0;
-			return n;
-		}
-		return 0;
+		if (const auto result = flush(std::nothrow); !result.has_value()) [[unlikely]]
+			return unexpected{result.error()};
+		return m_handle.setpos(pos);
 	}
-	std::size_t native_file::read(void *dst, std::size_t n)
+
+	expected<std::uint64_t, std::error_code> native_file::resize(std::nothrow_t, std::uint64_t size) noexcept
 	{
-		if (m_mode & in) [[likely]]
+		if (auto result = flush(std::nothrow); !result.has_value()) [[unlikely]]
+			return unexpected{result.error()};
+		return m_handle.resize(size);
+	}
+
+	expected<std::uint64_t, std::error_code> native_file::size(std::nothrow_t) const noexcept
+	{
+		return m_handle.size();
+	}
+	expected<std::uint64_t, std::error_code> native_file::tell(std::nothrow_t) const noexcept
+	{
+		auto result = m_handle.tell();
+		if (result.has_value() && (m_reading || m_writing)) [[likely]]
+			*result += m_buffer_pos;
+		return result;
+	}
+
+	expected<std::size_t, std::error_code> native_file::read(std::nothrow_t, void *dst, std::size_t n) noexcept
+	{
+		if ((m_mode & read_only) || (m_mode & read_write)) [[likely]]
 		{
 			if (m_writing) /* Flush buffered output. */
 			{
-				if (m_handle.write(m_buffer, static_cast<std::size_t>(m_buffer_pos)) != m_buffer_pos) [[unlikely]]
-					return 0;
+				auto result = m_handle.write(m_buffer, static_cast<std::size_t>(m_buffer_pos));
+				if (!result.has_value()) [[unlikely]]
+					return result;
+
 				m_buffer_pos = 0;
 				m_writing = false;
 			}
@@ -127,34 +144,90 @@ namespace sek::system
 			{
 				/* Unbuffered mode. */
 				if (m_mode & direct) [[unlikely]]
-				{
-					const auto result = m_handle.read(dst, n);
-					return result > 0 ? static_cast<std::size_t>(result) : 0;
-				}
+					return m_handle.read(dst, n);
 
 				m_buffer = new std::byte[init_buffer_size];
 				m_buffer_size = init_buffer_size;
 			}
 
-			for (std::size_t total = 0, read_n; total < n; total += read_n)
+			/* Fill the internal buffer & copy bytes to destination. */
+			std::size_t total, read_n = 0;
+			for (; total < n; total += read_n)
 			{
-				if (m_buffer_pos == m_input_size) [[unlikely]] /* Buffer in data from file. */
+				if (m_buffer_pos == m_input_size) [[unlikely]] /* Read data from file. */
 				{
-					/* Result might be less than buffer_size. This can happen if the file is smaller than 8kb. */
-					auto res = m_handle.read(m_buffer, static_cast<std::size_t>(m_buffer_size));
-					if (res <= 0) [[unlikely]]
-						return total;
-					m_input_size = res;
+					/* Result might be less than buffer_size. This can happen if the file is smaller than 8kb.
+					 * If read non-0 but less than m_buffer_size, we still want to copy buffer contents to the
+					 * destination. If read 0 bytes, we are at the end and no more reading is possible. */
+					auto result = m_handle.read(m_buffer, static_cast<std::size_t>(m_buffer_size));
+					if (!result.has_value()) [[unlikely]]
+						return result;
+
 					m_buffer_pos = 0;
+					m_input_size = *result;
+					if (m_input_size == 0) [[unlikely]]
+						break;
 				}
 
-				read_n = math::min(n, static_cast<std::size_t>(m_input_size - m_buffer_pos));
+				read_n = std::min(n, static_cast<std::size_t>(m_input_size - m_buffer_pos));
 				memcpy(dst, m_buffer + m_buffer_pos, read_n);
-				m_buffer_pos += static_cast<std::int64_t>(read_n);
+				m_buffer_pos += static_cast<std::uint64_t>(read_n);
 			}
 			m_reading = m_input_size > m_buffer_pos;
-			return n;
+			return total;
 		}
 		return 0;
 	}
+	expected<std::size_t, std::error_code> native_file::write(std::nothrow_t, const void *src, std::size_t n) noexcept
+	{
+		if ((m_mode & write_only) || (m_mode & read_write)) [[likely]]
+		{
+			if (m_reading) /* Un-read buffered input. */
+			{
+				auto result = m_handle.seek(static_cast<std::int64_t>(m_buffer_pos - m_input_size), seek_cur);
+				if (!result.has_value()) [[unlikely]]
+					return result;
+
+				m_input_size = 0;
+				m_reading = false;
+			}
+			else if (m_buffer == nullptr) [[unlikely]] /* Allocate new buffer if needed. */
+			{
+				/* Unbuffered mode. */
+				if (m_mode & direct) [[unlikely]]
+					return m_handle.write(src, n);
+
+				m_buffer = new std::byte[init_buffer_size];
+				m_buffer_size = init_buffer_size;
+			}
+
+			std::size_t total = 0, write_n;
+			for (; total < n; total += write_n)
+			{
+				write_n = std::min(n, static_cast<std::size_t>(m_buffer_size - m_buffer_pos));
+				memcpy(m_buffer + m_buffer_pos, src, write_n);
+
+				/* Flush to the file if needed. */
+				if ((m_buffer_pos += static_cast<std::uint64_t>(write_n)) == m_buffer_size)
+				{
+					auto result = m_handle.write(m_buffer, static_cast<std::size_t>(write_n));
+					if (!result.has_value()) [[unlikely]]
+						return result;
+					if (*result != m_buffer_size) [[unlikely]]
+						return total;
+
+					m_buffer_pos = 0;
+				}
+			}
+			m_writing = m_buffer_pos != 0;
+			return total;
+		}
+		return 0;
+	}
+
+	void native_filemap::map(const sek::system::native_file &file, std::uint64_t off, std::uint64_t n, mapmode mode)
+	{
+		return_if(map(std::nothrow, file, off, n, mode));
+	}
+	void native_filemap::unmap() { return_if(unmap(std::nothrow)); }
 }	 // namespace sek::system

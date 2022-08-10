@@ -9,7 +9,6 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "../math/utility.hpp"
 #include "meta_util.hpp"
 
 namespace sek
