@@ -7,7 +7,6 @@
 #include <filesystem>
 #include <span>
 
-#include "sekhmet/detail/define.h"
 #include "sekhmet/detail/expected.hpp"
 
 #include <asio/basic_file.hpp>
@@ -54,7 +53,7 @@ namespace sek::system
 namespace sek::system
 {
 	/** @brief Structure used to preform buffered IO operations on a native OS file.
-	 * Provides both a C-like read & write API and an ASIO buffer-compatible API. */
+	 * Provides both a C-like read & write API and an ASIO buffer compatible API. */
 	class native_file
 	{
 		friend class native_filemap;
@@ -82,14 +81,6 @@ namespace sek::system
 
 	private:
 		using path_char = typename std::filesystem::path::value_type;
-
-		template<typename T>
-		static T return_if(expected<T, std::error_code> &&exp)
-		{
-			if (!exp.has_value()) [[unlikely]]
-				throw std::system_error(exp.error());
-			return exp.value();
-		}
 
 	public:
 		native_file(const native_file &) = delete;
@@ -189,25 +180,21 @@ namespace sek::system
 		 * @param buff ASIO mutable buffer sequence receiving data.
 		 * @return Amount of bytes read from the file.
 		 * @throw std::system_error On any system errors. */
-		template<typename MBuff>
-		std::size_t read(MBuff &buff) { return return_if(write(std::nothrow, buff)); }
+		SEK_API std::size_t read(asio::mutable_buffer &buff);
 		/** @brief Writes data buffers to the file.
 		 * @param buff ASIO const buffer sequence containing source data.
 		 * @return Amount of bytes written to the file.
 		 * @throw std::system_error On any system errors. */
-		template<typename CBuff>
-		std::size_t write(const CBuff &buff) { return return_if(write(std::nothrow, buff)); }
+		SEK_API std::size_t write(const asio::const_buffer &buff);
 		// clang-format on
 
 		/** @copybrief read
-		 * @param buff ASIO mutable buffer sequence receiving data.
+		 * @param buff ASIO mutable buffer receiving data.
 		 * @return Amount of bytes read from the file or an error code. */
-		template<typename MBuff>
-		expected<std::size_t, std::error_code> read(std::nothrow_t, MBuff &buff) noexcept;
+		SEK_API expected<std::size_t, std::error_code> read(std::nothrow_t, asio::mutable_buffer &buff) noexcept;
 		/** @copybrief write
 		 * @return Amount of bytes written to the file or an error code. */
-		template<typename CBuff>
-		expected<std::size_t, std::error_code> write(std::nothrow_t, const CBuff &buff) noexcept;
+		SEK_API expected<std::size_t, std::error_code> write(std::nothrow_t, const asio::const_buffer &buff) noexcept;
 
 		/** @brief Seeks the file in the specified direction to the specified offset.
 		 * @param off Offset to seek.
@@ -313,15 +300,6 @@ namespace sek::system
 		/** Pre-populate mapped pages. */
 		constexpr static mapmode map_populate = system::map_populate;
 
-	private:
-		template<typename T>
-		static T return_if(expected<T, std::error_code> &&exp)
-		{
-			if (!exp.has_value()) [[unlikely]]
-				throw std::system_error(exp.error());
-			return exp.value();
-		}
-
 	public:
 		native_filemap(const native_filemap &) = delete;
 		native_filemap &operator=(const native_filemap &) = delete;
@@ -398,6 +376,4 @@ namespace sek::system
 	private:
 		detail::native_filemap_handle m_handle;
 	};
-
-	/* TODO: Implement ASIO buffer read & write operations on files. */
 }	 // namespace sek::system

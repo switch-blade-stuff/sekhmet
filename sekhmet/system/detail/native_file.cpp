@@ -16,6 +16,14 @@ namespace sek::system
 {
 	constexpr std::size_t init_buffer_size = SEK_KB(8);
 
+	template<typename T>
+	inline static T return_if(expected<T, std::error_code> &&exp)
+	{
+		if (!exp.has_value()) [[unlikely]]
+			throw std::system_error(exp.error());
+		return exp.value();
+	}
+
 	native_file::~native_file()
 	{
 		close(std::nothrow);
@@ -29,7 +37,9 @@ namespace sek::system
 	void native_file::sync() { return_if(sync(std::nothrow)); }
 
 	std::size_t native_file::read(void *dst, std::size_t n) { return return_if(read(std::nothrow, dst, n)); }
+	std::size_t native_file::read(asio::mutable_buffer &buff) { return return_if(write(std::nothrow, buff)); }
 	std::size_t native_file::write(const void *src, std::size_t n) { return return_if(write(std::nothrow, src, n)); }
+	std::size_t native_file::write(const asio::const_buffer &buff) { return return_if(write(std::nothrow, buff)); }
 
 	std::uint64_t native_file::seek(std::int64_t off, seek_basis dir)
 	{
@@ -179,8 +189,13 @@ namespace sek::system
 			m_reading = m_input_size > m_buffer_pos;
 			return total;
 		}
-		return 0;
+		return 0u;
 	}
+	expected<std::size_t, std::error_code> native_file::read(std::nothrow_t, asio::mutable_buffer &buff) noexcept
+	{
+		return read(std::nothrow, buff.data(), buff.size());
+	}
+
 	expected<std::size_t, std::error_code> native_file::write(std::nothrow_t, const void *src, std::size_t n) noexcept
 	{
 		if ((m_mode & write_only) || (m_mode & read_write)) [[likely]]
@@ -225,7 +240,11 @@ namespace sek::system
 			m_writing = m_buffer_pos != 0;
 			return total;
 		}
-		return 0;
+		return 0u;
+	}
+	expected<std::size_t, std::error_code> native_file::write(std::nothrow_t, const asio::const_buffer &buff) noexcept
+	{
+		return write(std::nothrow, buff.data(), buff.size());
 	}
 
 	void native_filemap::map(const sek::system::native_file &file, std::uint64_t off, std::uint64_t n, mapmode mode)
