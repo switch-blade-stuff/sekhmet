@@ -58,19 +58,19 @@ if (SEK_TOP_LEVEL OR SEK_EXPORT_BUILD)
     # Set compiler options
     if (MSVC)
         if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-            add_compile_options(/W4 /wd4251)
+            target_compile_options(${PROJECT_NAME} PUBLIC /W4 /wd4251)
         else ()
-            add_compile_options(/W3)
+            target_compile_options(${PROJECT_NAME} PUBLIC /W3)
         endif ()
     elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         # Enable all warnings & errors for the current project & children
-        add_compile_options("-Wall" "-Wextra" "-Wno-unknown-pragmas" "-Wconversion" "-Werror")
+        target_compile_options(${PROJECT_NAME} PUBLIC "-Wall" "-Wextra" "-Wno-unknown-pragmas" "-Wconversion" "-Werror")
 
         if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-            add_compile_options("-fconcepts-diagnostics-depth=32")
+            target_compile_options(${PROJECT_NAME} PUBLIC "-fconcepts-diagnostics-depth=32")
         else ()
             # Always set file prefix map to current directory to avoid exposing full directory tree in debug info
-            add_compile_options("-ffile-prefix-map=\"${CMAKE_CURRENT_LIST_DIR}/\"=\"\"")
+            target_compile_options(${PROJECT_NAME} PUBLIC "-ffile-prefix-map=\"${CMAKE_CURRENT_LIST_DIR}/\"=\"\"")
         endif ()
     endif ()
 

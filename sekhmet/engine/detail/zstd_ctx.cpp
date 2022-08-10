@@ -428,7 +428,7 @@ namespace sek::engine
 		init(r, w);
 
 		/* If there is only 1 worker or frame available, do single-threaded decompression. */
-		if (const auto tasks = min(pool.size(), max_workers, frames); tasks > 1) [[unlikely]]
+		if (const auto tasks = std::min(std::min(pool.size(), max_workers), frames); tasks > 1) [[unlikely]]
 			spawn_workers(pool, tasks, [this]() { return decompress_threaded(); });
 		else
 			assert_error(decompress_single());

@@ -7,6 +7,8 @@
 #include <functional>
 #include <optional>
 
+#include "define.h"
+
 #if __cplusplus <= 202002L
 namespace sek
 {

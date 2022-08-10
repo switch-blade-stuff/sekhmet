@@ -73,6 +73,7 @@ namespace sek::system
 
 			return m_handle.write(m_buffer, static_cast<std::size_t>(pos));
 		}
+		return {};
 	}
 	expected<void, std::error_code> native_file::sync(std::nothrow_t) noexcept
 	{
@@ -86,8 +87,10 @@ namespace sek::system
 	{
 		if (dir == seek_cur) /* If the new offset is within the current buffer, update the buffer position. */
 		{
+			const auto buf_size = static_cast<std::int64_t>(m_buffer_size);
+			const auto in_size = static_cast<std::int64_t>(m_input_size);
 			const auto new_pos = static_cast<std::int64_t>(m_buffer_pos) + off;
-			if (new_pos >= 0 && (m_reading && new_pos <= m_input_size) || (m_writing && new_pos <= m_buffer_size))
+			if (new_pos >= 0 && ((m_reading && new_pos <= in_size) || (m_writing && new_pos <= buf_size)))
 			{
 				const auto pos = m_buffer_pos = static_cast<std::uint64_t>(new_pos);
 				const auto result = m_handle.tell();

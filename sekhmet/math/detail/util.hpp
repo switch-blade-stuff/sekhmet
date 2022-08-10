@@ -206,27 +206,18 @@ namespace sek::math
 		return !fcmp_le(a, b, epsilon);
 	}
 
-	/** Returns the maximum value between a and b. */
-	template<arithmetic T>
-	[[nodiscard]] constexpr T max(T a, T b) noexcept
-	{
-		return a > b ? a : b;
-	}
+	using std::max;
+	using std::min;
+
 	/** Returns the maximum value between a and b using an epsilon. */
 	template<std::floating_point T>
 	[[nodiscard]] constexpr T fmax(T a, T b, T epsilon = std::numeric_limits<T>::epsilon()) noexcept
 	{
 		return fcmp_ge(a, b, epsilon) ? a : b;
 	}
-	/** Returns the minimum value between a and b. */
-	template<arithmetic T>
-	[[nodiscard]] constexpr T std::min(T a, T b) noexcept
-	{
-		return a < b ? a : b;
-	}
 	/** Returns the minimum value between a and b using an epsilon. */
 	template<std::floating_point T>
-	[[nodiscard]] constexpr T fstd::min(T a, T b, T epsilon = std::numeric_limits<T>::epsilon()) noexcept
+	[[nodiscard]] constexpr T fmin(T a, T b, T epsilon = std::numeric_limits<T>::epsilon()) noexcept
 	{
 		return fcmp_le(a, b, epsilon) ? a : b;
 	}
@@ -281,18 +272,18 @@ namespace sek::math
 		}
 	}	 // namespace detail
 
+	// clang-format off
 	/** Returns the maximum value of a pack. */
 	template<arithmetic... Ts>
-	[[nodiscard]] constexpr std::common_type_t<Ts...> max(Ts... vals) noexcept
-		requires(sizeof...(Ts) > 1)
+	[[nodiscard]] constexpr std::common_type_t<Ts...> max(Ts... vals) noexcept requires(sizeof...(Ts) > 1)
 	{
 		return detail::max_unwrap(vals...);
 	}
 	/** Returns the minimum value of a pack. */
 	template<arithmetic... Ts>
-	[[nodiscard]] constexpr std::common_type_t<Ts...> std::min(Ts... vals) noexcept
-		requires(sizeof...(Ts) > 1)
+	[[nodiscard]] constexpr std::common_type_t<Ts...> min(Ts... vals) noexcept requires(sizeof...(Ts) > 1)
 	{
 		return detail::min_unwrap(vals...);
 	}
+	// clang-format on
 }	 // namespace sek::math

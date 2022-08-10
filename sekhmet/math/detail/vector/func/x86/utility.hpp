@@ -30,7 +30,7 @@ namespace sek::math::detail
 #ifdef SEK_USE_SSE4_1
 		return _mm_blendv_epi8(a, b, m);
 #else
-		return _mm_add_si128(_mm_and_si128(m, b), _mm_andnot_si128(m, a));
+		return _mm_or_si128(_mm_and_si128(m, b), _mm_andnot_si128(m, a));
 #endif
 	}
 

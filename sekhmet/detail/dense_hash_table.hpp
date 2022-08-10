@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <limits>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -399,8 +400,10 @@ namespace sek::detail
 
 		constexpr void rehash(size_type new_cap)
 		{
+			using std::max;
+
 			/* Adjust the capacity to be at least large enough to fit the current size. */
-			new_cap = math::max(static_cast<size_type>(static_cast<float>(size()) / max_load_factor), new_cap, initial_capacity);
+			new_cap = max(max(static_cast<size_type>(static_cast<float>(size()) / max_load_factor), new_cap), initial_capacity);
 
 			/* Don't do anything if the capacity did not change after the adjustment. */
 			if (new_cap != bucket_vector().capacity()) [[likely]]

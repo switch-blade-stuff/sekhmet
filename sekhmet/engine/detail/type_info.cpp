@@ -15,14 +15,14 @@ namespace sek::engine
 		void assert_mutable_any(const any &a, std::string_view name)
 		{
 			if (a.is_const()) [[unlikely]]
-				throw any_const_error(fmt::format("Cannot bind const `any` to a non-const type \"{}\"", name));
+				throw bad_any_const(fmt::format("Cannot bind const `any` to a non-const type \"{}\"", name));
 		}
 	}	 // namespace detail
 
 	type_info_error::~type_info_error() = default;
-	any_type_error::~any_type_error() = default;
-	any_const_error::~any_const_error() = default;
-	invalid_member_error::~invalid_member_error() = default;
+	bad_any_type::~bad_any_type() = default;
+	bad_any_const::~bad_any_const() = default;
+	invalid_member::~invalid_member() = default;
 
 	type_database::iterator type_database::find(std::string_view name) const
 	{
@@ -85,7 +85,7 @@ namespace sek::engine
 		const auto ctor = std::ranges::find_if(ctors, [&args](auto c) { return c.signature().invocable_with(args); });
 		if (ctor == ctors.end()) [[unlikely]]
 		{
-			throw invalid_member_error(
+			throw invalid_member(
 				fmt::format("No matching constructor taking {} found for type \"{}\"",
 							args_type_msg(args.begin(), args.end(), [](auto &&a) { return a.type().name(); }),
 							name()));
@@ -99,7 +99,7 @@ namespace sek::engine
 		const auto func = std::ranges::find_if(funcs, [&name](auto f) { return f.name() == name; });
 		if (func == funcs.end()) [[unlikely]]
 		{
-			throw invalid_member_error(fmt::format("No matching function with name \"{}\" "
+			throw invalid_member(fmt::format("No matching function with name \"{}\" "
 												   "found for type \"{}\"",
 												   name,
 												   m_data->name));
@@ -193,7 +193,7 @@ namespace sek::engine
 		if (!invocable_with(values)) [[unlikely]]
 		{
 			const auto as = args();
-			throw any_type_error(
+			throw bad_any_type(
 				fmt::format("Invalid argument types. Expected: {}, got {}",
 							args_type_msg(as.begin(), as.end(), [](auto &&t) { return t.name(); }),
 							args_type_msg(values.begin(), values.end(), [](auto &&a) { return a.type().name(); })));

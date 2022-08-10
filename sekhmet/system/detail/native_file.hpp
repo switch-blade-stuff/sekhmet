@@ -372,7 +372,7 @@ namespace sek::system
 		SEK_API void unmap();
 		/** @copybrief unmap
 		 * @return `void` or an error code. */
-		inline expected<void, std::error_code> unmap(std::nothrow_t) noexcept { m_handle.unmap(); }
+		inline expected<void, std::error_code> unmap(std::nothrow_t) noexcept { return m_handle.unmap(); }
 
 		/** Returns size of the mapping. */
 		[[nodiscard]] constexpr std::uint64_t size() const noexcept { return m_handle.size(); }

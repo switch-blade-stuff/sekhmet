@@ -8,6 +8,7 @@
 #include <ios>
 
 #include "sekhmet/system/native_file.hpp"
+
 #include "util.hpp"
 
 namespace sek::serialization
@@ -180,7 +181,7 @@ namespace sek::serialization
 			.bump = +[](data_t &data, std::size_t n) -> std::size_t
 			{
 				const auto pos = data.file->tell() + static_cast<std::int64_t>(n);
-				if (data.file->seek(pos, system::native_file::beg) == pos) [[likely]]
+				if (data.file->seek(pos, system::native_file::seek_set) == pos) [[likely]]
 					return n;
 				else
 					return 0;
@@ -191,7 +192,7 @@ namespace sek::serialization
 				char_type c;
 				if (data.file->read(&c, sizeof(char_type)) == sizeof(char_type)) [[likely]]
 				{
-					data.file->seek(-static_cast<std::int64_t>(sizeof(char_type)), system::native_file::cur);
+					data.file->seek(-static_cast<std::int64_t>(sizeof(char_type)), system::native_file::seek_set);
 					return traits_type::to_int_type(c);
 				}
 				else

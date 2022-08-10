@@ -1005,6 +1005,8 @@ namespace sek::engine
 
 	constexpr auto asset_database::packages() noexcept { return package_proxy<true>{*this}; }
 	constexpr auto asset_database::packages() const noexcept { return package_proxy<false>{*this}; }
+
+	/* TODO: Refactor implementation to support error_code */
 }	 // namespace sek::engine
 
 extern template class SEK_API_IMPORT sek::service<sek::shared_guard<sek::engine::asset_database>>;

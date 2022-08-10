@@ -365,35 +365,35 @@ namespace sek::engine
 		explicit type_info_error(const char *msg) : std::runtime_error(msg) {}
 		~type_info_error() override;
 	};
-	/** @brief Exception thrown when the type of `any` is not as expected. */
-	class SEK_API any_type_error : public type_info_error
+	/** @brief Exception thrown when a reflected type does not have the specified member function/constructor. */
+	class SEK_API invalid_member : public type_info_error
 	{
 	public:
-		any_type_error() : type_info_error("Invalid type of `any` object") {}
-		explicit any_type_error(std::string &&msg) : type_info_error(std::move(msg)) {}
-		explicit any_type_error(const std::string &msg) : type_info_error(msg) {}
-		explicit any_type_error(const char *msg) : type_info_error(msg) {}
-		~any_type_error() override;
+		invalid_member() : type_info_error("Unknown type member") {}
+		explicit invalid_member(std::string &&msg) : type_info_error(std::move(msg)) {}
+		explicit invalid_member(const std::string &msg) : type_info_error(msg) {}
+		explicit invalid_member(const char *msg) : type_info_error(msg) {}
+		~invalid_member() override;
 	};
 	/** @brief Exception thrown when the const-ness of `any` is invalid (expected non-const but got const object). */
-	class SEK_API any_const_error : public type_info_error
+	class SEK_API bad_any_const : public type_info_error
 	{
 	public:
-		any_const_error() : type_info_error("Invalid const-ness of `any` object") {}
-		explicit any_const_error(std::string &&msg) : type_info_error(std::move(msg)) {}
-		explicit any_const_error(const std::string &msg) : type_info_error(msg) {}
-		explicit any_const_error(const char *msg) : type_info_error(msg) {}
-		~any_const_error() override;
+		bad_any_const() : type_info_error("Invalid const-ness of `any` object") {}
+		explicit bad_any_const(std::string &&msg) : type_info_error(std::move(msg)) {}
+		explicit bad_any_const(const std::string &msg) : type_info_error(msg) {}
+		explicit bad_any_const(const char *msg) : type_info_error(msg) {}
+		~bad_any_const() override;
 	};
-	/** @brief Exception thrown when a reflected type does not have the specified member function/constructor. */
-	class SEK_API invalid_member_error : public type_info_error
+	/** @brief Exception thrown when the type of `any` is not as expected. */
+	class SEK_API bad_any_type : public type_info_error
 	{
 	public:
-		invalid_member_error() : type_info_error("Unknown type member") {}
-		explicit invalid_member_error(std::string &&msg) : type_info_error(std::move(msg)) {}
-		explicit invalid_member_error(const std::string &msg) : type_info_error(msg) {}
-		explicit invalid_member_error(const char *msg) : type_info_error(msg) {}
-		~invalid_member_error() override;
+		bad_any_type() : type_info_error("Invalid type of `any` object") {}
+		explicit bad_any_type(std::string &&msg) : type_info_error(std::move(msg)) {}
+		explicit bad_any_type(const std::string &msg) : type_info_error(msg) {}
+		explicit bad_any_type(const char *msg) : type_info_error(msg) {}
+		~bad_any_type() override;
 	};
 
 	/** @brief Structure used to represent a signature of a constructor or a function. */
@@ -616,8 +616,8 @@ namespace sek::engine
 		/** Constructs the underlying type with the passed arguments & returns an `any` managing the constructed object.
 		 * @param args Arguments passed to the constructor.
 		 * @return `any` managing the constructed object.
-		 * @throw invalid_member_error If no constructor accepting `args` was found.
-		 * @throw any_const_error If const-ness of the passed arguments is invalid (expected non-const but got const). */
+		 * @throw invalid_member If no constructor accepting `args` was found.
+		 * @throw bad_any_const If const-ness of the passed arguments is invalid (expected non-const but got const). */
 		[[nodiscard]] SEK_API any construct(std::span<any> args = {}) const;
 		// clang-format off
 		/** @copydoc construct */
@@ -633,9 +633,9 @@ namespace sek::engine
 		 * If `function_info` represents a static function who's first argument is not an instance pointer, instance is ignored.
 		 * @param args Arguments passed to the function.
 		 * @return Value returned by the function. If the underlying function's return type is void, returns an empty `any`.
-		 * @throw invalid_member_error If such function was not found.
-		 * @throw any_type_error If the function cannot be invoked with the passed arguments.
-		 * @throw any_const_error If const-ness of the passed arguments is invalid (expected non-const but got const).
+		 * @throw invalid_member If such function was not found.
+		 * @throw bad_any_type If the function cannot be invoked with the passed arguments.
+		 * @throw bad_any_const If const-ness of the passed arguments is invalid (expected non-const but got const).
 		 * @warning Invoking a non-const function on a const object will result in undefined behavior. */
 		SEK_API any invoke(std::string_view name, any instance, std::span<any> args) const;
 		// clang-format off
@@ -1304,7 +1304,7 @@ namespace sek::engine
 		 *
 		 * @return The underlying underlying object, cast to type `T`.
 		 *
-		 * @throw any_type_error If no such cast is possible. */
+		 * @throw bad_any_type If no such cast is possible. */
 		template<typename T>
 		[[nodiscard]] T cast()
 		{
@@ -1319,7 +1319,7 @@ namespace sek::engine
 					std::string msg = "Invalid any cast to type \"";
 					msg.append(type_name<std::remove_cvref_t<T>>());
 					msg.append(1, '\"');
-					throw any_type_error(std::move(msg));
+					throw bad_any_type(std::move(msg));
 				}
 				return static_cast<T>(*ptr);
 			}
@@ -1334,7 +1334,7 @@ namespace sek::engine
 				std::string msg = "Invalid any cast to type \"";
 				msg.append(type_name<std::remove_cvref_t<T>>());
 				msg.append(1, '\"');
-				throw any_type_error(std::move(msg));
+				throw bad_any_type(std::move(msg));
 			}
 			return static_cast<T>(*ptr);
 		}
@@ -1360,9 +1360,9 @@ namespace sek::engine
 		 * @param name Name of the reflected function.
 		 * @param args Arguments passed to the function.
 		 * @return Value returned by the function. If the underlying function's return type is void, returns an empty `any`.
-		 * @throw invalid_member_error If such function was not found.
-		 * @throw any_type_error If the function cannot be invoked with the passed arguments.
-		 * @throw any_const_error If const-ness of the passed arguments is invalid (expected non-const but got const).
+		 * @throw invalid_member If such function was not found.
+		 * @throw bad_any_type If the function cannot be invoked with the passed arguments.
+		 * @throw bad_any_const If const-ness of the passed arguments is invalid (expected non-const but got const).
 		 * @warning Invoking a non-const function on a const object will result in undefined behavior. */
 		SEK_API any invoke(std::string_view name, std::span<any> args);
 		/** @copydoc invoke */
@@ -2106,8 +2106,8 @@ namespace sek::engine
 		/** Invokes the underlying constructor, producing an instance of `any`.
 		 * @param args Arguments passed to the constructor.
 		 * @return Instance created from the constructor.
-		 * @throw any_type_error If the constructor cannot be invoked with the passed arguments.
-		 * @throw any_const_error If const-ness of the passed arguments is invalid (expected non-const but got const). */
+		 * @throw bad_any_type If the constructor cannot be invoked with the passed arguments.
+		 * @throw bad_any_const If const-ness of the passed arguments is invalid (expected non-const but got const). */
 		[[nodiscard]] any invoke(std::span<any> args) const
 		{
 			if (signature().assert_args(args)) [[likely]]
@@ -2168,8 +2168,8 @@ namespace sek::engine
 		 * If `function_info` represents a static function who's first argument is not an instance pointer, instance is ignored.
 		 * @param args Arguments passed to the function.
 		 * @return Value returned by the function. If the underlying function's return type is void, returns an empty `any`.
-		 * @throw any_type_error If the function cannot be invoked with the passed arguments.
-		 * @throw any_const_error If const-ness of the passed arguments is invalid (expected non-const but got const).
+		 * @throw bad_any_type If the function cannot be invoked with the passed arguments.
+		 * @throw bad_any_const If const-ness of the passed arguments is invalid (expected non-const but got const).
 		 * @warning Invoking a non-const function on a const object (or incorrect instance type)
 		 * will result in undefined behavior. */
 		any invoke(any instance, std::span<any> args) const

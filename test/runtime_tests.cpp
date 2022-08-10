@@ -322,9 +322,9 @@ TEST(runtime_tests, any_test)
 		const auto funcs = info.functions();
 		EXPECT_FALSE(funcs.empty());
 
-		EXPECT_THROW(a1.invoke("get_i", sek::engine::make_any<int>()), sek::engine::any_type_error);
-		EXPECT_THROW(a1.invoke("get_i"), sek::engine::any_const_error);
-		EXPECT_THROW(a1.invoke(""), sek::engine::invalid_member_error);
+		EXPECT_THROW(a1.invoke("get_i", sek::engine::make_any<int>()), sek::engine::bad_any_type);
+		EXPECT_THROW(a1.invoke("get_i"), sek::engine::bad_any_const);
+		EXPECT_THROW(a1.invoke(""), sek::engine::invalid_member);
 
 		a1 = a3.invoke("get_i");
 		EXPECT_TRUE(a1.is_ref());
