@@ -56,6 +56,7 @@ namespace sek::serialization
 			FLOAT32 = FLOAT_TYPE | 0,
 			FLOAT64 = FLOAT_TYPE | 1,
 		};
+
 		template<typename C>
 		union json_node_value
 		{
@@ -69,6 +70,7 @@ namespace sek::serialization
 
 			double fp;
 		};
+
 		template<typename C, typename T = std::char_traits<C>>
 		using basic_json_tree = basic_node_tree<C, json_node_value<C>, void, T>;
 
@@ -1549,6 +1551,7 @@ namespace sek::serialization
 				swap(other);
 				return *this;
 			}
+
 			~json_archive_base() = default;
 
 			void reset(std::pmr::memory_resource *res) { tree->reset(res); }
@@ -1598,10 +1601,10 @@ namespace sek::serialization
 			std::pmr::memory_resource *upstream;
 		};
 
+		// clang-format off
 		template<typename C, typename T, json_archive_config Cfg>
 		template<typename U, typename... Args>
-		constexpr const typename json_archive_base<C, T, Cfg>::entry_t &
-			json_archive_base<C, T, Cfg>::entry_t::read(U &&v, Args &&...args) const
+		constexpr const typename json_archive_base<C, T, Cfg>::entry_t &json_archive_base<C, T, Cfg>::entry_t::read(U &&v, Args &&...args) const
 		{
 			if (tree_node::is_value()) [[unlikely]]
 				throw archive_error("Invalid Json type, expected array or object");
@@ -1631,6 +1634,7 @@ namespace sek::serialization
 				return result;
 			}
 		}
+		// clang-format on
 	}	 // namespace detail
 
 	template<typename C, typename T = std::char_traits<C>>

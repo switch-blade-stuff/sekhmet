@@ -26,7 +26,7 @@ namespace sek::system
 
 	native_file::~native_file()
 	{
-		close(std::nothrow);
+		if (is_open()) flush();
 		delete[] m_buffer;
 	}
 

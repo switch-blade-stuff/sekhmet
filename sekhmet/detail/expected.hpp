@@ -115,18 +115,23 @@ namespace sek
 		/** @copydoc error */
 		[[nodiscard]] constexpr E &&error() &&noexcept { return m_value; }
 
-		template<typename E2>
-		[[nodiscard]] friend constexpr bool operator==(const unexpected &lhs, const unexpected<E2> &rhs)
-		{
-			return lhs.m_value == rhs.m_value;
-		}
-
 		constexpr void swap(unexpected &other) noexcept(std::is_nothrow_swappable_v<E>) { m_value.swap(other.m_value); }
 		friend constexpr void swap(unexpected &a, unexpected &b) noexcept(noexcept(a.swap(b))) { a.swap(b); }
 
 	private:
 		E m_value = {};
 	};
+
+	template<typename E1, typename E2>
+	[[nodiscard]] constexpr auto operator<=>(const unexpected<E1> &lhs, const unexpected<E2> &rhs)
+	{
+		return lhs.error() <=> rhs.error();
+	}
+	template<typename E1, typename E2>
+	[[nodiscard]] constexpr bool operator==(const unexpected<E1> &lhs, const unexpected<E2> &rhs)
+	{
+		return lhs.error() == rhs.error();
+	}
 
 	template<typename E>
 	unexpected(E) -> unexpected<E>;
@@ -394,9 +399,9 @@ namespace sek
 		/** @copydoc operator* */
 		[[nodiscard]] constexpr const T &operator*() const &noexcept { return m_value; }
 		/** @copydoc operator* */
-		[[nodiscard]] constexpr T &&operator*() &&noexcept { return m_value; }
+		[[nodiscard]] constexpr T &&operator*() &&noexcept { return std::move(m_value); }
 		/** @copydoc operator* */
-		[[nodiscard]] constexpr const T &&operator*() const &&noexcept { return m_value; }
+		[[nodiscard]] constexpr const T &&operator*() const &&noexcept { return std::move(m_value); }
 
 		/** @copydoc operator*
 		 * @throw bad_expected_access<E> If the instance contains an unexpected value. */
@@ -404,28 +409,28 @@ namespace sek
 		{
 			if (!has_value()) [[unlikely]]
 				throw bad_expected_access<E>(m_error);
-			return **this;
+			return operator*();
 		}
 		/** @copydoc value */
 		[[nodiscard]] constexpr const T &value() const &
 		{
 			if (!has_value()) [[unlikely]]
 				throw bad_expected_access<E>(m_error);
-			return **this;
+			return operator*();
 		}
 		/** @copydoc value */
 		[[nodiscard]] constexpr T &&value() &&
 		{
 			if (!has_value()) [[unlikely]]
 				throw bad_expected_access<E>(std::move(m_error));
-			return **this;
+			return std::move(operator*());
 		}
 		/** @copydoc value */
 		[[nodiscard]] constexpr const T &&value() const &&
 		{
 			if (!has_value()) [[unlikely]]
 				throw bad_expected_access<E>(std::move(m_error));
-			return **this;
+			return std::move(operator*());
 		}
 
 		/** Returns reference to the underlying unexpected value.

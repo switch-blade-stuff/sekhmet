@@ -25,192 +25,52 @@ namespace sek::engine
 {
 	using namespace sek::serialization;
 
+	template<typename T>
+	inline static T return_if(expected<T, std::error_code> &&exp)
+	{
+		if (!exp.has_value()) [[unlikely]]
+			throw std::system_error(exp.error());
+		return std::move(exp.value());
+	}
+	template<typename T>
+	inline static void return_if(expected<void, std::error_code> &&exp)
+	{
+		if (!exp.has_value()) [[unlikely]]
+			throw std::system_error(exp.error());
+	}
+
 	namespace detail
 	{
-		/*
-		 * Archive header format:
-		 * ============================================================================
-		 * =                                    V1                                    =
-		 * ============================================================================
-		 * File offsets                     Description
-		 * 0x0000  -  0x0007                Signature ("\3SEKPAK" + version byte)
-		 * 0x0008  -  0x000b                Header flags (compression type, etc.)
-		 * 0x000c  -  0x000f                Number of assets of the package (may be 0)
-		 * 0x0010  -  end_assets            Asset info for every asset
-		 * =============================== Header flags ===============================
-		 * Description           Bit(s)      Values
-		 * Archive flag            0           0   - Loose package
-		 *                                     1   - Archive package
-		 * Project flag            1           0   - Not a project (all runtime packages)
-		 *                                     1   - Editor project (editor-managed loose packages)
-		 * Compression format     2-5          0   - Not used (used for non-archive packages)
-		 *                                     1   - No compression
-		 *                                     2   - ZSTD compression
-		 *                                    3-15 - Reserved
-		 * Reserved               6-31         0
-		 * =============================== Asset entry ================================
-		 * Entry offsets                  Description
-		 * 0x00 - 0x0f                    Asset UUID
-		 * 0x10 - 0x17                    Asset data offset
-		 * 0x18 - 0x1f                    Asset data size (compressed)
-		 * 0x20 - 0x27                    Asset source size (decompressed)
-		 * 0x28 - 0x2f                    Asset frame count (Always 0 if not compressed)
-		 * 0x30 - 0x37                    Asset metadata offset
-		 * 0x38 - 0x3f                    Asset metadata size (never compressed)
-		 * 0x40 - end_name                Null-terminated name string (optional)
-		 * n_tags - n_tags + 4            Number of asset tags (may be 0)
-		 * n_tags + 5 - end_tags          Null-terminated asset tag strings
-		 * ============================================================================
-		 * */
+		using namespace sek::detail;
 
-		void package_info::acquire() { ++ref_count; }
+		/* Asset IO. */
+		SEK_API_EXPORT const asset_io_vtable asset_io_data::file_vtable = {
+			.read = asset_io_data::file_read,
+			.seek = asset_io_data::file_seek,
+			.setpos = asset_io_data::file_setpos,
+			.size = asset_io_data::file_size,
+			.tell = asset_io_data::file_tell,
+			.destroy_data = asset_io_data::destroy_file,
+		};
+		SEK_API_EXPORT const asset_io_vtable asset_io_data::buff_vtable = {
+			.read = asset_io_data::buff_read,
+			.seek = asset_io_data::buff_seek,
+			.setpos = asset_io_data::buff_setpos,
+			.size = asset_io_data::buff_size,
+			.tell = asset_io_data::buff_tell,
+			.destroy_data = asset_io_data::destroy_buff,
+		};
+
+		asset_source package_info::make_source(asset_io_data &&data, std::uint64_t offset, std::uint64_t size) noexcept
+		{
+			return asset_source{std::move(data), offset, size};
+		}
+
+		void package_info::acquire() { ++m_refs; }
 		void package_info::release()
 		{
-			if (ref_count.fetch_sub(1) == 1) [[unlikely]]
+			if (m_refs.fetch_sub(1) == 1) [[unlikely]]
 				delete this;
-		}
-
-		inline thread_pool &asset_zstd_pool()
-		{
-			static thread_pool instance;
-			return instance;
-		}
-
-		system::native_file package_info::open_archive(std::int64_t offset) const
-		{
-			auto file = system::native_file{path, system::native_file::in};
-			if (!file.is_open()) [[unlikely]]
-				throw asset_error(fmt::format("Failed to open asset package \"{}\"", path.string()));
-			else if (file.seek(offset, system::native_file::beg) < 0) [[unlikely]]
-			{
-				throw asset_error(fmt::format("Failed to seek asset package \"{}\" to position {}", path.string(), offset));
-			}
-			return file;
-		}
-
-		asset_source package_info::open_metadata_loose(const asset_info *info) const
-		{
-			const auto full_path = path / info->loose_info.meta_path;
-			auto file = system::native_file{full_path, system::native_file::in | system::native_file::atend};
-			if (!file.is_open()) [[unlikely]]
-				throw asset_error(fmt::format("Failed to open asset metadata at path \"{}\"", full_path.string()));
-
-			const auto size = file.tell();
-			file.seek(0, system::native_file::beg);
-			return make_asset_source(std::move(file), size, 0);
-		}
-		asset_source package_info::open_metadata_flat(const asset_info *info) const
-		{
-			const auto offset = info->archive_info.meta_offset;
-			const auto size = info->archive_info.meta_size;
-			return make_asset_source(open_archive(offset), size, offset);
-		}
-		asset_source package_info::open_metadata(const asset_info *info) const
-		{
-			if (!info->has_metadata()) [[unlikely]]
-				return {};
-			else if ((flags & IS_ARCHIVE) == 0)
-				return open_metadata_loose(info);
-			else
-				return open_metadata_flat(info);
-		}
-
-		asset_source package_info::open_asset_loose(const asset_info *info) const
-		{
-			const auto full_path = path / info->loose_info.asset_path;
-			auto file = system::native_file{full_path, system::native_file::in | system::native_file::atend};
-			if (!file.is_open()) [[unlikely]]
-				throw asset_error(fmt::format("Failed to open asset at path \"{}\"", full_path.string()));
-
-			const auto size = file.tell();
-			file.seek(0, system::native_file::beg);
-			return make_asset_source(std::move(file), size, 0);
-		}
-		asset_source package_info::open_asset_flat(const asset_info *info) const
-		{
-			const auto offset = info->archive_info.asset_offset;
-			const auto size = info->archive_info.asset_size;
-			return make_asset_source(open_archive(offset), size, offset);
-		}
-		asset_source package_info::open_asset_zstd(const asset_info *info) const
-		{
-			auto &ctx = zstd_thread_ctx::instance();
-
-			const auto src_size = info->archive_info.asset_src_size;
-			const auto frames = info->archive_info.asset_frames;
-			const auto offset = info->archive_info.asset_offset;
-			const auto size = info->archive_info.asset_size;
-
-			struct reader_t
-			{
-				std::size_t read(void *dst, std::size_t n)
-				{
-					auto new_pos = pos + n;
-					if (new_pos > size) [[unlikely]]
-					{
-						new_pos = size;
-						n = size - pos;
-					}
-
-					pos = new_pos;
-					return file.read(dst, n);
-				}
-				system::native_file file;
-				std::size_t size, pos;
-			} reader = {open_archive(offset), static_cast<std::size_t>(size), 0};
-			struct writer_t
-			{
-				std::size_t write(const void *src, std::size_t n)
-				{
-					auto new_pos = pos + n;
-					if (new_pos > size) [[unlikely]]
-					{
-						new_pos = size;
-						n = size - pos;
-					}
-
-					memcpy(buffer.owned_buff() + std::exchange(pos, new_pos), src, n);
-					return n;
-				}
-				asset_buffer_t buffer;
-				std::size_t size, pos;
-			} writer = {asset_buffer_t{static_cast<std::uint64_t>(src_size)}, static_cast<std::size_t>(src_size), 0};
-
-			try
-			{
-				auto result = ctx.decompress(asset_zstd_pool(),
-											 delegate{func_t<&reader_t::read>{}, reader},
-											 delegate{func_t<&writer_t::write>{}, writer},
-											 frames);
-				if (result != frames) [[unlikely]]
-				{
-					/* Mismatched frame count does not necessarily mean an error (data might be corrupted but that is up to the consumer to decide). */
-					logger::warn() << fmt::format(
-						"Mismatched asset frame count - expected {} but got {}. This might be a sign of corruption", frames, result);
-				}
-			}
-			catch (zstd_error &e)
-			{
-				throw asset_error(fmt::format(R"(Exception in "zstd_thread_ctx::decompress": "{}")", e.what()));
-			}
-
-			return make_asset_source(std::move(writer.buffer), src_size);
-		}
-		asset_source package_info::open_asset(const asset_info *info) const
-		{
-			switch (flags & (ARCHIVE_FORMAT_MASK | IS_ARCHIVE))
-			{
-				case 0: return open_asset_loose(info);
-				case IS_ARCHIVE: return open_asset_flat(info);
-				case IS_ARCHIVE | ARCHIVE_FORMAT_ZSTD: return open_asset_zstd(info);
-				default: throw asset_error("Failed to open asset source - invalid package flags");
-			}
-		}
-
-		template<typename... Args>
-		void package_info::emplace(uuid id, Args &&...args)
-		{
-			insert(id, make_info(std::forward<Args>(args)...));
 		}
 		void package_info::insert(uuid id, asset_info *info)
 		{
@@ -246,6 +106,256 @@ namespace sek::engine
 				delete_info(info);
 			}
 		}
+
+		// clang-format off
+		void package_info::destroy_all() { for (auto entry : uuid_table) destroy_info(entry.second); }
+		// clang-format on
+
+		expected<system::native_file, std::error_code> local_package::open_archive(std::uint64_t offset) const
+		{
+			system::native_file file;
+
+			auto result = file.open(std::nothrow, m_path, system::native_file::read_only);
+			if (result && (result = file.setpos(std::nothrow, offset))) [[likely]]
+				return file;
+			return unexpected{result.error()};
+		}
+
+		expected<asset_source, std::error_code> loose_package::open_at(std::string_view local_path) const noexcept
+		{
+			if (local_path.empty()) [[unlikely]]
+				return unexpected{std::make_error_code(std::errc::invalid_argument)};
+
+			asset_io_data data;
+			auto &file = data.init_file();
+
+			const auto result = file.open(std::nothrow, path() / local_path, system::native_file::read_only);
+			if (result.has_value()) [[likely]]
+			{
+				const auto size = file.size();
+				return make_source(std::move(data), 0, size);
+			}
+			return unexpected{result.error()};
+		}
+		expected<asset_source, std::error_code> loose_package::open_asset(const asset_info *info) const noexcept
+		{
+			return open_at(static_cast<const loose_info *>(info)->asset_path());
+		}
+		expected<asset_source, std::error_code> loose_package::open_metadata(const asset_info *info) const noexcept
+		{
+			return open_at(static_cast<const loose_info *>(info)->meta_path());
+		}
+
+		expected<asset_source, std::error_code> archive_package::open_at(archive_slice slice) const noexcept
+		{
+			if (!(slice.offset && slice.size)) [[unlikely]]
+				return unexpected{std::make_error_code(std::errc::invalid_argument)};
+
+			auto result = open_archive(slice.offset);
+			if (result.has_value()) [[likely]]
+				return make_source(asset_io_data{*std::move(result)}, slice.offset, slice.size);
+			return unexpected{result.error()};
+		}
+		expected<asset_source, std::error_code> archive_package::open_asset(const asset_info *info) const noexcept
+		{
+			return open_at(static_cast<const archive_info *>(info)->asset_slice);
+		}
+		expected<asset_source, std::error_code> archive_package::open_metadata(const asset_info *info) const noexcept
+		{
+			return open_at(static_cast<const archive_info *>(info)->meta_slice);
+		}
+
+		inline static thread_pool &asset_zstd_pool()
+		{
+			/* TODO: Refactor to use ASIO-compatible thread pool. */
+			static thread_pool instance;
+			return instance;
+		}
+
+		expected<asset_source, std::error_code> zstd_package::open_at(archive_slice slice) const noexcept
+		{
+			const auto src_size = slice.src_size;
+			const auto offset = slice.offset;
+			const auto frames = slice.frames;
+			const auto size = slice.size;
+
+			if (!(offset && size && src_size)) [[unlikely]]
+				return unexpected{std::make_error_code(std::errc::invalid_argument)};
+
+			auto result = open_archive(offset);
+			if (result.has_value()) [[likely]]
+			{
+				asset_io_data data;
+
+				auto &ctx = zstd_thread_ctx::instance();
+				auto &buff = data.init_buff(src_size);
+				auto &file = *result;
+
+				struct reader_t
+				{
+					std::size_t read(void *dst, std::size_t n)
+					{
+						auto new_pos = pos + n;
+						if (new_pos > size) [[unlikely]]
+						{
+							new_pos = size;
+							n = size - pos;
+						}
+
+						pos = new_pos;
+						return file.read(dst, n);
+					}
+
+					system::native_file &file;
+					std::size_t size;
+					std::size_t pos = 0;
+				} reader = {file, static_cast<std::size_t>(size)};
+				struct writer_t
+				{
+					std::size_t write(const void *src, std::size_t n)
+					{
+						auto new_pos = pos + n;
+						if (new_pos > buffer.size()) [[unlikely]]
+						{
+							new_pos = buffer.size();
+							n = buffer.size() - pos;
+						}
+
+						memcpy(buffer.owned_bytes() + std::exchange(pos, new_pos), src, n);
+						return n;
+					}
+
+					asset_buffer &buffer;
+					std::size_t pos = 0;
+				} writer = {buff};
+
+				/* TODO: Refactor ZSTD context API to work with error codes. */
+				const auto decompressed = ctx.decompress(asset_zstd_pool(),
+														 delegate{func_t<&reader_t::read>{}, reader},
+														 delegate{func_t<&writer_t::write>{}, writer},
+														 frames);
+				if (decompressed != frames) [[unlikely]]
+				{
+					/* Mismatched frame count does not necessarily mean an error (data might be corrupted but that is up to the consumer to decide). */
+					logger::warn() << fmt::format(
+						"Mismatched asset frame count - expected {} but got {}. This might be a sign of corruption",
+						frames,
+						decompressed);
+				}
+
+				return make_source(std::move(data), 0, src_size);
+			}
+			return unexpected{result.error()};
+		}
+		expected<asset_source, std::error_code> zstd_package::open_asset(const asset_info *info) const noexcept
+		{
+			return open_at(static_cast<const zstd_info *>(info)->asset_slice);
+		}
+		expected<asset_source, std::error_code> zstd_package::open_metadata(const asset_info *info) const noexcept
+		{
+			return open_at(static_cast<const zstd_info *>(info)->meta_slice);
+		}
+	}	 // namespace detail
+
+	std::size_t asset_source::read(void *dst, std::size_t n) { return return_if(read(std::nothrow, dst, n)); }
+	std::size_t asset_source::read(asio::mutable_buffer &buff) { return return_if(read(std::nothrow, buff)); }
+	expected<std::size_t, std::error_code> asset_source::read(std::nothrow_t, void *dst, std::size_t n) noexcept
+	{
+		auto new_pos = m_read_pos + static_cast<std::uint64_t>(n);
+		if (new_pos > m_size) [[unlikely]]
+		{
+			n = static_cast<std::size_t>(m_size - m_read_pos);
+			new_pos = m_size;
+		}
+
+		auto result = m_data.read(dst, n);
+		if (result.has_value()) [[likely]]
+			m_read_pos += *result;
+		return result;
+	}
+	expected<std::size_t, std::error_code> asset_source::read(std::nothrow_t, asio::mutable_buffer &buff) noexcept
+	{
+		return read(buff.data(), buff.size());
+	}
+
+	std::uint64_t asset_source::seek(std::int64_t off, seek_basis dir)
+	{
+		return return_if(seek(std::nothrow, off, dir));
+	}
+	std::uint64_t asset_source::setpos(std::uint64_t pos) { return return_if(setpos(std::nothrow, pos)); }
+	expected<std::uint64_t, std::error_code> asset_source::seek(std::nothrow_t, std::int64_t off, asset_source::seek_basis dir) noexcept
+	{
+		if (!empty()) [[likely]]
+			return m_data.seek(off + static_cast<std::int64_t>(m_offset), dir);
+		return unexpected{std::make_error_code(std::errc::invalid_argument)};
+	}
+	expected<std::uint64_t, std::error_code> asset_source::setpos(std::nothrow_t, std::uint64_t pos) noexcept
+	{
+		if (!empty()) [[likely]]
+			return m_data.setpos(m_offset + pos);
+		return unexpected{std::make_error_code(std::errc::invalid_argument)};
+	}
+
+	asset_source asset_handle::open() const { return return_if(open(std::nothrow)); }
+	asset_source asset_handle::metadata() const { return return_if(metadata(std::nothrow)); }
+	expected<asset_source, std::error_code> asset_handle::open(std::nothrow_t) const noexcept
+	{
+		return m_ptr->parent->open_asset(m_ptr.info);
+	}
+	expected<asset_source, std::error_code> asset_handle::metadata(std::nothrow_t) const noexcept
+	{
+		return m_ptr->parent->open_metadata(m_ptr.info);
+	}
+
+	namespace detail
+	{
+		/*
+		 * Archive header format:
+		 * ============================================================================
+		 * =                                    V1                                    =
+		 * ============================================================================
+		 * File offsets                     Description
+		 * 0x0000  -  0x0007                Signature ("\3SEKPAK" + version byte)
+		 * 0x0008  -  0x000b                Header flags (compression type, etc.)
+		 * 0x000c  -  0x000f                Number of assets of the package (may be 0)
+		 * 0x0010  -  end_assets            Asset info for every asset
+		 * =============================== Header flags ===============================
+		 * Description           Bit(s)      Values
+		 * Archive flag            0           0   - Loose package
+		 *                                     1   - Archive package
+		 * Project flag            1           0   - Not a project (all runtime packages)
+		 *                                     1   - Editor project (editor-managed loose packages)
+		 * Compression format     2-5          0   - Not used (used for non-archive packages)
+		 *                                     1   - No compression
+		 *                                     2   - ZSTD compression
+		 *                                    3-15 - Reserved
+		 * Reserved               6-31         0
+		 * ======================== Uncompressed asset entry ==========================
+		 * Entry offsets                  Description
+		 * 0x00 - 0x0f                    Asset UUID
+		 * 0x10 - 0x17                    Asset data offset
+		 * 0x18 - 0x1f                    Asset size
+		 * 0x20 - 0x27                    Metadata offset
+		 * 0x28 - 0x2f                    Metadata size
+		 * 0x30 - end_name                Null-terminated name string (optional)
+		 * n_tags - n_tags + 4            Number of asset tags (may be 0)
+		 * n_tags + 5 - end_tags          Null-terminated asset tag strings
+		 * ====================== ZSTD-compressed asset entry ========================
+		 * Entry offsets                  Description
+		 * 0x00 - 0x0f                    Asset UUID
+		 * 0x10 - 0x17                    Asset offset
+		 * 0x18 - 0x1f                    Asset size (compressed)
+		 * 0x20 - 0x27                    Asset size (decompressed)
+		 * 0x28 - 0x2f                    Metadata offset
+		 * 0x30 - 0x37                    Metadata size (compressed)
+		 * 0x38 - 0x3f                    Metadata size (decompressed)
+		 * 0x40 - 0x43                    Asset frame count (Always 0 if not compressed)
+		 * 0x44 - 0x47                    Metadata frame count (Always 0 if not compressed)
+		 * 0x48 - end_name                Null-terminated name string (optional)
+		 * n_tags - n_tags + 4            Number of asset tags (may be 0)
+		 * n_tags + 5 - end_tags          Null-terminated asset tag strings
+		 * ============================================================================
+		 * */
 
 		constexpr std::array<char, 7> signature_str = {'\3', 'S', 'E', 'K', 'P', 'A', 'K'};
 		constexpr std::uint8_t manifest_ver_max = 1;

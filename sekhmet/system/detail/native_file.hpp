@@ -102,7 +102,7 @@ namespace sek::system
 		/** Initializes & opens the file.
 		 * @param path Path to the file.
 		 * @param mode Mode to open the file with.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		native_file(const path_char *path, openmode mode) { open(path, mode); }
 		/** @copydoc native_file */
 		native_file(const std::filesystem::path &path, openmode mode) : native_file(path.c_str(), mode) {}
@@ -114,7 +114,7 @@ namespace sek::system
 		/** @brief Opens the file.
 		 * @param path Path to the file.
 		 * @param mode Mode to open the file with.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		void open(const std::filesystem::path &path, openmode mode) { open(path.c_str(), mode); }
 		/** @copydoc open */
 		SEK_API void open(const path_char *path, openmode mode);
@@ -131,17 +131,17 @@ namespace sek::system
 		SEK_API expected<void, std::error_code> open(std::nothrow_t, const path_char *path, openmode mode) noexcept;
 
 		/** @brief Flushes & closes the file.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		SEK_API void close();
 		/** @copybrief close
 		 * @return `void` or an error code. */
 		SEK_API expected<void, std::error_code> close(std::nothrow_t) noexcept;
 
 		/** @brief Flushes buffered output to the underlying file and un-reads any buffered input.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		SEK_API void flush();
 		/** @brief Synchronizes file to disk. If the internal buffers are not empty, flushes their contents as well.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		SEK_API void sync();
 
 		/** @copybrief sync
@@ -155,13 +155,13 @@ namespace sek::system
 		 * @param dst Memory buffer receiving data.
 		 * @param n Amount of bytes to read.
 		 * @return Amount of bytes read from the file.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		SEK_API std::size_t read(void *dst, std::size_t n);
 		/** @brief Writes data buffer to the file.
 		 * @param src Memory buffer containing source data.
 		 * @param n Amount of bytes to write.
 		 * @return Amount of bytes written to the file.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		SEK_API std::size_t write(const void *src, std::size_t n);
 
 		/** @copybrief write
@@ -179,12 +179,12 @@ namespace sek::system
 		/** @brief Reads file to ASIO data buffers.
 		 * @param buff ASIO mutable buffer sequence receiving data.
 		 * @return Amount of bytes read from the file.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		SEK_API std::size_t read(asio::mutable_buffer &buff);
 		/** @brief Writes data buffers to the file.
 		 * @param buff ASIO const buffer sequence containing source data.
 		 * @return Amount of bytes written to the file.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		SEK_API std::size_t write(const asio::const_buffer &buff);
 		// clang-format on
 
@@ -201,14 +201,14 @@ namespace sek::system
 		 * @param dir Direction to seek in (`beg`, `curr` or `end`).
 		 * @return Resulting position within the file.
 		 * @note If the wile is open in read mode, flushes the output buffer before seeking.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		SEK_API std::uint64_t seek(std::int64_t off, seek_basis dir);
 		/** @brief Sets position within the file to the specified offset from the start.
 		 * Equivalent to `seek(static_cast<std::int64_t>(pos), seek_set)`.
 		 * @param pos New position within the file.
 		 * @return Resulting position within the file.
 		 * @note If the wile is open in read mode, flushes the output buffer before seeking.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		SEK_API std::uint64_t setpos(std::uint64_t pos);
 
 		/** @copybrief seek
@@ -226,7 +226,7 @@ namespace sek::system
 		/** @brief Modifies size of the file.
 		 * @param size New size of the file.
 		 * @return Updated size of the file.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		SEK_API std::uint64_t resize(std::uint64_t size);
 		/** @copybrief resize
 		 * @param size New size of the file.
@@ -234,10 +234,10 @@ namespace sek::system
 		SEK_API expected<std::uint64_t, std::error_code> resize(std::nothrow_t, std::uint64_t size) noexcept;
 
 		/** @brief Returns total size of the file.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		[[nodiscard]] SEK_API std::uint64_t size() const;
 		/** @brief Returns the current position within the file.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		[[nodiscard]] SEK_API std::uint64_t tell() const;
 
 		/** @copybrief size
@@ -278,8 +278,7 @@ namespace sek::system
 		std::uint64_t m_buffer_size = 0; /* Total size of the buffer. */
 		std::uint64_t m_buffer_pos = 0;	 /* Current read or write position within the buffer. */
 
-		/* Size of the input buffer, used only for reading. Might be less than buffer_size in case the file
-		 * size is less than size of the buffer. */
+		/* Size of the input buffer, used only for reading. Might be less than buffer_size. */
 		std::uint64_t m_input_size = 0;
 
 		openmode m_mode = {};
@@ -322,7 +321,7 @@ namespace sek::system
 		 * @param mode Mode of the mapping. If set to 0 will use the default mode.
 		 * @note After a file has been mapped, the source file can be closed.
 		 * @note File should be open with a combination of `in` and `out` modes.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		explicit native_filemap(const native_file &file, std::uint64_t off = 0, std::uint64_t n = 0, mapmode mode = 0)
 		{
 			map(file, off, n, mode);
@@ -346,7 +345,7 @@ namespace sek::system
 		// clang-format on
 
 		/** @brief Unmaps the file mapped file from memory.
-		 * @throw std::system_error On any system errors. */
+		 * @throw std::system_error On implementation-defined system errors. */
 		SEK_API void unmap();
 		/** @copybrief unmap
 		 * @return `void` or an error code. */

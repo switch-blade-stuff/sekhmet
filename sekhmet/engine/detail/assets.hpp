@@ -40,98 +40,473 @@ namespace sek::engine
 		~asset_error() override;
 	};
 
+	/** @brief Utility structure used to represent buffer containing data of an asset. */
+	class asset_buffer
+	{
+		static std::byte *allocate(std::size_t n)
+		{
+			const auto result = malloc(n);
+			if (result == nullptr) [[unlikely]]
+				throw std::bad_alloc();
+			return static_cast<std::byte *>(result);
+		}
+		static std::byte *reallocate(std::byte *ptr, std::size_t n)
+		{
+			const auto result = realloc(ptr, n);
+			if (result == nullptr) [[unlikely]]
+				throw std::bad_alloc();
+			return static_cast<std::byte *>(result);
+		}
+
+	public:
+		/** Initializes an empty asset buffer. */
+		constexpr asset_buffer() noexcept = default;
+
+		asset_buffer(const asset_buffer &other) : asset_buffer(other.m_size)
+		{
+			std::copy_n(other.m_data, other.m_size, m_owned);
+		}
+		asset_buffer &operator=(const asset_buffer &other)
+		{
+			if (this != &other)
+			{
+				resize(other.size());
+				std::copy_n(other.m_data, other.m_size, m_owned);
+			}
+			return *this;
+		}
+
+		constexpr asset_buffer(asset_buffer &&other) noexcept { swap(other); }
+		constexpr asset_buffer &operator=(asset_buffer &&other) noexcept
+		{
+			swap(other);
+			return *this;
+		}
+
+		~asset_buffer() { free(m_owned); }
+
+		/** Initializes an owning asset buffer with the specified size. */
+		explicit asset_buffer(std::size_t n) : m_owned(allocate(n)), m_data(m_owned), m_size(n) {}
+		/** Initializes a non-owning asset buffer with the specified data and size. */
+		constexpr asset_buffer(const void *data, std::size_t n) noexcept
+			: m_data(static_cast<const std::byte *>(data)), m_size(n)
+		{
+		}
+
+		/** Converts ASIO constant buffer to a non-owning asset buffer. */
+		asset_buffer(const asio::const_buffer &buff) noexcept : asset_buffer(buff.data(), buff.size()) {}
+
+		/** If the buffer is non-owning, takes ownership (makes a copy copies) of the data.
+		 * @return Reference to this asset buffer. */
+		asset_buffer &take_ownership()
+		{
+			if (m_owned == nullptr && m_size != 0) [[likely]]
+			{
+				m_owned = allocate(m_size);
+				std::copy_n(m_data, m_size, m_owned);
+			}
+			return *this;
+		}
+		/** If the buffer owns the lifetime of it's data, resizes the data.
+		 * Otherwise, copies and takes ownership of the data with the new size.
+		 * @return Reference to this asset buffer. */
+		asset_buffer &resize(std::size_t n)
+		{
+			const auto new_data = reallocate(m_owned, n);
+			if (m_data != m_owned) [[likely]]
+				std::copy_n(m_data, m_size, new_data);
+			m_data = m_owned = new_data;
+			m_size = n;
+			return *this;
+		}
+
+		/** Returns pointer to the owned byte buffer. */
+		[[nodiscard]] constexpr std::byte *owned_bytes() noexcept { return m_owned; }
+
+		/** Returns pointer to the data of the buffer. */
+		[[nodiscard]] constexpr const void *data() const noexcept { return static_cast<const void *>(m_data); }
+		/** Returns the total size of the buffer. */
+		[[nodiscard]] constexpr std::uint64_t size() const noexcept { return m_size; }
+		/** Returns current read position within the buffer. */
+		[[nodiscard]] constexpr std::uint64_t tell() const noexcept { return m_pos; }
+		/** Checks if the asset buffer is empty. */
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_size == 0; }
+		/** Checks if the asset buffer owns the lifetime of it's data. */
+		[[nodiscard]] constexpr bool is_owning() const noexcept { return m_owned == m_data; }
+
+		/** Reads `n` bytes from the buffer and advances the read position. */
+		[[nodiscard]] constexpr std::size_t read(void *dst, std::size_t n) noexcept
+		{
+			auto new_pos = m_pos + n;
+			if (new_pos > m_size) [[unlikely]]
+			{
+				new_pos = m_size;
+				n = m_size - new_pos;
+			}
+			std::copy_n(m_data + std::exchange(m_pos, new_pos), n, static_cast<std::byte *>(dst));
+			return n;
+		}
+		/** Reads data from the buffer into the ASIO mutable buffer and advances the read position. */
+		[[nodiscard]] constexpr std::size_t read(asio::mutable_buffer &dst) noexcept
+		{
+			return read(dst.data(), dst.size());
+		}
+
+		/** Seeks data buffer to the specified read position. */
+		[[nodiscard]] constexpr std::uint64_t setpos(std::uint64_t pos) noexcept { return m_pos = pos; }
+
+		constexpr void swap(asset_buffer &other) noexcept
+		{
+			std::swap(m_owned, other.m_owned);
+			std::swap(m_data, other.m_data);
+			std::swap(m_size, other.m_size);
+			std::swap(m_pos, other.m_pos);
+		}
+		friend constexpr void swap(asset_buffer &a, asset_buffer &b) noexcept { a.swap(b); }
+
+	private:
+		std::byte *m_owned = nullptr;
+		const std::byte *m_data = nullptr;
+		std::uint64_t m_size = 0;
+		std::uint64_t m_pos = 0;
+	};
+
 	namespace detail
 	{
-		struct asset_buffer_t
+		class package_info;
+		class asset_io_data;
+
+		/* Asset IO backend. IO backend is separate from package implementation in order to allow
+		 * different package types to use the same asset IO backend. */
+		struct asset_io_vtable
 		{
-		public:
-			constexpr asset_buffer_t() noexcept = default;
-			constexpr asset_buffer_t(asset_buffer_t &&other) noexcept { swap(other); }
+			expected<std::size_t, std::error_code> (*read)(asset_io_data *, void *, std::size_t) noexcept;
+			expected<std::uint64_t, std::error_code> (*seek)(asset_io_data *, std::int64_t, system::seek_basis) noexcept;
+			expected<std::uint64_t, std::error_code> (*setpos)(asset_io_data *, std::uint64_t) noexcept;
 
-			constexpr explicit asset_buffer_t(const std::byte *data) : m_data(data) {}
-			explicit asset_buffer_t(std::uint64_t size) { m_data = m_owned = new std::byte[size]; }
-			~asset_buffer_t() { delete[] m_owned; }
+			expected<std::uint64_t, std::error_code> (*size)(const asset_io_data *) noexcept;
+			expected<std::uint64_t, std::error_code> (*tell)(const asset_io_data *) noexcept;
 
-			constexpr void swap(asset_buffer_t &other) noexcept
+			void (*destroy_data)(asset_io_data *);
+		};
+		class asset_io_data
+		{
+			static expected<std::size_t, std::error_code> file_read(asset_io_data *data, void *dst, std::size_t n) noexcept
 			{
-				std::swap(m_data, other.m_data);
-				std::swap(m_owned, other.m_owned);
+				return data->m_file.read(std::nothrow, dst, n);
+			}
+			static expected<std::size_t, std::error_code> buff_read(asset_io_data *data, void *dst, std::size_t n) noexcept
+			{
+				return data->m_buff.read(dst, n);
 			}
 
-			[[nodiscard]] constexpr const std::byte *data() const noexcept { return m_data; }
-			[[nodiscard]] constexpr std::byte *owned_buff() const noexcept { return m_owned; }
+			// clang-format off
+			static expected<std::uint64_t, std::error_code> file_seek(asset_io_data *data, std::int64_t off, system::seek_basis dir) noexcept
+			{
+				return data->m_file.seek(std::nothrow, off, dir);
+			}
+			static expected<std::uint64_t, std::error_code> buff_seek(asset_io_data *data, std::int64_t off, system::seek_basis dir) noexcept
+			{
+				switch (dir)
+				{
+				case system::seek_set: return data->m_buff.setpos(static_cast<std::uint64_t>(off));
+				case system::seek_cur: return data->m_buff.setpos(data->m_buff.tell() + static_cast<std::uint64_t>(off));
+				case system::seek_end: return data->m_buff.setpos(data->m_buff.size() + static_cast<std::uint64_t>(off));
+				default: return unexpected{std::make_error_code(std::errc::invalid_argument)};
+				}
+			}
+			// clang-format on
+
+			static expected<std::uint64_t, std::error_code> file_setpos(asset_io_data *data, std::uint64_t pos) noexcept
+			{
+				return data->m_file.setpos(std::nothrow, pos);
+			}
+			static expected<std::uint64_t, std::error_code> buff_setpos(asset_io_data *data, std::uint64_t pos) noexcept
+			{
+				return data->m_buff.setpos(pos);
+			}
+
+			static expected<std::uint64_t, std::error_code> file_size(const asset_io_data *data) noexcept
+			{
+				return data->m_file.size(std::nothrow);
+			}
+			static expected<std::uint64_t, std::error_code> buff_size(const asset_io_data *data) noexcept
+			{
+				return data->m_buff.size();
+			}
+			static expected<std::uint64_t, std::error_code> file_tell(const asset_io_data *data) noexcept
+			{
+				return data->m_file.tell(std::nothrow);
+			}
+			static expected<std::uint64_t, std::error_code> buff_tell(const asset_io_data *data) noexcept
+			{
+				return data->m_buff.tell();
+			}
+
+			static void destroy_file(asset_io_data *data) { std::destroy_at(&data->m_file); }
+			static void destroy_buff(asset_io_data *data) { std::destroy_at(&data->m_buff); }
+
+			static SEK_API_IMPORT const asset_io_vtable file_vtable;
+			static SEK_API_IMPORT const asset_io_vtable buff_vtable;
+
+		public:
+			asset_io_data(const asset_io_data &) = delete;
+			asset_io_data &operator=(const asset_io_data &) = delete;
+
+			constexpr asset_io_data() noexcept : m_padding() {}
+			constexpr asset_io_data(asset_io_data &&other) noexcept : m_padding() { swap(other); }
+			constexpr asset_io_data &operator=(asset_io_data &&other) noexcept
+			{
+				swap(other);
+				return *this;
+			}
+
+			explicit asset_io_data(system::native_file &&file) noexcept
+				: m_vtable(&file_vtable), m_file(std::move(file))
+			{
+			}
+			explicit asset_io_data(asset_buffer &&buff) noexcept : m_vtable(&buff_vtable), m_buff(std::move(buff)) {}
+
+			~asset_io_data()
+			{
+				if (m_vtable) m_vtable->destroy_data(this);
+			}
+
+			constexpr system::native_file &init_file()
+			{
+				m_vtable = &file_vtable;
+				return *std::construct_at(&m_file);
+			}
+			constexpr asset_buffer &init_buff(std::size_t n)
+			{
+				m_vtable = &buff_vtable;
+				return *std::construct_at(&m_buff, n);
+			}
+			constexpr asset_buffer &init_buff(const void *data, std::size_t n)
+			{
+				m_vtable = &buff_vtable;
+				return *std::construct_at(&m_buff, data, n);
+			}
+
+			[[nodiscard]] constexpr bool empty() const noexcept { return m_vtable == nullptr; }
+			[[nodiscard]] constexpr bool has_file() const noexcept { return m_vtable == &file_vtable; }
+			[[nodiscard]] constexpr bool has_buffer() const noexcept { return m_vtable == &buff_vtable; }
+
+			[[nodiscard]] constexpr system::native_file &file() noexcept { return m_file; }
+			[[nodiscard]] constexpr const system::native_file &file() const noexcept { return m_file; }
+			[[nodiscard]] constexpr asset_buffer &buffer() noexcept { return m_buff; }
+			[[nodiscard]] constexpr const asset_buffer &buffer() const noexcept { return m_buff; }
+
+			expected<std::size_t, std::error_code> read(void *dst, std::size_t n) noexcept
+			{
+				return m_vtable->read(this, dst, n);
+			}
+
+			expected<std::uint64_t, std::error_code> size() const noexcept { return m_vtable->size(this); }
+			expected<std::uint64_t, std::error_code> tell() const noexcept { return m_vtable->tell(this); }
+
+			expected<std::uint64_t, std::error_code> seek(std::int64_t off, system::seek_basis dir) noexcept
+			{
+				return m_vtable->seek(this, off, dir);
+			}
+			expected<std::uint64_t, std::error_code> setpos(std::uint64_t pos) noexcept
+			{
+				return m_vtable->setpos(this, pos);
+			}
+
+			constexpr void swap(asset_io_data &other) noexcept
+			{
+				std::swap(m_vtable, other.m_vtable);
+				std::swap(m_padding, other.m_padding);
+			}
 
 		private:
-			const std::byte *m_data = nullptr;
-			std::byte *m_owned = nullptr;
-		};
-
-		inline asset_source make_asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset) noexcept;
-		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size) noexcept;
-
-		struct package_info;
-		struct asset_info
-		{
-			struct archive_info_t
-			{
-				std::int64_t asset_offset;	 /* Offset into the archive at which asset's data is located. */
-				std::int64_t asset_size;	 /* Size of the data within the archive. */
-				std::int64_t asset_src_size; /* Decompressed size of the asset if any compression is used. */
-				std::uint64_t asset_frames;	 /* Amount of compressed frames used (0 if not compressed). */
-
-				std::int64_t meta_offset; /* Offset into the archive at which asset's metadata is located. */
-				std::int64_t meta_size;	  /* Size of the asset metadata within the archive. */
-				/* Metadata is never compressed, since it generally is not large, thus using compression
-				 * will have more overhead than reading directly from a file. */
-			};
-			struct loose_info_t
-			{
-				[[nodiscard]] inline static std::string_view copy_path(std::string_view path)
-				{
-					auto *buff = new char[path.size() + 1];
-					*std::copy_n(path.data(), path.size(), buff) = '\0';
-					return {buff, path.size()};
-				}
-
-				constexpr loose_info_t() noexcept = default;
-				inline ~loose_info_t()
-				{
-					delete[] asset_path.data();
-					delete[] meta_path.data();
-				}
-
-				std::string_view asset_path; /* Path to asset's main data file. */
-				std::string_view meta_path;	 /* Path to asset's metadata file. */
-			};
-
-			constexpr asset_info(asset_info &&other) noexcept { swap(other); }
-			constexpr explicit asset_info(package_info *parent) : parent(parent), padding() {}
-
-			inline ~asset_info();
-
-			[[nodiscard]] constexpr bool has_metadata() const noexcept;
-
-			constexpr void swap(asset_info &other) noexcept
-			{
-				using std::swap;
-				swap(parent, other.parent);
-				swap(name, other.name);
-				swap(tags, other.tags);
-				swap(padding, other.padding);
-			}
-
-			package_info *parent; /* Parent package of the asset. */
-
-			interned_string name;			 /* Optional human-readable name of the asset. */
-			dense_set<interned_string> tags; /* Optional tags of the asset. */
-
+			const asset_io_vtable *m_vtable = nullptr;
 			union
 			{
-				std::byte padding[sizeof(archive_info_t)] = {};
-				archive_info_t archive_info;
-				loose_info_t loose_info;
+				std::byte m_padding[sizeof(system::native_file)] = {};
+				system::native_file m_file;
+				asset_buffer m_buff;
 			};
 		};
+	}	 // namespace detail
+
+	/** @brief Structure providing a read-only access to data of an asset.
+	 *
+	 * Since assets may be either loose or compressed and archived, a special structure is needed to read asset data.
+	 * In addition, to allow for implementation of storage optimization techniques (such as DirectStorage),
+	 * streams cannot be used directly either, as access to the underlying file or data buffer is needed. */
+	class asset_source
+	{
+		friend class detail::package_info;
+
+	public:
+		typedef typename system::native_file::seek_basis seek_basis;
+
+		constexpr static seek_basis seek_set = system::native_file::seek_set;
+		constexpr static seek_basis seek_cur = system::native_file::seek_cur;
+		constexpr static seek_basis seek_end = system::native_file::seek_end;
+
+	private:
+		constexpr asset_source(detail::asset_io_data &&data, std::uint64_t offset, std::uint64_t size) noexcept
+			: m_data(std::move(data)), m_offset(offset), m_size(size)
+		{
+		}
+
+	public:
+		asset_source(const asset_source &) = delete;
+		asset_source &operator=(const asset_source &) = delete;
+
+		/** Initializes asset source from a native file.
+		 * @param file File containing the asset.
+		 * @throw std::system_error On implementation-defined file errors. */
+		explicit asset_source(system::native_file &&file) : m_data(detail::asset_io_data(std::move(file)))
+		{
+			m_offset = m_data.file().tell();
+			m_size = m_data.file().size();
+		}
+		/** @copydoc asset_source
+		 * @param offset Offset from the start of the file at which the asset's data starts.
+		 * @note File will be seeked to the specified offset. */
+		asset_source(system::native_file &&file, std::uint64_t offset)
+			: m_data(detail::asset_io_data(std::move(file))), m_offset(offset)
+		{
+			m_size = m_data.file().size() - offset;
+			m_data.file().setpos(offset);
+		}
+		/** @copydoc asset_source
+		 * @param size Size of the asset. */
+		asset_source(system::native_file &&file, std::uint64_t offset, std::uint64_t size)
+			: m_data(detail::asset_io_data(std::move(file))), m_offset(offset), m_size(size)
+		{
+			m_data.file().setpos(offset);
+		}
+
+		/** Initializes asset source from an asset buffer.
+		 * @param buff Buffer containing the asset. */
+		explicit asset_source(asset_buffer &&buff) noexcept : m_data(detail::asset_io_data(std::move(buff)))
+		{
+			m_size = m_data.buffer().size();
+		}
+		/** @copydoc asset_source
+		 * @param offset Offset from the start of the buffer at which the asset's data starts.
+		 * @note Buffer will be seeked to the specified offset. */
+		asset_source(asset_buffer &&buff, std::uint64_t offset) noexcept
+			: m_data(detail::asset_io_data(std::move(buff))), m_offset(offset)
+		{
+			m_size = m_data.buffer().size() - offset;
+			m_data.buffer().setpos(offset);
+		}
+		/** @copydoc asset_source
+		 * @param size Size of the asset. */
+		asset_source(asset_buffer &&buff, std::uint64_t offset, std::uint64_t size) noexcept
+			: m_data(detail::asset_io_data(std::move(buff))), m_offset(offset), m_size(size)
+		{
+			m_data.buffer().setpos(offset);
+		}
+
+		/** Initializes an empty asset source. */
+		constexpr asset_source() noexcept = default;
+		constexpr asset_source(asset_source &&other) noexcept
+			: m_data(std::move(other.m_data)),
+			  m_offset(std::exchange(other.m_offset, 0)),
+			  m_size(std::exchange(other.m_size, 0)),
+			  m_read_pos(std::exchange(other.m_read_pos, 0))
+		{
+		}
+		constexpr asset_source &operator=(asset_source &&other) noexcept
+		{
+			m_data = std::move(other.m_data);
+			m_size = std::exchange(other.m_size, 0);
+			m_offset = std::exchange(other.m_offset, 0);
+			m_read_pos = std::exchange(other.m_read_pos, 0);
+			return *this;
+		}
+
+		/** Checks if the asset source is empty. */
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_data.empty(); }
+
+		/** Checks if the asset source is backed by a file. */
+		[[nodiscard]] constexpr bool has_file() const noexcept { return m_data.has_file(); }
+		/** Checks if the asset source is backed by a buffer. */
+		[[nodiscard]] constexpr bool has_buffer() const noexcept { return m_data.has_buffer(); }
+		/** Returns the base offset of the asset source. */
+		[[nodiscard]] constexpr std::uint64_t base_offset() const noexcept { return m_offset; }
+		/** Returns the total size of the asset source. */
+		[[nodiscard]] constexpr std::uint64_t size() const noexcept { return m_size; }
+		/** Returns the current read position of the asset source. */
+		[[nodiscard]] constexpr std::uint64_t tell() const noexcept { return m_read_pos; }
+
+		/** @brief Reads `n` bytes from the asset source and advances the read position.
+		 * @param dst Memory buffer receiving data.
+		 * @param n Amount of bytes to read.
+		 * @return Amount of bytes read from the file.
+		 * @throw std::system_error On implementation-defined system errors. */
+		SEK_API std::size_t read(void *dst, std::size_t n);
+		/** @copybrief read
+		 * @param dst Memory buffer receiving data.
+		 * @param n Amount of bytes to read.
+		 * @return Amount of bytes read from the file or an error code. */
+		SEK_API expected<std::size_t, std::error_code> read(std::nothrow_t, void *dst, std::size_t n) noexcept;
+
+		/** @brief Reads `n` bytes from the asset source and advances the read position.
+		 * @param dst ASIO mutable buffer receiving data.
+		 * @return Amount of bytes read from the file.
+		 * @throw std::system_error On implementation-defined system errors. */
+		SEK_API std::size_t read(asio::mutable_buffer &dst);
+		/** @copybrief read
+		 * @param dst ASIO mutable buffer receiving data.
+		 * @return Amount of bytes read from the file or an error code. */
+		SEK_API expected<std::size_t, std::error_code> read(std::nothrow_t, asio::mutable_buffer &dst) noexcept;
+
+		/** @brief Seeks the asset source to the specified offset.
+		 * @param off Offset to seek to.
+		 * @param dir Direction in which to seek.
+		 * @return Resulting position within the asset source.
+		 * @throw std::system_error On implementation-defined system errors. */
+		SEK_API std::uint64_t seek(std::int64_t off, seek_basis dir);
+		/** @copybrief seek
+		 * @param off Offset to seek to.
+		 * @param dir Direction in which to seek.
+		 * @return Resulting position within the asset source or an error code. */
+		SEK_API expected<std::uint64_t, std::error_code> seek(std::nothrow_t, std::int64_t off, seek_basis dir) noexcept;
+
+		/** @brief Sets position within the asset source to the specified offset from the start.
+		 * Equivalent to `seek(static_cast<std::int64_t>(pos), seek_set)`.
+		 * @param pos New position within the asset source.
+		 * @return Resulting position within the asset source.
+		 * @throw std::system_error On implementation-defined system errors. */
+		SEK_API std::uint64_t setpos(std::uint64_t pos);
+		/** @copybrief setpos
+		 * @param pos New position within the asset source.
+		 * @return Resulting position within the asset source or an error code. */
+		SEK_API expected<std::uint64_t, std::error_code> setpos(std::nothrow_t, std::uint64_t pos) noexcept;
+
+		/** Returns reference to the underlying native file. */
+		[[nodiscard]] constexpr const system::native_file &file() const noexcept { return m_data.file(); }
+		/** Returns reference to the underlying asset buffer. */
+		[[nodiscard]] constexpr const asset_buffer &buffer() const noexcept { return m_data.buffer(); }
+
+		constexpr void swap(asset_source &other) noexcept
+		{
+			m_data.swap(other.m_data);
+			std::swap(m_size, other.m_size);
+			std::swap(m_offset, other.m_offset);
+			std::swap(m_read_pos, other.m_read_pos);
+		}
+		friend constexpr void swap(asset_source &a, asset_source &b) noexcept { a.swap(b); }
+
+	private:
+		detail::asset_io_data m_data = {};
+
+		std::uint64_t m_offset = 0;	  /* Base offset within the source data. */
+		std::uint64_t m_size = 0;	  /* Total (accessible) size of the data. */
+		std::uint64_t m_read_pos = 0; /* Current read position with the base offset applied. */
+	};
+
+	namespace detail
+	{
+		struct asset_info;
 		struct asset_table
 		{
 			using uuid_table_t = dense_map<uuid, asset_info *>;
@@ -155,169 +530,269 @@ namespace sek::engine
 			[[nodiscard]] constexpr bool empty() const noexcept { return uuid_table.empty(); }
 			[[nodiscard]] constexpr size_type size() const noexcept { return uuid_table.size(); }
 
-			[[nodiscard]] constexpr const_iterator begin() const noexcept;
-			[[nodiscard]] constexpr const_iterator end() const noexcept;
-			[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept;
-			[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept;
+			[[nodiscard]] constexpr auto begin() const noexcept;
+			[[nodiscard]] constexpr auto end() const noexcept;
+			[[nodiscard]] constexpr auto rbegin() const noexcept;
+			[[nodiscard]] constexpr auto rend() const noexcept;
 
-			[[nodiscard]] constexpr const_iterator find(uuid) const;
-			[[nodiscard]] constexpr const_iterator find(std::string_view) const;
-			[[nodiscard]] constexpr const_iterator match(auto &&) const;
-			[[nodiscard]] inline std::vector<reference> find_all(std::string_view) const;
-			[[nodiscard]] inline std::vector<reference> match_all(auto &&) const;
+			[[nodiscard]] constexpr auto find(uuid) const;
+			[[nodiscard]] constexpr auto find(std::string_view) const;
+			[[nodiscard]] constexpr auto match(auto &&) const;
+			[[nodiscard]] inline auto find_all(std::string_view) const;
+			[[nodiscard]] inline auto match_all(auto &&) const;
 
-			uuid_table_t uuid_table;
-			name_table_t name_table;
+			dense_map<uuid, asset_info *> uuid_table;
+			dense_map<std::string_view, uuid> name_table;
 		};
-		struct package_info : asset_table
+
+		class package_info : public asset_table
 		{
-			enum flags_t : std::int32_t
-			{
-				NO_FLAGS = 0,
-				IS_ARCHIVE = 1,
-				ARCHIVE_FORMAT_ZSTD = 0b0010'0, /* Archive is compressed with ZSTD. */
-				ARCHIVE_FORMAT_MASK = 0b1111'0,
+		public:
+			static asset_source make_source(asset_io_data &&, std::uint64_t, std::uint64_t) noexcept;
 
-#ifdef SEK_EDITOR
-				/* Used to designate in-editor project packages.
-				 * Project packages can not be archived. */
-				IS_PROJECT = 1 << 31,
-#endif
-			};
-
-			package_info(std::filesystem::path &&path) : path(std::move(path)) {}
-			package_info(const std::filesystem::path &path) : path(path) {}
-			~package_info()
-			{
-				for (auto p : uuid_table) std::destroy_at(p.second);
-			}
-
-			inline asset_info *alloc_info() { return info_pool.allocate(); }
-			inline void dealloc_info(asset_info *info) { info_pool.deallocate(info); }
-
-			template<typename... Args>
-			inline asset_info *make_info(Args &&...args)
-			{
-				return std::construct_at(alloc_info(), std::forward<Args>(args)...);
-			}
-			inline void delete_info(asset_info *info)
-			{
-				std::destroy_at(info);
-				dealloc_info(info);
-			}
-
-			template<typename... Args>
-			void emplace(uuid id, Args &&...args);
-			void insert(uuid id, asset_info *info);
-			void erase(uuid id);
-
-#ifdef SEK_EDITOR
-			[[nodiscard]] constexpr bool is_project() const noexcept { return flags & IS_PROJECT; }
-#endif
-			[[nodiscard]] constexpr bool is_archive() const noexcept { return flags & IS_ARCHIVE; }
-			[[nodiscard]] constexpr bool is_archive_flat() const noexcept
-			{
-				return (flags & (ARCHIVE_FORMAT_MASK | IS_ARCHIVE)) == IS_ARCHIVE;
-			}
-			[[nodiscard]] constexpr bool is_archive_zstd() const noexcept { return flags & ARCHIVE_FORMAT_ZSTD; }
+		public:
+			constexpr package_info() = default;
+			SEK_API virtual ~package_info();
 
 			SEK_API void acquire();
 			SEK_API void release();
 
-			[[nodiscard]] system::native_file open_archive(std::int64_t offset) const;
+			void insert(uuid id, asset_info *info);
+			void erase(uuid id);
 
-			[[nodiscard]] asset_source open_metadata_loose(const asset_info *info) const;
-			[[nodiscard]] asset_source open_metadata_flat(const asset_info *info) const;
-			[[nodiscard]] SEK_API asset_source open_metadata(const asset_info *info) const;
+			[[nodiscard]] virtual asset_info *alloc_info() = 0;
+			virtual void dealloc_info(asset_info *info) = 0;
+			virtual void destroy_info(asset_info *info) = 0;
+			void delete_info(asset_info *info)
+			{
+				destroy_info(info);
+				dealloc_info(info);
+			}
 
-			[[nodiscard]] asset_source open_asset_loose(const asset_info *info) const;
-			[[nodiscard]] asset_source open_asset_flat(const asset_info *info) const;
-			[[nodiscard]] asset_source open_asset_zstd(const asset_info *info) const;
-			[[nodiscard]] SEK_API asset_source open_asset(const asset_info *info) const;
+			virtual expected<asset_source, std::error_code> open_asset(const asset_info *) const noexcept = 0;
+			virtual expected<asset_source, std::error_code> open_metadata(const asset_info *) const noexcept = 0;
 
-			std::atomic<std::size_t> ref_count = 0;
-			flags_t flags = NO_FLAGS;
+			[[nodiscard]] virtual bool has_metadata(const asset_info *) const noexcept = 0;
 
-			std::filesystem::path path;
-			sek::detail::basic_pool<asset_info> info_pool;
+		protected:
+			void destroy_all();
 
+		private:
+			std::atomic<std::size_t> m_refs;
+
+		public:
 #ifdef SEK_EDITOR
 			event<void(const asset_handle &)> asset_added;
 			event<void(const asset_handle &)> asset_removed;
 #endif
 		};
-
-		inline asset_info::~asset_info()
+		struct asset_info
 		{
-			if (!parent->is_archive()) std::destroy_at(&loose_info);
-		}
-	}	 // namespace detail
+			asset_info() = delete;
+			asset_info(const asset_info &) = delete;
+			asset_info(asset_info &&) = delete;
 
-	/** @brief Structure providing a read-only access to data of an asset.
-	 *
-	 * Since assets may be either loose or compressed and archived, a special structure is needed to read asset data.
-	 * In addition, to allow for implementation of storage optimization techniques (such as DirectStorage),
-	 * streams cannot be used directly either, as access to the underlying file or data buffer is needed. */
-	class asset_source
-	{
-	public:
-		typedef typename system::native_file::seek_basis seek_basis;
+			constexpr explicit asset_info(package_info *parent) : parent(parent) {}
 
-		constexpr static seek_basis seek_set = system::native_file::seek_set;
-		constexpr static seek_basis seek_cur = system::native_file::seek_cur;
-		constexpr static seek_basis seek_end = system::native_file::seek_end;
+			[[nodiscard]] bool has_metadata() const noexcept { return parent->has_metadata(this); }
 
-	private:
-		constexpr asset_source(std::int64_t size, std::int64_t offset) noexcept : m_size(size), m_offset(offset) {}
+			package_info *parent; /* Parent package of the asset. */
 
-	public:
-	private:
-		std::uint64_t m_size = 0;	  /* Total (accessible) size of the data. */
-		std::uint64_t m_offset = 0;	  /* Base offset of the data within the source. */
-		std::uint64_t m_read_pos = 0; /* Current read position with the base offset applied. */
+			interned_string name;			 /* Optional human-readable name of the asset. */
+			dense_set<interned_string> tags; /* Optional tags of the asset. */
+		};
 
-		/* TODO: Implement functor-based read & write operations. */
-	};
-
-	namespace detail
-	{
-		inline asset_source make_asset_source(system::native_file &&file, std::int64_t size, std::int64_t offset) noexcept
+		/* Package stored locally on the device. */
+		class local_package
 		{
-			return asset_source{std::move(file), size, offset};
-		}
-		inline asset_source make_asset_source(asset_buffer_t &&buff, std::int64_t size) noexcept
-		{
-			return asset_source{std::move(buff), size};
-		}
+		public:
+			local_package() = delete;
 
-		constexpr bool asset_info::has_metadata() const noexcept
+			explicit local_package(const std::filesystem::path &path) : m_path(path) {}
+			explicit local_package(std::filesystem::path &&path) : m_path(std::move(path)) {}
+
+			[[nodiscard]] expected<system::native_file, std::error_code> open_archive(std::uint64_t offset) const;
+
+			[[nodiscard]] constexpr const std::filesystem::path &path() const noexcept { return m_path; }
+
+		private:
+			std::filesystem::path m_path;
+		};
+
+		/* Package format implementations. */
+		class loose_package final : public package_info, public local_package
 		{
-			return parent->is_archive() ? archive_info.meta_offset : !loose_info.meta_path.empty();
-		}
+		protected:
+			class loose_info : public asset_info
+			{
+			public:
+				loose_info(package_info *p, std::string_view asset_path, std::string_view meta_path) : asset_info(p)
+				{
+					if (!asset_path.empty())
+					{
+						m_asset_path = static_cast<char *>(malloc((m_asset_path_size = asset_path.size()) + 1));
+						if (m_asset_path == nullptr) [[unlikely]]
+							throw std::bad_alloc();
+
+						std::copy_n(asset_path.data(), asset_path.size(), m_asset_path);
+					}
+					if (!meta_path.empty())
+					{
+						m_meta_path = static_cast<char *>(malloc((m_meta_path_size = meta_path.size()) + 1));
+						if (m_meta_path == nullptr) [[unlikely]]
+							throw std::bad_alloc();
+
+						std::copy_n(meta_path.data(), meta_path.size(), m_meta_path);
+					}
+				}
+				~loose_info()
+				{
+					free(m_asset_path);
+					free(m_meta_path);
+				}
+
+				[[nodiscard]] constexpr std::string_view asset_path() const noexcept
+				{
+					return {m_asset_path, m_asset_path_size};
+				}
+				[[nodiscard]] constexpr std::string_view meta_path() const noexcept
+				{
+					return {m_meta_path, m_meta_path_size};
+				}
+
+			private:
+				/* Path to asset's main file. */
+				char *m_asset_path = nullptr;
+				std::size_t m_asset_path_size = 0;
+
+				/* Path to asset's metadata file. */
+				char *m_meta_path = nullptr;
+				std::size_t m_meta_path_size = 0;
+			};
+
+		public:
+			explicit loose_package(const std::filesystem::path &path) : local_package(path) {}
+			explicit loose_package(std::filesystem::path &&path) : local_package(std::move(path)) {}
+
+			~loose_package() final { destroy_all(); }
+
+			[[nodiscard]] asset_info *alloc_info() final { return m_pool.allocate(); }
+			void dealloc_info(asset_info *info) final { m_pool.deallocate(static_cast<loose_info *>(info)); }
+			void destroy_info(asset_info *info) final { std::destroy_at(static_cast<loose_info *>(info)); }
+
+			expected<asset_source, std::error_code> open_asset(const asset_info *) const noexcept final;
+			expected<asset_source, std::error_code> open_metadata(const asset_info *) const noexcept final;
+
+			[[nodiscard]] constexpr bool has_metadata(const asset_info *info) const noexcept final
+			{
+				return !static_cast<const loose_info *>(info)->meta_path().empty();
+			}
+
+		private:
+			expected<asset_source, std::error_code> open_at(std::string_view) const noexcept;
+
+			sek::detail::basic_pool<loose_info> m_pool;
+		};
+		class archive_package final : public package_info, public local_package
+		{
+		protected:
+			struct archive_slice
+			{
+				std::uint64_t offset;
+				std::uint64_t size;
+			};
+			struct archive_info : asset_info
+			{
+				archive_slice asset_slice;
+				archive_slice meta_slice;
+			};
+
+		public:
+			explicit archive_package(const std::filesystem::path &path) : local_package(path) {}
+			explicit archive_package(std::filesystem::path &&path) : local_package(std::move(path)) {}
+
+			~archive_package() final { destroy_all(); }
+
+			[[nodiscard]] asset_info *alloc_info() final { return m_pool.allocate(); }
+			void dealloc_info(asset_info *info) final { m_pool.deallocate(static_cast<archive_info *>(info)); }
+			void destroy_info(asset_info *info) final { std::destroy_at(static_cast<archive_info *>(info)); }
+
+			expected<asset_source, std::error_code> open_asset(const asset_info *) const noexcept final;
+			expected<asset_source, std::error_code> open_metadata(const asset_info *) const noexcept final;
+
+			[[nodiscard]] constexpr bool has_metadata(const asset_info *info) const noexcept final
+			{
+				return static_cast<const archive_info *>(info)->meta_slice.offset != 0;
+			}
+
+		private:
+			expected<asset_source, std::error_code> open_at(archive_slice) const noexcept;
+
+			sek::detail::basic_pool<archive_info> m_pool;
+		};
+		class zstd_package final : public package_info, public local_package
+		{
+		protected:
+			struct archive_slice
+			{
+				std::uint64_t offset;
+				std::uint64_t size;		/* Compressed size. */
+				std::uint64_t src_size; /* Decompressed size. */
+				std::uint32_t frames;	/* Amount of compressed frames used (0 if not compressed). */
+			};
+			struct zstd_info : asset_info
+			{
+				archive_slice asset_slice;
+				archive_slice meta_slice;
+			};
+
+		public:
+			explicit zstd_package(const std::filesystem::path &path) : local_package(path) {}
+			explicit zstd_package(std::filesystem::path &&path) : local_package(std::move(path)) {}
+
+			~zstd_package() final { destroy_all(); }
+
+			[[nodiscard]] asset_info *alloc_info() final { return m_pool.allocate(); }
+			void dealloc_info(asset_info *info) final { m_pool.deallocate(static_cast<zstd_info *>(info)); }
+			void destroy_info(asset_info *info) final { std::destroy_at(static_cast<zstd_info *>(info)); }
+
+			expected<asset_source, std::error_code> open_asset(const asset_info *) const noexcept final;
+			expected<asset_source, std::error_code> open_metadata(const asset_info *) const noexcept final;
+
+			[[nodiscard]] constexpr bool has_metadata(const asset_info *info) const noexcept final
+			{
+				return static_cast<const zstd_info *>(info)->meta_slice.offset != 0;
+			}
+
+		private:
+			expected<asset_source, std::error_code> open_at(archive_slice) const noexcept;
+
+			sek::detail::basic_pool<zstd_info> m_pool;
+		};
 
 		struct asset_info_ptr
 		{
-			constexpr explicit asset_info_ptr(asset_info *info) noexcept : info(info) {}
-
 			constexpr asset_info_ptr() noexcept = default;
-			constexpr asset_info_ptr(asset_info_ptr &&other) noexcept { swap(other); }
-			constexpr asset_info_ptr &operator=(asset_info_ptr &&other) noexcept
-			{
-				swap(other);
-				return *this;
-			}
+			~asset_info_ptr() { release(); }
+
 			asset_info_ptr(const asset_info_ptr &other) noexcept : info(other.info) { acquire(); }
 			asset_info_ptr &operator=(const asset_info_ptr &other) noexcept
 			{
 				if (this != &other) reset(other.info);
 				return *this;
 			}
-			~asset_info_ptr() { release(); }
+
+			constexpr asset_info_ptr(asset_info_ptr &&other) noexcept { swap(other); }
+			constexpr asset_info_ptr &operator=(asset_info_ptr &&other) noexcept
+			{
+				swap(other);
+				return *this;
+			}
+
+			constexpr explicit asset_info_ptr(asset_info *info) noexcept : info(info) {}
 
 			[[nodiscard]] constexpr bool empty() const noexcept { return info == nullptr; }
 			[[nodiscard]] constexpr asset_info *operator->() const noexcept { return info; }
-
-			constexpr void swap(asset_info_ptr &other) noexcept { std::swap(info, other.info); }
 
 			void acquire() const
 			{
@@ -346,31 +821,33 @@ namespace sek::engine
 				return info == other.info;
 			}
 
+			constexpr void swap(asset_info_ptr &other) noexcept { std::swap(info, other.info); }
+
 			asset_info *info = nullptr;
 		};
 		struct package_info_ptr
 		{
-			constexpr explicit package_info_ptr(package_info *pkg) noexcept : pkg(pkg) {}
-
 			constexpr package_info_ptr() noexcept = default;
-			constexpr package_info_ptr(package_info_ptr &&other) noexcept { swap(other); }
-			constexpr package_info_ptr &operator=(package_info_ptr &&other) noexcept
-			{
-				swap(other);
-				return *this;
-			}
+			~package_info_ptr() { release(); }
+
 			package_info_ptr(const package_info_ptr &other) noexcept : pkg(other.pkg) { acquire(); }
 			package_info_ptr &operator=(const package_info_ptr &other) noexcept
 			{
 				if (this != &other) reset(other.pkg);
 				return *this;
 			}
-			~package_info_ptr() { release(); }
+
+			constexpr package_info_ptr(package_info_ptr &&other) noexcept { swap(other); }
+			constexpr package_info_ptr &operator=(package_info_ptr &&other) noexcept
+			{
+				swap(other);
+				return *this;
+			}
+
+			constexpr explicit package_info_ptr(package_info *pkg) noexcept : pkg(pkg) {}
 
 			[[nodiscard]] constexpr bool empty() const noexcept { return pkg == nullptr; }
 			[[nodiscard]] constexpr package_info *operator->() const noexcept { return pkg; }
-
-			constexpr void swap(package_info_ptr &other) noexcept { std::swap(pkg, other.pkg); }
 
 			void acquire() const
 			{
@@ -398,6 +875,8 @@ namespace sek::engine
 			{
 				return pkg == other.pkg;
 			}
+
+			constexpr void swap(package_info_ptr &other) noexcept { std::swap(pkg, other.pkg); }
 
 			package_info *pkg = nullptr;
 		};
@@ -445,15 +924,25 @@ namespace sek::engine
 
 		/** Returns a handle to the parent package of the asset. */
 		[[nodiscard]] inline asset_package package() const;
-		/** Opens an asset source used to read asset's data.
-		 * @throw asset_error On failure to open the file or archive containing the asset. */
-		[[nodiscard]] asset_source open() const { return m_ptr->parent->open_asset(m_ptr.info); }
+
+		/** @brief Opens an asset source used to read asset's data.
+		 * @return `asset_source` containing asset's data.
+		 * @throw std::system_error On failure to open the file or archive containing the asset. */
+		[[nodiscard]] SEK_API asset_source open() const;
+		/** @copybrief open
+		 * @return `asset_source` containing asset's data or an error code. */
+		[[nodiscard]] SEK_API expected<asset_source, std::error_code> open(std::nothrow_t) const noexcept;
+
 		/** Checks if the asset has metadata. */
 		[[nodiscard]] bool has_metadata() const { return m_ptr->has_metadata(); }
-		/** Returns an asset source used to read asset's metadata.
-		 * @note If the asset does not have metadata, returns an empty asset source.
-		 * @throw asset_error On failure to open the file or archive containing the metadata. */
-		[[nodiscard]] asset_source metadata() const { return m_ptr->parent->open_metadata(m_ptr.info); }
+
+		/** @brief Opens an asset source used to read asset's metadata.
+		 * @return `asset_source` containing asset's metadata.
+		 * @throw std::system_error On failure to open the file or archive containing the asset. */
+		[[nodiscard]] SEK_API asset_source metadata() const;
+		/** @copybrief open
+		 * @return `asset_source` containing asset's metadata or an error code. */
+		[[nodiscard]] SEK_API expected<asset_source, std::error_code> metadata(std::nothrow_t) const noexcept;
 
 		constexpr void swap(asset_handle &other) noexcept
 		{
@@ -564,39 +1053,21 @@ namespace sek::engine
 			uuid_iter m_iter;
 		};
 
-		constexpr typename asset_table::const_iterator asset_table::begin() const noexcept
-		{
-			return const_iterator{uuid_table.begin()};
-		}
-		constexpr typename asset_table::const_iterator asset_table::end() const noexcept
-		{
-			return const_iterator{uuid_table.end()};
-		}
-		constexpr typename asset_table::const_reverse_iterator asset_table::rbegin() const noexcept
-		{
-			return const_reverse_iterator{end()};
-		}
-		constexpr typename asset_table::const_reverse_iterator asset_table::rend() const noexcept
-		{
-			return const_reverse_iterator{begin()};
-		}
+		constexpr auto asset_table::begin() const noexcept { return const_iterator{uuid_table.begin()}; }
+		constexpr auto asset_table::end() const noexcept { return const_iterator{uuid_table.end()}; }
+		constexpr auto asset_table::rbegin() const noexcept { return const_reverse_iterator{end()}; }
+		constexpr auto asset_table::rend() const noexcept { return const_reverse_iterator{begin()}; }
 
-		constexpr typename asset_table::const_iterator asset_table::find(uuid id) const
-		{
-			return const_iterator{uuid_table.find(id)};
-		}
-		constexpr typename asset_table::const_iterator asset_table::find(std::string_view name) const
+		constexpr auto asset_table::find(uuid id) const { return const_iterator{uuid_table.find(id)}; }
+		constexpr auto asset_table::find(std::string_view name) const
 		{
 			if (auto name_iter = name_table.find(name); name_iter != name_table.end()) [[likely]]
 				return find(name_iter->second);
 			else
 				return end();
 		}
-		constexpr typename asset_table::const_iterator asset_table::match(auto &&pred) const
-		{
-			return std::find_if(begin(), end(), pred);
-		}
-		inline std::vector<typename asset_table::reference> asset_table::find_all(std::string_view name) const
+		constexpr auto asset_table::match(auto &&pred) const { return std::find_if(begin(), end(), pred); }
+		inline auto asset_table::find_all(std::string_view name) const
 		{
 			std::vector<reference> result;
 			std::for_each(begin(),
@@ -607,7 +1078,7 @@ namespace sek::engine
 						  });
 			return result;
 		}
-		inline std::vector<typename asset_table::reference> asset_table::match_all(auto &&pred) const
+		inline auto asset_table::match_all(auto &&pred) const
 		{
 			std::vector<reference> result;
 			std::for_each(begin(),
