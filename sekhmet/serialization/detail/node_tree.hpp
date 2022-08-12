@@ -5,7 +5,7 @@
 #pragma once
 
 #include "sekhmet/detail/assert.hpp"
-#include "sekhmet/detail/dynamic_buffer_resource.hpp"
+#include "sekhmet/dynamic_buffer_resource.hpp"
 
 #include "util.hpp"
 

@@ -4,7 +4,7 @@
 
 #include "plugin.hpp"
 
-#include "sekhmet/detail/dense_map.hpp"
+#include "sekhmet/dense_map.hpp"
 
 #include "logger.hpp"
 #include <shared_mutex>

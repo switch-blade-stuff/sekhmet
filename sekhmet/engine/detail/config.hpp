@@ -6,10 +6,10 @@
 
 #include <string>
 
-#include "sekhmet/detail/access_guard.hpp"
+#include "sekhmet/access_guard.hpp"
 #include "sekhmet/detail/basic_pool.hpp"
-#include "sekhmet/detail/dense_set.hpp"
-#include "sekhmet/detail/service.hpp"
+#include "sekhmet/dense_set.hpp"
+#include "sekhmet/service.hpp"
 #include "sekhmet/serialization/json.hpp"
 #include "sekhmet/system/native_file.hpp"
 

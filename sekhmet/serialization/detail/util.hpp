@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "sekhmet/detail/static_string.hpp"
+#include "sekhmet/static_string.hpp"
 
 #include "archive_traits.hpp"
 #include "base64.hpp"

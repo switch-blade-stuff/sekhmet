@@ -6,7 +6,7 @@
 
 #include <mutex>
 
-#include "sekhmet/detail/event.hpp"
+#include "sekhmet/event.hpp"
 
 #include "type_info.hpp"
 

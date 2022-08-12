@@ -9,13 +9,13 @@
 #include <stdexcept>
 #include <utility>
 
-#include "sekhmet/detail/access_guard.hpp"
+#include "sekhmet/access_guard.hpp"
 #include "sekhmet/detail/aligned_storage.hpp"
 #include "sekhmet/detail/assert.hpp"
-#include "sekhmet/detail/dense_map.hpp"
-#include "sekhmet/detail/dense_set.hpp"
+#include "sekhmet/dense_map.hpp"
+#include "sekhmet/dense_set.hpp"
 #include "sekhmet/detail/meta_util.hpp"
-#include "sekhmet/detail/service.hpp"
+#include "sekhmet/service.hpp"
 
 #include "type_name.hpp"
 #include <shared_mutex>

@@ -8,9 +8,9 @@
 
 #include "sekhmet/detail/bswap.hpp"
 #include "sekhmet/detail/define.h"
-#include "sekhmet/detail/delegate.hpp"
-#include "sekhmet/detail/dynarray.hpp"
-#include "sekhmet/detail/thread_pool.hpp"
+#include "sekhmet/delegate.hpp"
+#include "sekhmet/dynarray.hpp"
+#include "sekhmet/thread_pool.hpp"
 
 namespace sek::engine
 {

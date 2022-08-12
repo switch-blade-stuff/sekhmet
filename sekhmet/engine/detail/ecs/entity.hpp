@@ -10,8 +10,8 @@
 
 #include "sekhmet/detail/alloc_util.hpp"
 #include "sekhmet/detail/assert.hpp"
-#include "sekhmet/detail/ebo_base_helper.hpp"
-#include "sekhmet/detail/hash.hpp"
+#include "sekhmet/ebo_base_helper.hpp"
+#include "sekhmet/hash.hpp"
 
 #include "fwd.hpp"
 

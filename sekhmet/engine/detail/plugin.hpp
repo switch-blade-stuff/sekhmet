@@ -7,9 +7,9 @@
 #include <vector>
 
 #include "sekhmet/detail/define.h"
-#include "sekhmet/detail/event.hpp"
-#include "sekhmet/detail/static_string.hpp"
-#include "sekhmet/detail/version.hpp"
+#include "sekhmet/event.hpp"
+#include "sekhmet/static_string.hpp"
+#include "sekhmet/version.hpp"
 
 namespace sek::engine
 {

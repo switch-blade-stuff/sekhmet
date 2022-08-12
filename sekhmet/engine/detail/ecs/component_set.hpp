@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "sekhmet/detail/event.hpp"
 #include "sekhmet/detail/meta_util.hpp"
+#include "sekhmet/event.hpp"
 
 #include "../type_info.hpp"
 #include "entity_set.hpp"
@@ -199,11 +199,11 @@ namespace sek::engine
 		/** @copydoc fixed_erase */
 		constexpr iterator fixed_erase(entity_t entity) { return base_set::fixed_erase(entity); }
 
-		/** Returns event proxy for the component replace event. */
-		[[nodiscard]] constexpr event_proxy<event_type> on_replace() noexcept { return {m_replace}; }
-		/** Returns event proxy for the component create event. */
+		/** Returns event proxy for the component creation event. */
 		[[nodiscard]] constexpr event_proxy<event_type> on_create() noexcept { return {m_create}; }
-		/** Returns event proxy for the component remove event. */
+		/** Returns event proxy for the component modification event. */
+		[[nodiscard]] constexpr event_proxy<event_type> on_modify() noexcept { return {m_modify}; }
+		/** Returns event proxy for the component removal event. */
 		[[nodiscard]] constexpr event_proxy<event_type> on_remove() noexcept { return {m_remove}; }
 
 	protected:
@@ -217,13 +217,15 @@ namespace sek::engine
 		using base_set::swap_;
 
 	protected:
-		constexpr void dispatch_replace(size_type idx) { m_replace(world(), base_set::at(idx)); }
-		constexpr void dispatch_create(size_type idx) { m_create(world(), base_set::at(idx)); }
-		constexpr void dispatch_remove(size_type idx) { m_remove(world(), base_set::at(idx)); }
+		constexpr void dispatch_modify(entity_t e) { m_modify(world(), e); }
+		constexpr void dispatch_create(entity_t e) { m_create(world(), e); }
+		constexpr void dispatch_modify(size_type idx) { dispatch_modify(at(idx)); }
+		constexpr void dispatch_create(size_type idx) { dispatch_create(at(idx)); }
+		constexpr void dispatch_remove(size_type idx) { m_remove(world(), at(idx)); }
 
 	private:
 		entity_world *m_world;
-		event_type m_replace;
+		event_type m_modify;
 		event_type m_create;
 		event_type m_remove;
 		type_info m_type;
@@ -434,9 +436,9 @@ namespace sek::engine
 			constexpr component_ptr(component_ptr &&) noexcept = default;
 			constexpr component_ptr &operator=(component_ptr &&) noexcept = default;
 
-			[[nodiscard]] constexpr auto operator*() const noexcept { return m_ref; }
-			[[nodiscard]] constexpr auto *get() const noexcept { return std::addressof(m_ref); }
-			[[nodiscard]] constexpr auto *operator->() const noexcept { return get(); }
+			[[nodiscard]] constexpr ref_t<IsConst> operator*() const noexcept { return m_ref; }
+			[[nodiscard]] constexpr ref_t<IsConst> *get() const noexcept { return std::addressof(m_ref); }
+			[[nodiscard]] constexpr ref_t<IsConst> *operator->() const noexcept { return get(); }
 
 			[[nodiscard]] constexpr auto operator<=>(const component_ptr &other) const noexcept
 			{
@@ -706,6 +708,24 @@ namespace sek::engine
 		constexpr iterator replace(const_iterator which, Args &&...args) requires std::constructible_from<T, Args...>
 		{
 			return to_iterator(replace_impl(offset(which), std::forward<Args>(args)...));
+		}
+
+		/** @brief Applies the passed functor to component of the specified entity.
+		 * @param entity Target entity.
+		 * @param f Functor to apply to the entity's component.
+		 * @warning Using an entity not contained within the set will result in undefined behavior. */
+		template<typename F>
+		constexpr reference apply(entity_t entity, F &&f) requires std::is_invocable_v<F, entity_t, T &>
+		{
+			return *to_iterator(apply_impl(offset(entity), entity, std::forward<F>(f)));
+		}
+		/** @copybrief apply
+		 * @param which Iterator to the target entity.
+		 * @param f Functor to apply to the entity's component. */
+		template<typename F>
+		constexpr reference apply(const_iterator which, F &&f) requires std::is_invocable_v<F, entity_t, T &>
+		{
+			return *to_iterator(apply_impl(offset(which), which->first, std::forward<F>(f)));
 		}
 
 		/** @brief Inserts the specified entity into the set and constructs it's component in-place. Tombstones (if any) are re-used.
@@ -1030,6 +1050,14 @@ namespace sek::engine
 				m_pool.reserve(n);
 		}
 
+		template<typename F>
+		constexpr size_type apply_impl(size_type idx, entity_t e, F &&f)
+		{
+			std::invoke(std::forward<F>(f), e, component_ref(idx));
+			dispatch_modify(e);
+			return idx;
+		}
+
 		template<typename... Args>
 		constexpr size_type replace_impl(size_type idx, Args &&...args)
 		{
@@ -1041,7 +1069,7 @@ namespace sek::engine
 				std::destroy_at(std::addressof(ref));
 				std::construct_at(std::addressof(ref), std::forward<Args>(args)...);
 			}
-			dispatch_replace(idx);
+			dispatch_modify(idx);
 			return idx;
 		}
 		template<typename U>
@@ -1057,7 +1085,7 @@ namespace sek::engine
 				std::destroy_at(std::addressof(ref));
 				std::construct_at(std::addressof(ref), std::forward<U>(value));
 			}
-			dispatch_replace(idx);
+			dispatch_modify(idx);
 			return idx;
 		}
 
@@ -1106,13 +1134,13 @@ namespace sek::engine
 		constexpr size_type push_back_(entity_t e) final
 		{
 			const auto pos = base_t::push_back_(e);
-			base_t::dispatch_create(pos);
+			dispatch_create(e);
 			return pos;
 		}
 		constexpr size_type insert_(entity_t e) final
 		{
 			const auto pos = base_t::insert_(e);
-			base_t::dispatch_create(pos);
+			dispatch_create(e);
 			return pos;
 		}
 
@@ -1120,7 +1148,7 @@ namespace sek::engine
 		{
 			/* Fixed components will not be moved by the handler (or at least should not be),
 			 * thus no need to re-acquire entity index. */
-			base_t::dispatch_remove(idx);
+			dispatch_remove(idx);
 			m_pool.erase(idx);
 			return base_t::erase_(idx);
 		}
@@ -1133,7 +1161,7 @@ namespace sek::engine
 				/* Since component type is not fixed, handler functions may attempt to move it.
 				 * Because of this the original index may no longer be valid. */
 				const auto e = base_t::at(idx);
-				base_t::dispatch_remove(idx);
+				dispatch_remove(idx);
 
 				const auto last = size() - 1;
 				idx = base_t::offset(e);

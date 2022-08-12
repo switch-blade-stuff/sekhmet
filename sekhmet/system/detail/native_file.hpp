@@ -7,7 +7,7 @@
 #include <filesystem>
 #include <span>
 
-#include "sekhmet/detail/expected.hpp"
+#include "sekhmet/expected.hpp"
 
 #include <asio/basic_file.hpp>
 #include <system_error>
@@ -359,6 +359,11 @@ namespace sek::system
 		[[nodiscard]] constexpr std::span<std::byte> bytes() const noexcept
 		{
 			return {static_cast<std::byte *>(data()), static_cast<std::size_t>(size())};
+		}
+		/** Returns ASIO buffer of the mapped data. */
+		[[nodiscard]] asio::mutable_buffer buffer() const noexcept
+		{
+			return asio::buffer(data(), size());
 		}
 
 		/** @brief Checks if the mapping is valid. */

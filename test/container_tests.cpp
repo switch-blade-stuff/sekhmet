@@ -186,26 +186,6 @@ TEST(container_tests, dense_set_test)
 	EXPECT_EQ(s1.find("1"), s1.end());
 }
 
-#include "sekhmet/detail/dynarray.hpp"
-
-template class sek::dynarray<int>;
-
-TEST(container_tests, basic_dynarray_test)
-{
-	std::vector<int> v = {0, 1, 2, 3, 4};
-	sek::dynarray<int> da = {0, 1, 2, 3, 4};
-
-	EXPECT_FALSE(da.empty());
-	EXPECT_EQ(da.size(), v.size());
-	EXPECT_TRUE(std::equal(v.begin(), v.end(), da.begin(), da.end()));
-
-	v = {0, 1, 2, 3, 4, 5, 6, 7};
-	EXPECT_FALSE(std::equal(v.begin(), v.end(), da.begin(), da.end()));
-
-	da = v;
-	EXPECT_TRUE(std::equal(v.begin(), v.end(), da.begin(), da.end()));
-}
-
 #include "sekhmet/intern.hpp"
 
 TEST(container_tests, intern_test)

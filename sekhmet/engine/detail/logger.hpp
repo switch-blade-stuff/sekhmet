@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "sekhmet/detail/define.h"
-#include "sekhmet/detail/event.hpp"
+#include "sekhmet/event.hpp"
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <fmt/xchar.h>
@@ -27,6 +27,9 @@ namespace sek::engine
 	};
 
 	/** @brief Stream adapter used to preform logging.
+	 *
+	 * @tparam C Character type of the logger.
+	 * @tparam T Traits type of `C`.
 	 *
 	 * Internally, logger is a wrapper around a log event and additional formatting metadata.
 	 * There are several builtin log levels:

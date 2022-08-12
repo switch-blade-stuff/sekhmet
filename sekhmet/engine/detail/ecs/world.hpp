@@ -6,7 +6,7 @@
 
 #include <memory>
 
-#include "sekhmet/detail/dense_map.hpp"
+#include "sekhmet/dense_map.hpp"
 
 #include "../type_info.hpp"
 #include "component_set.hpp"
@@ -844,18 +844,32 @@ namespace sek::engine
 			return std::forward_as_tuple(reserve<Cs>(n)...);
 		}
 
+		/** Applies a functor to component of an entity.
+		 *
+		 * @param entity Target entity.
+		 * @param f Functor to apply to the entity's component.
+		 * @return Pair of references to the entity and the replaced component.
+		 *
+		 * @warning Using an entity that does not exist or already has the specified component will result in undefined behavior. */
+		template<typename C, typename F>
+		constexpr decltype(auto) apply(entity_t entity, F &&f)
+			requires std::invocable<F, entity_t, C &>
+		{
+			return *reserve_impl<C>().apply(entity, std::forward<F>(f));
+		}
+
 		/** Replaces a component for an entity.
 		 *
-		 * @param e Entity to emplace component for.
+		 * @param entity Entity to emplace component for.
 		 * @param args Arguments passed to component's constructor.
 		 * @return Pair of references to the entity and the replaced component.
 		 *
 		 * @warning Using an entity that does not exist or already has the specified component will result in undefined behavior. */
 		template<typename C, typename... Args>
-		constexpr decltype(auto) replace(entity_t e, Args &&...args)
+		constexpr decltype(auto) replace(entity_t entity, Args &&...args)
 			requires std::constructible_from<C, Args...>
 		{
-			return *reserve_impl<C>().replace(e, std::forward<Args>(args)...);
+			return *reserve_impl<C>().replace(entity, std::forward<Args>(args)...);
 		}
 
 		/** @brief Generates a new entity and constructs a component in-place. Tombstones (if any) are re-used.
@@ -879,45 +893,45 @@ namespace sek::engine
 		 *
 		 * @copydetails emplace
 		 *
-		 * @param e Entity to emplace component for.
+		 * @param entity Entity to emplace component for.
 		 * @warning Using an entity that does not exist or already has the specified component will result in undefined behavior. */
 		template<typename C, typename... Args>
-		constexpr decltype(auto) emplace(entity_t e, Args &&...args)
+		constexpr decltype(auto) emplace(entity_t entity, Args &&...args)
 		{
-			return reserve_impl<C>().emplace(e, std::forward<Args>(args)...);
+			return reserve_impl<C>().emplace(entity, std::forward<Args>(args)...);
 		}
 		/** @brief Constructs a component for the specified entity in-place.
 		 * Entities and components are always pushed to the end (tombstones are not re-used).
 		 *
 		 * @copydetails emplace_back
 		 *
-		 * @param e Entity to emplace component for.
+		 * @param entity Entity to emplace component for.
 		 * @warning Using an entity that does not exist or already has the specified component will result in undefined behavior. */
 		template<typename C, typename... Args>
-		constexpr decltype(auto) emplace_back(entity_t e, Args &&...args)
+		constexpr decltype(auto) emplace_back(entity_t entity, Args &&...args)
 		{
-			return reserve_impl<C>().emplace_back(e, std::forward<Args>(args)...);
+			return reserve_impl<C>().emplace_back(entity, std::forward<Args>(args)...);
 		}
 
 		/** @brief Creates or modifies a component for the specified entity. Tombstones (if any) are re-used.
 		 *
-		 * @param e Entity to emplace component for.
+		 * @param entity Entity to emplace component for.
 		 * @param args Arguments passed to component's constructor.
 		 * @return Pair where first is a pair of references to the potentially inserted entity and it's component
 		 * and second is a boolean indicating whether the entity was inserted (`true` if inserted, `false` if replaced). */
 		template<typename C, typename... Args>
-		constexpr decltype(auto) emplace_or_replace(entity_t e, Args &&...args)
+		constexpr decltype(auto) emplace_or_replace(entity_t entity, Args &&...args)
 		{
-			return reserve_impl<C>().emplace_or_replace(e, std::forward<Args>(args)...);
+			return reserve_impl<C>().emplace_or_replace(entity, std::forward<Args>(args)...);
 		}
 		/** @brief Creates or modifies a component for the specified entity.
 		 * Entities and components are always pushed to the end (tombstones are not re-used).
 		 *
 		 * @copydetails emplace_or_replace */
 		template<typename C, typename... Args>
-		constexpr decltype(auto) emplace_back_or_replace(entity_t e, Args &&...args)
+		constexpr decltype(auto) emplace_back_or_replace(entity_t entity, Args &&...args)
 		{
-			return reserve_impl<C>().emplace_back_or_replace(e, std::forward<Args>(args)...);
+			return reserve_impl<C>().emplace_back_or_replace(entity, std::forward<Args>(args)...);
 		}
 
 		/** @brief Generates and inserts an entity with the specified components. Tombstones (if any) are re-used.
