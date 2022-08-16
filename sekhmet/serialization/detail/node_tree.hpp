@@ -5,7 +5,7 @@
 #pragma once
 
 #include "sekhmet/detail/assert.hpp"
-#include "sekhmet/dynamic_buffer_resource.hpp"
+#include "sekhmet/detail/buffer_allocator.hpp"
 
 #include "util.hpp"
 
@@ -410,8 +410,8 @@ namespace sek::serialization
 		};
 
 	private:
-		using node_pool_t = sek::detail::dynamic_buffer_resource<sizeof(node_type) * 64>;
-		using string_pool_t = sek::detail::dynamic_buffer_resource<SEK_KB(8)>;
+		using node_pool_t = sek::detail::buffer_allocator<sizeof(node_type) * 64>;
+		using string_pool_t = sek::detail::buffer_allocator<SEK_KB(8)>;
 
 		template<typename K>
 		struct container_element : detail::container_element_base<node_type, A, K>

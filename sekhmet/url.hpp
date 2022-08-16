@@ -4,4 +4,4 @@
 
 #pragma once
 
-#include "detail/url.hpp"
+#include "detail/uri.hpp"

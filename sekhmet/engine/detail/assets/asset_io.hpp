@@ -152,7 +152,6 @@ namespace sek::engine
 				expected<std::size_t, std::error_code> (*read)(asset_io_data *, void *, std::size_t) noexcept;
 				expected<std::uint64_t, std::error_code> (*seek)(asset_io_data *, std::int64_t, system::seek_basis) noexcept;
 				expected<std::uint64_t, std::error_code> (*setpos)(asset_io_data *, std::uint64_t) noexcept;
-
 				expected<std::uint64_t, std::error_code> (*size)(const asset_io_data *) noexcept;
 				expected<std::uint64_t, std::error_code> (*tell)(const asset_io_data *) noexcept;
 
@@ -180,7 +179,6 @@ namespace sek::engine
 				case system::seek_set: return data->m_buff.setpos(static_cast<std::uint64_t>(off));
 				case system::seek_cur: return data->m_buff.setpos(data->m_buff.tell() + static_cast<std::uint64_t>(off));
 				case system::seek_end: return data->m_buff.setpos(data->m_buff.size() + static_cast<std::uint64_t>(off));
-				default: return unexpected{std::make_error_code(std::errc::invalid_argument)};
 				}
 			}
 			// clang-format on
@@ -257,8 +255,6 @@ namespace sek::engine
 			}
 
 			[[nodiscard]] constexpr bool empty() const noexcept { return m_vtable == nullptr; }
-			[[nodiscard]] constexpr bool has_file() const noexcept { return m_vtable == &file_vtable; }
-			[[nodiscard]] constexpr bool has_buffer() const noexcept { return m_vtable == &buff_vtable; }
 
 			[[nodiscard]] constexpr system::native_file &file() noexcept { return m_file; }
 			[[nodiscard]] constexpr const system::native_file &file() const noexcept { return m_file; }
@@ -269,10 +265,6 @@ namespace sek::engine
 			{
 				return m_vtable->read(this, dst, n);
 			}
-
-			expected<std::uint64_t, std::error_code> size() const noexcept { return m_vtable->size(this); }
-			expected<std::uint64_t, std::error_code> tell() const noexcept { return m_vtable->tell(this); }
-
 			expected<std::uint64_t, std::error_code> seek(std::int64_t off, system::seek_basis dir) noexcept
 			{
 				return m_vtable->seek(this, off, dir);
@@ -281,6 +273,8 @@ namespace sek::engine
 			{
 				return m_vtable->setpos(this, pos);
 			}
+			expected<std::uint64_t, std::error_code> size() const noexcept { return m_vtable->size(this); }
+			expected<std::uint64_t, std::error_code> tell() const noexcept { return m_vtable->tell(this); }
 
 			constexpr void swap(asset_io_data &other) noexcept
 			{
@@ -292,7 +286,8 @@ namespace sek::engine
 			const vtable_t *m_vtable = nullptr;
 			union
 			{
-				std::byte m_padding[sizeof(system::native_file)] = {};
+				std::byte m_padding[std::max(sizeof(system::native_file), sizeof(asset_buffer))] = {};
+
 				system::native_file m_file;
 				asset_buffer m_buff;
 			};

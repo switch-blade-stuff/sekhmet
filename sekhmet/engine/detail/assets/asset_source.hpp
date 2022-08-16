@@ -106,10 +106,6 @@ namespace sek::engine
 		/** Checks if the asset source is empty. */
 		[[nodiscard]] constexpr bool empty() const noexcept { return m_data.empty(); }
 
-		/** Checks if the asset source is backed by a file. */
-		[[nodiscard]] constexpr bool has_file() const noexcept { return m_data.has_file(); }
-		/** Checks if the asset source is backed by a buffer. */
-		[[nodiscard]] constexpr bool has_buffer() const noexcept { return m_data.has_buffer(); }
 		/** Returns the base offset of the asset source. */
 		[[nodiscard]] constexpr std::uint64_t base_offset() const noexcept { return m_offset; }
 		/** Returns the total size of the asset source. */
@@ -161,13 +157,6 @@ namespace sek::engine
 		 * @param pos New position within the asset source.
 		 * @return Resulting position within the asset source or an error code. */
 		SEK_API expected<std::uint64_t, std::error_code> setpos(std::nothrow_t, std::uint64_t pos) noexcept;
-
-		/** Returns reference to the underlying native file.
-		 * @note If the asset source is not backed by a file, results in undefined behavior. */
-		[[nodiscard]] constexpr const system::native_file &file() const noexcept { return m_data.file(); }
-		/** Returns reference to the underlying asset buffer.
-		 * @note If the asset source is not backed by a buffer, results in undefined behavior. */
-		[[nodiscard]] constexpr const asset_buffer &buffer() const noexcept { return m_data.buffer(); }
 
 		constexpr void swap(asset_source &other) noexcept
 		{

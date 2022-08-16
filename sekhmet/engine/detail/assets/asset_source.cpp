@@ -15,7 +15,7 @@ namespace sek::engine
 	}
 
 	std::size_t asset_source::read(void *dst, std::size_t n) { return return_if(read(std::nothrow, dst, n)); }
-	std::size_t asset_source::read(asio::mutable_buffer &buff) { return return_if(read(std::nothrow, buff)); }
+	std::size_t asset_source::read(asio::mutable_buffer &dst) { return return_if(read(std::nothrow, dst)); }
 	expected<std::size_t, std::error_code> asset_source::read(std::nothrow_t, void *dst, std::size_t n) noexcept
 	{
 		auto new_pos = m_read_pos + static_cast<std::uint64_t>(n);
