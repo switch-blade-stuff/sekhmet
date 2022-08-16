@@ -5,7 +5,7 @@ target_sources(${PROJECT_NAME} INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/utility.hpp
         ${CMAKE_CURRENT_LIST_DIR}/version.hpp
         ${CMAKE_CURRENT_LIST_DIR}/uuid.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/url.hpp
+        ${CMAKE_CURRENT_LIST_DIR}/uri.hpp
         ${CMAKE_CURRENT_LIST_DIR}/debug.hpp
         ${CMAKE_CURRENT_LIST_DIR}/expected.hpp
         ${CMAKE_CURRENT_LIST_DIR}/access_guard.hpp

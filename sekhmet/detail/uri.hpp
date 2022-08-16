@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include <filesystem>
 #include <string>
 
 #include "define.h"
@@ -12,259 +11,501 @@
 
 namespace sek
 {
+	/** @brief Flags used to identify individual components of a URI. */
+	enum class uri_component : int
+	{
+		/** Scheme of the URI (ex. `http`, `https`, `file`). */
+		SCHEME = 0b0001'0000,
+		/** Query of the URI (ex. `search=sometext` in `mydomain.com/?search=sometext`). */
+		QUERY = 0b0010'0000,
+		/** Fragment of the URI (ex. `element` in `mydomain.com/#element`). */
+		FRAGMENT = 0b0100'0000,
+
+		/** Mask bit common to all authority components. */
+		AUTHORITY_MASK = 0b1000'0000,
+		/** Mask bit common to all path components. */
+		PATH_MASK = 0b1'0000'0000,
+
+		/** Username of the URI authority (ex. `user` in `//user:passwd@mydomain.com:22`) */
+		USERNAME = AUTHORITY_MASK | 0b0001,
+		/** Password of the URI authority (ex. `passwd` in `//user:passwd@mydomain.com:22`) */
+		PASSWORD = AUTHORITY_MASK | 0b0010,
+		/** Userinfo of the URI authority (ex. `user:passwd` in `//user:passwd@mydomain.com:22`) */
+		USERINFO = USERNAME | PASSWORD,
+		/** Host of the URI authority (ex. `mydomain.com` in `//user:passwd@mydomain.com:22`) */
+		HOST = AUTHORITY_MASK | 0b0100,
+		/** Port of the URI authority (ex. `22` in `//user:passwd@mydomain.com:22`) */
+		PORT = AUTHORITY_MASK | 0b1000,
+		/** Full authority of the URI. */
+		AUTHORITY = USERINFO | HOST | PORT,
+
+		/** File name of the URI path (ex. `index.html` in `https://mydomain.com/index.html`). */
+		FILE_NAME = PATH_MASK | 0b0000'0001,
+		/** Full path of the URI. */
+		PATH = PATH_MASK,
+	};
+
+	[[nodiscard]] constexpr uri_component operator~(uri_component lhs) noexcept
+	{
+		return static_cast<uri_component>(~static_cast<int>(lhs));
+	}
+	[[nodiscard]] constexpr uri_component operator|(uri_component lhs, uri_component rhs) noexcept
+	{
+		return static_cast<uri_component>(static_cast<int>(lhs) | static_cast<int>(rhs));
+	}
+	[[nodiscard]] constexpr uri_component operator&(uri_component lhs, uri_component rhs) noexcept
+	{
+		return static_cast<uri_component>(static_cast<int>(lhs) & static_cast<int>(rhs));
+	}
+	[[nodiscard]] constexpr uri_component operator^(uri_component lhs, uri_component rhs) noexcept
+	{
+		return static_cast<uri_component>(static_cast<int>(lhs) ^ static_cast<int>(rhs));
+	}
+	[[nodiscard]] constexpr uri_component &operator|=(uri_component &lhs, uri_component rhs) noexcept
+	{
+		lhs = lhs | rhs;
+		return lhs;
+	}
+	[[nodiscard]] constexpr uri_component &operator&=(uri_component &lhs, uri_component rhs) noexcept
+	{
+		lhs = lhs & rhs;
+		return lhs;
+	}
+	[[nodiscard]] constexpr uri_component &operator^=(uri_component &lhs, uri_component rhs) noexcept
+	{
+		lhs = lhs ^ rhs;
+		return lhs;
+	}
+
+	/** @brief Flags used to identify URI formatting options. */
+	enum class uri_format : int
+	{
+		/** Do not preform any encoding or decoding. */
+		NO_FORMAT = 0,
+
+		/** Mask used to specify encoding mode. */
+		ENCODE_MASK = 0b1000,
+
+		/** Decodes all percent-encoded sequences, regardless of component type. */
+		DECODE_ALL = 0b01,
+		/** Decodes most percent-encoded sequences. Decoded characters depend on component type. */
+		DECODE_PRETTY = 0b10,
+
+		/** Encodes all non-ASCII Unicode sequences as percent-encoded UTF-8. */
+		ENCODE_UTF = ENCODE_MASK | 0b001,
+		/** Percent-encodes any special characters. Encoded characters depend on component type. */
+		ENCODE_SPECIAL = ENCODE_MASK | 0b010,
+		/** Percent-encodes any whitespace characters using the current locale. */
+		ENCODE_WHITESPACE = ENCODE_MASK | 0b100,
+		/** Percent-encodes all characters not allowed within a URI. */
+		ENCODE_ALL = ENCODE_UTF | ENCODE_SPECIAL | ENCODE_WHITESPACE,
+	};
+
+	[[nodiscard]] constexpr uri_format operator~(uri_format lhs) noexcept
+	{
+		return static_cast<uri_format>(~static_cast<int>(lhs));
+	}
+	[[nodiscard]] constexpr uri_format operator|(uri_format lhs, uri_format rhs) noexcept
+	{
+		return static_cast<uri_format>(static_cast<int>(lhs) | static_cast<int>(rhs));
+	}
+	[[nodiscard]] constexpr uri_format operator&(uri_format lhs, uri_format rhs) noexcept
+	{
+		return static_cast<uri_format>(static_cast<int>(lhs) & static_cast<int>(rhs));
+	}
+	[[nodiscard]] constexpr uri_format operator^(uri_format lhs, uri_format rhs) noexcept
+	{
+		return static_cast<uri_format>(static_cast<int>(lhs) ^ static_cast<int>(rhs));
+	}
+	[[nodiscard]] constexpr uri_format &operator|=(uri_format &lhs, uri_format rhs) noexcept
+	{
+		lhs = lhs | rhs;
+		return lhs;
+	}
+	[[nodiscard]] constexpr uri_format &operator&=(uri_format &lhs, uri_format rhs) noexcept
+	{
+		lhs = lhs & rhs;
+		return lhs;
+	}
+	[[nodiscard]] constexpr uri_format &operator^=(uri_format &lhs, uri_format rhs) noexcept
+	{
+		lhs = lhs ^ rhs;
+		return lhs;
+	}
+
 	/** @brief Structure used to represent a platform-independent URI.
 	 * @note URIs are always stored using native 8-bit `char` encoding. */
 	class uri
 	{
 	public:
-		typedef std::string string_type;
+		/** @copybrief uri_component */
+		typedef uri_component component_type;
+		/** @copybrief uri_format */
+		typedef uri_format format_type;
 
+		/** @brief Type of string used to store URI data. */
+		typedef std::string string_type;
+		/** @brief Type of string view used to reference sections of URI. */
+		typedef std::string_view string_view_type;
+
+		/** @brief Character type of the URI. */
 		typedef typename string_type::value_type value_type;
-		typedef typename string_type::const_pointer pointer;
-		typedef typename string_type::const_pointer const_pointer;
-		typedef typename string_type::const_reference reference;
-		typedef typename string_type::const_reference const_reference;
 
 		typedef std::size_t size_type;
 		typedef std::ptrdiff_t difference_type;
 
 	private:
-		using sv_type = std::basic_string_view<value_type>;
-
 		struct element
 		{
 			size_type offset;
 			size_type size;
 		};
 
-		class list_handle
+		class data_handle
 		{
 			friend class uri;
 
-			struct list_header;
+			struct impl;
 
-			[[nodiscard]] static list_header *alloc_list(size_type capacity);
-			static void dealloc_list(list_header *list);
-
-			constexpr static size_type min_capacity = 7; /* 1 schema + 3 authority + 1 path + 1 query + 1 fragment */
+			constexpr static size_type min_capacity = 2;
 
 		public:
-			typedef element value_type;
-			typedef element *iterator;
-			typedef element *pointer;
-			typedef element &reference;
-			typedef typename uri::size_type size_type;
-			typedef typename uri::difference_type difference_type;
+			constexpr data_handle() noexcept = default;
 
-		public:
-			constexpr list_handle() noexcept = default;
+			SEK_API data_handle(const data_handle &);
+			SEK_API data_handle &operator=(const data_handle &);
+			SEK_API ~data_handle();
 
-			SEK_API list_handle(const list_handle &);
-			SEK_API list_handle &operator=(const list_handle &);
-
-			constexpr list_handle(list_handle &&other) noexcept : m_data(other.m_data) { other.m_data = 0; }
-			constexpr list_handle &operator=(list_handle &&other) noexcept
+			constexpr data_handle(data_handle &&other) noexcept : m_ptr(other.m_ptr) { other.m_ptr = nullptr; }
+			constexpr data_handle &operator=(data_handle &&other) noexcept
 			{
 				swap(other);
 				return *this;
 			}
 
-			~list_handle();
+			constexpr impl *get() const noexcept { return m_ptr; }
+			constexpr impl *operator->() const noexcept { return get(); }
 
-			[[nodiscard]] inline iterator begin() const noexcept;
-			[[nodiscard]] inline iterator cbegin() const noexcept;
-			[[nodiscard]] inline iterator end() const noexcept;
-			[[nodiscard]] inline iterator cend() const noexcept;
-
-			[[nodiscard]] inline reference front() const noexcept;
-			[[nodiscard]] inline reference back() const noexcept;
-
-			[[nodiscard]] inline bool empty() const noexcept;
-
-			[[nodiscard]] inline size_type size() const noexcept;
-			[[nodiscard]] inline size_type capacity() const noexcept;
-
-			inline void clear() const noexcept;
-
-			inline iterator push_back(const element &);
-			inline iterator erase(iterator) noexcept;
-
-			constexpr void swap(list_handle &other) noexcept { std::swap(m_data, other.m_data); }
+			constexpr void swap(data_handle &other) noexcept { std::swap(m_ptr, other.m_ptr); }
 
 		private:
-			list_header *m_data = nullptr;
+			impl *m_ptr = nullptr;
 		};
-
-		constexpr static value_type path_separator[] = {'/', '\\'};
-		constexpr static value_type scheme_postfix = ':';
-		constexpr static value_type auth_prefix[] = {'/', '/'};
-		constexpr static value_type user_postfix = '@';
-		constexpr static value_type port_prefix = ':';
-		constexpr static value_type query_prefix = '?';
-		constexpr static value_type frag_prefix = '#';
 
 	public:
 		/** Initializes an empty URI. */
 		constexpr uri() noexcept = default;
 
-		/** Checks if the URI is empty (only contains a 0-length path). */
-		[[nodiscard]] constexpr bool empty() const noexcept { return m_data.empty(); }
+		/** Initializes a URI from a string.
+		 * @param str String containing the URI.
+		 * @note URI path will be normalized. */
+		explicit uri(string_view_type str) : m_value(str) { parse_components(); }
+		/** @copydoc uri */
+		explicit uri(const string_type &str) : m_value(str) { parse_components(); }
+		/** @copydoc uri */
+		explicit uri(string_type &&str) : m_value(std::move(str)) { parse_components(); }
+
+		/** Assigns the URI from a string.
+		 * @param str String containing the URI.
+		 * @return Reference to this URI. */
+		uri &operator=(string_view_type str)
+		{
+			m_value = str;
+			parse_components();
+			return *this;
+		}
+		/** @copydoc operator= */
+		uri &operator=(const string_type &str)
+		{
+			m_value = str;
+			parse_components();
+			return *this;
+		}
+		/** @copydoc operator= */
+		uri &operator=(string_type &&str)
+		{
+			m_value = std::move(str);
+			parse_components();
+			return *this;
+		}
+		/** @copydoc operator= */
+		uri &assign(string_view_type str) { return operator=(str); }
+		/** @copydoc operator= */
+		uri &assign(const string_type &str) { return operator=(str); }
+		/** @copydoc operator= */
+		uri &assign(string_type &&str) { return operator=(std::move(str)); }
+
+		/** @brief Initializes a URI from components of another URI.
+		 * @param other Uri to copy components from. */
+		uri(const uri &other) = default;
+		/** @copydoc uri
+		 * @param mask Mask specifying which components to copy. */
+		SEK_API uri(const uri &other, component_type mask);
+
+		/** @brief Assigns the URI from another URI.
+		 * @param other Uri to copy components from.
+		 * @return Reference to this URI. */
+		uri &operator=(const uri &other) = default;
+		/** @copydoc operator= */
+		uri &assign(const uri &other) { return operator=(other); }
+		/** @copydoc operator=
+		 * @param mask Mask specifying which components to copy. */
+		SEK_API uri &assign(const uri &other, component_type mask);
+
+		/** @copybrief uri
+		 * @param other Uri to move components from. */
+		constexpr uri(uri &&other) noexcept = default;
+		/** @copydoc uri
+		 * @param mask Mask specifying which components to move.
+		 * @note Host is implied if any authority components are present. */
+		SEK_API uri(uri &&other, component_type mask);
+
+		/** @copybrief operator=
+		 * @param other Uri to move components from.
+		 * @return Reference to this URI. */
+		SEK_API uri &operator=(uri &&other) noexcept;
+		/** @copydoc operator= */
+		uri &assign(uri &&other) noexcept { return operator=(std::move(other)); }
+		/** @copydoc operator=
+		 * @param mask Mask specifying which components to move.
+		 * @note Host is implied if any authority components are present. */
+		SEK_API uri &assign(uri &&other, component_type mask);
+
+		/** Checks if the URI is empty. */
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_value.empty(); }
 
 		/** Returns pointer to the data of the URI's string. */
-		[[nodiscard]] constexpr pointer data() const noexcept { return m_data.data(); }
+		[[nodiscard]] constexpr const value_type *data() const noexcept { return m_value.data(); }
 		/** @copydoc data */
-		[[nodiscard]] constexpr pointer c_str() const noexcept { return data(); }
+		[[nodiscard]] constexpr const value_type *c_str() const noexcept { return data(); }
 
 		/** Returns reference to URI's string. */
-		[[nodiscard]] constexpr const string_type &string() const noexcept { return m_data; }
+		[[nodiscard]] constexpr const string_type &string() const noexcept { return m_value; }
 		/** Returns copy of the URI's string. */
-		[[nodiscard]] constexpr operator string_type() const noexcept { return string(); }
+		[[nodiscard]] constexpr operator string_type() const { return string(); }
 
-		/** Checks if the URI has a scheme. */
-		[[nodiscard]] SEK_API bool has_scheme() const noexcept;
-		/** Checks if the URI has an authority. */
-		[[nodiscard]] SEK_API bool has_authority() const noexcept;
-		/** Checks if the URI has a userinfo. */
-		[[nodiscard]] SEK_API bool has_userinfo() const noexcept;
-		/** Checks if the URI has a host. */
-		[[nodiscard]] SEK_API bool has_host() const noexcept;
-		/** Checks if the URI has a port. */
-		[[nodiscard]] SEK_API bool has_port() const noexcept;
-		/** Checks if the URI has a pathinfo. */
-		[[nodiscard]] SEK_API bool has_pathinfo() const noexcept;
-		/** Checks if the URI has a query. */
-		[[nodiscard]] SEK_API bool has_query() const noexcept;
-		/** Checks if the URI has a fragment. */
-		[[nodiscard]] SEK_API bool has_fragment() const noexcept;
+		/** Returns a decoded copy of the URI's string. */
+		[[nodiscard]] SEK_API string_type decode(format_type format) const;
+		/** Returns an encoded copy of the URI's string. */
+		[[nodiscard]] SEK_API string_type encode(format_type format) const;
 
-		/** Checks if the URI refers to a local file (uses the `file` scheme). */
+		/** Checks if the URI has the components specified by a mask. */
+		[[nodiscard]] SEK_API bool has_components(component_type mask) const noexcept;
+
+		/** Checks if the URI has a scheme. Equivalent to `has_components(component_type::SCHEME)`. */
+		[[nodiscard]] bool has_scheme() const noexcept { return has_components(component_type::SCHEME); }
+
+		/** Checks if the URI has an authority. Equivalent to `has_components(component_type::AUTHORITY)`. */
+		[[nodiscard]] bool has_authority() const noexcept { return has_components(component_type::AUTHORITY); }
+		/** Checks if the URI has a username. Equivalent to `has_components(component_type::USERNAME)`. */
+		[[nodiscard]] bool has_username() const noexcept { return has_components(component_type::USERNAME); }
+		/** Checks if the URI has a password. Equivalent to `has_components(component_type::PASSWORD)`. */
+		[[nodiscard]] bool has_password() const noexcept { return has_components(component_type::PASSWORD); }
+		/** Checks if the URI has a userinfo (username & password).
+		 * Equivalent to `has_components(component_type::USERINFO)`. */
+		[[nodiscard]] bool has_userinfo() const noexcept { return has_components(component_type::USERINFO); }
+		/** Checks if the URI has a host. Equivalent to `has_components(component_type::HOST)`. */
+		[[nodiscard]] bool has_host() const noexcept { return has_components(component_type::HOST); }
+		/** Checks if the URI has a port. Equivalent to `has_components(component_type::PORT)`. */
+		[[nodiscard]] bool has_port() const noexcept { return has_components(component_type::PORT); }
+
+		/** Checks if the URI has a non-empty path. Equivalent to `has_components(component_type::PATH)`. */
+		[[nodiscard]] bool has_path() const noexcept { return has_components(component_type::PATH); }
+		/** Checks if the URI path has a filename. Equivalent to `has_components(component_type::FILE_NAME)`. */
+		[[nodiscard]] bool has_filename() const noexcept { return has_components(component_type::FILE_NAME); }
+
+		/** Checks if the URI has a query. Equivalent to `has_components(component_type::QUERY)`. */
+		[[nodiscard]] bool has_query() const noexcept { return has_components(component_type::QUERY); }
+		/** Checks if the URI has a fragment. Equivalent to `has_components(component_type::FRAGMENT)`. */
+		[[nodiscard]] bool has_fragment() const noexcept { return has_components(component_type::FRAGMENT); }
+
+		/** Checks if the URI refers to a local file (uses the `file` scheme). Equivalent to `scheme() == "file"` */
 		[[nodiscard]] SEK_API bool is_local() const noexcept;
-		/** Checks if the URI is "clean" (does not contain a query). */
+
+		/** Checks if the URI is "clean" (has no query). Equivalent to `!has_query()`. */
 		[[nodiscard]] bool is_clean() const noexcept { return !has_query(); }
+		/** Checks if the URI is relative (has no scheme). Equivalent to `!has_scheme()`. */
+		[[nodiscard]] bool is_relative() const noexcept { return !has_scheme(); }
 
-		/** Returns a new URI consisting only of the scheme of this URI. */
-		[[nodiscard]] SEK_API uri scheme() const;
-		/** @brief Updates scheme of the URI.
-		 * @param scheme URI containing the new scheme.
-		 * @return Reference to `this`.
-		 * @note If the new scheme is empty, clears the scheme. */
-		SEK_API uri &scheme(const uri &scheme);
-		/** @copybrief scheme
+		/** Returns a formatted copy of the selected components of the URI.
+		 * @param mask Component type mask used to select target components.
+		 * @param format Formatting options for the result string.
+		 * @note Host is implied if any authority components are present. */
+		[[nodiscard]] SEK_API string_type components(component_type mask, format_type format = format_type::NO_FORMAT) const;
+
+		/** Returns a formatted copy of the scheme of the URI.
+		 * @param format Formatting options for the result string. */
+		[[nodiscard]] SEK_API string_type scheme(format_type format) const;
+		/** Returns a string view to the scheme of the URI. */
+		[[nodiscard]] SEK_API string_view_type scheme() const noexcept;
+
+		/** Returns a formatted copy of the authority of the URI (i.e. `[username[:password]@]host[:port]`).
+		 * @param format Formatting options for the result string. */
+		[[nodiscard]] SEK_API string_type authority(format_type format) const;
+		/** Returns a string view to the authority of the URI (i.e. `[username[:password]@]host[:port]`). */
+		[[nodiscard]] SEK_API string_view_type authority() const noexcept;
+
+		/** Returns a formatted copy of the userinfo of the URI (i.e. `username[:password]`).
+		 * @param format Formatting options for the result string. */
+		[[nodiscard]] SEK_API string_type userinfo(format_type format) const;
+		/** Returns a string view to the userinfo of the URI (i.e. `username[:password]`). */
+		[[nodiscard]] SEK_API string_view_type userinfo() const noexcept;
+
+		/** Returns a formatted copy of the username of the URI.
+		 * @param format Formatting options for the result string. */
+		[[nodiscard]] SEK_API string_type username(format_type format) const;
+		/** Returns a string view to the username of the URI. */
+		[[nodiscard]] SEK_API string_view_type username() const noexcept;
+
+		/** Returns a formatted copy of the password of the URI.
+		 * @param format Formatting options for the result string. */
+		[[nodiscard]] SEK_API string_type password(format_type format) const;
+		/** Returns a string view to the password of the URI. */
+		[[nodiscard]] SEK_API string_view_type password() const noexcept;
+
+		/** Returns a formatted copy of the host of the URI.
+		 * @param format Formatting options for the result string. */
+		[[nodiscard]] SEK_API string_type host(format_type format) const;
+		/** Returns a string view to the host of the URI. */
+		[[nodiscard]] SEK_API string_view_type host() const noexcept;
+
+		/** Returns a formatted copy of the port of the URI.
+		 * @param format Formatting options for the result string. */
+		[[nodiscard]] SEK_API string_type port(format_type format) const;
+		/** Returns a string view to the port of the URI. */
+		[[nodiscard]] SEK_API string_view_type port() const noexcept;
+
+		/** Returns a formatted copy of the path of the URI.
+		 * @param format Formatting options for the result string. */
+		[[nodiscard]] SEK_API string_type path(format_type format) const;
+		/** Returns a string view to the path of the URI. */
+		[[nodiscard]] SEK_API string_view_type path() const noexcept;
+
+		/** Returns a formatted copy of the filename of the URI.
+		 * @param format Formatting options for the result string. */
+		[[nodiscard]] SEK_API string_type filename(format_type format) const;
+		/** Returns a string view to the filename of the URI. */
+		[[nodiscard]] SEK_API string_view_type filename() const noexcept;
+
+		/** Returns a formatted copy of the query of the URI.
+		 * @param format Formatting options for the result string. */
+		[[nodiscard]] SEK_API string_type query(format_type format) const;
+		/** Returns a string view to the query of the URI. */
+		[[nodiscard]] SEK_API string_view_type query() const noexcept;
+
+		/** Returns a formatted copy of the fragment of the URI.
+		 * @param format Formatting options for the result string. */
+		[[nodiscard]] SEK_API string_type fragment(format_type format) const;
+		/** Returns a string view to the fragment of the URI. */
+		[[nodiscard]] SEK_API string_view_type fragment() const noexcept;
+
+		/** Replaces scheme of the URI with that of `other`.
+		 * @param other URI containing the new scheme.
+		 * @return Reference to `this`. */
+		uri &set_scheme(const uri &other) { return set_scheme(other.scheme()); }
+		/** Replaces scheme of the URI.
 		 * @param scheme New scheme of the URI.
-		 * @return Reference to `this`.
-		 * @note If the new scheme is empty, clears the scheme. */
-		SEK_API uri &scheme(std::string_view scheme);
+		 * @return Reference to `this`. */
+		SEK_API uri &set_scheme(string_view_type scheme);
 
-		/** Returns a new URI consisting only of the authority of this URI. */
-		[[nodiscard]] SEK_API uri authority() const;
-		/** @brief Updates authority of the URI.
-		 * @param authority URI containing the new authority.
-		 * @return Reference to `this`.
-		 * @note If the new authority is empty, clears the authority. */
-		SEK_API uri &authority(const uri &authority);
-		/** @copybrief authority
+		/** Replaces username of the URI with that of `other`.
+		 * @param other URI containing the new username.
+		 * @return Reference to `this`. */
+		uri &set_username(const uri &other) { return set_username(other.username()); }
+		/** Replaces username of the URI.
+		 * @param username New username of the URI.
+		 * @return Reference to `this`. */
+		SEK_API uri &set_username(string_view_type username);
+
+		/** Replaces password of the URI with that of `other`.
+		 * @param other URI containing the new password.
+		 * @return Reference to `this`. */
+		uri &set_password(const uri &other) { return set_password(other.password()); }
+		/** Replaces password of the URI.
+		 * @param password New password of the URI.
+		 * @return Reference to `this`. */
+		SEK_API uri &set_password(string_view_type password);
+
+		/** Replaces userinfo of the URI with that of `other`.
+		 * @param other URI containing the new userinfo.
+		 * @return Reference to `this`. */
+		uri &set_userinfo(const uri &other) { return set_userinfo(other.userinfo()); }
+		/** Replaces userinfo of the URI.
+		 * @param userinfo New userinfo of the URI.
+		 * @return Reference to `this`. */
+		SEK_API uri &set_userinfo(string_view_type userinfo);
+
+		/** Replaces host of the URI with that of `other`.
+		 * @param other URI containing the new host.
+		 * @return Reference to `this`. */
+		uri &set_host(const uri &other) { return set_host(other.host()); }
+		/** Replaces host of the URI.
+		 * @param host New host of the URI.
+		 * @return Reference to `this`. */
+		SEK_API uri &set_host(string_view_type host);
+
+		/** Replaces port of the URI with that of `other`.
+		 * @param other URI containing the new port.
+		 * @return Reference to `this`. */
+		uri &set_port(const uri &other) { return set_port(other.port()); }
+		/** Replaces port of the URI.
+		 * @param port New port of the URI.
+		 * @return Reference to `this`. */
+		SEK_API uri &set_port(string_view_type port);
+
+		/** Replaces authority of the URI with that of `other`.
+		 * @param other URI containing the new authority.
+		 * @return Reference to `this`. */
+		uri &set_authority(const uri &other) { return set_authority(other.authority()); }
+		/** Replaces authority of the URI.
 		 * @param authority New authority of the URI.
-		 * @return Reference to `this`.
-		 * @note If the new authority is empty, clears the authority. */
-		SEK_API uri &authority(std::string_view authority);
+		 * @return Reference to `this`. */
+		SEK_API uri &set_authority(string_view_type authority);
 
-		/** Returns a new URI consisting only of the host of this URI. */
-		[[nodiscard]] SEK_API uri host() const;
+		/** Replaces path of the URI.
+		 * @param path New path of the URI.
+		 * @return Reference to `this`.
+		 * @note URI path will be normalized. */
+		SEK_API uri &set_path(string_view_type path);
+		/** Replaces path of the URI with that of `other`.
+		 * @param other URI containing the new path.
+		 * @return Reference to `this`. */
+		uri &set_path(const uri &other) { return set_path(other.path()); }
 
-		/** Returns a new URI consisting only of the path of this URI. */
-		[[nodiscard]] SEK_API uri path() const;
-		/** Returns an `std::filesystem::path` representation of the path of the URI. */
-		[[nodiscard]] SEK_API std::filesystem::path fs_path() const;
-		/** If the URI is local, returns it's path, otherwise returns an empty path. */
-		[[nodiscard]] std::filesystem::path local_path() const
-		{
-			return is_local() ? fs_path() : std::filesystem::path{};
-		}
-		/** @brief Updates path of the URI.
-		 * @param authority URI containing the new path.
-		 * @return Reference to `this`.
-		 * @note If the new path is empty, clears the path. */
-		SEK_API uri &path(const uri &path);
-		/** @copybrief path
-		 * @param authority New path of the URI.
-		 * @return Reference to `this`.
-		 * @note If the new path is empty, clears the path. */
-		SEK_API uri &path(std::string_view path);
-		/** @copydoc path */
-		SEK_API uri &path(const std::filesystem::path &path);
-
-		/** Returns a new URI consisting only of the query of this URI. */
-		[[nodiscard]] SEK_API uri query() const;
-		/** @brief Updates query of the URI.
-		 * @param query URI containing the new query.
-		 * @return Reference to `this`.
-		 * @note If the new query is empty, clears the query. */
-		SEK_API uri &query(const uri &query);
-		/** @copybrief query
+		/** Replaces query of the URI with that of `other`.
+		 * @param other URI containing the new query.
+		 * @return Reference to `this`. */
+		uri &set_query(const uri &other) { return set_query(other.query()); }
+		/** Replaces query of the URI.
 		 * @param query New query of the URI.
-		 * @return Reference to `this`.
-		 * @note If the new query is empty, clears the query. */
-		SEK_API uri &query(std::string_view query);
+		 * @return Reference to `this`. */
+		SEK_API uri &set_query(string_view_type query);
+		/** Appends query of the URI with that of `other`.
+		 * @param query Query to append.
+		 * @param sep Separator character used for the query. May be one of the following: `&`, `;`. Default is `&`.
+		 * @return Reference to `this`. */
+		SEK_API uri &append_query(string_view_type query, value_type sep = '&');
 
-		/** Returns a new URI consisting only of the fragment of this URI. */
-		[[nodiscard]] SEK_API uri fragment() const;
-		/** @brief Updates fragment of the URI.
-		 * @param fragment URI containing the new fragment.
-		 * @return Reference to `this`.
-		 * @note If the new fragment is empty, clears the fragment. */
-		SEK_API uri &fragment(const uri &fragment);
-		/** @copybrief fragment
+		/** Replaces fragment of the URI with that of `other`.
+		 * @param other URI containing the new fragment.
+		 * @return Reference to `this`. */
+		uri &set_fragment(const uri &other) { return set_fragment(other.fragment()); }
+		/** Replaces fragment of the URI.
 		 * @param fragment New fragment of the URI.
-		 * @return Reference to `this`.
-		 * @note If the new fragment is empty, clears the fragment. */
-		SEK_API uri &fragment(std::string_view fragment);
+		 * @return Reference to `this`. */
+		SEK_API uri &set_fragment(string_view_type fragment);
 
-		/** @brief Appends `other` to `this`.
-		 *
-		 * @param other URI to append to `this`.
-		 *
-		 * Appends the path component of `other` to path of `this`.
-		 * If `other` contains a query and/or fragment, replaces those components in `this`.
-		 * If `this` does not have a scheme, userinfo, or port, inherits these components from `other`. */
-		uri &operator/=(const uri &other) { return append(other); }
-		/** @copydoc operator/=
-		 * @param q_sep Optional query separator. If set to non-null character and both `this` and `other` have
-		 * non-empty queries, they are concatenated instead using the separator. */
-		SEK_API uri &append(const uri &other, value_type q_sep = '\0');
-		/** @brief Creates a copy of `other` appended to `this`.
-		 * @copydetails operator/= */
-		[[nodiscard]] uri operator/(const uri &other) const
+		constexpr void swap(uri &other) noexcept
 		{
-			auto result = *this;
-			result.append(other);
-			return result;
+			m_value.swap(other.m_value);
+			m_data.swap(other.m_data);
 		}
+		friend constexpr void swap(uri &a, uri &b) noexcept { a.swap(b); }
 
 	private:
-		[[nodiscard]] constexpr sv_type element_view(const element &e) const noexcept
-		{
-			return {m_data.data() + e.offset, e.size};
-		}
+		SEK_API void parse_components();
 
-		[[nodiscard]] constexpr auto skip_scheme(auto iter) const noexcept;
-		[[nodiscard]] constexpr auto skip_userinfo(auto iter) const noexcept;
-		[[nodiscard]] constexpr auto skip_port(auto iter) const noexcept;
-		[[nodiscard]] constexpr auto skip_fragment(auto iter) const noexcept;
-
-		[[nodiscard]] inline list_handle::iterator find_scheme() const noexcept;
-		[[nodiscard]] inline list_handle::iterator find_userinfo() const noexcept;
-		[[nodiscard]] inline list_handle::iterator find_host() const noexcept;
-		[[nodiscard]] inline list_handle::iterator find_port() const noexcept;
-
-		[[nodiscard]] inline list_handle::iterator find_query() const noexcept;
-		[[nodiscard]] inline list_handle::iterator find_fragment() const noexcept;
-
-		[[nodiscard]] inline std::pair<list_handle::iterator, list_handle::iterator> find_auth() const noexcept;
-		[[nodiscard]] inline std::pair<list_handle::iterator, list_handle::iterator> find_path() const noexcept;
-
-		inline void offset_elements(difference_type off) noexcept;
-
-		string_type m_data;
-		list_handle m_list;
+		string_type m_value;
+		data_handle m_data;
 	};
 }	 // namespace sek

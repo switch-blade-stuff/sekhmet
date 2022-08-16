@@ -7,11 +7,10 @@
 #include "sekhmet/detail/basic_pool.hpp"
 
 #include "info.hpp"
-#include "local_package.hpp"
 
 namespace sek::engine::detail
 {
-	class archive_package : public package_info, public local_package
+	class archive_package : public package_info
 	{
 	protected:
 		struct archive_slice
@@ -28,8 +27,8 @@ namespace sek::engine::detail
 		};
 
 	public:
-		explicit archive_package(const std::filesystem::path &path) : local_package(path) {}
-		explicit archive_package(std::filesystem::path &&path) : local_package(std::move(path)) {}
+		explicit archive_package(const uri &location) : package_info(location) {}
+		explicit archive_package(uri &&location) noexcept : package_info(std::move(location)) {}
 		~archive_package() override { destroy_all(); }
 
 		[[nodiscard]] asset_info *alloc_info() final { return m_pool.allocate(); }
@@ -54,8 +53,8 @@ namespace sek::engine::detail
 	class flat_package final : public archive_package
 	{
 	public:
-		explicit flat_package(const std::filesystem::path &path) : archive_package(path) {}
-		explicit flat_package(std::filesystem::path &&path) : archive_package(std::move(path)) {}
+		explicit flat_package(const uri &location) : archive_package(location) {}
+		explicit flat_package(uri &&location) noexcept : archive_package(std::move(location)) {}
 
 		~flat_package() final = default;
 
@@ -65,8 +64,8 @@ namespace sek::engine::detail
 	class zstd_package final : public archive_package
 	{
 	public:
-		explicit zstd_package(const std::filesystem::path &path) : archive_package(path) {}
-		explicit zstd_package(std::filesystem::path &&path) : archive_package(std::move(path)) {}
+		explicit zstd_package(const uri &location) : archive_package(location) {}
+		explicit zstd_package(uri &&location) noexcept : archive_package(std::move(location)) {}
 
 		~zstd_package() final = default;
 

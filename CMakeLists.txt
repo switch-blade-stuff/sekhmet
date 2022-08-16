@@ -31,14 +31,19 @@ option(SEK_BUILD_MODULES "Build engine modules" ON)
 option(SEK_EXPORT_BUILD "Build engine for export" OFF)
 option(SEK_ENABLE_IPO "Enable IPO support" ON)
 
+option(SEK_ENABLE_PROFILER "Enable profiling" ON)
+if (NOT SEK_ENABLE_SIMD)
+    add_compile_definitions(SEK_NO_PROFILER)
+endif ()
+
 option(SEK_ENABLE_SIMD "Enable SIMD-accelerated math" ON)
 if (NOT SEK_ENABLE_SIMD)
     add_compile_definitions(SEK_NO_SIMD)
 endif ()
 
-option(SEK_ENABLE_PROFILER "Enable profiling" ON)
-if (NOT SEK_ENABLE_SIMD)
-    add_compile_definitions(SEK_NO_PROFILER)
+option(SEK_ENABLE_WIN_PATH "Enable support for Windows drive letters and path separators" OFF)
+if (SEK_ENABLE_WIN_PATH)
+    add_compile_definitions(SEK_USE_WIN_PATH)
 endif ()
 
 option(SEK_ENABLE_TESTS "Build unit tests" OFF)

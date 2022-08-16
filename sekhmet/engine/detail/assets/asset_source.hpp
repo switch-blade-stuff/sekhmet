@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "sekhmet/url.hpp"
+#include "sekhmet/uri.hpp"
 
 #include "asset_io.hpp"
 #include "fwd.hpp"
@@ -157,6 +157,11 @@ namespace sek::engine
 		 * @param pos New position within the asset source.
 		 * @return Resulting position within the asset source or an error code. */
 		SEK_API expected<std::uint64_t, std::error_code> setpos(std::nothrow_t, std::uint64_t pos) noexcept;
+
+		/** If the asset source is backed by a file, returns pointer to the file. Otherwise returns `nullptr`. */
+		[[nodiscard]] constexpr system::native_file *file() noexcept { return m_data.file(); }
+		/** @copydoc file */
+		[[nodiscard]] constexpr const system::native_file *file() const noexcept { return m_data.file(); }
 
 		constexpr void swap(asset_source &other) noexcept
 		{

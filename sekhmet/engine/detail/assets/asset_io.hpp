@@ -256,11 +256,6 @@ namespace sek::engine
 
 			[[nodiscard]] constexpr bool empty() const noexcept { return m_vtable == nullptr; }
 
-			[[nodiscard]] constexpr system::native_file &file() noexcept { return m_file; }
-			[[nodiscard]] constexpr const system::native_file &file() const noexcept { return m_file; }
-			[[nodiscard]] constexpr asset_buffer &buffer() noexcept { return m_buff; }
-			[[nodiscard]] constexpr const asset_buffer &buffer() const noexcept { return m_buff; }
-
 			expected<std::size_t, std::error_code> read(void *dst, std::size_t n) noexcept
 			{
 				return m_vtable->read(this, dst, n);
@@ -275,6 +270,15 @@ namespace sek::engine
 			}
 			expected<std::uint64_t, std::error_code> size() const noexcept { return m_vtable->size(this); }
 			expected<std::uint64_t, std::error_code> tell() const noexcept { return m_vtable->tell(this); }
+
+			[[nodiscard]] constexpr system::native_file *file() noexcept
+			{
+				return m_vtable == &file_vtable ? &m_file : nullptr;
+			}
+			[[nodiscard]] constexpr const system::native_file *file() const noexcept
+			{
+				return m_vtable == &file_vtable ? &m_file : nullptr;
+			}
 
 			constexpr void swap(asset_io_data &other) noexcept
 			{

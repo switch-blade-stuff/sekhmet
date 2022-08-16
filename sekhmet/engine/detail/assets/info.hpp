@@ -9,6 +9,7 @@
 #include "sekhmet/dense_map.hpp"
 #include "sekhmet/dense_set.hpp"
 #include "sekhmet/intern.hpp"
+#include "sekhmet/uri.hpp"
 #include "sekhmet/uuid.hpp"
 
 #include "asset_io.hpp"
@@ -75,8 +76,12 @@ namespace sek::engine::detail
 		static asset_source make_source(asset_io_data &&, std::uint64_t, std::uint64_t) noexcept;
 
 	public:
-		constexpr package_info() = default;
+		package_info(const uri &location) : m_location(location) {}
+		package_info(uri &&location) noexcept : m_location(std::move(location)) {}
+
 		SEK_API virtual ~package_info();
+
+		[[nodiscard]] constexpr const uri &location() const noexcept { return m_location; }
 
 		SEK_API void acquire();
 		SEK_API void release();
@@ -103,6 +108,7 @@ namespace sek::engine::detail
 
 	private:
 		std::atomic<std::size_t> m_refs;
+		uri m_location;
 
 	public:
 #ifdef SEK_EDITOR
@@ -112,23 +118,6 @@ namespace sek::engine::detail
 	};
 
 	bool asset_info::has_metadata() const noexcept { return parent->has_metadata(this); }
-
-	/* Package stored locally on the device. */
-	class local_package
-	{
-	public:
-		local_package() = delete;
-
-		explicit local_package(const std::filesystem::path &path) : m_path(path) {}
-		explicit local_package(std::filesystem::path &&path) : m_path(std::move(path)) {}
-
-		[[nodiscard]] expected<system::native_file, std::error_code> open_archive(std::uint64_t offset) const;
-
-		[[nodiscard]] constexpr const std::filesystem::path &path() const noexcept { return m_path; }
-
-	private:
-		std::filesystem::path m_path;
-	};
 
 	struct asset_info_ptr
 	{

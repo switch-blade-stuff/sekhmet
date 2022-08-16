@@ -53,10 +53,8 @@ namespace sek::engine
 		asset_package(const asset_package &) = default;
 		asset_package &operator=(const asset_package &) = default;
 
-		/** Checks if the package is stored locally (has a local filesystem path). */
-		[[nodiscard]] constexpr bool is_local() const noexcept { return m_ptr->path; }
-		/** Returns path of the asset package. */
-		[[nodiscard]] constexpr const std::filesystem::path &path() const noexcept { return m_ptr->path; }
+		/** Returns URI location of the asset package. */
+		[[nodiscard]] constexpr const uri &location() const noexcept { return m_ptr->location(); }
 
 		/** Checks if the asset package is empty (does not contain any assets). */
 		[[nodiscard]] constexpr bool empty() const noexcept { return m_ptr->empty(); }

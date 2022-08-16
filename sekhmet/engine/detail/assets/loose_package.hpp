@@ -7,11 +7,10 @@
 #include "sekhmet/detail/basic_pool.hpp"
 
 #include "info.hpp"
-#include "local_package.hpp"
 
 namespace sek::engine::detail
 {
-	class loose_package final : public package_info, public local_package
+	class loose_package final : public package_info
 	{
 	protected:
 		class loose_info : public asset_info
@@ -62,8 +61,8 @@ namespace sek::engine::detail
 		};
 
 	public:
-		explicit loose_package(const std::filesystem::path &path) : local_package(path) {}
-		explicit loose_package(std::filesystem::path &&path) : local_package(std::move(path)) {}
+		explicit loose_package(const uri &location) : package_info(location) {}
+		explicit loose_package(uri &&location) noexcept : package_info(std::move(location)) {}
 
 		~loose_package() final { destroy_all(); }
 
