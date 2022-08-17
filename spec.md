@@ -77,8 +77,15 @@ types associated with project sources (if not specified, the "main" project defa
 the plugin.
 
 Once a plugin project is modified by creating new files or updating its configuration (or a new one is generated), the
-corresponding toolchain is used to generate project files for the target build system (ex. CMake toolchain generates
-CMake project files).
+corresponding toolchain is used to generate required project files for the target build system (ex. CMake toolchain
+generates CMake project files).
+
+If a source file of the plugin project is modified and either the plugin project or the "main" project has the
+auto-compile option enabled, or the user requests a manual (re)compilation, or the plugin has been compiled externally (
+and thus the output binaries have been modified), the plugin is queued for hot-reload. Plugins can only be hot-reloaded
+if the play mode is not on, since reloading plugins requires serialization & unloading of all resources and
+configuration and a soft-reset of the engine state. This is required in order to avoid leaving dangling references to
+code or data of the unloaded plugins.
 
 When a plugin project is built, the corresponding toolchain is used to configure and invoke the build system used for
 the project.
