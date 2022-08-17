@@ -31,19 +31,6 @@
         -> release                  (Export binaries with no debug information)
 ```
 
-## Build
-
-There are 3 build types: editor, debug & release.
-Plugins built from within the editor are always built using the `editor` build type. This build type includes debug
-symbols, editor-only assets, and extra compile definitions such as `SEK_EDITOR`.
-Plugins built for export can be either built in debug or release mode. Debug mode includes debug symbols and debug-only
-assets. Release mode is fully-stripped and only contains release mode assets.
-
-Users cannot add/remove build types, as the engine only recognizes and is able to use these 3, however they can
-configure properties of these build types, such as adding compile definitions and modifying cmake and compiler flags.
-In addition, users can modify and specialize build targets (ex. win-x64) and toolchains, which will be used by the 3
-build types.
-
 ## Config registry
 
 Engine stores it's configuration in the config registry system. Config registry contains a tree with every node being
@@ -63,40 +50,98 @@ to provide defaults or does not need to export all it's data (ex. entries may co
 editor), a different underlying type should be used for export serialization, this can reduce the amount of exported
 data.
 
-## Editor properties
-
-To enhance and extend in-editor asset package management, a property system is provided. Properties are special
-key-value pairs which can be set or un-set depending on the build type, target, toolchain, render API, and other
-user-defined requirements.
-
-Properties are defined within the project file and are primarily used to control config-dependant asset "aliases" in
-asset package projects. Aliases are used to determine which actual file should be used for each asset. You may for
-example import an asset called "player_dialog.txt", which will be used in most cases, however you may want to provide a
-localized version of said asset, with the localization being controlled via properties.
-
-Properties whose requirements are met are considered "active", while others are "inactive". Property requirements are
-special conditions provided by plugins (and by the editor), which, if met, activate the propertry. Properties can also
-be set as "active" by default, in which case requirements will act as a blacklist instead, de-activating any properties
-that meet the requirements. Property requirements are effectively boolean conditions, AND'ed together, but may also be
-inverted individually. Requirements can be as simple as a direct bool evaluation, or may have an additional parameters (
-ex. `graphics-api` requirement has a drop-down list parameter specifying which graphics api to require). A property may
-additionally have a value associated with it, however it is not a requirement. Property value is a string associated
-with the name of the property.
-
-Properties are re-evaluated on every config update, external changes to the project file and any runtime changes to
-properties (ex. an editor plugin registering a new editor property).
-Whenever properties change, the project's assets (and thus resources, including the graphics pipeline) are re-loaded. In
-addition, a modification of properties may trigger a re-import of certain assets.
-Editor plugins may subscribe to the property modification event to provide extra functionality on property modification.
-Plugins themselves, however are not reloaded, since their compilation does not depend on editor properties.
-
-Note that property system is only available within the editor. When packages are exported, every alias is resolved
-and only the relocated asset files are exported, thus there is no need for properties in exported packages. If an asset
-does not have any aliases whose property dependencies are satisfied, such asset is simply ignored and not exported.
-
-## Asset import/generation
+## Asset packages
 
 ## Resources
+
+Resources are runtime types serialized into assets. Resource assets' metadata specifies the format version and the type
+name of the resource (for version 1).
+
+Every resource type must have the `sek::engine::attributes::resource_type` attribute associated with it. This
+attribute is used to make the resource (de)serializable at runtime using the specified serialization archive (UBJson is
+used by default).
+
+## Editor asset import
+
+## Editor properties
+
+## Shader definition assets
+
+In order to streamline & simplify shader creation process, shaders are defined using a custom node-centric language.
+Assets of this intermediate shader definition language are then compiled into individual shader kernels (1 or multiple
+per shader definition).
+
+Import pipeline of the shader definition assets is roughly as follows:
+
+1. Parse shader definition into generic shader metadata & shader programs.
+2. Generate "shader program" asset aliases and the shader resource asset.
+3. Generate shader source of individual shader programs for the target graphics API.
+4. Compile the generated shader code into "shader program" assets for the current API.
+
+Shader assets are fully re-imported only on changes to the shader definition file. When the graphics API changes, only
+the shader source is re-generated and shader programs are re-compiled instead.
+
+Shader definition language is used to define metadata - external variables, permutation switches and includes, shader
+nodes - abstract building blocks of shader programs, shader stages - stages of an individual shader pass such as
+the `vertex` and `fragment` stages, and shader passes - individual collections of shader stages.
+
+Shader definition source can create compile-time and runtime permutations of its shader programs.
+Such permutations are defined by the `requires` keyword, followed by a boolean expression. Permutations are equivalent
+to and `#if (condition) ... #endif`  statement and are used to enable or disable individual parts of a shader.
+Identifiers encountered within the permutation expression are called "switches" and can either be defined externally (
+for example through build options) or internally by the shader definition itself. For example, shader pass followed
+by `requires API == "Vulkan" || API == "OpenGL"` will only be compiled if the target API is either Vulkan or OpenGL.
+
+If a condition expression is prefixed with the `runtime` keyword, such condition will create a runtime shader
+permutation. Runtime shader permutations are compiled into separate shader programs and can be selected at runtime by
+the user based on runtime-specified switches. For example, `requires runtime COLORSPACE_SRGB` will generate a shader
+program that is enabled at runtime only if the shader's `COLORSPACE_SRGB`switch is set and evaluates to `true`. Any
+switches captured within the `runtime` expression will be treated as runtime switches. Runtime switches may depend on
+constants, compile-time switches in which case the value of the compile-time switch is used, or other runtime switches
+in which case a runtime condition is created for that switch.
+
+Note that runtime permutations should be used sparingly, otherwise they may result in large amounts of shader code being
+generated, which will increase build time and may increase runtime load time. For this reason it is recommended to only
+use runtime permutations on shader passes. For example, the previous `requires runtime COLORSPACE_SRGB` permutation will
+generate 2 shader programs, one where `COLORSPACE_SRGB` evaluates to `false` and another where it evaluates to `true`.
+Adding another runtime switch `requires runtime(COLORSPACE_SRGB && ENABLE_BLOOM)` will generate 4 shader programs, for
+all possible values of `COLORSPACE_SRGB` and `ENABLE_BLOOM`. Compile-time switches, however, do not increase runtime
+permutation amount as they are treated as constants.
+
+Permutation switches evaluate to `true` only if they are both set and their value is equal to `true`, a non-0 integer or
+a non-empty string.
+
+While the intent is to implement shaders entirely using the shader definition language, it is possible to include
+external source files for shader passes and fragments. Note however, that such includes will most likely be
+API-dependant and should be conditionally enabled via compile-time switches.
+
+Shader definition assets have the `.sds` extension, which stands for Shader Definition Source.
+Example of `.sds` code:
+
+```
+// Include appropriate utilities based on the current API.
+include "vulkan_utils.sds" requires API == "Vulkan";
+include "opengl_utils.sds" requires API == "OpenGL";
+
+// Define a compile-time switch
+switch STRING_SWITCH = "My string";
+// Define a runtime switch
+switch CONVERT_SRGB requires runtime COLORSPACE_SRGB;
+
+// Since CONVERT_SRGB is a runtime switch, `runtime` keyword can be omitted.
+include "srgb_utils.sds" requires CONVERT_SRGB; 
+
+// Define a variable modifiable by the user (material variable) with a default value. 
+var vignette_radius : float = 1.0;
+
+pass bloom { /* Implement bloom effect */ };
+pass vignette { /* Implement vignette effect */ };
+```
+
+Material resources are parametrized instances of shaders that store values of shader's runtime switches and variables.
+Multiple materials can exist for the same shader.
+
+## Build
 
 ## Main loop
 

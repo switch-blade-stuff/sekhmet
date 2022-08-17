@@ -80,24 +80,33 @@ namespace sek
 	/** @brief Flags used to identify URI formatting options. */
 	enum class uri_format : int
 	{
-		/** Do not preform any encoding or decoding. */
+		/** Do not preform any encoding or decoding. Any percent-encoded sequences and non-encoded characters are left untouched. */
 		NO_FORMAT = 0,
 
-		/** Mask used to specify encoding mode. */
-		ENCODE_MASK = 0b1000,
-
-		/** Decodes all percent-encoded sequences, regardless of component type. */
+		/** Decodes all encoded sequences, regardless of component type. */
 		DECODE_ALL = 0b01,
-		/** Decodes most percent-encoded sequences. Decoded characters depend on component type. */
+		/** Decodes most encoded sequences. Recommended formatting option for use when a human-readable
+		 * representation of a URI is required. Decoded characters depend on component type. */
 		DECODE_PRETTY = 0b10,
+		/** Decodes all non-ASCII Unicode sequences from encoded UTF-8. */
+		DECODE_UTF = 0b0100,
+		/** Decodes all special encoded characters. Special characters depend on component type. */
+		DECODE_SPECIAL = 0b1000,
+		/** Decodes all encoded delimiters. Delimiter characters depend on component type. */
+		DECODE_DELIMITERS = 0b01'0000,
+		/** Decodes all encoded whitespace characters using the current locale. */
+		DECODE_WHITESPACE = 0b10'0000,
 
-		/** Encodes all non-ASCII Unicode sequences as percent-encoded UTF-8. */
-		ENCODE_UTF = ENCODE_MASK | 0b001,
-		/** Percent-encodes any special characters. Encoded characters depend on component type. */
-		ENCODE_SPECIAL = ENCODE_MASK | 0b010,
-		/** Percent-encodes any whitespace characters using the current locale. */
-		ENCODE_WHITESPACE = ENCODE_MASK | 0b100,
-		/** Percent-encodes all characters not allowed within a URI. */
+		/** Encodes all non-ASCII Unicode sequences as encoded UTF-8. */
+		ENCODE_UTF = 0x80 | DECODE_UTF,
+		/** Encodes all special characters. Special characters depend on component type. */
+		ENCODE_SPECIAL = 0x80 | DECODE_SPECIAL,
+		/** Encodes all delimiters. Delimiter characters depend on component type. */
+		ENCODE_DELIMITERS = 0x80 | DECODE_DELIMITERS,
+		/** Encodes all whitespace characters using the current locale. */
+		ENCODE_WHITESPACE = 0x80 | DECODE_WHITESPACE,
+		/** Encodes all characters not allowed within a URI. Recommended formatting option for use when an ASCII-only
+		 * text representation of a URI is required (ex. for network communication). */
 		ENCODE_ALL = ENCODE_UTF | ENCODE_SPECIAL | ENCODE_WHITESPACE,
 	};
 
@@ -134,15 +143,20 @@ namespace sek
 	}
 
 	/** @brief Structure used to represent a platform-independent URI.
-	 * @note URIs are always stored using native 8-bit `char` encoding. */
+	 *
+	 * URIs conform to the `RFC 3986` (Uniform Resource Identifier: Generic Syntax) specification,
+	 * the `RFC 3491` (Nameprep: A Stringprep Profile for Internationalized Domain Names (IDN)) case folding rules
+	 * and partially the `RFC 1738` (Uniform Resource Locators) specification.
+	 *
+	 * String formatting (percent-encoding of escaped character sequences) of accessor member functions of the URI
+	 * and it's components can be controlled with the `uri_format` flags. Different formatting may be desired
+	 * for different applications. For example, human-readable representation of the URI may necessitate decoding of
+	 * certain percent-encoded sequences.
+	 *
+	 * @note URIs are stored using native 8-bit signed (`char`) characters. */
 	class uri
 	{
 	public:
-		/** @copybrief uri_component */
-		typedef uri_component component_type;
-		/** @copybrief uri_format */
-		typedef uri_format format_type;
-
 		/** @brief Type of string used to store URI data. */
 		typedef std::string string_type;
 		/** @brief Type of string view used to reference sections of URI. */
@@ -153,6 +167,40 @@ namespace sek
 
 		typedef std::size_t size_type;
 		typedef std::ptrdiff_t difference_type;
+
+		/** Encodes a host string using the ASCII-Compatible Encoding (ACE).
+		 * @param str Unencoded string.
+		 * @return String encoded in ACE. */
+		[[nodiscard]] static SEK_API string_type encode_ace(string_view_type str);
+		/** @copydoc encode_ace */
+		[[nodiscard]] static SEK_API string_type encode_ace(const string_type &str);
+		/** @copydoc encode_ace */
+		[[nodiscard]] static SEK_API string_type encode_ace(string_type &&str);
+
+		/** Decodes a host string encoded using the ASCII-Compatible Encoding (ACE).
+		 * @param str String in ACE format.
+		 * @return Decoded string. */
+		[[nodiscard]] static SEK_API string_type decode_ace(string_view_type str);
+		/** @copydoc decode_ace */
+		[[nodiscard]] static SEK_API string_type decode_ace(const string_type &str);
+		/** @copydoc decode_ace */
+		[[nodiscard]] static SEK_API string_type decode_ace(string_type &&str);
+
+		/** Returns a URI who's host is decoded from ASCII-Compatible Encoding (ACE).
+		 * Equivalent to initializing a URI from `str` and replacing it's host with a decoded string. */
+		[[nodiscard]] static SEK_API uri from_ace(string_view_type str);
+		/** @copydoc from_ace */
+		[[nodiscard]] static SEK_API uri from_ace(const string_type &str);
+		/** @copydoc from_ace */
+		[[nodiscard]] static SEK_API uri from_ace(string_type &&str);
+
+		/** Produced a URI from a local filesystem path (implicitly using the `file` scheme).
+		 * @note Validity of the local path is not verified. */
+		[[nodiscard]] static SEK_API uri from_local(string_view_type path);
+		/** @copydoc from_local */
+		[[nodiscard]] static SEK_API uri from_local(const string_type &str);
+		/** @copydoc from_local */
+		[[nodiscard]] static SEK_API uri from_local(string_type &&str);
 
 	private:
 		struct element
@@ -196,9 +244,14 @@ namespace sek
 		/** Initializes an empty URI. */
 		constexpr uri() noexcept = default;
 
-		/** Initializes a URI from a string.
+		/** @brief Initializes a URI from a string.
+		 *
+		 * Input string is parsed in conformance to the `RFC 3986` (Uniform Resource Identifier: Generic Syntax)
+		 * specification and formatted to conform to the case folding rules defined in
+		 * `RFC 3491` (Nameprep: A Stringprep Profile for Internationalized Domain Names (IDN)).
+		 *
 		 * @param str String containing the URI.
-		 * @note URI path will be normalized. */
+		 * @note URI path will be formatted to conform to the `RFC 3491`. */
 		explicit uri(string_view_type str) : m_value(str) { parse_components(); }
 		/** @copydoc uri */
 		explicit uri(const string_type &str) : m_value(str) { parse_components(); }
@@ -240,7 +293,7 @@ namespace sek
 		uri(const uri &other) = default;
 		/** @copydoc uri
 		 * @param mask Mask specifying which components to copy. */
-		SEK_API uri(const uri &other, component_type mask);
+		SEK_API uri(const uri &other, uri_component mask);
 
 		/** @brief Assigns the URI from another URI.
 		 * @param other Uri to copy components from.
@@ -250,7 +303,7 @@ namespace sek
 		uri &assign(const uri &other) { return operator=(other); }
 		/** @copydoc operator=
 		 * @param mask Mask specifying which components to copy. */
-		SEK_API uri &assign(const uri &other, component_type mask);
+		SEK_API uri &assign(const uri &other, uri_component mask);
 
 		/** @copybrief uri
 		 * @param other Uri to move components from. */
@@ -258,7 +311,7 @@ namespace sek
 		/** @copydoc uri
 		 * @param mask Mask specifying which components to move.
 		 * @note Host is implied if any authority components are present. */
-		SEK_API uri(uri &&other, component_type mask);
+		SEK_API uri(uri &&other, uri_component mask);
 
 		/** @copybrief operator=
 		 * @param other Uri to move components from.
@@ -269,7 +322,7 @@ namespace sek
 		/** @copydoc operator=
 		 * @param mask Mask specifying which components to move.
 		 * @note Host is implied if any authority components are present. */
-		SEK_API uri &assign(uri &&other, component_type mask);
+		SEK_API uri &assign(uri &&other, uri_component mask);
 
 		/** Checks if the URI is empty. */
 		[[nodiscard]] constexpr bool empty() const noexcept { return m_value.empty(); }
@@ -284,40 +337,35 @@ namespace sek
 		/** Returns copy of the URI's string. */
 		[[nodiscard]] constexpr operator string_type() const { return string(); }
 
-		/** Returns a decoded copy of the URI's string. */
-		[[nodiscard]] SEK_API string_type decode(format_type format) const;
-		/** Returns an encoded copy of the URI's string. */
-		[[nodiscard]] SEK_API string_type encode(format_type format) const;
-
 		/** Checks if the URI has the components specified by a mask. */
-		[[nodiscard]] SEK_API bool has_components(component_type mask) const noexcept;
+		[[nodiscard]] SEK_API bool has_components(uri_component mask) const noexcept;
 
-		/** Checks if the URI has a scheme. Equivalent to `has_components(component_type::SCHEME)`. */
-		[[nodiscard]] bool has_scheme() const noexcept { return has_components(component_type::SCHEME); }
+		/** Checks if the URI has a scheme. Equivalent to `has_components(uri_component::SCHEME)`. */
+		[[nodiscard]] bool has_scheme() const noexcept { return has_components(uri_component::SCHEME); }
 
-		/** Checks if the URI has an authority. Equivalent to `has_components(component_type::AUTHORITY)`. */
-		[[nodiscard]] bool has_authority() const noexcept { return has_components(component_type::AUTHORITY); }
-		/** Checks if the URI has a username. Equivalent to `has_components(component_type::USERNAME)`. */
-		[[nodiscard]] bool has_username() const noexcept { return has_components(component_type::USERNAME); }
-		/** Checks if the URI has a password. Equivalent to `has_components(component_type::PASSWORD)`. */
-		[[nodiscard]] bool has_password() const noexcept { return has_components(component_type::PASSWORD); }
+		/** Checks if the URI has an authority. Equivalent to `has_components(uri_component::AUTHORITY)`. */
+		[[nodiscard]] bool has_authority() const noexcept { return has_components(uri_component::AUTHORITY); }
+		/** Checks if the URI has a username. Equivalent to `has_components(uri_component::USERNAME)`. */
+		[[nodiscard]] bool has_username() const noexcept { return has_components(uri_component::USERNAME); }
+		/** Checks if the URI has a password. Equivalent to `has_components(uri_component::PASSWORD)`. */
+		[[nodiscard]] bool has_password() const noexcept { return has_components(uri_component::PASSWORD); }
 		/** Checks if the URI has a userinfo (username & password).
-		 * Equivalent to `has_components(component_type::USERINFO)`. */
-		[[nodiscard]] bool has_userinfo() const noexcept { return has_components(component_type::USERINFO); }
-		/** Checks if the URI has a host. Equivalent to `has_components(component_type::HOST)`. */
-		[[nodiscard]] bool has_host() const noexcept { return has_components(component_type::HOST); }
-		/** Checks if the URI has a port. Equivalent to `has_components(component_type::PORT)`. */
-		[[nodiscard]] bool has_port() const noexcept { return has_components(component_type::PORT); }
+		 * Equivalent to `has_components(uri_component::USERINFO)`. */
+		[[nodiscard]] bool has_userinfo() const noexcept { return has_components(uri_component::USERINFO); }
+		/** Checks if the URI has a host. Equivalent to `has_components(uri_component::HOST)`. */
+		[[nodiscard]] bool has_host() const noexcept { return has_components(uri_component::HOST); }
+		/** Checks if the URI has a port. Equivalent to `has_components(uri_component::PORT)`. */
+		[[nodiscard]] bool has_port() const noexcept { return has_components(uri_component::PORT); }
 
-		/** Checks if the URI has a non-empty path. Equivalent to `has_components(component_type::PATH)`. */
-		[[nodiscard]] bool has_path() const noexcept { return has_components(component_type::PATH); }
-		/** Checks if the URI path has a filename. Equivalent to `has_components(component_type::FILE_NAME)`. */
-		[[nodiscard]] bool has_filename() const noexcept { return has_components(component_type::FILE_NAME); }
+		/** Checks if the URI has a non-empty path. Equivalent to `has_components(uri_component::PATH)`. */
+		[[nodiscard]] bool has_path() const noexcept { return has_components(uri_component::PATH); }
+		/** Checks if the URI path has a filename. Equivalent to `has_components(uri_component::FILE_NAME)`. */
+		[[nodiscard]] bool has_filename() const noexcept { return has_components(uri_component::FILE_NAME); }
 
-		/** Checks if the URI has a query. Equivalent to `has_components(component_type::QUERY)`. */
-		[[nodiscard]] bool has_query() const noexcept { return has_components(component_type::QUERY); }
-		/** Checks if the URI has a fragment. Equivalent to `has_components(component_type::FRAGMENT)`. */
-		[[nodiscard]] bool has_fragment() const noexcept { return has_components(component_type::FRAGMENT); }
+		/** Checks if the URI has a query. Equivalent to `has_components(uri_component::QUERY)`. */
+		[[nodiscard]] bool has_query() const noexcept { return has_components(uri_component::QUERY); }
+		/** Checks if the URI has a fragment. Equivalent to `has_components(uri_component::FRAGMENT)`. */
+		[[nodiscard]] bool has_fragment() const noexcept { return has_components(uri_component::FRAGMENT); }
 
 		/** Checks if the URI refers to a local file (uses the `file` scheme). Equivalent to `scheme() == "file"` */
 		[[nodiscard]] SEK_API bool is_local() const noexcept;
@@ -329,73 +377,73 @@ namespace sek
 
 		/** Returns a formatted copy of the selected components of the URI.
 		 * @param mask Component type mask used to select target components.
-		 * @param format Formatting options for the result string.
-		 * @note Host is implied if any authority components are present. */
-		[[nodiscard]] SEK_API string_type components(component_type mask, format_type format = format_type::NO_FORMAT) const;
+		 * @param format Formatting options for the resulting string. */
+		[[nodiscard]] SEK_API string_type components(uri_component mask, uri_format format = uri_format::NO_FORMAT) const;
 
 		/** Returns a formatted copy of the scheme of the URI.
-		 * @param format Formatting options for the result string. */
-		[[nodiscard]] SEK_API string_type scheme(format_type format) const;
+		 * @param format Formatting options for the resulting string. */
+		[[nodiscard]] SEK_API string_type scheme(uri_format format) const;
 		/** Returns a string view to the scheme of the URI. */
 		[[nodiscard]] SEK_API string_view_type scheme() const noexcept;
 
 		/** Returns a formatted copy of the authority of the URI (i.e. `[username[:password]@]host[:port]`).
-		 * @param format Formatting options for the result string. */
-		[[nodiscard]] SEK_API string_type authority(format_type format) const;
+		 * @param format Formatting options for the resulting string. */
+		[[nodiscard]] SEK_API string_type authority(uri_format format) const;
 		/** Returns a string view to the authority of the URI (i.e. `[username[:password]@]host[:port]`). */
 		[[nodiscard]] SEK_API string_view_type authority() const noexcept;
 
 		/** Returns a formatted copy of the userinfo of the URI (i.e. `username[:password]`).
-		 * @param format Formatting options for the result string. */
-		[[nodiscard]] SEK_API string_type userinfo(format_type format) const;
+		 * @param format Formatting options for the resulting string. */
+		[[nodiscard]] SEK_API string_type userinfo(uri_format format) const;
 		/** Returns a string view to the userinfo of the URI (i.e. `username[:password]`). */
 		[[nodiscard]] SEK_API string_view_type userinfo() const noexcept;
 
 		/** Returns a formatted copy of the username of the URI.
-		 * @param format Formatting options for the result string. */
-		[[nodiscard]] SEK_API string_type username(format_type format) const;
+		 * @param format Formatting options for the resulting string. */
+		[[nodiscard]] SEK_API string_type username(uri_format format) const;
 		/** Returns a string view to the username of the URI. */
 		[[nodiscard]] SEK_API string_view_type username() const noexcept;
 
 		/** Returns a formatted copy of the password of the URI.
-		 * @param format Formatting options for the result string. */
-		[[nodiscard]] SEK_API string_type password(format_type format) const;
+		 * @param format Formatting options for the resulting string. */
+		[[nodiscard]] SEK_API string_type password(uri_format format) const;
 		/** Returns a string view to the password of the URI. */
 		[[nodiscard]] SEK_API string_view_type password() const noexcept;
 
 		/** Returns a formatted copy of the host of the URI.
-		 * @param format Formatting options for the result string. */
-		[[nodiscard]] SEK_API string_type host(format_type format) const;
+		 * @param format Formatting options for the resulting string.
+		 * @note If encoding of Unicode sequences is required, the ASCII-Compatible Encoding (ACE) is used. */
+		[[nodiscard]] SEK_API string_type host(uri_format format) const;
 		/** Returns a string view to the host of the URI. */
 		[[nodiscard]] SEK_API string_view_type host() const noexcept;
 
 		/** Returns a formatted copy of the port of the URI.
-		 * @param format Formatting options for the result string. */
-		[[nodiscard]] SEK_API string_type port(format_type format) const;
+		 * @param format Formatting options for the resulting string. */
+		[[nodiscard]] SEK_API string_type port(uri_format format) const;
 		/** Returns a string view to the port of the URI. */
 		[[nodiscard]] SEK_API string_view_type port() const noexcept;
 
 		/** Returns a formatted copy of the path of the URI.
-		 * @param format Formatting options for the result string. */
-		[[nodiscard]] SEK_API string_type path(format_type format) const;
+		 * @param format Formatting options for the resulting string. */
+		[[nodiscard]] SEK_API string_type path(uri_format format) const;
 		/** Returns a string view to the path of the URI. */
 		[[nodiscard]] SEK_API string_view_type path() const noexcept;
 
 		/** Returns a formatted copy of the filename of the URI.
-		 * @param format Formatting options for the result string. */
-		[[nodiscard]] SEK_API string_type filename(format_type format) const;
+		 * @param format Formatting options for the resulting string. */
+		[[nodiscard]] SEK_API string_type filename(uri_format format) const;
 		/** Returns a string view to the filename of the URI. */
 		[[nodiscard]] SEK_API string_view_type filename() const noexcept;
 
 		/** Returns a formatted copy of the query of the URI.
-		 * @param format Formatting options for the result string. */
-		[[nodiscard]] SEK_API string_type query(format_type format) const;
+		 * @param format Formatting options for the resulting string. */
+		[[nodiscard]] SEK_API string_type query(uri_format format) const;
 		/** Returns a string view to the query of the URI. */
 		[[nodiscard]] SEK_API string_view_type query() const noexcept;
 
 		/** Returns a formatted copy of the fragment of the URI.
-		 * @param format Formatting options for the result string. */
-		[[nodiscard]] SEK_API string_type fragment(format_type format) const;
+		 * @param format Formatting options for the resulting string. */
+		[[nodiscard]] SEK_API string_type fragment(uri_format format) const;
 		/** Returns a string view to the fragment of the URI. */
 		[[nodiscard]] SEK_API string_view_type fragment() const noexcept;
 
@@ -508,4 +556,17 @@ namespace sek
 		string_type m_value;
 		data_handle m_data;
 	};
+
+	/** Returns a normalized copy of the URI. That is, a URI who's path does not contain any relative path traversal (`.` and `..`). */
+	[[nodiscard]] SEK_API uri normalize(const uri &value);
+
+	/** @brief Status code indicating whether a URI is valid or specifying an error. */
+	enum class uri_status
+	{
+		/** URI is conforming to the `RFC 3986` specification. */
+		VALID_URI = 0,
+	};
+
+	/** Validates a URI and returns a status code indicating whether it is valid (or the reason why it is not). */
+	SEK_API uri_status validate(const uri &value) noexcept;
 }	 // namespace sek
