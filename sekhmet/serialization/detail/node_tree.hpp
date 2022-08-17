@@ -422,8 +422,7 @@ namespace sek::serialization
 		basic_node_tree(const basic_node_tree &) = delete;
 		basic_node_tree &operator=(const basic_node_tree &) = delete;
 
-		basic_node_tree() : basic_node_tree(std::pmr::get_default_resource()) {}
-		explicit basic_node_tree(std::pmr::memory_resource *res) : string_pool(res), node_pool(res) {}
+		basic_node_tree() = default;
 
 		constexpr basic_node_tree(basic_node_tree &&other) noexcept
 			: top_level(std::exchange(other.top_level, {})),
@@ -483,7 +482,7 @@ namespace sek::serialization
 				const auto old_bytes = node.capacity() * sizeof(E);
 				const auto new_bytes = n * sizeof(E);
 
-				auto new_data = node_pool.reallocate(node.m_data, old_bytes, new_bytes, alignof(E));
+				auto new_data = node_pool.reallocate(node.m_data, old_bytes, new_bytes, std::align_val_t{alignof(E)});
 				if (!new_data) [[unlikely]]
 					throw std::bad_alloc();
 
@@ -493,12 +492,6 @@ namespace sek::serialization
 			return node;
 		}
 
-		void reset(std::pmr::memory_resource *res)
-		{
-			top_level = node_type{};
-			string_pool = string_pool_t{res};
-			node_pool = string_pool_t{res};
-		}
 		void reset()
 		{
 			top_level = node_type{};

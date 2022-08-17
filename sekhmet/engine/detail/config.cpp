@@ -41,15 +41,6 @@ namespace sek::engine
 			}
 			else
 			{
-				if (!(std::isalnum(c, loc) || std::isspace(c, loc))) [[unlikely]]
-					switch (c)
-					{
-						case '-':
-						case '_':
-						case '.': break;
-						default: throw config_error(fmt::format("Invalid config path character \'{}\'", c));
-					}
-
 				/* Always insert the first element. */
 				if (next == 0) [[unlikely]]
 					m_slices.emplace_back(slice_t{base, next});
@@ -168,7 +159,7 @@ namespace sek::engine
 		if (cache != nullptr) [[unlikely]]
 		{
 			input_archive archive{*cache};
-			archive.read(*read_stack.front(), read_stack);
+			archive.read(*read_stack.front(), read_stack, *this);
 		}
 
 		return node;
@@ -227,13 +218,13 @@ namespace sek::engine
 		constexpr explicit nodes_proxy(entry_set &mut_nodes) noexcept : mut_nodes(&mut_nodes) {}
 		constexpr explicit nodes_proxy(const entry_set &nodes) noexcept : nodes(&nodes) {}
 
-		void deserialize(input_frame &f) const
+		void deserialize(input_frame &f, const config_registry &r) const
 		{
 			/* Read the next entry with the current path. */
 			auto &next = *stack->back();
-			f.read(keyed_entry(next.path.entry_name().string(), next), *stack);
+			f.read(keyed_entry(next.path.entry_name().string(), next), *stack, r);
 		}
-		void deserialize(input_frame &f, const cfg_path &parent_path) const
+		void deserialize(input_frame &f, const cfg_path &parent_path, const config_registry &r) const
 		{
 			/* Create a buffer for entry paths, save the size of the buffer & restore the size on every iteration. */
 			auto entry_path = parent_path.string();
@@ -245,13 +236,13 @@ namespace sek::engine
 				entry_path.resize(size);
 				entry_path.append(entry.key());
 				if (auto child = mut_nodes->find(entry_path); child != mut_nodes->end()) [[likely]]
-					entry->read(**child);
+					entry->read(**child, r);
 			}
 		}
-		void serialize(output_frame &f) const
+		void serialize(output_frame &f, const config_registry &r) const
 		{
 			/* Serialize every child as a keyed entry, where the key is the entry name (last element) of the path. */
-			for (auto *child : *nodes) f << serialization::keyed_entry(child->path.entry_name().string(), *child);
+			for (auto *c : *nodes) f.write(serialization::keyed_entry(c->path.entry_name().string(), *c), r);
 		}
 
 		union
@@ -270,8 +261,8 @@ namespace sek::engine
 		{
 			return mut_value->type().get_attribute<attributes::config_type>().cast<const attributes::config_type &>();
 		}
-		void deserialize(input_frame &f) const { attribute().deserialize(f, *mut_value); }
-		void serialize(output_frame &f) const { attribute().serialize(f, *value); }
+		void deserialize(input_frame &f, const config_registry &r) const { attribute().deserialize(*mut_value, f, r); }
+		void serialize(output_frame &f, const config_registry &r) const { attribute().serialize(*value, f, r); }
 
 		union
 		{
@@ -280,13 +271,15 @@ namespace sek::engine
 		};
 	};
 
-	void config_registry::entry_node::serialize(output_frame &f) const
+	void config_registry::entry_node::serialize(output_frame &f, const config_registry &r) const
 	{
-		if (!value.empty()) /* If there is a value for this entry, serialize it using the attribute. */
-			f << serialization::keyed_entry(value.type().name(), any_proxy{value});
-		f << serialization::keyed_entry("nodes", nodes_proxy{nodes});
+		/* If there is a value for this entry, serialize it using the attribute. */
+		if (!value.empty()) f.write(serialization::keyed_entry(value.type().name(), any_proxy{value}), r);
+
+		/* Serialize children nodes. */
+		f.write(serialization::keyed_entry("nodes", nodes_proxy{nodes}), r);
 	}
-	void config_registry::entry_node::deserialize(input_frame &f)
+	void config_registry::entry_node::deserialize(input_frame &f, const config_registry &r)
 	{
 		for (auto entry = f.begin(), end = f.end(); entry != end; ++entry)
 		{
@@ -294,29 +287,29 @@ namespace sek::engine
 				continue;
 
 			if (const auto key = entry.key(); key == "nodes")
-				entry->read(nodes_proxy{nodes}, path);
+				entry->read(nodes_proxy{nodes}, path, r);
 			else if (const auto type = type_info::get(key); type) /* Key holds the entry type. */
 			{
 				/* Initialize new instance if the value is empty or of an incompatible type. */
 				if (value.empty() || (value.type() != type && !value.type().inherits(type))) [[unlikely]]
 					value = type.construct();
-				entry->read(any_proxy{value});
+				entry->read(any_proxy{value}, r);
 			}
 			/* Invalid key or the specified type is not reflected. */
 		}
 	}
-	void config_registry::entry_node::deserialize(input_frame &f, std::vector<entry_node *> &stack)
+	void config_registry::entry_node::deserialize(input_frame &f, std::vector<entry_node *> &s, const config_registry &r)
 	{
 		/* If the stack contains only 1 element, we are reading the said element.
 		 * Forward to the regular deserialize function. */
-		if (stack.size() == 1) [[unlikely]]
-			deserialize(f);
+		if (s.size() == 1) [[unlikely]]
+			deserialize(f, r);
 		else
 		{
 			/* Otherwise, the target node is somewhere down the stack, pop the first element off the stack,
 			 * skip the "nodes" table entry through a proxy and keep on unwinding the stack. */
-			stack.pop_back();
-			f >> serialization::keyed_entry("nodes", nodes_proxy{stack});
+			s.pop_back();
+			f.read(serialization::keyed_entry("nodes", nodes_proxy{s}), r);
 		}
 	}
 
@@ -374,7 +367,7 @@ namespace sek::engine
 	{
 		if (which) [[likely]]
 		{
-			archive << *which->m_node;
+			archive.write(*which->m_node, *this);
 			return true;
 		}
 		return false;

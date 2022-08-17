@@ -143,7 +143,7 @@ namespace sek
 
 		result.m_value = path;
 		format_local_uri(result.m_value);
-		result.parse_components();
+		result.parse();
 
 		return result;
 	}
@@ -154,7 +154,7 @@ namespace sek
 		return uri{std::forward<string_type>(path)};
 	}
 
-	void uri::parse_components() {}
+	void uri::parse() {}
 
 	bool uri::has_components(uri_component mask) const noexcept { return (m_data->flags & mask) == mask; }
 	bool uri::is_local() const noexcept { return m_value.starts_with("file:"); }

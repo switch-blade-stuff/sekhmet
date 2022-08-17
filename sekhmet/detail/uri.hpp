@@ -252,11 +252,11 @@ namespace sek
 		 *
 		 * @param str String containing the URI.
 		 * @note URI path will be formatted to conform to the `RFC 3491`. */
-		explicit uri(string_view_type str) : m_value(str) { parse_components(); }
+		explicit uri(string_view_type str) : m_value(str) { parse(); }
 		/** @copydoc uri */
-		explicit uri(const string_type &str) : m_value(str) { parse_components(); }
+		explicit uri(const string_type &str) : m_value(str) { parse(); }
 		/** @copydoc uri */
-		explicit uri(string_type &&str) : m_value(std::move(str)) { parse_components(); }
+		explicit uri(string_type &&str) : m_value(std::move(str)) { parse(); }
 
 		/** Assigns the URI from a string.
 		 * @param str String containing the URI.
@@ -264,21 +264,21 @@ namespace sek
 		uri &operator=(string_view_type str)
 		{
 			m_value = str;
-			parse_components();
+			parse();
 			return *this;
 		}
 		/** @copydoc operator= */
 		uri &operator=(const string_type &str)
 		{
 			m_value = str;
-			parse_components();
+			parse();
 			return *this;
 		}
 		/** @copydoc operator= */
 		uri &operator=(string_type &&str)
 		{
 			m_value = std::move(str);
-			parse_components();
+			parse();
 			return *this;
 		}
 		/** @copydoc operator= */
@@ -551,7 +551,7 @@ namespace sek
 		friend constexpr void swap(uri &a, uri &b) noexcept { a.swap(b); }
 
 	private:
-		SEK_API void parse_components();
+		SEK_API void parse();
 
 		string_type m_value;
 		data_handle m_data;

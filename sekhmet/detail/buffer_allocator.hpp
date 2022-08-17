@@ -53,7 +53,7 @@ namespace sek::detail
 		}
 
 		constexpr void deallocate(void *, std::size_t, std::size_t) {}
-		constexpr void *allocate(std::size_t n) { return allocate(n, std::max_align_t{}); }
+		constexpr void *allocate(std::size_t n) { return allocate(n, std::align_val_t{alignof(std::max_align_t)}); }
 		constexpr void *allocate(std::size_t n, std::align_val_t align)
 		{
 			/* Add padding to make sure result pointer is aligned. */
@@ -65,7 +65,11 @@ namespace sek::detail
 				insert_page(used_size = padded);
 			return align_ptr(page_data(m_main_page) + std::exchange(m_main_page->used_size, used_size), align);
 		}
-		constexpr void *reallocate(void *old, std::size_t old_n, std::size_t n, std::size_t align = alignof(std::max_align_t))
+		constexpr void *reallocate(void *old, std::size_t old_n, std::size_t n)
+		{
+			return reallocate(old, old_n, n, std::align_val_t{alignof(std::max_align_t)});
+		}
+		constexpr void *reallocate(void *old, std::size_t old_n, std::size_t n, std::align_val_t align)
 		{
 			if (n <= old_n) [[unlikely]]
 				return old;
@@ -107,7 +111,7 @@ namespace sek::detail
 			else
 				result->previous = m_main_page;
 			result->page_size = size;
-			return m_main_page = result;
+			m_main_page = result;
 		}
 		constexpr page_header *release_page(page_header *page_ptr)
 		{

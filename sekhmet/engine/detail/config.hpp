@@ -7,10 +7,10 @@
 #include <string>
 
 #include "sekhmet/access_guard.hpp"
-#include "sekhmet/detail/basic_pool.hpp"
 #include "sekhmet/dense_set.hpp"
-#include "sekhmet/service.hpp"
+#include "sekhmet/detail/basic_pool.hpp"
 #include "sekhmet/serialization/json.hpp"
+#include "sekhmet/service.hpp"
 #include "sekhmet/system/native_file.hpp"
 
 #include "type_info.hpp"
@@ -34,9 +34,6 @@ namespace sek::engine
 	/** @brief Path-like structure used to uniquely identify a config registry entry.
 	 *
 	 * Config paths consist of entry names separated by forward slashes `/`. The first entry is the category entry.
-	 * Path entry names can only contain alphanumeric characters, whitespace, as well as any of the following
-	 * special characters: `_`, `-`, `.`.
-	 *
 	 * Paths are case-sensitive and are always absolute (since there is no "current" config path).
 	 * Sequential slashes (ex. `///`) are concatenated. */
 	class cfg_path
@@ -52,20 +49,16 @@ namespace sek::engine
 		/** Initializes an empty config path. */
 		constexpr cfg_path() noexcept = default;
 
-		/** Initializes a config path from a string.
-		 * @throw config_error If the specified path is invalid. */
-		explicit cfg_path(std::string &&str) : m_path(std::move(str)) { parse(); }
+		/** Initializes a config path from a string view. */
+		cfg_path(std::string_view str) : m_path(str) { parse(); }
 		/** @copydoc cfg_path */
 		cfg_path(const std::string &str) : m_path(str) { parse(); }
-		/** Initializes a config path from a string view.
-		 * @throw config_error If the specified path is invalid. */
-		cfg_path(std::string_view str) : m_path(str) { parse(); }
+		/** Initializes a config path from a string. */
+		cfg_path(std::string &&str) : m_path(std::move(str)) { parse(); }
 
-		/** Initializes a config path from a C-style string.
-		 * @throw config_error If the specified path is invalid. */
+		/** Initializes a config path from a C-style string. */
 		cfg_path(const char *str) : cfg_path(std::string_view{str}) {}
-		/** Initializes a config path from a character array.
-		 * @throw config_error If the specified path is invalid. */
+		/** Initializes a config path from a character array. */
 		cfg_path(const char *str, std::size_t n) : cfg_path(std::string_view{str, n}) {}
 
 		/** Returns the amount of elements (entry names) within the path. */
@@ -107,8 +100,7 @@ namespace sek::engine
 		}
 
 		/** Appends another path to this path.
-		 * @return Reference to this path.
-		 * @throw config_error If the resulting path is invalid. */
+		 * @return Reference to this path. */
 		cfg_path &append(const cfg_path &path)
 		{
 			m_path.append(path.m_path);
@@ -118,8 +110,7 @@ namespace sek::engine
 		/** @copydoc append */
 		cfg_path &operator/=(const cfg_path &path) { return append(path); }
 		/** Returns a path produced from concatenating two paths.
-		 * @return Concatenated path.
-		 * @throw config_error If the resulting path is invalid. */
+		 * @return Concatenated path. */
 		[[nodiscard]] cfg_path operator/(const cfg_path &path) const
 		{
 			auto tmp = *this;
@@ -128,8 +119,7 @@ namespace sek::engine
 		}
 
 		/** Appends a string to the path.
-		 * @return Reference to this path.
-		 * @throw config_error If the resulting path is invalid. */
+		 * @return Reference to this path. */
 		cfg_path &append(std::string_view str)
 		{
 			m_path.append(str);
@@ -155,8 +145,7 @@ namespace sek::engine
 		cfg_path &operator/=(const char *str) { return append(std::string_view{str}); }
 
 		/** Returns a path produced from concatenating a path with a string.
-		 * @return Concatenated path.
-		 * @throw config_error If the resulting path is invalid. */
+		 * @return Concatenated path. */
 		[[nodiscard]] cfg_path operator/(std::string_view str) const
 		{
 			auto tmp = *this;
@@ -312,9 +301,9 @@ namespace sek::engine
 			struct nodes_proxy;
 			struct any_proxy;
 
-			SEK_API void serialize(output_frame &) const;
-			SEK_API void deserialize(input_frame &);
-			void deserialize(input_frame &, std::vector<entry_node *> &);
+			SEK_API void serialize(output_frame &, const config_registry &) const;
+			SEK_API void deserialize(input_frame &, const config_registry &);
+			void deserialize(input_frame &, std::vector<entry_node *> &, const config_registry &);
 
 			cfg_path path;	 /* Full path of the entry. */
 			entry_set nodes; /* Immediate children of the entry (if any). */
@@ -674,26 +663,26 @@ namespace sek::engine
 			template<typename T>
 			constexpr explicit config_type(type_selector_t<T>) noexcept
 			{
-				serialize = [](output_frame &frame, const any &a)
+				serialize = [](const any &a, output_frame &frame, const config_registry &reg)
 				{
 					auto &value = a.template cast<const T &>();
-					if constexpr (requires { value.serialize(frame); })
-						value.serialize(frame);
+					if constexpr (requires { value.serialize(frame, reg); })
+						value.serialize(frame, reg);
 					else
 					{
 						using sek::serialization::serialize;
-						serialize(value, frame);
+						serialize(value, frame, reg);
 					}
 				};
-				deserialize = [](input_frame &frame, any &a)
+				deserialize = [](any &a, input_frame &frame, const config_registry &reg)
 				{
 					auto &value = a.template cast<T &>();
-					if constexpr (requires { value.deserialize(frame); })
-						value.deserialize(frame);
+					if constexpr (requires { value.deserialize(frame, reg); })
+						value.deserialize(frame, reg);
 					else
 					{
 						using sek::serialization::deserialize;
-						deserialize(value, frame);
+						deserialize(value, frame, reg);
 					}
 				};
 			}
@@ -704,8 +693,8 @@ namespace sek::engine
 			}
 
 		private:
-			void (*serialize)(output_frame &, const any &a);
-			void (*deserialize)(input_frame &, any &a);
+			void (*serialize)(const any &, output_frame &, const config_registry &);
+			void (*deserialize)(any &, input_frame &, const config_registry &);
 		};
 
 		/** Helper function used to create an instance of `config_type` attribute for type `T`. */
