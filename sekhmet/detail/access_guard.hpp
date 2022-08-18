@@ -79,6 +79,9 @@ namespace sek
 		mutex_type *m_ptr;
 	};
 
+	template<typename M>
+	mutex_ref(M &) -> mutex_ref<M>;
+
 	template<typename T, detail::basic_lockable Mutex>
 	class access_guard;
 
