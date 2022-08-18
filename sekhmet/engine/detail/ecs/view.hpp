@@ -14,6 +14,12 @@ namespace sek::engine
 	class component_view;
 
 	/** @brief Structure used to provide a simple view of components for a set of entities.
+	 *
+	 * Component views act as "weak" references to a group of component sets. Iterating a component view will iterate
+	 * over entities of it's included and optional sets, discarding any entities from the excluded sets. Component views
+	 * are very cheap to create and do not have any side-effects, however they require double-indirection when
+	 * retrieving a component (set -> entity -> component instead of set -> component).
+	 *
 	 * @tparam I Component types captured by the view.
 	 * @tparam E Component types excluded from the view.
 	 * @tparam O Optional components of the view. */

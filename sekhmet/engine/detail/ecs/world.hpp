@@ -513,8 +513,8 @@ namespace sek::engine
 		/** Returns the capacity of the world (current maximum of alive entities) */
 		[[nodiscard]] constexpr size_type capacity() const noexcept { return m_entities.capacity(); }
 
-		/** Releases all entities and destroys all components.
-		 * @warning References to the world (except for collections) will be invalidated. */
+		/** Releases all entities, destroys all components.
+		 * @note Does not clear component events. */
 		constexpr void clear()
 		{
 			clear_storage();
@@ -522,17 +522,8 @@ namespace sek::engine
 			m_next = entity_t::tombstone();
 			m_size = 0;
 		}
-		/** Clears the world and destroys component storage (releasing references to reflected type info).
-		 * @warning References to the world (including collections) will be invalidated. */
-		constexpr void purge()
-		{
-			clear();
-			m_storage.clear();
-			m_sorters.clear();
-		}
-
 		/** Destroys all components of specified types.
-		 * @warning References to components (except for collections) will be invalidated. */
+		 * @note Does not clear component events. */
 		template<typename... Cs>
 		constexpr void clear()
 		{
@@ -542,8 +533,7 @@ namespace sek::engine
 			};
 			(clear_set(get_storage<Cs>()), ...);
 		}
-		/** Destroys all components of specified type.
-		 * @warning References to components (except for collections) will be invalidated. */
+		/** @copydoc clear */
 		constexpr void clear(std::string_view type)
 		{
 			if (const auto set = m_storage.find(type); set != m_storage.end()) [[likely]]
@@ -765,8 +755,12 @@ namespace sek::engine
 		template<typename Parent, typename C, typename... Cs>
 		constexpr void sort()
 		{
+			SEK_ASSERT(!is_collected<C>(), "Cannot sort components owned by collections");
+
 			auto &src = reserve<Parent>();
 			auto &dst = reserve<C>();
+
+			src.pack();
 			dst.sort(src.begin(), src.end());
 
 			if constexpr (sizeof...(Cs) != 0) sort<C, Cs...>();
@@ -812,6 +806,8 @@ namespace sek::engine
 		constexpr void sort(S &&sort, P &&pred) requires(std::is_invocable_r_v<bool, P, const C &, const C &> ||
 														 std::is_invocable_r_v<bool, P, entity_t, entity_t>)
 		{
+			SEK_ASSERT(!is_collected<C>(), "Cannot sort components owned by collections");
+
 			auto *storage = get_storage<C>();
 			if (storage == nullptr) [[unlikely]]
 				return;

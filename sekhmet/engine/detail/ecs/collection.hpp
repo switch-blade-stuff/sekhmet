@@ -15,20 +15,33 @@ namespace sek::engine
 
 	/** @brief Structure used to collect and provide a view of components for a set of entities.
 	 *
-	 * Collections are used to automatically sort (collect) components in order to achieve improved cache locality
-	 * than a `component_view`, as well as to track modification to relevant component sets.
+	 * Component collections act as "strong" references to a group of component sets. Iterating a component collection
+	 * will iterate over entities of it's owned (collected) included and optional sets, discarding any entities from the
+	 * excluded sets. Collections track component events on relevant component types in order to provide more efficient
+	 * iteration than a `component_view`.
 	 *
-	 * Collections are automatically updated when a entity is added or removed from any of the observed
-	 * component types. Collections that own (sort) components will also automatically re-sort owned components.
+	 * Owning collections will automatically sort components in order to achieve better cache locality than a
+	 * `component_view` and avoid multiple indirection for owned components, as well as to track modification to
+	 * relevant component sets. This, however, comes at a cost of restricting allowed operations on owned component sets
+	 * - any external sorting of components will leave the collection in undefined state, thus no sorting may be
+	 * preformed for owned components. While creating multiple owning collections for the same component type is
+	 * allowed, such collections must either have the same owned components or be a "specialized" version
+	 * of one another. For example, if owned components of collection `A` are `int, float`, collection `B` can only
+	 * own one of the following: `int`, `int, float`, `int, float, Ts...` where `Ts...` is a sequence of other
+	 * component types. Specialized collections are allowed to exist, since sort order of a more-specialized collection
+	 * will always satisfy a less-specialized one.
 	 *
-	 * If no owned components are specified, collections can act as an event-aware view which tracks
-	 * modifications of relevant component sets.
+	 * If no owned components are specified, collections will act as an event-aware view which tracks modifications of
+	 * relevant component sets.
+	 *
+	 * @note While non-owning collections do not create any side-effects for the underlying component sets, they will
+	 * still be more expensive than a `component_view`, since they still keep track of component events.
 	 *
 	 * @note Use of owning collections is not recommended for commonly used component types, as they will prevent
-	 * creation of other collections (or regular sorting) of owned types and will potentially result in
-	 * frequent sorting of component sets.
+	 * creation of other collections (or regular sorting) of owned types and will potentially result in frequent
+	 * sorting of component sets.
 	 *
-	 * @tparam C Component types owned (sorted) by the collection.
+	 * @tparam C Component types collected (owned) by the collection.
 	 * @tparam I Component types captured by the collection.
 	 * @tparam E Component types excluded from the collection.
 	 * @tparam O Optional components of the collection.

@@ -144,7 +144,8 @@ namespace sek::engine
 
 		/** Removes tombstones (if any) from the set. */
 		constexpr void pack() { base_set::pack(); }
-		/** Removes all entities and components from the set. */
+		/** Removes all entities and components from the set.
+		 * @note Does not clear component events. */
 		constexpr void clear() { base_set::clear(); }
 
 		/** @copydoc base_set::sort_n */

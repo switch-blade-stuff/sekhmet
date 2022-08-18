@@ -113,13 +113,13 @@ namespace sek
 
 	// clang-format off
 	template<auto>
-	struct member_getter_t;
+	struct member_get_t;
 	template<auto>
-	struct member_setter_t;
+	struct member_set_t;
 
 	/** @brief Helper structure used to create a simple member object getter for a property wrapper. */
 	template<typename T, typename I, T I::*M>
-	struct member_getter_t<M>
+	struct member_get_t<M>
 	{
 		[[nodiscard]] constexpr auto &operator()(I *instance) const noexcept
 		{
@@ -132,7 +132,7 @@ namespace sek
 	};
 	/** @brief Helper structure used to create a simple member object setter for a property wrapper. */
 	template<typename T, typename I, T I::*M>
-	struct member_setter_t<M>
+	struct member_set_t<M>
 	{
 		template<typename U>
 		constexpr void operator()(I *instance, U &&value) const noexcept requires std::assignable_from<T &, U>
@@ -142,12 +142,12 @@ namespace sek
 	};
 	// clang-format on
 
-	/** Instance of the `member_getter_t` helper type. */
+	/** Instance of the `member_get_t` helper type. */
 	template<auto M>
-	constexpr auto member_getter = member_getter_t<M>{};
-	/** Instance of the `member_setter_t` helper type. */
+	constexpr auto member_get = member_get_t<M>{};
+	/** Instance of the `member_set_t` helper type. */
 	template<auto M>
-	constexpr auto member_setter = member_setter_t<M>{};
+	constexpr auto member_set = member_set_t<M>{};
 
 	// clang-format off
 	/** @brief Property wrapper used to invoke get & set functors when the underlying value is accessed.
