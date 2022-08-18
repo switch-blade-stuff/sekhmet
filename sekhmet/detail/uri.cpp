@@ -4,9 +4,8 @@
 
 #include "uri.hpp"
 
+#include <limits>
 #include <utility>
-
-#include <string_view>
 
 #if !defined(SEK_USE_WIN_PATH) && defined(SEK_OS_WIN)
 #define SEK_USE_WIN_PATH
@@ -14,20 +13,6 @@
 
 namespace sek
 {
-	[[nodiscard]] constexpr bool is_absolute_path(auto begin, auto end) noexcept
-	{
-		if (const auto size = std::distance(begin, end); size != 0)
-		{
-#ifdef SEK_USE_WIN_PATH
-			return (size > 1 && begin[0] >= 'A' && begin[0] <= 'Z' && (begin[1] == ':' || begin[1] == '|')) ||
-				   (begin[0] == '/' || begin[0] == '\\');
-#else
-			return begin[0] == '/';
-#endif
-		}
-		return false;
-	}
-
 	constexpr static typename uri::string_view_type auth_prefix = "//";
 	constexpr static typename uri::value_type scheme_postfix = ':';
 	constexpr static typename uri::value_type password_prefix = ':';
@@ -57,8 +42,9 @@ namespace sek
 	}
 	uri::data_handle::~data_handle() { delete m_ptr; }
 
-	[[nodiscard]] constexpr static std::uint32_t utf8_code_point(uri::string_view_type chars) noexcept
+	[[nodiscard]] constexpr std::uint32_t utf8_cp_extract(uri::string_view_type chars) noexcept
 	{
+		// clang-format off
 		switch (chars.length())
 		{
 			case 1: return static_cast<std::uint32_t>(chars[0]);
@@ -74,10 +60,11 @@ namespace sek
 					   static_cast<std::uint32_t>(chars[1] & 0b0011'1111) << 12 |
 					   static_cast<std::uint32_t>(chars[2] & 0b0011'1111) << 6 |
 					   static_cast<std::uint32_t>(chars[3] & 0b0011'1111);
-			default: return 0; /* Invalid. */
+			default: return '\0'; /* Invalid. */
 		}
+		// clang-format on
 	}
-	[[nodiscard]] constexpr static std::size_t utf8_width(char c) noexcept
+	[[nodiscard]] constexpr std::uint32_t utf8_cp_width(uri::value_type c) noexcept
 	{
 		if ((c & 0b1111'1000) == 0b1111'0000)
 			return 4;
@@ -87,53 +74,170 @@ namespace sek
 			return 2;
 		return 1;
 	}
-
-	static const uri::string_view_type base36_digits = "abcdefghijklmnopqrstuvwxyz0123456789";
-
-	inline static void base36_encode(uri::string_type &buffer, std::size_t value)
+	inline void utf8_cp_convert(uri::string_type &buffer, std::uint32_t cp)
 	{
-		for (std::size_t digit, offset = 0;; ++offset)
+		if (cp >= 0x10000) /* 4 chars */
 		{
-			/* Calculate the digit & advance the value. */
-			digit = value % base36_digits.size();
-			value = value / base36_digits.size();
-
-			/* Insert the digit to its target position. */
-			buffer.insert(buffer.size() - offset, 1, base36_digits[digit]);
-
-			/* Break only after insertion to handle cases where `value` is 0. */
-			if (value == 0) [[unlikely]]
-				break;
+			buffer.push_back(static_cast<uri::value_type>((cp >> 18) | 0b1111'0000));
+			buffer.push_back(static_cast<uri::value_type>(((cp >> 12) & 0b0011'1111) | 0b1000'0000));
+			buffer.push_back(static_cast<uri::value_type>(((cp >> 6) & 0b0011'1111) | 0b1000'0000));
+			buffer.push_back(static_cast<uri::value_type>((cp & 0b0011'1111) | 0b1000'0000));
 		}
-	}
-	inline static bool puny_encode(uri::string_type &buffer, uri::string_view_type data)
-	{
-		buffer.clear();
-
-		std::size_t ascii_end = 0;
-		for (std::size_t i = 0; i < data.size(); ++i)
+		else if (cp >= 0x800) /* 3 chars */
 		{
-			/* Copy ASCII characters into the buffer & advance the ASCII end position.
-			 * For non-ASCII, encode `i * n` in base36 and append to the buffer. */
-			if (const auto c = data[i]; c <= '\x7f')
-				buffer.insert(ascii_end++, 1, c);
-			else
+			buffer.push_back(static_cast<uri::value_type>((cp >> 12) | 0b1110'0000));
+			buffer.push_back(static_cast<uri::value_type>(((cp >> 6) & 0b0011'1111) | 0b1000'0000));
+			buffer.push_back(static_cast<uri::value_type>((cp & 0b0011'1111) | 0b1000'0000));
+		}
+		else if (cp >= 80) /* 2 chars */
+		{
+			buffer.push_back(static_cast<uri::value_type>((cp >> 6) | 0b1100'0000));
+			buffer.push_back(static_cast<uri::value_type>((cp & 0b0011'1111) | 0b1000'0000));
+		}
+		else
+			buffer.push_back(static_cast<uri::value_type>(cp));
+	}
+
+	[[nodiscard]] constexpr uri::value_type base36_encode(std::size_t digit) noexcept
+	{
+		constexpr uri::string_view_type alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+		return alphabet[digit];
+	}
+	[[nodiscard]] constexpr std::size_t base36_decode(uri::value_type digit) noexcept
+	{
+		return digit <= '9' ? static_cast<std::size_t>(digit - '0') + 26 :  /* 0-9 */
+			   digit <= 'A' ? static_cast<std::size_t>(digit - 'A') :       /* A-Z */
+							  static_cast<std::size_t>(digit - 'a');        /* a-z */
+	}
+
+	/* Common variables for punycode. */
+	constexpr std::size_t puny_base = 36;
+	constexpr std::size_t puny_tmin = 1;
+	constexpr std::size_t puny_tmax = 26;
+	constexpr std::size_t puny_damp = 700;
+
+	[[nodiscard]] constexpr std::size_t puny_adapt_delta(std::size_t delta, std::size_t n, std::size_t damp) noexcept
+	{
+		delta = delta / damp;
+		delta += delta / n;
+
+		std::size_t k = 0;
+		while (delta > ((puny_base - puny_tmin) * puny_tmax) / 2)
+		{
+			delta /= puny_base - puny_tmin;
+			k += puny_base;
+		}
+		return k + (((puny_base - puny_tmin + 1) * delta) / (delta + 38));
+	}
+	inline bool puny_encode(uri::string_type &out_buff, std::u32string &cp_buff, uri::string_view_type data)
+	{
+		out_buff.clear();
+		cp_buff.clear();
+
+		/* Copy ASCII characters & extract code points. */
+		std::uint32_t n_ascii = 0;
+		for (std::uint32_t n, i = 0; i < data.size(); i += n)
+		{
+			const auto c = data[i];
+			n = utf8_cp_width(c);
+
+			/* Copy ASCII directly to the output/ */
+			if (n == 1) out_buff.insert(n_ascii++, 1, c);
+
+			/* Extract the next codepoint into the codepoint buffer. */
+			cp_buff.push_back(utf8_cp_extract(data.substr(i, n)));
+		}
+
+		/* Encode non-ASCII code points. */
+		char32_t n = 0x80;
+		for (std::size_t i = n_ascii, delta = 0, bias = 72; i < cp_buff.size(); ++delta, ++n)
+		{
+			/* Find the next minimum code point. */
+			auto cp_min = std::numeric_limits<char32_t>::max();
+			for (auto code_point : cp_buff)
+				if (code_point >= n && code_point < cp_min) cp_min = code_point;
+
+			/* Increase delta enough to advance the decoder's <n,i> state to <m,0> */
+			delta += (cp_min - n) * (i + 1);
+			n = cp_min;
+
+			/* Calculate & output the delta for the minimum code point. */
+			for (auto code_point : cp_buff)
 			{
-				auto cp_len = std::min(utf8_width(c), data.size() - i);
-				const auto cp = data.substr(i, cp_len--);
-				const auto n = utf8_code_point(cp);
+				if (code_point < n)
+					++delta;
+				else if (code_point == n)
+				{
+					/* Convert delta to base36. */
+					auto q = delta;
+					for (std::size_t t, k = puny_base;; k += puny_base)
+					{
+						t = k <= bias ? puny_tmin : (k >= bias + puny_tmax ? puny_tmax : k - bias);
+						if (q < t) break;
 
-				base36_encode(buffer, i * static_cast<std::size_t>(n - 127));
+						out_buff.push_back(base36_encode(t + (q - t) % (puny_base - t)));
+						q = (q - t) / (puny_base - t);
+					}
+					out_buff.push_back(base36_encode(q));
 
-				i += cp_len; /* Skip all encoded characters. */
+					/* Finalize the delta. */
+					const auto is_first_char = n_ascii == i++;
+					bias = puny_adapt_delta(delta, i, (is_first_char ? puny_damp : 2));
+					delta = 0;
+				}
 			}
 		}
 
-		/* If the ascii end is not 0 (there are ASCII characters), insert the ASCII postfix. */
-		if (ascii_end != 0) buffer.insert(ascii_end++, 1, '-');
+		/* If the size of the ascii sequence is not 0, insert the ASCII separator. */
+		if (n_ascii != 0) out_buff.insert(n_ascii++, 1, '-');
+		/* If the size of the ASCII sequence is the same as the size of the string, there are no encoded characters. */
+		return n_ascii == out_buff.size();
+	}
+	inline void puny_decode(uri::string_type &out_buff, std::u32string &cp_buff, uri::string_view_type data)
+	{
+		out_buff.clear();
+		cp_buff.clear();
 
-		/* If the end of the ASCII sequence is the same as the end of the string, there are no encoded characters. */
-		return ascii_end == buffer.size();
+		/* Handle the basic code points:  Let b be the number of input code */
+		/* points before the last delimiter, or 0 if there is none, then    */
+		/* copy the first b code points to the output.                      */
+
+		/* Copy all ASCII characters to the codepoint buffer. */
+		std::size_t start = 0;
+		if (const auto n_ascii = data.find_last_of('-'); n_ascii < data.size())
+		{
+			for (auto c : data) cp_buff.push_back(static_cast<char32_t>(c));
+			start = n_ascii;
+		}
+
+		/* `in` is the index of the next input character, `out` is the number of code points written. */
+		char32_t n = 0x80;
+		for (std::size_t bias = 72, i = 0, in = start, next, out = start; in < data.size(); out = next)
+		{
+			next = out + 1;
+
+			/* Decode base36 into delta. */
+			std::size_t i_offset = 0;
+			for (std::size_t t, w = 1, k = puny_base;; k += puny_base, w *= (puny_base - t))
+			{
+				const auto digit = base36_decode(data[in++]);
+
+				t = k <= bias ? puny_tmin : k >= bias + puny_tmin ? puny_tmin : k - bias;
+				i_offset += digit * w;
+
+				if (digit < t) break;
+			}
+
+			bias = puny_adapt_delta(i_offset, next, (i ? 2 : puny_damp));
+			i += i_offset;
+			n += i / next;
+			i %= next;
+
+			cp_buff.insert(i++, 1, n);
+		}
+
+		/* Convert codepoint buffer into result buffer. */
+		for (auto cp : cp_buff) utf8_cp_convert(out_buff, cp);
 	}
 
 	uri::string_type uri::encode_ace(string_view_type str)
@@ -145,24 +249,29 @@ namespace sek
 		 *      2.2. Encode the label using Punycode
 		 *      2.3. Prefix the label with `xn--`.
 		 * 3. Join labels using U+002E FULL STOP. */
-		uri::string_type result, buffer;
-		result.reserve(str.size());
-		buffer.reserve(str.size());
 
+		/* Allocate enough characters for the work buffers & result string. */
+		uri::string_type label_buffer, result;
+		std::u32string cp_buffer;
+		label_buffer.reserve(str.size());
+		cp_buffer.reserve(str.size());
+		result.reserve(str.size());
+
+		/* Go through each label & attempt to encode it. Output encoding only if there are any non-ASCII characters. */
 		for (std::size_t base = 0, i = 0; base < str.size();)
 			if (const auto j = i++; i == str.size() || str[i] == '\x2e')
 			{
 				/* Encode the label. */
-				const auto label = str.substr(base, j);
-				if (puny_encode(buffer, label)) /* Use punycode-encoded label if there are any unicode characters. */
+				const auto label = str.substr(base, j - base);
+				if (puny_encode(label_buffer, cp_buffer, label)) /* Use punycode-encoded label if there are any unicode characters. */
 				{
 					result.insert(result.size(), "xn--");
-					result.insert(result.size(), buffer);
+					result.insert(result.size(), label_buffer);
 				}
 				else
 					result.insert(result.size(), label);
 
-				/* If there is anything after the current label, add delimiter.  */
+				/* If the current label is not the last one, add delimiter.  */
 				if (i != str.size()) [[likely]]
 					result.push_back('\x2e');
 
@@ -171,9 +280,46 @@ namespace sek
 			}
 		return result;
 	}
-	uri::string_type uri::decode_ace(string_view_type str) {}
+	uri::string_type uri::decode_ace(string_view_type str)
+	{
+		/* Steps to decode a host string using ACE encoding as defined by Unicode Technical Standard #46:
+		 * 1. Separate host into labels at U+002E FULL STOP.
+		 * 2. For each label:
+		 *      2.1. Skip if the label does not start with `xn--`.
+		 *      2.2. Decode the label using Punycode
+		 * 3. Join labels using U+002E FULL STOP. */
 
-	inline static void decode_ace_host(uri &target)
+		/* Allocate enough characters for the work buffers & result string. */
+		uri::string_type label_buffer, result;
+		std::u32string cp_buffer;
+		label_buffer.reserve(str.size());
+		cp_buffer.reserve(str.size());
+		result.reserve(str.size());
+
+		/* Go through each label & decode it if it starts with `xn--`. */
+		for (std::size_t base = 0, i = 0; base < str.size();)
+			if (const auto j = i++; i == str.size() || str[i] == '\x2e')
+			{
+				const auto label = str.substr(base, j - base);
+				if (label.starts_with("xn--"))
+				{
+					puny_decode(label_buffer, cp_buffer, label);
+					result.insert(result.size(), label_buffer);
+				}
+				else
+					result.insert(result.size(), label);
+
+				/* If the current label is not the last one, add delimiter.  */
+				if (i != str.size()) [[likely]]
+					result.push_back('\x2e');
+
+				/* Skip the separator & advance to the next label. */
+				base = ++i;
+			}
+		return result;
+	}
+
+	inline void decode_ace_host(uri &target)
 	{
 		/* Decode & replace host of the URI. */
 		const auto encoded = target.host();
@@ -200,7 +346,20 @@ namespace sek
 		return result;
 	}
 
-	inline static void format_local_uri(typename uri::string_type &uri_str)
+	[[nodiscard]] constexpr bool is_absolute_path(auto begin, auto end) noexcept
+	{
+		if (const auto size = std::distance(begin, end); size != 0)
+		{
+#ifdef SEK_USE_WIN_PATH
+			return (size > 1 && begin[0] >= 'A' && begin[0] <= 'Z' && (begin[1] == ':' || begin[1] == '|')) ||
+				   (begin[0] == '/' || begin[0] == '\\');
+#else
+			return begin[0] == '/';
+#endif
+		}
+		return false;
+	}
+	inline void format_local_uri(typename uri::string_type &uri_str)
 	{
 		/* Absolute paths must begin with `file://` */
 		if (is_absolute_path(uri_str.begin(), uri_str.end()))
