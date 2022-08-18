@@ -5,12 +5,21 @@ room for skill ceiling.
 
 ### Goals
 
-* Open-source and free to use (LGPL license).
-* Low reliance on external dependencies. No frameworks, but independent libraries are allowed.
-* Expose as much functionality to the user as possible. Allow the user to make light customizations of the engine
-  without forking the project.
+* Open-source and free to use.
+* Low reliance on external dependencies & tools.
+* Straight-forward and extensible design.
+* Highly customizable design via plugins.
+
+### Contribution & style guidelines
+
 * Follow modern (as of 2022) C++ practices.
-* Easy to follow and understand design.
+* Use `shake_case` for all symbols except for `enum` values and `#define` macros.
+* Use `clang-format` for formatting, `.clang-format` configuration is provided.
+* Follow a mostly flat project structure with the following exceptions:
+    * Implementation details are to be placed in the `detail` subdirectory, with top-level headers only containing relevant `#include` directives.
+    * Logical API partitions (such as namespaces and sources related to a single system) can be placed in sub-directories (ex. `sekhmet/math`, `engine/detail/ecs`).
+    * Third-party dependencies are to be placed in the `third-party` directory outside of the project source root.
+ * Use the `.cpp`/`.hpp` extensions for C++ sources & headers and `.c`/`.h` extensions for C sources & headers respectively.
 
 ### Milestones
 
@@ -24,7 +33,7 @@ room for skill ceiling.
     - [ ] UBJson input & output archives                 (currently under rework)
     - [ ] Raw binary input & output archives             (currently under rework)
 - [ ] Asset/resource system. (currently under rework)
-    - [ ] "local" asset loading                      (currently under rework)
+    - [ ] "local" asset loading                          (currently under rework)
     - [ ] Network config loading (via URI)
 - [ ] Config management system
     - [X] "local" config saving/loading
