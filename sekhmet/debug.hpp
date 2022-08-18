@@ -4,5 +4,7 @@
 
 #pragma once
 
+#include "sekhmet/engine/logger.hpp"
+#include "sekhmet/engine/profiler.hpp"
+
 #include "detail/assert.hpp"
-#include "detail/profiler.hpp"
