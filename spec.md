@@ -2,7 +2,7 @@
 
 ```
 ~/CekhmetProjects/my_project
-    -> my_project.sekproj           (Json config file for the project containing, among other things, path to the engine install dir and list of plugin & asset package sub-projects)
+    -> .sekproj                     (Json config file for the project containing, among other things, path to the engine install dir and list of plugin & asset package sub-projects)
     -> config                       (Directory containing "documents" of the config registry other than the build config)
         -> editor.json              (Config "document" containing project-specific editor settings, such as the current layout, )
         -> my_plugin_config.json
@@ -74,7 +74,7 @@ main" project.
 Plugin projects are subdirectories within the `plugins` directory, containing a `.pluginproj` file. `.pluginproj`
 contains all project-specific configuration of a plugin project, such as the toolchain used (ex. CMake) and file
 types associated with project sources (if not specified, the "main" project default is used), and a list of sources of
-the plugin.
+the plugin. 
 
 Once a plugin project is modified by creating new files or updating its configuration (or a new one is generated), the
 corresponding toolchain is used to generate required project files for the target build system (ex. CMake toolchain
@@ -99,9 +99,11 @@ and import cache.
 When an asset file within an asset project is modified or a new file is created, an asset format handler corresponding
 to the file's type is selected. This format handler may then generate and/or update any number of asset artifacts, which
 are additional files produced from the asset. Any persistent information about the asset import process (such as, for
-example, version of the asset format) can be stored within the asset import cache.
+example, version of the asset format) can be stored within the asset import cache (`.imp`) file. Any additional
+information about the imported asset required at runtime (but not part of the asset itself) can be stored within the
+asset's metadata file (`.meta`).
 
-Asset import cache (`.imp`) files are created for every imported asset, regardless of whether the format handler uses it
+Asset import cache files are created for every imported asset, regardless of whether the format handler uses it
 to store any data or not. Editor uses import cache files as a way to verify if an asset has already been imported
 previously or not upon modification or discovery of the asset file. If an asset import cache file is missing, the asset
 is treated as a new asset, otherwise the format handler is used to update (re-import) the asset instead.
@@ -109,11 +111,11 @@ is treated as a new asset, otherwise the format handler is used to update (re-im
 If an artifact created for an asset is missing or build option requirements of an asset alias have changed, the format
 handler is used to re-generate asset artifacts using the existing import cache (asset is re-imported).
 
-Format handler may also create any number of asset aliases, which are used to map imported assets' paths to the (
-potentially artifact) files that contain data of said assets. Asset aliases that do not point to an asset artifact, nor
-have any build option filters are known as "identity" aliases. Identity asset aliases simply point to the file of the
-import asset, which is always exported during build. If a format handler does not create any aliases for the imported
-asset file, an identity alias is automatically created instead.
+Format handler may also create any number of asset aliases, which are used to map imported assets to the (potentially
+artifact) files that contain data of said assets. Asset aliases that do not point to an asset artifact, nor have any
+build option filters are known as "identity" aliases. Identity asset aliases simply point to the file of the import
+asset, which is always exported during build. If a format handler does not create any aliases for the imported asset
+file, an identity alias is automatically created instead.
 
 Asset aliases can contain optional project build option filters. These filters are used to selectively enable or disable
 aliases based on build options. When an asset project is built, all asset aliases are resolved and only the aliased
@@ -129,12 +131,39 @@ asset projects.
 
 The `.pluginproj` and `.assetproj` files contain Json configuration of the asset projects. While this per-project
 configuration is accessible from the Editor Project Manager, it is also accessible directly from the config registry via
-a config path in the following format: `/project/assets/<project-name>` for asset package projects
-and `/project/plugins/<project-name>` for plugin projects, where `project-name` is the name of the project whose
+a config path in the following format: `/project/assets/<project-name>` for asset package projects and
+`/project/plugins/<project-name>` for plugin projects, where `project-name` is the name of the project whose
 configuration to retrieve. Note that the project name is the same as it's subdirectory within `assets` or `plugins`
-respectively.
+respectively. Additional configuration can be stored within the asset or plugin subproject using these config paths.
 
-## Editor asset import
+## Editor asset pipeline
+
+As mentioned in the section about asset projects, processing of individual asset file types is handled by asset format
+handlers. Asset format handlers are registered with the main project manager and are then used to handle assets of the
+specified file type. While there may exist only one format handler per file extension, if no format handler is specified
+the default asset importation takes place (that is, an identity alias is created).
+
+Asset import cache files are also created by default and can be interacted with through an asset import context. Import
+context is unique per-asset and contains import information about said asset. If an asset format handler wants to
+serialize some data to the import cache, it must do so through the import context. At the top level, import cache is
+represented as a table of key-value pairs, where values are serialized entries created by the format handler.
+
+Additionally, every import cache file contains a SHA-256 hash of the source asset used to detect changes to the asset
+file either on a filesystem event or a project (re)load. If the cached hash matches the calculated hash, the file has
+not been modified and a re-import is not necessary, otherwise the format handler is used to re-import the asset.
+
+When a modification of the source asset file is detected, its format handler is invoked to re-import the file. If the
+source asset file no longer exists, all aliases and associated artifacts, metadata and import cache is also deleted. If
+the source asset is moved within the editor, asset aliases are updated to the new location, all associated artifacts,
+metadata and import cache are relocated to correspond to the new source asset path. It should be noted that relocation
+of assets is only possible within the editor's asset browser, if the asset is moved externally (ex. via the OS's native
+file browser), it is treated as if the old asset was deleted and a new asset was created.
+
+When an asset package is built for export, build options may change (ex. to reflect the export target). Because of this,
+building an asset package will most likely involve re-import of some of its assets. After the assets are re-imported,
+aliases are resolved and the aliased files are then exported to the destination directory alongside an asset package
+manifest (`.manifest` file). If an archived package is requested, aliased files are written (with optional compression)
+to an archive instead. After the package is built, resulting file(s) are then copied to the output directory.
 
 ## Editor properties
 
@@ -147,9 +176,8 @@ per shader definition).
 Import pipeline of the shader definition assets is roughly as follows:
 
 1. Parse shader definition into generic shader metadata & shader programs.
-2. Generate "shader program" asset aliases and the shader resource asset.
-3. Generate shader source of individual shader programs for the target graphics API.
-4. Compile the generated shader code into "shader program" assets for the current API.
+2. Generate alias for the shader file to the API-specific shader resource.
+3. Emit & compile shader source of individual permutations for the target graphics API.
 
 Shader definition language is used to define metadata - external variables, permutation switches and includes, shader
 nodes - abstract building blocks of shader programs, shader stages - stages of an individual shader pass such as
