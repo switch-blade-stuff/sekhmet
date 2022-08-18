@@ -110,7 +110,7 @@ namespace sek
 							  static_cast<std::size_t>(digit - 'a');        /* a-z */
 	}
 
-	/* Common variables for punycode. */
+	/* Punycode implementation as specified in `RFC 3492` */
 	constexpr std::size_t puny_base = 36;
 	constexpr std::size_t puny_tmin = 1;
 	constexpr std::size_t puny_tmax = 26;
@@ -300,10 +300,9 @@ namespace sek
 		for (std::size_t base = 0, i = 0; base < str.size();)
 			if (const auto j = i++; i == str.size() || str[i] == '\x2e')
 			{
-				const auto label = str.substr(base, j - base);
-				if (label.starts_with("xn--"))
+				if (const auto label = str.substr(base, j - base); label.starts_with("xn--"))
 				{
-					puny_decode(label_buffer, cp_buffer, label);
+					puny_decode(label_buffer, cp_buffer, label.substr(4));
 					result.insert(result.size(), label_buffer);
 				}
 				else
