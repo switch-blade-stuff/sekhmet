@@ -40,7 +40,7 @@ namespace sek
 		AUTHORITY = USERINFO | HOST | PORT,
 
 		/** File name of the URI path (ex. `index.html` in `https://mydomain.com/index.html`). */
-		FILE_NAME = PATH_MASK | 0b0000'0001,
+		FILENAME = PATH_MASK | 0b0000'0001,
 		/** Full path of the URI. */
 		PATH = PATH_MASK,
 	};
@@ -61,17 +61,17 @@ namespace sek
 	{
 		return static_cast<uri_component>(static_cast<int>(lhs) ^ static_cast<int>(rhs));
 	}
-	[[nodiscard]] constexpr uri_component &operator|=(uri_component &lhs, uri_component rhs) noexcept
+	constexpr uri_component &operator|=(uri_component &lhs, uri_component rhs) noexcept
 	{
 		lhs = lhs | rhs;
 		return lhs;
 	}
-	[[nodiscard]] constexpr uri_component &operator&=(uri_component &lhs, uri_component rhs) noexcept
+	constexpr uri_component &operator&=(uri_component &lhs, uri_component rhs) noexcept
 	{
 		lhs = lhs & rhs;
 		return lhs;
 	}
-	[[nodiscard]] constexpr uri_component &operator^=(uri_component &lhs, uri_component rhs) noexcept
+	constexpr uri_component &operator^=(uri_component &lhs, uri_component rhs) noexcept
 	{
 		lhs = lhs ^ rhs;
 		return lhs;
@@ -126,17 +126,17 @@ namespace sek
 	{
 		return static_cast<uri_format>(static_cast<int>(lhs) ^ static_cast<int>(rhs));
 	}
-	[[nodiscard]] constexpr uri_format &operator|=(uri_format &lhs, uri_format rhs) noexcept
+	constexpr uri_format &operator|=(uri_format &lhs, uri_format rhs) noexcept
 	{
 		lhs = lhs | rhs;
 		return lhs;
 	}
-	[[nodiscard]] constexpr uri_format &operator&=(uri_format &lhs, uri_format rhs) noexcept
+	constexpr uri_format &operator&=(uri_format &lhs, uri_format rhs) noexcept
 	{
 		lhs = lhs & rhs;
 		return lhs;
 	}
-	[[nodiscard]] constexpr uri_format &operator^=(uri_format &lhs, uri_format rhs) noexcept
+	constexpr uri_format &operator^=(uri_format &lhs, uri_format rhs) noexcept
 	{
 		lhs = lhs ^ rhs;
 		return lhs;
@@ -204,10 +204,40 @@ namespace sek
 		[[nodiscard]] static SEK_API uri from_local(string_type &&str);
 
 	private:
-		struct element
+		struct component_t
 		{
-			size_type start;
-			size_type end;
+			constexpr component_t operator++(int) noexcept
+			{
+				auto result = *this;
+				operator++();
+				return result;
+			}
+			constexpr component_t &operator++() noexcept { return operator+=(1); }
+			constexpr component_t &operator+=(size_type n) noexcept
+			{
+				start += n;
+				end += n;
+				return *this;
+			}
+
+			constexpr component_t operator--(int) noexcept
+			{
+				auto result = *this;
+				operator--();
+				return result;
+			}
+			constexpr component_t &operator--() noexcept { return operator-=(1); }
+			constexpr component_t &operator-=(size_type n) noexcept
+			{
+				start -= n;
+				end -= n;
+				return *this;
+			}
+
+			[[nodiscard]] constexpr bool operator==(const component_t &) const noexcept = default;
+
+			size_type start = 0;
+			size_type end = 0;
 		};
 
 		class data_handle
@@ -232,8 +262,10 @@ namespace sek
 				return *this;
 			}
 
-			constexpr impl *get() const noexcept { return m_ptr; }
-			constexpr impl *operator->() const noexcept { return get(); }
+			[[nodiscard]] constexpr operator bool() const noexcept { return m_ptr != nullptr; }
+			[[nodiscard]] constexpr impl *operator->() const noexcept { return m_ptr; }
+
+			inline impl &get();
 
 			constexpr void swap(data_handle &other) noexcept { std::swap(m_ptr, other.m_ptr); }
 
@@ -383,8 +415,8 @@ namespace sek
 
 		/** Checks if the URI has a non-empty path. Equivalent to `has_components(uri_component::PATH)`. */
 		[[nodiscard]] bool has_path() const noexcept { return has_components(uri_component::PATH); }
-		/** Checks if the URI path has a filename. Equivalent to `has_components(uri_component::FILE_NAME)`. */
-		[[nodiscard]] bool has_filename() const noexcept { return has_components(uri_component::FILE_NAME); }
+		/** Checks if the URI path has a filename. Equivalent to `has_components(uri_component::FILENAME)`. */
+		[[nodiscard]] bool has_filename() const noexcept { return has_components(uri_component::FILENAME); }
 
 		/** Checks if the URI has a query. Equivalent to `has_components(uri_component::QUERY)`. */
 		[[nodiscard]] bool has_query() const noexcept { return has_components(uri_component::QUERY); }
@@ -472,55 +504,131 @@ namespace sek
 		[[nodiscard]] SEK_API string_view_type fragment() const noexcept;
 
 		/** Replaces scheme of the URI.
-		 * @param scheme New scheme of the URI.
+		 * @param value New scheme of the URI.
 		 * @return Reference to `this`. */
-		SEK_API uri &set_scheme(string_view_type scheme);
-
+		SEK_API uri &set_scheme(string_view_type value);
 		/** Replaces username of the URI.
-		 * @param username New username of the URI.
+		 * @param value New username of the URI.
 		 * @return Reference to `this`. */
-		SEK_API uri &set_username(string_view_type username);
+		SEK_API uri &set_username(string_view_type value);
 		/** Replaces password of the URI.
-		 * @param password New password of the URI.
+		 * @param value New password of the URI.
 		 * @return Reference to `this`. */
-		SEK_API uri &set_password(string_view_type password);
+		SEK_API uri &set_password(string_view_type value);
 		/** Replaces userinfo of the URI.
-		 * @param userinfo New userinfo of the URI.
+		 * @param value New userinfo of the URI.
 		 * @return Reference to `this`. */
-		SEK_API uri &set_userinfo(string_view_type userinfo);
-
+		SEK_API uri &set_userinfo(string_view_type value);
 		/** Replaces host of the URI.
-		 * @param host New host of the URI.
+		 * @param value New host of the URI.
 		 * @return Reference to `this`. */
-		SEK_API uri &set_host(string_view_type host);
+		SEK_API uri &set_host(string_view_type value);
 		/** Replaces port of the URI.
-		 * @param port New port of the URI.
+		 * @param value New port of the URI.
 		 * @return Reference to `this`. */
-		SEK_API uri &set_port(string_view_type port);
+		SEK_API uri &set_port(string_view_type value);
 		/** Replaces authority of the URI.
-		 * @param authority New authority of the URI.
+		 * @param value New authority of the URI.
 		 * @return Reference to `this`. */
-		SEK_API uri &set_authority(string_view_type authority);
-
+		SEK_API uri &set_authority(string_view_type value);
 		/** Replaces path of the URI.
-		 * @param path New path of the URI.
+		 * @param value New path of the URI.
 		 * @return Reference to `this`.
 		 * @note URI path will be normalized. */
-		SEK_API uri &set_path(string_view_type path);
-
+		SEK_API uri &set_path(string_view_type value);
+		/** Replaces filename of the URI.
+		 * @param value New filename of the URI.
+		 * @return Reference to `this`.
+		 * @note URI path will be normalized. */
+		SEK_API uri &set_filename(string_view_type value);
 		/** Replaces query of the URI.
-		 * @param query New query of the URI.
+		 * @param value New query of the URI.
 		 * @return Reference to `this`. */
-		SEK_API uri &set_query(string_view_type query);
+		SEK_API uri &set_query(string_view_type value);
 		/** Appends query of the URI with that of `other`.
-		 * @param query Query to append.
+		 * @param value Query to append.
 		 * @param sep Separator character used for the query. May be one of the following: `&`, `;`. Default is `&`.
 		 * @return Reference to `this`. */
-		SEK_API uri &append_query(string_view_type query, value_type sep = '&');
+		SEK_API uri &append_query(string_view_type value, value_type sep = '&');
 		/** Replaces fragment of the URI.
-		 * @param fragment New fragment of the URI.
+		 * @param value New fragment of the URI.
 		 * @return Reference to `this`. */
-		SEK_API uri &set_fragment(string_view_type fragment);
+		SEK_API uri &set_fragment(string_view_type value);
+
+		// clang-format off
+		/** @copydoc set_scheme */
+		template<typename T>
+		uri &set_scheme(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		{
+			return set_scheme(string_view_type{value});
+		}
+		/** @copydoc set_username */
+		template<typename T>
+		uri &set_username(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		{
+			return set_username(string_view_type{value});
+		}
+		/** @copydoc set_password */
+		template<typename T>
+		uri &set_password(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		{
+			return set_password(string_view_type{value});
+		}
+		/** @copydoc set_userinfo */
+		template<typename T>
+		uri &set_userinfo(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		{
+			return set_userinfo(string_view_type{value});
+		}
+		/** @copydoc set_host */
+		template<typename T>
+		uri &set_host(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		{
+			return set_host(string_view_type{value});
+		}
+		/** @copydoc set_port */
+		template<typename T>
+		uri &set_port(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		{
+			return set_port(string_view_type{value});
+		}
+		/** @copydoc set_authority */
+		template<typename T>
+		uri &set_authority(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		{
+			return set_authority(string_view_type{value});
+		}
+		/** @copydoc set_path */
+		template<typename T>
+		uri &set_path(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		{
+			return set_path(string_view_type{value});
+		}
+		/** @copydoc set_filename */
+		template<typename T>
+		uri &set_filename(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		{
+			return set_filename(string_view_type{value});
+		}
+		/** @copydoc set_query */
+		template<typename T>
+		uri &set_query(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		{
+			return set_query(string_view_type{value});
+		}
+		/** @copydoc append_query */
+		template<typename T>
+		uri &append_query(const T &value, value_type sep = '&') requires (!std::convertible_to<T, string_view_type>)
+		{
+			return append_query(string_view_type{value}, sep);
+		}
+		/** @copydoc set_fragment */
+		template<typename T>
+		uri &set_fragment(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		{
+			return set_fragment(string_view_type{value});
+		}
+		// clang-format on
 
 		constexpr void swap(uri &other) noexcept
 		{
@@ -530,6 +638,11 @@ namespace sek
 		friend constexpr void swap(uri &a, uri &b) noexcept { a.swap(b); }
 
 	private:
+		[[nodiscard]] constexpr string_view_type view(component_t cmp) const noexcept
+		{
+			return {m_value.data() + cmp.start, cmp.end - cmp.start};
+		}
+
 		SEK_API void parse();
 
 		string_type m_value;

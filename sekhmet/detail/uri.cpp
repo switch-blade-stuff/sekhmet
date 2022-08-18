@@ -4,6 +4,7 @@
 
 #include "uri.hpp"
 
+#include <algorithm>
 #include <limits>
 #include <utility>
 
@@ -18,27 +19,69 @@ namespace sek
 	constexpr static typename uri::value_type password_prefix = ':';
 	constexpr static typename uri::value_type userinfo_postfix = '@';
 	constexpr static typename uri::value_type port_prefix = ':';
+	constexpr static typename uri::value_type path_separator = '/';
 	constexpr static typename uri::value_type query_prefix = '?';
 	constexpr static typename uri::value_type fragment_prefix = '#';
 
 	struct uri::data_handle::impl
 	{
+		[[nodiscard]] constexpr auto &scheme() noexcept { return components[0]; }
+		[[nodiscard]] constexpr auto &scheme() const noexcept { return components[0]; }
+
+		[[nodiscard]] constexpr auto &authority() noexcept { return components[1]; }
+		[[nodiscard]] constexpr auto &authority() const noexcept { return components[1]; }
+		[[nodiscard]] constexpr auto &username() noexcept { return components[2]; }
+		[[nodiscard]] constexpr auto &username() const noexcept { return components[2]; }
+		[[nodiscard]] constexpr auto &password() noexcept { return components[3]; }
+		[[nodiscard]] constexpr auto &password() const noexcept { return components[3]; }
+		[[nodiscard]] constexpr auto &host() noexcept { return components[4]; }
+		[[nodiscard]] constexpr auto &host() const noexcept { return components[4]; }
+		[[nodiscard]] constexpr auto &port() noexcept { return components[5]; }
+		[[nodiscard]] constexpr auto &port() const noexcept { return components[5]; }
+
+		[[nodiscard]] constexpr auto &path() noexcept { return components[6]; }
+		[[nodiscard]] constexpr auto &path() const noexcept { return components[6]; }
+		[[nodiscard]] constexpr auto &filename() noexcept { return components[7]; }
+		[[nodiscard]] constexpr auto &filename() const noexcept { return components[7]; }
+
+		[[nodiscard]] constexpr auto &query() noexcept { return components[8]; }
+		[[nodiscard]] constexpr auto &query() const noexcept { return components[8]; }
+
+		[[nodiscard]] constexpr auto &fragment() noexcept { return components[9]; }
+		[[nodiscard]] constexpr auto &fragment() const noexcept { return components[9]; }
+
+		[[nodiscard]] constexpr bool has_components(uri_component mask) const noexcept
+		{
+			return (flags & mask) == mask;
+		}
+		constexpr void offset_components(uri_component mask, size_type off) noexcept
+		{
+			if (off != 0)
+			{
+				if ((mask & uri_component::SCHEME) == uri_component::SCHEME) scheme() += off;
+
+				if ((mask & uri_component::AUTHORITY_MASK) == uri_component::AUTHORITY_MASK)
+				{
+					authority() += off;
+					username() += off;
+					password() += off;
+					host() += off;
+					port() += off;
+				}
+
+				if ((mask & uri_component::PATH_MASK) == uri_component::PATH_MASK)
+				{
+					path() += off;
+					filename() += off;
+				}
+
+				if ((mask & uri_component::QUERY) == uri_component::QUERY) query() += off;
+				if ((mask & uri_component::FRAGMENT) == uri_component::FRAGMENT) fragment() += off;
+			}
+		}
+
 		uri_component flags = {};
-
-		element scheme;
-
-		/* Authority */
-		element username;
-		element password;
-		element host;
-		element port;
-
-		/* Path */
-		element path;
-		element file;
-
-		element query;
-		element fragment;
+		component_t components[10] = {};
 	};
 
 	uri::data_handle::data_handle(const data_handle &other) : m_ptr(other.m_ptr ? new impl(*other.m_ptr) : nullptr) {}
@@ -56,6 +99,13 @@ namespace sek
 		return *this;
 	}
 	uri::data_handle::~data_handle() { delete m_ptr; }
+
+	uri::data_handle::impl &uri::data_handle::get()
+	{
+		if (m_ptr == nullptr) [[unlikely]]
+			m_ptr = new impl();
+		return *m_ptr;
+	}
 
 	[[nodiscard]] constexpr std::uint32_t utf8_cp_extract(uri::string_view_type chars) noexcept
 	{
@@ -401,6 +451,186 @@ namespace sek
 
 	void uri::parse() {}
 
-	bool uri::has_components(uri_component mask) const noexcept { return (m_data->flags & mask) == mask; }
+	bool uri::has_components(uri_component mask) const noexcept { return m_data && m_data->has_components(mask); }
 	bool uri::is_local() const noexcept { return has_scheme() && m_value.starts_with("file:"); }
+
+	uri &uri::set_filename(string_view_type value)
+	{
+		size_type offset = 0;
+		if (auto &filename = m_data.get().query(); value.empty()) /* Erase the old filename. */
+		{
+			if (m_data->has_components(uri_component::FILENAME))
+			{
+				m_value.erase(filename.start, filename.end);
+				offset = filename.end - filename.start;
+
+				/* Erase or resize the path component. */
+				if (auto &path = m_data->path(); filename == path)
+				{
+					m_data->flags &= ~uri_component::PATH;
+					path = {};
+				}
+				else
+					path.end -= offset;
+
+				m_data->flags &= ~uri_component::FILENAME;
+				filename = {};
+			}
+		}
+		else
+		{
+			/* Create new filename and/or path if needed. */
+			if (!m_data->has_components(uri_component::FILENAME))
+			{
+				/* Filename is inserted either at the end of the string or before query or fragment. */
+				size_type pos = m_value.size();
+				if (m_data->has_components(uri_component::QUERY))
+					pos = m_data->query().start;
+				else if (m_data->has_components(uri_component::FRAGMENT))
+					pos = m_data->fragment().start;
+
+				/* If there is no path, create it. Otherwise, append a separator. */
+				if (!m_data->has_components(uri_component::PATH))
+				{
+					m_data->path() = {pos, value.size()};
+					m_data->flags |= uri_component::PATH;
+				}
+				else
+				{
+					m_value.insert(pos++, 1, path_separator);
+					offset = 1;
+				}
+
+				m_data->filename() = {pos, value.size()};
+				m_data->flags |= uri_component::FILENAME;
+			}
+
+			/* Insert or erase characters to create buffer space. */
+			if (const auto old_size = filename.end - filename.start; old_size < value.size())
+			{
+				const auto diff = value.size() - old_size;
+				m_value.insert(filename.end, diff, '\0');
+				m_data->path().end += diff;
+				filename.end += diff;
+				offset += diff;
+			}
+			else if (old_size > value.size())
+			{
+				const auto diff = old_size - value.size();
+				m_value.erase(filename.end -= diff, diff);
+				m_data->path().end -= diff;
+				offset -= diff;
+			}
+		}
+
+		/* Move query & fragment components. */
+		m_data->offset_components(uri_component::QUERY | uri_component::FRAGMENT, offset);
+		return *this;
+	}
+	uri &uri::set_query(string_view_type value)
+	{
+		size_type offset = 0;
+		if (auto &query = m_data.get().query(); value.empty()) /* Erase the old query. */
+		{
+			if (m_data->has_components(uri_component::QUERY))
+			{
+				m_value.erase(query.start - 1, query.end); /* Include the prefix. */
+				m_data->flags &= ~uri_component::QUERY;
+				offset = query.end - query.start;
+				query = {};
+			}
+		}
+		else
+		{
+			/* Create new query if needed. */
+			if (!m_data->has_components(uri_component::QUERY))
+			{
+				/* Insert position is either the start of the fragment or the end of the string. */
+				auto pos = m_data->has_components(uri_component::FRAGMENT) ? m_data->fragment().start : m_value.size();
+				m_value.insert(pos++, 1, query_prefix);
+				m_data->query() = {pos, value.size()};
+				m_data->flags |= uri_component::QUERY;
+				offset = 1;
+			}
+
+			/* Insert or erase characters to create buffer space. */
+			if (const auto old_size = query.end - query.start; old_size < value.size())
+			{
+				const auto diff = value.size() - old_size;
+				m_value.insert(query.end, diff, '\0');
+				query.end += diff;
+				offset += diff;
+			}
+			else if (old_size > value.size())
+			{
+				const auto diff = old_size - value.size();
+				m_value.erase(query.end -= diff, diff);
+				offset -= diff;
+			}
+
+			/* Copy string contents into padded buffer space. */
+			std::copy_n(value.data(), value.size(), m_value.data() + query.start);
+		}
+
+		/* Move fragment component. */
+		m_data->offset_components(uri_component::FRAGMENT, offset);
+		return *this;
+	}
+	uri &uri::append_query(string_view_type value, value_type sep)
+	{
+		/* Set new query if needed. */
+		if (auto &query = m_data.get().query(); !m_data->has_components(uri_component::QUERY)) [[unlikely]]
+			return set_query(value);
+		else
+		{
+			/* Insert query data & move component end index. */
+			const auto old_end = query.end;
+			m_value.insert(query.end++, 1, sep);
+			m_value.insert(query.end, value);
+			query.end += value.size();
+
+			/* Move fragment component if needed. */
+			m_data->offset_components(uri_component::FRAGMENT, query.end - old_end);
+			return *this;
+		}
+	}
+	uri &uri::set_fragment(string_view_type value)
+	{
+		if (auto &fragment = m_data.get().fragment(); value.empty()) /* Erase the old fragment. */
+		{
+			if (m_data->has_components(uri_component::FRAGMENT))
+			{
+				m_value.erase(fragment.start - 1, fragment.end); /* Include the prefix. */
+				m_data->flags &= ~uri_component::FRAGMENT;
+				fragment = {};
+			}
+		}
+		else
+		{
+			/* Create new fragment if needed. */
+			if (!m_data->has_components(uri_component::FRAGMENT))
+			{
+				m_value.push_back(fragment_prefix);
+				m_data->fragment() = {m_value.size(), value.size()};
+				m_data->flags |= uri_component::FRAGMENT;
+			}
+
+			/* Insert or erase characters to create buffer space. */
+			if (const auto old_size = fragment.end - fragment.start; old_size < value.size())
+			{
+				const auto diff = value.size() - old_size;
+				m_value.insert(fragment.end, diff, '\0');
+				fragment.end += diff;
+			}
+			else if (old_size > value.size())
+			{
+				const auto diff = old_size - value.size();
+				m_value.erase(fragment.end -= diff, diff);
+			}
+
+			/* Copy string contents into padded buffer space. */
+			std::copy_n(value.data(), value.size(), m_value.data() + fragment.start);
+		}
+		return *this;
+	}
 }	 // namespace sek
