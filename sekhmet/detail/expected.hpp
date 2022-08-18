@@ -168,7 +168,7 @@ namespace sek
 		template<typename T2, typename E2>
 		constexpr static bool is_constructible = std::constructible_from<T, T2> && std::constructible_from<E, E2>;
 		template<typename T2, typename E2>
-		constexpr static bool is_assignable = std::assignable_from<T, T2> && std::assignable_from<E, E2>;
+		constexpr static bool is_assignable = std::assignable_from<T &, T2> && std::assignable_from<E &, E2>;
 
 		// clang-format off
 		template<typename T2, typename E2>

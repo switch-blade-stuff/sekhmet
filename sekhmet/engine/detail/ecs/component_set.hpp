@@ -1079,7 +1079,7 @@ namespace sek::engine
 		constexpr size_type replace_impl(size_type idx, U &&value)
 		{
 			auto &ref = component_ref(idx);
-			if constexpr (std::is_assignable_v<T, U &&>)
+			if constexpr (std::is_assignable_v<T &, U &&>)
 				ref = std::forward<U>(value);
 			else if constexpr (std::is_move_assignable_v<T>)
 				ref = T{std::forward<U>(value)};

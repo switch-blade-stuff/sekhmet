@@ -135,14 +135,9 @@ namespace sek
 	struct member_setter_t<M>
 	{
 		template<typename U>
-		constexpr void operator()(I *instance, U &&value) const noexcept requires std::assignable_from<T, U>
+		constexpr void operator()(I *instance, U &&value) const noexcept requires std::assignable_from<T &, U>
 		{
-			instance->*M = value;
-		}
-		template<typename U>
-		constexpr void  operator()(const I *instance, U &&value) const noexcept requires std::assignable_from<T, U>
-		{
-			instance->*M = value;
+			instance->*M = std::forward<U>(value);
 		}
 	};
 	// clang-format on
@@ -161,15 +156,14 @@ namespace sek
 	 * An accessor function can simply return a property wrapper, which would then invoke the specified
 	 * functors when the member is dereferenced or modified.
 	 *
-	 * @tparam T Variable type referenced by the property wrapper.
 	 * @tparam Get Getter functor invoked when the property is dereferenced.
 	 * @tparam Set Setter functor invoked when the property is assigned.
 	 * @tparam I Instance type referenced by the wrapper and passed to the getter & setter functors.
 	 * @note `Get`, `Set` and `I` may be set to `void`, in which case the corresponding functionality will be disabled. */
-	template<typename T, typename Get, typename Set, typename I = void>
+	template<typename Get, typename Set, typename I = void>
 	class property_wrapper : detail::property_instance<I>, detail::accessor_base<Get>, detail::accessor_base<Set>
 	{
-		template<typename, typename, typename, typename>
+		template<typename, typename, typename>
 		friend class property_wrapper;
 
 		using instance_base = detail::property_instance<I>;
@@ -254,7 +248,7 @@ namespace sek
 		constexpr property_wrapper(I *ptr, const Get &get) noexcept(std::is_nothrow_default_constructible_v<setter_base> &&
 																	std::is_nothrow_copy_constructible_v<Get>)
 			requires(std::is_copy_constructible_v<Get> && !std::is_void_v<I> && !std::is_void_v<Get>)
-			: getter_base(get)
+			: instance_base(ptr), getter_base(get)
 		{
 		}
 		/** Initializes property wrapper with the specified instance and setter.
@@ -264,7 +258,7 @@ namespace sek
 		constexpr property_wrapper(I *ptr, const Set &set) noexcept(std::is_nothrow_default_constructible_v<getter_base> &&
 																	std::is_nothrow_copy_constructible_v<Set>)
 			requires(std::is_copy_constructible_v<Set> && !std::is_void_v<I> && !std::is_void_v<Set>)
-			: setter_base(set)
+			: instance_base(ptr), setter_base(set)
 		{
 		}
 		/** Initializes property wrapper with the specified instance, getter and setter.
@@ -276,7 +270,7 @@ namespace sek
 																					std::is_nothrow_copy_constructible_v<Set>)
 			requires(std::is_copy_constructible_v<Get> && std::is_copy_constructible_v<Set> &&
 					 !std::is_void_v<I> && !std::is_void_v<Get> && !std::is_void_v<Set>)
-			: getter_base(get), setter_base(set)
+			: instance_base(ptr), getter_base(get), setter_base(set)
 		{
 		}
 
@@ -302,14 +296,14 @@ namespace sek
 		/** Copy-assigns the property wrapper from another who's instance type is not const-qualified.
 		 * @note This overload is available only if the setter is not invocable with `const property_wrapper<T, Get, Set, J> &`. */
 		template<typename J, typename = std::enable_if_t<std::is_void_v<J> && std::is_const_v<I> && !std::is_const_v<J>>>
-		constexpr property_wrapper(const property_wrapper<T, Get, Set, J> &other)
+		constexpr property_wrapper(const property_wrapper<Get, Set, J> &other)
 			: instance_base(other.value), getter_base(other), setter_base(other)
 		{
 		}
 		/** Move-assigns the property wrapper from another who's instance type is not const-qualified.
 		 * @note This overload is available only if the setter is not invocable with `property_wrapper<T, Get, Set, J> &`. */
 		template<typename J, typename = std::enable_if_t<std::is_void_v<J> && std::is_const_v<I> && !std::is_const_v<J>>>
-		constexpr property_wrapper(property_wrapper<T, Get, Set, J> &&other) noexcept
+		constexpr property_wrapper(property_wrapper<Get, Set, J> &&other) noexcept
 			: instance_base(other.value), getter_base(std::move(other)), setter_base(std::move(other))
 		{
 		}
@@ -317,7 +311,7 @@ namespace sek
 		/** Copy-assigns the property wrapper from another who's instance type is not const-qualified.
 		 * @note This overload is available only if the setter is not invocable with `const property_wrapper<T, Get, Set, J> &`. */
 		template<typename J, typename = std::enable_if_t<std::is_void_v<J> && std::is_const_v<I> && !std::is_const_v<J>>>
-		constexpr property_wrapper &operator=(const property_wrapper<T, Get, Set, J> &other) requires (!is_settable<const property_wrapper<T, Get, Set, J> &>)
+		constexpr property_wrapper &operator=(const property_wrapper<Get, Set, J> &other) requires (!is_settable<const property_wrapper<Get, Set, J> &>)
 		{
 			instance_base::value = other.value;
 			getter_base::operator=(other);
@@ -327,7 +321,7 @@ namespace sek
 		/** Move-assigns the property wrapper from another who's instance type is not const-qualified.
 		 * @note This overload is available only if the setter is not invocable with `property_wrapper<T, Get, Set, J> &`. */
 		template<typename J, typename = std::enable_if_t<std::is_void_v<J> && std::is_const_v<I> && !std::is_const_v<J>>>
-		constexpr property_wrapper &operator=(property_wrapper<T, Get, Set, J> &&other) noexcept requires (!is_settable<const property_wrapper<T, Get, Set, J> &&>)
+		constexpr property_wrapper &operator=(property_wrapper<Get, Set, J> &&other) noexcept requires (!is_settable<const property_wrapper<Get, Set, J> &&>)
 		{
 			instance_base::value = other.value;
 			getter_base::operator=(std::move(other));
@@ -414,12 +408,21 @@ namespace sek
 				return getter_base::operator()(std::forward<Args>(args)...);
 		}
 	};
+
+	template<typename Get>
+	property_wrapper(const Get &) -> property_wrapper<Get, void>;
+	template<typename Get, typename Set>
+	property_wrapper(const Get &, const Set &) -> property_wrapper<Get, Set>;
+	template<typename I, typename Get>
+	property_wrapper(I *, const Get &) -> property_wrapper<Get, void, I>;
+	template<typename I, typename Get, typename Set>
+	property_wrapper(I *, const Get &, const Set &) -> property_wrapper<Get, Set, I>;
 	// clang-format on
 
 	/** @brief Alias used to create a getter-only property wrapper. */
-	template<typename T, typename Get, typename I = void>
-	using get_wrapper = property_wrapper<T, Get, void, I>;
+	template<typename Get, typename I = void>
+	using get_wrapper = property_wrapper<Get, void, I>;
 	/** @brief Alias used to create a setter-only property wrapper. */
-	template<typename T, typename Set, typename I = void>
-	using set_wrapper = property_wrapper<T, void, Set, I>;
+	template<typename Set, typename I = void>
+	using set_wrapper = property_wrapper<void, Set, I>;
 }	 // namespace sek
