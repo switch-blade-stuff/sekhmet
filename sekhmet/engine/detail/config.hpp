@@ -12,6 +12,7 @@
 #include "sekhmet/serialization/json.hpp"
 #include "sekhmet/service.hpp"
 #include "sekhmet/system/native_file.hpp"
+#include "sekhmet/uri.hpp"
 
 #include "type_info.hpp"
 #include <shared_mutex>
@@ -49,12 +50,20 @@ namespace sek::engine
 		/** Initializes an empty config path. */
 		constexpr cfg_path() noexcept = default;
 
-		/** Initializes a config path from a string view. */
-		cfg_path(std::string_view str) : m_path(str) { parse(); }
-		/** @copydoc cfg_path */
-		cfg_path(const std::string &str) : m_path(str) { parse(); }
 		/** Initializes a config path from a string. */
-		cfg_path(std::string &&str) : m_path(std::move(str)) { parse(); }
+		template<typename S>
+		cfg_path(const S &str) : m_value(str)
+		{
+			parse();
+		}
+		/** @copydoc cfg_path */
+		cfg_path(std::string &&str) : m_value(std::move(str)) { parse(); }
+		/** Initializes a config path from a pair of iterators. */
+		template<typename I, std::sentinel_for<I> S>
+		cfg_path(I first, S last) : m_value(first, last)
+		{
+			parse();
+		}
 
 		/** Initializes a config path from a C-style string. */
 		cfg_path(const char *str) : cfg_path(std::string_view{str}) {}
@@ -69,12 +78,12 @@ namespace sek::engine
 		[[nodiscard]] constexpr bool is_category() const noexcept { return elements() == 1; }
 
 		/** Returns reference to the underlying path string. */
-		[[nodiscard]] constexpr auto &string() noexcept { return m_path; }
+		[[nodiscard]] constexpr auto &string() noexcept { return m_value; }
 		/** @copydoc string */
-		[[nodiscard]] constexpr auto &string() const noexcept { return m_path; }
+		[[nodiscard]] constexpr auto &string() const noexcept { return m_value; }
 
 		/** Converts the path to a string view. */
-		[[nodiscard]] constexpr operator std::string_view() noexcept { return {m_path}; }
+		[[nodiscard]] constexpr operator std::string_view() noexcept { return {m_value}; }
 
 		/** Returns the category component of the path. */
 		[[nodiscard]] cfg_path category() const
@@ -103,7 +112,7 @@ namespace sek::engine
 		 * @return Reference to this path. */
 		cfg_path &append(const cfg_path &path)
 		{
-			m_path.append(path.m_path);
+			m_value.append(path.m_value);
 			parse();
 			return *this;
 		}
@@ -120,16 +129,10 @@ namespace sek::engine
 
 		/** Appends a string to the path.
 		 * @return Reference to this path. */
-		cfg_path &append(std::string_view str)
+		template<typename S>
+		cfg_path &append(const S &str)
 		{
-			m_path.append(str);
-			parse();
-			return *this;
-		}
-		/** @copydoc append */
-		cfg_path &append(const std::string &str)
-		{
-			m_path.append(str);
+			m_value.append(str);
 			parse();
 			return *this;
 		}
@@ -138,22 +141,18 @@ namespace sek::engine
 		/** @copydoc append */
 		cfg_path &append(const char *str, std::size_t n) { return append(std::string_view{str, n}); }
 		/** @copydoc append */
-		cfg_path &operator/=(std::string_view str) { return append(std::string_view{str}); }
-		/** @copydoc append */
-		cfg_path &operator/=(const std::string &str) { return append(std::string_view{str}); }
+		template<typename S>
+		cfg_path &operator/=(const S &str)
+		{
+			return append(std::string_view{str});
+		}
 		/** @copydoc append */
 		cfg_path &operator/=(const char *str) { return append(std::string_view{str}); }
 
 		/** Returns a path produced from concatenating a path with a string.
 		 * @return Concatenated path. */
-		[[nodiscard]] cfg_path operator/(std::string_view str) const
-		{
-			auto tmp = *this;
-			tmp /= str;
-			return tmp;
-		}
-		/** @copydoc operator/ */
-		[[nodiscard]] cfg_path operator/(const std::string &str) const
+		template<typename S>
+		[[nodiscard]] cfg_path operator/(const S &str) const
 		{
 			auto tmp = *this;
 			tmp /= str;
@@ -167,64 +166,64 @@ namespace sek::engine
 			return tmp;
 		}
 
-		[[nodiscard]] constexpr auto operator<=>(const cfg_path &other) noexcept { return m_path <=> other.m_path; }
-		[[nodiscard]] constexpr bool operator==(const cfg_path &other) noexcept { return m_path == other.m_path; }
+		[[nodiscard]] constexpr auto operator<=>(const cfg_path &other) noexcept { return m_value <=> other.m_value; }
+		[[nodiscard]] constexpr bool operator==(const cfg_path &other) noexcept { return m_value == other.m_value; }
 
 		[[nodiscard]] friend constexpr auto operator<=>(const std::string &a, const cfg_path &b) noexcept
 		{
-			return a <=> b.m_path;
+			return a <=> b.m_value;
 		}
 		[[nodiscard]] friend constexpr bool operator==(const std::string &a, const cfg_path &b) noexcept
 		{
-			return a == b.m_path;
+			return a == b.m_value;
 		}
 		[[nodiscard]] friend constexpr auto operator<=>(const cfg_path &a, const std::string &b) noexcept
 		{
-			return a.m_path <=> b;
+			return a.m_value <=> b;
 		}
 		[[nodiscard]] friend constexpr bool operator==(const cfg_path &a, const std::string &b) noexcept
 		{
-			return a.m_path == b;
+			return a.m_value == b;
 		}
 
 		[[nodiscard]] friend constexpr auto operator<=>(std::string_view a, const cfg_path &b) noexcept
 		{
-			return a <=> b.m_path;
+			return a <=> b.m_value;
 		}
 		[[nodiscard]] friend constexpr bool operator==(std::string_view a, const cfg_path &b) noexcept
 		{
-			return a == b.m_path;
+			return a == b.m_value;
 		}
 		[[nodiscard]] friend constexpr auto operator<=>(const cfg_path &a, std::string_view b) noexcept
 		{
-			return a.m_path <=> b;
+			return a.m_value <=> b;
 		}
 		[[nodiscard]] friend constexpr bool operator==(const cfg_path &a, std::string_view b) noexcept
 		{
-			return a.m_path == b;
+			return a.m_value == b;
 		}
 
 		[[nodiscard]] friend constexpr auto operator<=>(const char *a, const cfg_path &b) noexcept
 		{
-			return std::string_view{a} <=> b.m_path;
+			return std::string_view{a} <=> b.m_value;
 		}
 		[[nodiscard]] friend constexpr bool operator==(const char *a, const cfg_path &b) noexcept
 		{
-			return std::string_view{a} == b.m_path;
+			return std::string_view{a} == b.m_value;
 		}
 		[[nodiscard]] friend constexpr auto operator<=>(const cfg_path &a, const char *b) noexcept
 		{
-			return a.m_path <=> std::string_view{b};
+			return a.m_value <=> std::string_view{b};
 		}
 		[[nodiscard]] friend constexpr bool operator==(const cfg_path &a, const char *b) noexcept
 		{
-			return a.m_path == std::string_view{b};
+			return a.m_value == std::string_view{b};
 		}
 
 		constexpr void swap(cfg_path &other) noexcept
 		{
 			using std::swap;
-			swap(m_path, other.m_path);
+			swap(m_value, other.m_value);
 			swap(m_slices, other.m_slices);
 		}
 		friend constexpr void swap(cfg_path &a, cfg_path &b) noexcept { a.swap(b); }
@@ -235,7 +234,7 @@ namespace sek::engine
 		SEK_API void parse();
 
 		/** String containing the full normalized path. */
-		std::string m_path;
+		std::string m_value;
 		/** Individual elements of the path. */
 		std::vector<slice_t> m_slices;
 	};
@@ -582,14 +581,20 @@ namespace sek::engine
 		 * @return Entry pointer to the loaded entry.
 		 * @throw config_error If any entry within the resulting branch fails to initialize. */
 		SEK_API entry_ptr<false> load(cfg_path entry, serialization::json_tree &&tree, bool cache = true);
-		/** Loads an entry and all it's children from a Json file.
+		/** Loads an entry and all it's children from a local Json file.
 		 * @param entry Full path of the entry.
 		 * @param path Path to a Json file containing source data.
 		 * @param cache If set to true, the data will be cached and re-used for de-serialization of new entries.
 		 * @return Entry pointer to the loaded entry.
-		 * @throw config_error If the file fails to open in read mode or any entry within
-		 * the resulting branch fails to initialize. */
+		 * @throw config_error If the file fails to open or any entry within the resulting branch fails to initialize. */
 		SEK_API entry_ptr<false> load(cfg_path entry, const std::filesystem::path &path, bool cache = true);
+		/** Loads an entry and all it's children from a Json file pointed to by a URI.
+		 * @param entry Full path of the entry.
+		 * @param location URI to a Json file containing source data.
+		 * @param cache If set to true, the data will be cached and re-used for de-serialization of new entries.
+		 * @return Entry pointer to the loaded entry.
+		 * @throw config_error If the file fails to open or any entry within the resulting branch fails to initialize. */
+		SEK_API entry_ptr<false> load(cfg_path entry, const uri &location, bool cache = true);
 
 		/** Saves an entry and all it's children to a Json node tree.
 		 * @param which Pointer to the entry to be saved.

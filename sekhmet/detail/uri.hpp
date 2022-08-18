@@ -157,13 +157,9 @@ namespace sek
 	class uri
 	{
 	public:
-		/** @brief Type of string used to store URI data. */
-		typedef std::string string_type;
-		/** @brief Type of string view used to reference sections of URI. */
-		typedef std::string_view string_view_type;
-
-		/** @brief Character type of the URI. */
-		typedef typename string_type::value_type value_type;
+		typedef char value_type;
+		typedef std::basic_string<value_type> string_type;
+		typedef std::basic_string_view<value_type> string_view_type;
 
 		typedef std::size_t size_type;
 		typedef std::ptrdiff_t difference_type;
@@ -210,8 +206,8 @@ namespace sek
 	private:
 		struct element
 		{
-			size_type offset;
-			size_type size;
+			size_type start;
+			size_type end;
 		};
 
 		class data_handle
@@ -249,31 +245,52 @@ namespace sek
 		/** Initializes an empty URI. */
 		constexpr uri() noexcept = default;
 
-		/** @brief Initializes a URI from a string.
+		/** @brief Initializes URI from a string.
 		 *
 		 * Input string is parsed in conformance to the `RFC 3986` (Uniform Resource Identifier: Generic Syntax)
 		 * specification and formatted to conform to the case folding rules defined in
 		 * `RFC 3491` (Nameprep: A Stringprep Profile for Internationalized Domain Names (IDN)).
 		 *
-		 * @param str String containing the URI.
-		 * @note URI path will be formatted to conform to the `RFC 3491`. */
-		explicit uri(string_view_type str) : m_value(str) { parse(); }
+		 * @param str String containing the URI. */
+		template<typename S>
+		uri(const S &str) : m_value(str)
+		{
+			parse();
+		}
 		/** @copydoc uri */
-		explicit uri(const string_type &str) : m_value(str) { parse(); }
-		/** @copydoc uri */
-		explicit uri(string_type &&str) : m_value(std::move(str)) { parse(); }
+		uri(string_type &&str) : m_value(std::move(str)) { parse(); }
+
+		/** @brief Initializes URI from a pair of iterators.
+		 *
+		 * Input string is parsed in conformance to the `RFC 3986` (Uniform Resource Identifier: Generic Syntax)
+		 * specification and formatted to conform to the case folding rules defined in
+		 * `RFC 3491` (Nameprep: A Stringprep Profile for Internationalized Domain Names (IDN)).
+		 *
+		 * @param first Iterator to the first character of the URI string.
+		 * @param last Iterator one past the last character of the URI string. */
+		template<typename I, std::sentinel_for<I> S>
+		uri(I first, S last) : m_value(first, last)
+		{
+			parse();
+		}
+
+		/** @brief Initializes URI from a C-style string.
+		 *
+		 * Input string is parsed in conformance to the `RFC 3986` (Uniform Resource Identifier: Generic Syntax)
+		 * specification and formatted to conform to the case folding rules defined in
+		 * `RFC 3491` (Nameprep: A Stringprep Profile for Internationalized Domain Names (IDN)).
+		 *
+		 * @param str Pointer to a C-style string. */
+		uri(const value_type *str) : uri(string_view_type{str}) {}
+		/** @copydoc uri
+		 * @param n Size of the string. */
+		uri(const value_type *str, size_type n) : uri(string_view_type{str, n}) {}
 
 		/** Assigns the URI from a string.
 		 * @param str String containing the URI.
 		 * @return Reference to this URI. */
-		uri &operator=(string_view_type str)
-		{
-			m_value = str;
-			parse();
-			return *this;
-		}
-		/** @copydoc operator= */
-		uri &operator=(const string_type &str)
+		template<typename S>
+		uri &operator=(const S &str)
 		{
 			m_value = str;
 			parse();
@@ -287,9 +304,11 @@ namespace sek
 			return *this;
 		}
 		/** @copydoc operator= */
-		uri &assign(string_view_type str) { return operator=(str); }
-		/** @copydoc operator= */
-		uri &assign(const string_type &str) { return operator=(str); }
+		template<typename S>
+		uri &assign(const S &str)
+		{
+			return operator=(str);
+		}
 		/** @copydoc operator= */
 		uri &assign(string_type &&str) { return operator=(std::move(str)); }
 
@@ -372,7 +391,7 @@ namespace sek
 		/** Checks if the URI has a fragment. Equivalent to `has_components(uri_component::FRAGMENT)`. */
 		[[nodiscard]] bool has_fragment() const noexcept { return has_components(uri_component::FRAGMENT); }
 
-		/** Checks if the URI refers to a local file (uses the `file` scheme). Equivalent to `scheme() == "file"` */
+		/** Checks if the URI refers to a local file (uses the `file` scheme). */
 		[[nodiscard]] SEK_API bool is_local() const noexcept;
 
 		/** Checks if the URI is "clean" (has no query). Equivalent to `!has_query()`. */
@@ -452,64 +471,32 @@ namespace sek
 		/** Returns a string view to the fragment of the URI. */
 		[[nodiscard]] SEK_API string_view_type fragment() const noexcept;
 
-		/** Replaces scheme of the URI with that of `other`.
-		 * @param other URI containing the new scheme.
-		 * @return Reference to `this`. */
-		uri &set_scheme(const uri &other) { return set_scheme(other.scheme()); }
 		/** Replaces scheme of the URI.
 		 * @param scheme New scheme of the URI.
 		 * @return Reference to `this`. */
 		SEK_API uri &set_scheme(string_view_type scheme);
 
-		/** Replaces username of the URI with that of `other`.
-		 * @param other URI containing the new username.
-		 * @return Reference to `this`. */
-		uri &set_username(const uri &other) { return set_username(other.username()); }
 		/** Replaces username of the URI.
 		 * @param username New username of the URI.
 		 * @return Reference to `this`. */
 		SEK_API uri &set_username(string_view_type username);
-
-		/** Replaces password of the URI with that of `other`.
-		 * @param other URI containing the new password.
-		 * @return Reference to `this`. */
-		uri &set_password(const uri &other) { return set_password(other.password()); }
 		/** Replaces password of the URI.
 		 * @param password New password of the URI.
 		 * @return Reference to `this`. */
 		SEK_API uri &set_password(string_view_type password);
-
-		/** Replaces userinfo of the URI with that of `other`.
-		 * @param other URI containing the new userinfo.
-		 * @return Reference to `this`. */
-		uri &set_userinfo(const uri &other) { return set_userinfo(other.userinfo()); }
 		/** Replaces userinfo of the URI.
 		 * @param userinfo New userinfo of the URI.
 		 * @return Reference to `this`. */
 		SEK_API uri &set_userinfo(string_view_type userinfo);
 
-		/** Replaces host of the URI with that of `other`.
-		 * @param other URI containing the new host.
-		 * @return Reference to `this`. */
-		uri &set_host(const uri &other) { return set_host(other.host()); }
 		/** Replaces host of the URI.
 		 * @param host New host of the URI.
 		 * @return Reference to `this`. */
 		SEK_API uri &set_host(string_view_type host);
-
-		/** Replaces port of the URI with that of `other`.
-		 * @param other URI containing the new port.
-		 * @return Reference to `this`. */
-		uri &set_port(const uri &other) { return set_port(other.port()); }
 		/** Replaces port of the URI.
 		 * @param port New port of the URI.
 		 * @return Reference to `this`. */
 		SEK_API uri &set_port(string_view_type port);
-
-		/** Replaces authority of the URI with that of `other`.
-		 * @param other URI containing the new authority.
-		 * @return Reference to `this`. */
-		uri &set_authority(const uri &other) { return set_authority(other.authority()); }
 		/** Replaces authority of the URI.
 		 * @param authority New authority of the URI.
 		 * @return Reference to `this`. */
@@ -520,15 +507,7 @@ namespace sek
 		 * @return Reference to `this`.
 		 * @note URI path will be normalized. */
 		SEK_API uri &set_path(string_view_type path);
-		/** Replaces path of the URI with that of `other`.
-		 * @param other URI containing the new path.
-		 * @return Reference to `this`. */
-		uri &set_path(const uri &other) { return set_path(other.path()); }
 
-		/** Replaces query of the URI with that of `other`.
-		 * @param other URI containing the new query.
-		 * @return Reference to `this`. */
-		uri &set_query(const uri &other) { return set_query(other.query()); }
 		/** Replaces query of the URI.
 		 * @param query New query of the URI.
 		 * @return Reference to `this`. */
@@ -538,11 +517,6 @@ namespace sek
 		 * @param sep Separator character used for the query. May be one of the following: `&`, `;`. Default is `&`.
 		 * @return Reference to `this`. */
 		SEK_API uri &append_query(string_view_type query, value_type sep = '&');
-
-		/** Replaces fragment of the URI with that of `other`.
-		 * @param other URI containing the new fragment.
-		 * @return Reference to `this`. */
-		uri &set_fragment(const uri &other) { return set_fragment(other.fragment()); }
 		/** Replaces fragment of the URI.
 		 * @param fragment New fragment of the URI.
 		 * @return Reference to `this`. */

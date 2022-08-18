@@ -24,6 +24,21 @@ namespace sek
 	struct uri::data_handle::impl
 	{
 		uri_component flags = {};
+
+		element scheme;
+
+		/* Authority */
+		element username;
+		element password;
+		element host;
+		element port;
+
+		/* Path */
+		element path;
+		element file;
+
+		element query;
+		element fragment;
 	};
 
 	uri::data_handle::data_handle(const data_handle &other) : m_ptr(other.m_ptr ? new impl(*other.m_ptr) : nullptr) {}
@@ -358,7 +373,7 @@ namespace sek
 		}
 		return false;
 	}
-	inline void format_local_uri(typename uri::string_type &uri_str)
+	inline void format_local_uri(uri::string_type &uri_str)
 	{
 		/* Absolute paths must begin with `file://` */
 		if (is_absolute_path(uri_str.begin(), uri_str.end()))
@@ -387,5 +402,5 @@ namespace sek
 	void uri::parse() {}
 
 	bool uri::has_components(uri_component mask) const noexcept { return (m_data->flags & mask) == mask; }
-	bool uri::is_local() const noexcept { return m_value.starts_with("file:"); }
+	bool uri::is_local() const noexcept { return has_scheme() && m_value.starts_with("file:"); }
 }	 // namespace sek

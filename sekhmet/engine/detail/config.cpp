@@ -24,16 +24,16 @@ namespace sek::engine
 		m_slices.reserve(1);
 
 		const auto loc = std::locale{};
-		for (std::size_t base = 0, next = 0; next < m_path.size();)
+		for (std::size_t base = 0, next = 0; next < m_value.size();)
 		{
-			if (const auto c = m_path[next]; c == '/') [[unlikely]]
+			if (const auto c = m_value[next]; c == '/') [[unlikely]]
 			{
 				/* Strip terminating & repeating slashes. */
-				if (next + 1 == m_path.size()) [[unlikely]]
+				if (next + 1 == m_value.size()) [[unlikely]]
 					break;
-				else if (m_path[next + 1] == c) [[unlikely]]
+				else if (m_value[next + 1] == c) [[unlikely]]
 				{
-					m_path.erase(next);
+					m_value.erase(next);
 					continue;
 				}
 				base = ++next;
@@ -57,11 +57,11 @@ namespace sek::engine
 		{
 			auto slice = *first;
 			result.m_slices.push_back(slice);
-			result.m_path.append(m_path.data() + slice.first, m_path.data() + slice.last);
+			result.m_value.append(m_value.data() + slice.first, m_value.data() + slice.last);
 
 			if (++first == last) [[unlikely]]
 				break;
-			result.m_path.append(1, '/');
+			result.m_value.append(1, '/');
 		}
 		return result;
 	}
@@ -321,6 +321,13 @@ namespace sek::engine
 
 		input_archive input{cfg_file};
 		return load(std::move(entry), std::move(*input.tree), cache);
+	}
+	config_registry::entry_ptr<false> config_registry::load(cfg_path entry, const uri &location, bool cache)
+	{
+		if (location.is_local()) [[likely]]
+			return load(entry, std::filesystem::path{location.path(uri_format::DECODE_ALL)}, cache);
+		else /* TODO: Implement non-local URI loading. */
+			throw config_error("Loading configuration from non-local URI is not supported yet");
 	}
 	config_registry::entry_ptr<false> config_registry::load(cfg_path entry, json_tree &&tree, bool cache)
 	{
