@@ -14,17 +14,31 @@ room for skill ceiling.
 
 ### Milestones
 
-- [X] Core engine library.
-- [X] Template-based math library with `constexpr` and SIMD support.
-- [X] Runtime reflection system.
-- [X] Plugin system.
-- [X] Config management system
-- [X] Asset/resource system.
+- [X] Core engine library
+- [X] Template-based math library with `constexpr` and SIMD support
+- [X] Runtime reflection system
+- [X] Plugin system
+- [ ] Compile-time configurable serialization library    (currently under rework)
+    - [ ] Intermediate structured archive base           (currently under rework)
+    - [ ] Json input & output archives                   (currently under rework)
+    - [ ] UBJson input & output archives                 (currently under rework)
+    - [ ] Raw binary input & output archives             (currently under rework)
+- [ ] Asset/resource system. (currently under rework)
+    - [ ] "localhost" asset loading                      (currently under rework)
+    - [ ] Network config loading (via URI)
+- [ ] Config management system
+    - [X] "localhost" config saving/loading
+    - [ ] Network config saving/loading (via URI)
 - [ ] ECS
+    - [X] Core ECS - world, component & entity sets, views & collections
+    - [ ] Prefab & scene resource system
+- [ ] Debuging client & server
+    - [ ] Logger service
+    - [ ] Profiler service
 - [ ] UI framework/toolkit targeting
     - [ ] X11
     - [ ] DWM
-- [ ] Fully-featured editor.
+- [ ] Fully-featured editor
 
 ### License
 
