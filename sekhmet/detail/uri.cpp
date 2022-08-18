@@ -57,7 +57,86 @@ namespace sek
 	}
 	uri::data_handle::~data_handle() { delete m_ptr; }
 
-	inline static void encode_ace_str(uri::string_type &str)
+	[[nodiscard]] constexpr static std::uint32_t utf8_code_point(uri::string_view_type chars) noexcept
+	{
+		switch (chars.length())
+		{
+			case 1: return static_cast<std::uint32_t>(chars[0]);
+			case 2:
+				return static_cast<std::uint32_t>(chars[0] & 0b0001'1111) << 6 |
+					   static_cast<std::uint32_t>(chars[1] & 0b0011'1111);
+			case 3:
+				return static_cast<std::uint32_t>(chars[0] & 0b0000'1111) << 12 |
+					   static_cast<std::uint32_t>(chars[1] & 0b0011'1111) << 6 |
+					   static_cast<std::uint32_t>(chars[2] & 0b0011'1111);
+			case 4:
+				return static_cast<std::uint32_t>(chars[0] & 0b0000'0111) << 18 |
+					   static_cast<std::uint32_t>(chars[1] & 0b0011'1111) << 12 |
+					   static_cast<std::uint32_t>(chars[2] & 0b0011'1111) << 6 |
+					   static_cast<std::uint32_t>(chars[3] & 0b0011'1111);
+			default: return 0; /* Invalid. */
+		}
+	}
+	[[nodiscard]] constexpr static std::size_t utf8_width(char c) noexcept
+	{
+		if ((c & 0b1111'1000) == 0b1111'0000)
+			return 4;
+		else if ((c & 0b1111'0000) == 0b1110'0000)
+			return 3;
+		else if ((c & 0b1110'0000) == 0b1100'0000)
+			return 2;
+		return 1;
+	}
+
+	static const uri::string_view_type base36_digits = "abcdefghijklmnopqrstuvwxyz0123456789";
+
+	inline static void base36_encode(uri::string_type &buffer, std::size_t value)
+	{
+		for (std::size_t digit, offset = 0;; ++offset)
+		{
+			/* Calculate the digit & advance the value. */
+			digit = value % base36_digits.size();
+			value = value / base36_digits.size();
+
+			/* Insert the digit to its target position. */
+			buffer.insert(buffer.size() - offset, 1, base36_digits[digit]);
+
+			/* Break only after insertion to handle cases where `value` is 0. */
+			if (value == 0) [[unlikely]]
+				break;
+		}
+	}
+	inline static bool puny_encode(uri::string_type &buffer, uri::string_view_type data)
+	{
+		buffer.clear();
+
+		std::size_t ascii_end = 0;
+		for (std::size_t i = 0; i < data.size(); ++i)
+		{
+			/* Copy ASCII characters into the buffer & advance the ASCII end position.
+			 * For non-ASCII, encode `i * n` in base36 and append to the buffer. */
+			if (const auto c = data[i]; c <= '\x7f')
+				buffer.insert(ascii_end++, 1, c);
+			else
+			{
+				auto cp_len = std::min(utf8_width(c), data.size() - i);
+				const auto cp = data.substr(i, cp_len--);
+				const auto n = utf8_code_point(cp);
+
+				base36_encode(buffer, i * static_cast<std::size_t>(n - 127));
+
+				i += cp_len; /* Skip all encoded characters. */
+			}
+		}
+
+		/* If the ascii end is not 0 (there are ASCII characters), insert the ASCII postfix. */
+		if (ascii_end != 0) buffer.insert(ascii_end++, 1, '-');
+
+		/* If the end of the ASCII sequence is the same as the end of the string, there are no encoded characters. */
+		return ascii_end == buffer.size();
+	}
+
+	uri::string_type uri::encode_ace(string_view_type str)
 	{
 		/* Steps to encode a host string using ACE encoding as defined by Unicode Technical Standard #46:
 		 * 1. Separate host into labels at U+002E FULL STOP.
@@ -66,40 +145,33 @@ namespace sek
 		 *      2.2. Encode the label using Punycode
 		 *      2.3. Prefix the label with `xn--`.
 		 * 3. Join labels using U+002E FULL STOP. */
-		for (std::size_t base = 0, i = 0, n = str.size(); i < n; ++i)
-		{
-			/* Found the end of the label. */
-			if (i + 1 >= n || str[i] == '\x2e')
+		uri::string_type result, buffer;
+		result.reserve(str.size());
+		buffer.reserve(str.size());
+
+		for (std::size_t base = 0, i = 0; base < str.size();)
+			if (const auto j = i++; i == str.size() || str[i] == '\x2e')
 			{
-				/* Erase all non-ASCII characters. */
-				for (std::size_t j = base; j != i; ++j)
+				/* Encode the label. */
+				const auto label = str.substr(base, j);
+				if (puny_encode(buffer, label)) /* Use punycode-encoded label if there are any unicode characters. */
 				{
-
+					result.insert(result.size(), "xn--");
+					result.insert(result.size(), buffer);
 				}
+				else
+					result.insert(result.size(), label);
+
+				/* If there is anything after the current label, add delimiter.  */
+				if (i != str.size()) [[likely]]
+					result.push_back('\x2e');
+
+				/* Skip the separator & advance to the next label. */
+				base = ++i;
 			}
-		}
-	}
-
-	uri::string_type uri::encode_ace(string_view_type str)
-	{
-		auto result = string_type{str};
-		encode_ace_str(result);
 		return result;
 	}
-	uri::string_type uri::encode_ace(const string_type &str)
-	{
-		auto result = string_type{str};
-		encode_ace_str(result);
-		return result;
-	}
-	uri::string_type uri::encode_ace(string_type &&str)
-	{
-		auto result = string_type{std::forward<string_type>(str)};
-		encode_ace_str(result);
-		return result;
-	}
-
-	inline static void decode_ace_str(uri::string_type &str) {}
+	uri::string_type uri::decode_ace(string_view_type str) {}
 
 	inline static void decode_ace_host(uri &target)
 	{

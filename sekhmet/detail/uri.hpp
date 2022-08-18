@@ -170,24 +170,29 @@ namespace sek
 
 		/** Encodes a host string using the ASCII-Compatible Encoding (ACE).
 		 * @param str Unencoded string.
-		 * @return String encoded in ACE. */
+		 * @return String encoded in ACE.
+		 * @note Non-ASCII characters in the source string are treated as UTF-8. */
 		[[nodiscard]] static SEK_API string_type encode_ace(string_view_type str);
 		/** @copydoc encode_ace */
-		[[nodiscard]] static SEK_API string_type encode_ace(const string_type &str);
-		/** @copydoc encode_ace */
-		[[nodiscard]] static SEK_API string_type encode_ace(string_type &&str);
+		[[nodiscard]] static string_type encode_ace(const string_type &str)
+		{
+			return encode_ace(string_view_type{str});
+		}
 
 		/** Decodes a host string encoded using the ASCII-Compatible Encoding (ACE).
 		 * @param str String in ACE format.
-		 * @return Decoded string. */
+		 * @return Decoded string.
+		 * @note Decoder outputs UTF-8 sequences for encoded characters. */
 		[[nodiscard]] static SEK_API string_type decode_ace(string_view_type str);
 		/** @copydoc decode_ace */
-		[[nodiscard]] static SEK_API string_type decode_ace(const string_type &str);
-		/** @copydoc decode_ace */
-		[[nodiscard]] static SEK_API string_type decode_ace(string_type &&str);
+		[[nodiscard]] static string_type decode_ace(const string_type &str)
+		{
+			return decode_ace(string_view_type{str});
+		}
 
 		/** Returns a URI who's host is decoded from ASCII-Compatible Encoding (ACE).
-		 * Equivalent to initializing a URI from `str` and replacing it's host with a decoded string. */
+		 * Equivalent to initializing a URI from `str` and replacing it's host with a decoded string.
+		 * @note Non-ASCII characters in the source string are treated as UTF-8. */
 		[[nodiscard]] static SEK_API uri from_ace(string_view_type str);
 		/** @copydoc from_ace */
 		[[nodiscard]] static SEK_API uri from_ace(const string_type &str);
