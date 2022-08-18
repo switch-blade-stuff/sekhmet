@@ -24,10 +24,10 @@ room for skill ceiling.
     - [ ] UBJson input & output archives                 (currently under rework)
     - [ ] Raw binary input & output archives             (currently under rework)
 - [ ] Asset/resource system. (currently under rework)
-    - [ ] "localhost" asset loading                      (currently under rework)
+    - [ ] "local" asset loading                      (currently under rework)
     - [ ] Network config loading (via URI)
 - [ ] Config management system
-    - [X] "localhost" config saving/loading
+    - [X] "local" config saving/loading
     - [ ] Network config saving/loading (via URI)
 - [ ] ECS
     - [X] Core ECS - world, component & entity sets, views & collections
@@ -38,7 +38,7 @@ room for skill ceiling.
 - [ ] UI framework/toolkit targeting
     - [ ] X11
     - [ ] DWM
-- [ ] Fully-featured editor
+- [ ] Fully-featured customizeable editor
 
 ### License
 
