@@ -146,7 +146,6 @@ namespace sek
 		typedef typename sub_data_t::allocator_type allocator_type;
 		typedef typename sub_data_t::size_type size_type;
 		typedef typename iterator::difference_type difference_type;
-		typedef typename id_data_t::allocator_type id_allocator_type;
 
 	public:
 		/** Initializes an empty event. */
@@ -154,18 +153,13 @@ namespace sek
 
 		/** Initializes an empty event.
 		 * @param sub_alloc Allocator used to initialize internal subscriber storage. */
-		constexpr explicit basic_event(const allocator_type &sub_alloc, const id_allocator_type &id_alloc = id_allocator_type{})
-			: m_id_data(id_alloc), m_sub_data(sub_alloc)
-		{
-		}
+		constexpr explicit basic_event(const allocator_type &sub_alloc) : m_id_data(sub_alloc), m_sub_data(sub_alloc) {}
 		/** Initializes event with a set of delegates.
 		 * @param il Initializer list containing delegates of the event.
-		 * @param sub_alloc Allocator used to initialize internal subscriber storage.
-		 * @param id_alloc Allocator used to initialize internal id storage. */
+		 * @param sub_alloc Allocator used to initialize internal subscriber storage. */
 		constexpr basic_event(std::initializer_list<delegate<R(Args...)>> il,
-							  const allocator_type &sub_alloc = allocator_type{},
-							  const id_allocator_type &id_alloc = id_allocator_type{})
-			: basic_event(id_alloc, sub_alloc)
+							  const allocator_type &sub_alloc = allocator_type{})
+			: basic_event(sub_alloc)
 		{
 			for (auto &d : il) m_sub_data.emplace_back(d);
 		}

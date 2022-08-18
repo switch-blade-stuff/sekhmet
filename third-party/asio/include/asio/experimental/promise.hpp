@@ -291,7 +291,7 @@ struct promise<void(Ts...), Executor>
 
   template <execution::executor Executor1, typename Range>
 #if !defined(GENERATING_DOCUMENTATION)
-    requires requires (Range r)
+    requires requires(Range r)
     {
       {*std::begin(r)} -> is_promise_c;
       {*std::  end(r)} -> is_promise_c;
@@ -392,7 +392,7 @@ struct promise<void(Ts...), Executor>
 
   template <execution::executor Executor1, typename Range>
 #if !defined(GENERATING_DOCUMENTATION)
-    requires requires (Range r)
+    requires requires(Range r)
     {
       {*std::begin(r)} -> is_promise_c;
       {*std::  end(r)} -> is_promise_c;
@@ -488,7 +488,7 @@ struct promise<void(Ts...), Executor>
 
   template <typename Range>
 #if !defined(GENERATING_DOCUMENTATION)
-    requires requires (Range r)
+    requires requires(Range r)
     {
       {*std::begin(r)} -> is_promise_c;
       {*std::  end(r)} -> is_promise_c;
@@ -508,7 +508,7 @@ struct promise<void(Ts...), Executor>
 
   template <typename Range>
 #if !defined(GENERATING_DOCUMENTATION)
-    requires requires (Range&& r)
+    requires requires(Range&& r)
     {
       {*std::begin(r)} -> is_promise_c;
       {*std::  end(r)} -> is_promise_c;

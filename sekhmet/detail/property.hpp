@@ -77,7 +77,7 @@ namespace sek
 		};
 	}	 // namespace detail
 
-	/** @brief Helper structure used to wrap member and free function pointers for a property wrapper. */
+	/** @brief Helper structure used to wrap member and free function pointers use with `property_wrapper`. */
 	template<auto... Funcs>
 	class accessor_t
 	{
@@ -117,7 +117,7 @@ namespace sek
 	template<auto>
 	struct member_set_t;
 
-	/** @brief Helper structure used to create a simple member object getter for a property wrapper. */
+	/** @brief Helper structure used to create a simple member object getter for use with `property_wrapper`. */
 	template<typename T, typename I, T I::*M>
 	struct member_get_t<M>
 	{
@@ -130,7 +130,7 @@ namespace sek
 			return instance->*M;
 		}
 	};
-	/** @brief Helper structure used to create a simple member object setter for a property wrapper. */
+	/** @brief Helper structure used to create a simple member object setter for use with `property_wrapper`. */
 	template<typename T, typename I, T I::*M>
 	struct member_set_t<M>
 	{
@@ -276,7 +276,7 @@ namespace sek
 
 		/** Copy-assigns the property wrapper.
 		 * @note This overload is available only if the setter is not invocable with `const property_wrapper &`. */
-		constexpr property_wrapper &operator=(const property_wrapper &other) requires (!is_settable<const property_wrapper &>)
+		constexpr property_wrapper &operator=(const property_wrapper &other) requires(!is_settable<const property_wrapper &>)
 		{
 			instance_base::operator=(other);
 			getter_base::operator=(other);
@@ -285,7 +285,7 @@ namespace sek
 		}
 		/** Move-assigns the property wrapper.
 		 * @note This overload is available only if the setter is not invocable with `property_wrapper &&`. */
-		constexpr property_wrapper &operator=(property_wrapper &&other) noexcept requires (!is_settable<property_wrapper &&>)
+		constexpr property_wrapper &operator=(property_wrapper &&other) noexcept requires(!is_settable<property_wrapper &&>)
 		{
 			instance_base::operator=(std::move(other));
 			getter_base::operator=(std::move(other));
@@ -311,7 +311,7 @@ namespace sek
 		/** Copy-assigns the property wrapper from another who's instance type is not const-qualified.
 		 * @note This overload is available only if the setter is not invocable with `const property_wrapper<T, Get, Set, J> &`. */
 		template<typename J, typename = std::enable_if_t<std::is_void_v<J> && std::is_const_v<I> && !std::is_const_v<J>>>
-		constexpr property_wrapper &operator=(const property_wrapper<Get, Set, J> &other) requires (!is_settable<const property_wrapper<Get, Set, J> &>)
+		constexpr property_wrapper &operator=(const property_wrapper<Get, Set, J> &other) requires(!is_settable<const property_wrapper<Get, Set, J> &>)
 		{
 			instance_base::value = other.value;
 			getter_base::operator=(other);
@@ -321,7 +321,7 @@ namespace sek
 		/** Move-assigns the property wrapper from another who's instance type is not const-qualified.
 		 * @note This overload is available only if the setter is not invocable with `property_wrapper<T, Get, Set, J> &`. */
 		template<typename J, typename = std::enable_if_t<std::is_void_v<J> && std::is_const_v<I> && !std::is_const_v<J>>>
-		constexpr property_wrapper &operator=(property_wrapper<Get, Set, J> &&other) noexcept requires (!is_settable<const property_wrapper<Get, Set, J> &&>)
+		constexpr property_wrapper &operator=(property_wrapper<Get, Set, J> &&other) noexcept requires(!is_settable<const property_wrapper<Get, Set, J> &&>)
 		{
 			instance_base::value = other.value;
 			getter_base::operator=(std::move(other));
@@ -331,7 +331,7 @@ namespace sek
 
 		/** @brief Invokes the getter of this property.
 		 * @param args Arguments passed to the getter.
-		 * @return Any value returned by the getter. */
+		 * @return Value returned by the getter (if any). */
 		template<typename... Args>
 		constexpr decltype(auto) get(Args &&...args) const noexcept(is_nothrow_gettable<Args...>) requires is_gettable<Args...>
 		{
@@ -350,7 +350,7 @@ namespace sek
 
 		/** @brief Invokes the setter of this property.
 		 * @param args Arguments passed to the setter.
-		 * @return Any value returned by the setter. */
+		 * @return Value returned by the setter (if any). */
 		template<typename... Args>
 		constexpr decltype(auto) set(Args &&...args) const noexcept(is_nothrow_settable<Args...>) requires is_settable<Args...>
 		{
@@ -370,19 +370,19 @@ namespace sek
 		}
 
 		/** Returns pointer to the bound instance of the proxy wrapper. */
-		[[nodiscard]] constexpr I *instance() const noexcept requires (!std::is_void_v<I>)
+		[[nodiscard]] constexpr I *instance() const noexcept requires(!std::is_void_v<I>)
 		{
 			return instance_base::value;
 		}
 		/** Rebinds the instance pointer of the property wrapper.
 		 * @return Reference to this property wrapper. */
-		constexpr property_wrapper &rebind(I *ptr) noexcept requires (!std::is_void_v<I>)
+		constexpr property_wrapper &rebind(I *ptr) noexcept requires(!std::is_void_v<I>)
 		{
 			instance_base::rebind(ptr);
 			return *this;
 		}
 
-		constexpr void swap(property_wrapper &other) noexcept requires (std::is_swappable_v<getter_base> && std::is_swappable_v<setter_base>)
+		constexpr void swap(property_wrapper &other) noexcept requires(std::is_swappable_v<getter_base> && std::is_swappable_v<setter_base>)
 		{
 			instance_base::swap(other);
 			getter_base::swap(other);

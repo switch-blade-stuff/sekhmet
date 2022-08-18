@@ -6,6 +6,8 @@
 
 #include <mutex>
 
+#include "sekhmet/access_guard.hpp"
+#include "sekhmet/dense_map.hpp"
 #include "sekhmet/event.hpp"
 
 #include "type_info.hpp"
@@ -14,10 +16,12 @@ namespace sek::engine
 {
 	enum class message_scope : int
 	{
-		/** Messages are dispatched through the global synchronized message queue. */
-		GLOBAL,
+		/** Messages are dispatched through the synchronized global message queue. */
+		GLOBAL = 1,
 		/** Messages are dispatched through the thread-local message queue. */
-		THREAD,
+		THREAD = 2,
+		/** Messages are dispatched through both the synchronized global and thread-local message queues. */
+		ALL = GLOBAL | THREAD,
 	};
 
 	namespace detail
@@ -25,8 +29,6 @@ namespace sek::engine
 		template<message_scope>
 		struct message_sync
 		{
-			std::unique_lock<std::mutex> make_lock() { return std::unique_lock<std::mutex>{mtx}; }
-
 			std::mutex mtx;
 		};
 		template<>
@@ -34,67 +36,66 @@ namespace sek::engine
 		{
 		};
 
-		template<typename T, message_scope Scope>
-		struct queue_data : message_sync<Scope>
+		template<typename T, message_scope S>
+		struct queue_data : queue_data<void, S>
 		{
-			static queue_data &instance()
-			{
-				if constexpr (Scope == message_scope::GLOBAL)
-				{
-					static queue_data value;
-					return value;
-				}
-				else
-				{
-					static thread_local queue_data value;
-					return value;
-				}
-			}
-
-			void receive(const T &value) const
-			{
-				receive_event([](auto b) { return b; }, value);
-			}
-			bool send(const T &value) const
-			{
-				bool result = false;
-				send_event([&result](auto b) { return result = b; }, value);
-				return result;
-			}
-
-			std::vector<T> messages;
 			event<bool(const T &)> receive_event;
 			event<bool(const T &)> send_event;
 		};
+		template<message_scope S>
+		struct queue_data<void, S> : message_sync<S>
+		{
+			std::vector<any> messages;
+		};
 	}	 // namespace detail
 
-	/** @brief Message queue used to queue & dispatch messages type-specific messages.
-	 * @tparam Scope Scope of the message queue (global/thread local).
+	/** @brief Generic message queue used to queue & dispatch messages in a type-erased way.
+	 * @tparam Scope Target scope of the message queue.
 	 * @note Queues of different scopes are separate from each other. */
-	template<std::copyable T, message_scope Scope = message_scope::GLOBAL>
+	template<message_scope Scope = message_scope::ALL>
+	class generic_message_queue
+	{
+	public:
+		/** Queues a message for later dispatch.
+		 * @tparam type Type of the message to be queued.
+		 * @param value `any` containing value of the message. */
+		inline static void queue(std::string_view type, any value);
+		/** @copydoc send */
+		inline static void queue(type_info type, any value);
+		/** Sends a message immediately, bypassing the queue.
+		 * @tparam type Type of the message to be sent.
+		 * @param value `any` containing value of the message. */
+		inline static void send(std::string_view type, any value);
+		/** @copydoc send */
+		inline static void send(type_info type, any value);
+
+		/** Dispatches queued messages of the specified type. */
+		inline static void dispatch(std::string_view type);
+		/** @copydoc send */
+		inline static void dispatch(type_info type);
+		/** Dispatches queued messages of all types. */
+		inline static void dispatch();
+	};
+
+	/** @brief Type-specific message queue used to queue & dispatch messages.
+	 * @tparam T Message type handled by the message queue.
+	 * @tparam Scope Target scope of the message queue.
+	 * @note Queues of different scopes are separate from each other. */
+	template<typename T, message_scope Scope = message_scope::ALL>
 	class message_queue
 	{
 	public:
-		typedef event<bool(const T &)> receive_event_type;
-		typedef event<bool(const T &)> send_event_type;
-
-		typedef std::unique_lock<std::mutex> lock_type;
-
-	private:
-		using queue_data = detail::queue_data<T, Scope>;
-
-		static queue_data &instance() { return queue_data::instance(); }
+		typedef event<bool(const T &)> event_type;
 
 	public:
 		/** Queues a message for later dispatch.
-		 * @param data Data of the message.
-		 * @note Message data is copied by the queue. */
-		inline static void queue(const T &data = T{});
+		 * @param value `any` containing the value of the message. */
+		inline static void queue(any value);
+		/** Sends a message immediately, bypassing the queue.
+		 * @param value `any` containing the value of the message. */
+		inline static void send(any value);
 		/** Dispatches all queued messages. */
 		inline static void dispatch();
-		/** Sends a message immediately, bypassing the queue.
-		 * @param data Data of the message. */
-		inline static void send(const T &data = T{});
 
 		/** @brief Returns proxy for the receive event.
 		 *
@@ -103,7 +104,7 @@ namespace sek::engine
 		 * Event subscribers can return `false` to prematurely terminate message dispatching.
 		 *
 		 * @return Pair where first is the lock used to synchronize message queue, and second is the event proxy. */
-		inline static std::pair<lock_type, event_proxy<receive_event_type>> on_receive();
+		inline static ref_guard<event_proxy<event_type>, std::mutex> on_receive();
 		/** @brief Returns proxy for the send event.
 		 *
 		 * Send event is invoked when a message is sent or queued and can be used to filter the message data.
@@ -111,150 +112,85 @@ namespace sek::engine
 		 * Event subscribers can return `false` to prematurely terminate message sending
 		 * (terminated message will not be dispatched to the receive event).
 		 * @return Pair where first is the lock used to synchronize message queue, and second is the event proxy. */
-		inline static std::pair<lock_type, event_proxy<send_event_type>> on_send();
+		inline static ref_guard<event_proxy<event_type>, std::mutex> on_send();
 	};
-
-	template<std::copyable T, message_scope S>
-	void message_queue<T, S>::queue(const T &data)
-	{
-		auto &inst = instance();
-		auto l = inst.make_lock();
-		if (inst.send(data)) [[likely]]
-			inst.messages.emplace_back(data);
-	}
-	template<std::copyable T, message_scope S>
-	void message_queue<T, S>::dispatch()
-	{
-		// clang-format off
-		auto &inst = instance();
-		auto l = inst.make_lock();
-		for (auto &data : inst.messages)
-			inst.receive(data);
-		inst.messages.clear();
-		// clang-format on
-	}
-	template<std::copyable T, message_scope S>
-	void message_queue<T, S>::send(const T &data)
-	{
-		auto &inst = instance();
-		auto l = inst.make_lock();
-		if (inst.send(data)) [[likely]]
-			inst.receive(data);
-	}
-
-	template<std::copyable T, message_scope S>
-	std::pair<typename message_queue<T, S>::lock_type, event_proxy<typename message_queue<T, S>::receive_event_type>>
-		message_queue<T, S>::on_receive()
-	{
-		auto &inst = instance();
-		return {inst.make_lock(), inst.receive_event};
-	}
-	template<std::copyable T, message_scope S>
-	std::pair<typename message_queue<T, S>::lock_type, event_proxy<typename message_queue<T, S>::send_event_type>>
-		message_queue<T, S>::on_send()
-	{
-		auto &inst = instance();
-		return {inst.make_lock(), inst.send_event};
-	}
-
-	/** @copydoc message_queue
-	 * Thread-local message queue overload. */
-	template<std::copyable T>
-	class message_queue<T, message_scope::THREAD>
+	/** @brief Global `message_queue` of type `T`. Global queues are synchronized via an internal mutex. */
+	template<typename T>
+	class message_queue<T, message_scope::GLOBAL>
 	{
 	public:
-		typedef event<bool(const T &)> receive_event_type;
-		typedef event<bool(T &)> send_event_type;
-
-	private:
-		using queue_data = detail::queue_data<T, message_scope::THREAD>;
-
-		static queue_data &instance() { return queue_data::instance(); }
+		typedef event<bool(const T &)> event_type;
 
 	public:
-		/** @copydoc message_queue::queue */
-		inline static void queue(const T &data = T{});
-		/** @copydoc message_queue::dispatch */
+		/** Queues a message for later dispatch.
+		 * @param value Value of the message to be sent. */
+		inline static void queue(const T &value);
+		/** Sends a message immediately, bypassing the queue.
+		 * @param value Value of the message to be sent. */
+		inline static void send(const T &value);
+		/** Dispatches all queued messages. */
 		inline static void dispatch();
-		/** @copydoc message_queue::send */
-		inline static void send(const T &data = T{});
 
 		/** @brief Returns proxy for the receive event.
 		 *
 		 * Receive event is invoked when a message is sent or dispatched and is used to listen for message data.
+		 * Event subscribers can return `false` to prematurely terminate message dispatching.
 		 *
-		 * Event subscribers can return `false` to prematurely terminate message dispatching. */
-		inline static event_proxy<receive_event_type> on_receive();
+		 * @return Access guard to the event proxy. */
+		inline static ref_guard<event_proxy<event_type>, std::mutex> on_receive();
 		/** @brief Returns proxy for the send event.
 		 *
-		 * Send event is invoked when a message is sent or queued and can be used to filter the message data.
+		 * Send event is invoked when a message is sent or queued and is used to filter message data. Event subscribers
+		 * can return `false` to prematurely terminate message sending (terminated message will not be dispatched to
+		 * the receive event).
 		 *
-		 * Event subscribers can return `false` to prematurely terminate message sending
-		 * (terminated message will not be dispatched to the receive event). */
-		inline static event_proxy<send_event_type> on_send();
+		 * @return Access guard to the event proxy. */
+		inline static ref_guard<event_proxy<event_type>, std::mutex> on_send();
 	};
+	/** @brief Thread-local `message_queue` of type `T`. Thread-local queues are not synchronized. */
+	template<typename T>
+	class message_queue<T, message_scope::THREAD>
+	{
+	public:
+		typedef event<bool(const T &)> event_type;
 
-	template<std::copyable T>
-	void message_queue<T, message_scope::THREAD>::queue(const T &data)
-	{
-		auto &inst = instance();
-		if (inst.send(data)) [[likely]]
-			inst.messages.emplace_back(data);
-	}
-	template<std::copyable T>
-	void message_queue<T, message_scope::THREAD>::dispatch()
-	{
-		// clang-format off
-		auto &inst = instance();
-		for (auto &data : inst.messages)
-			inst.receive(data);
-		inst.messages.clear();
-		// clang-format on
-	}
-	template<std::copyable T>
-	void message_queue<T, message_scope::THREAD>::send(const T &data)
-	{
-		auto &inst = instance();
-		if (inst.send(data)) [[likely]]
-			inst.receive(data);
-	}
+	public:
+		/** Queues a message for later dispatch.
+		 * @param value Value of the message to be sent. */
+		inline static void queue(const T &value);
+		/** Sends a message immediately, bypassing the queue.
+		 * @param value Value of the message to be sent. */
+		inline static void send(const T &value);
+		/** Dispatches all queued messages. */
+		inline static void dispatch();
 
-	template<std::copyable T>
-	event_proxy<typename message_queue<T, message_scope::THREAD>::receive_event_type>
-		message_queue<T, message_scope::THREAD>::on_receive()
-	{
-		return instance().receive_event;
-	}
-	template<std::copyable T>
-	event_proxy<typename message_queue<T, message_scope::THREAD>::send_event_type>
-		message_queue<T, message_scope::THREAD>::on_send()
-	{
-		return instance().send_event;
-	}
+		/** @brief Returns proxy for the receive event.
+		 *
+		 * Receive event is invoked when a message is sent or dispatched and is used to listen for message data.
+		 * Event subscribers can return `false` to prematurely terminate message dispatching.
+		 *
+		 * @return Event proxy for the receive event. */
+		inline static event_proxy<event_type> on_receive();
+		/** @brief Returns proxy for the send event.
+		 *
+		 * Send event is invoked when a message is sent or queued and is used to filter message data. Event subscribers
+		 * can return `false` to prematurely terminate message sending (terminated message will not be dispatched to
+		 * the receive event).
+		 *
+		 * @return Event proxy for the send event. */
+		inline static event_proxy<event_type> on_send();
+	};
 
 	namespace attributes
 	{
 		/** @brief Attribute used to send messages of a specific type at runtime in a type-agnostic way. */
 		class message_type
 		{
-		private:
-			struct vtable_t
-			{
-				template<typename, message_scope>
-				constinit static const vtable_t instance;
-
-				void (*queue)(any);
-				void (*dispatch)();
-				void (*send)(any);
-			};
-
 		public:
 			message_type() = delete;
 
 			template<typename T>
-			constexpr explicit message_type(type_selector_t<T>) noexcept
-				: m_global(&vtable_t::instance<T, message_scope::GLOBAL>),
-				  m_thread(&vtable_t::instance<T, message_scope::THREAD>)
+			constexpr message_type(type_selector_t<T>) noexcept : m_type(type_info::get<T>())
 			{
 			}
 
@@ -263,53 +199,39 @@ namespace sek::engine
 			constexpr message_type(message_type &&) noexcept = default;
 			constexpr message_type &operator=(message_type &&) noexcept = default;
 
-			/** Queues message using the bound message queue.
-			 * @tparam Scope Scope of the message queue to queue the message on.
-			 * @param data Data of the message. */
+			/** Returns type info of the underlying message type. */
+			[[nodiscard]] constexpr type_info type() const noexcept { return m_type; }
+
+			/** Queues message using the message queue for the bound type.
+			 * @tparam Scope Scope of the target message queue.
+			 * @param value `any` containing value of the message. */
 			template<message_scope Scope = message_scope::GLOBAL>
 			void queue(any data) const
 			{
-				if constexpr (Scope == message_scope::GLOBAL)
-					m_global->queue(std::move(data));
-				else
-					m_thread->queue(std::move(data));
+				generic_message_queue<Scope>::queue(m_type, std::move(data));
 			}
-			/** Dispatches the bound message queue.
-			 * @tparam Scope Scope of the message queue to dispatch. */
-			template<message_scope Scope = message_scope::GLOBAL>
-			void dispatch() const
-			{
-				if constexpr (Scope == message_scope::GLOBAL)
-					m_global->dispatch();
-				else
-					m_thread->dispatch();
-			}
-			/** Sends message using the bound message queue.
-			 * @tparam Scope Scope of the message queue to send the message on.
-			 * @param data Data of the message. */
+			/** Sends message using the message queue for the bound type.
+			 * @tparam Scope Scope of the target message queue.
+			 * @param value `any` containing value of the message. */
 			template<message_scope Scope = message_scope::GLOBAL>
 			void send(any data) const
 			{
-				if constexpr (Scope == message_scope::GLOBAL)
-					m_global->send(std::move(data));
-				else
-					m_thread->send(std::move(data));
+				generic_message_queue<Scope>::send(m_type, std::move(data));
+			}
+			/** Dispatches the message queue for the bound type.
+			 * @tparam Scope Scope of the target message queue. */
+			template<message_scope Scope = message_scope::GLOBAL>
+			void dispatch() const
+			{
+				generic_message_queue<Scope>::dispatch(m_type);
 			}
 
 		private:
-			const vtable_t *m_global;
-			const vtable_t *m_thread;
+			type_info m_type;
 		};
 
-		template<typename T, message_scope S>
-		constinit const message_type::vtable_t message_type::vtable_t::instance = {
-			.queue = +[](any a) { message_queue<T, S>::queue(a.cast<const T &>()); },
-			.dispatch = +[]() { message_queue<T, S>::dispatch(); },
-			.send = +[](any a) { message_queue<T, S>::send(a.cast<const T &>()); },
-		};
-
-		/** Creates an instance of message source attribute for type `T`. */
+		/** Creates an instance of `message_type` attribute for type `T`. */
 		template<typename T>
 		constexpr static message_type make_message_type{type_selector<T>};
 	}	 // namespace attributes
-}	 // namespace sek
+}	 // namespace sek::engine

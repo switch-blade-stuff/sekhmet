@@ -423,7 +423,7 @@ namespace sek::engine
 
 		// clang-format off
 		template<typename U>
-		constexpr static bool good_cast = requires (T v) { static_cast<U>(v); };
+		constexpr static bool good_cast = requires(T v) { static_cast<U>(v); };
 		template<typename U>
 		constexpr static bool unqualified = std::same_as<std::remove_cvref_t<U>, U>;
 		template<typename U>

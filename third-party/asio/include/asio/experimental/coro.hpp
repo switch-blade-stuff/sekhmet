@@ -202,7 +202,7 @@ struct coro
   }
 
   /// Operator used for coroutines without input value.
-  auto operator co_await() requires (std::is_void_v<input_type>)
+  auto operator co_await() requires(std::is_void_v<input_type>)
   {
     return awaitable_t{*this};
   }

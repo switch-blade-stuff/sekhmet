@@ -26,7 +26,7 @@ namespace sek
 		template<typename...>
 		struct is_delegate_compatible : std::false_type {};
 		template<typename RDel, typename... ArgsDel, typename RFunc, typename... ArgsFunc>
-		requires (sizeof...(ArgsDel) == sizeof...(ArgsFunc))
+		requires(sizeof...(ArgsDel) == sizeof...(ArgsFunc))
 		struct is_delegate_compatible<RDel(ArgsDel...), RFunc(ArgsFunc...)>
 			: std::conjunction<std::is_convertible<RFunc, RDel>, std::is_convertible<ArgsDel, ArgsFunc>...>
 		{
@@ -531,58 +531,58 @@ namespace sek
 	template<typename R, typename... Args, R (*F)(Args...)>
 	delegate(delegate_func_t<F>) -> delegate<R(Args...)>;
 	template<typename R, typename... Args, R (&F)(Args...)>
-	delegate(func_t<F>) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>) -> delegate<R(Args...)>;
 
 	template<typename R, typename Arg, typename... Args, R (*F)(Arg *, Args...)>
-	delegate(func_t<F>, Arg *) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, Arg *) -> delegate<R(Args...)>;
 	template<typename R, typename Arg, typename... Args, R (*F)(Arg *, Args...)>
-	delegate(func_t<F>, Arg &) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, Arg &) -> delegate<R(Args...)>;
 	template<typename R, typename Arg, typename... Args, R (*F)(Arg &, Args...)>
-	delegate(func_t<F>, Arg &) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, Arg &) -> delegate<R(Args...)>;
 	template<typename R, typename Arg, typename... Args, R (&F)(Arg *, Args...)>
-	delegate(func_t<F>, Arg *) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, Arg *) -> delegate<R(Args...)>;
 	template<typename R, typename Arg, typename... Args, R (&F)(Arg *, Args...)>
-	delegate(func_t<F>, Arg &) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, Arg &) -> delegate<R(Args...)>;
 	template<typename R, typename Arg, typename... Args, R (&F)(Arg &, Args...)>
-	delegate(func_t<F>, Arg &) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, Arg &) -> delegate<R(Args...)>;
 	template<typename R, typename Arg, typename... Args, R (&F)(Arg, Args...)>
-	delegate(func_t<F>, Arg) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, Arg) -> delegate<R(Args...)>;
 
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...)>
-	delegate(func_t<F>, I *) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, I *) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const>
-	delegate(func_t<F>, I *) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, I *) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const>
-	delegate(func_t<F>, const I *) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, const I *) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) volatile>
-	delegate(func_t<F>, I *) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, I *) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) volatile>
-	delegate(func_t<F>, volatile I *) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, volatile I *) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const volatile>
-	delegate(func_t<F>, I *) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, I *) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const volatile>
-	delegate(func_t<F>, const I *) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, const I *) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const volatile>
-	delegate(func_t<F>, volatile I *) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, volatile I *) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const volatile>
-	delegate(func_t<F>, const volatile I *) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, const volatile I *) -> delegate<R(Args...)>;
 
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...)>
-	delegate(func_t<F>, I &) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, I &) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const>
-	delegate(func_t<F>, I &) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, I &) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const>
-	delegate(func_t<F>, const I &) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, const I &) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) volatile>
-	delegate(func_t<F>, I &) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, I &) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) volatile>
-	delegate(func_t<F>, volatile I &) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, volatile I &) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const volatile>
-	delegate(func_t<F>, I &) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, I &) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const volatile>
-	delegate(func_t<F>, const I &) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, const I &) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const volatile>
-	delegate(func_t<F>, volatile I &) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, volatile I &) -> delegate<R(Args...)>;
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const volatile>
-	delegate(func_t<F>, const volatile I &) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>, const volatile I &) -> delegate<R(Args...)>;
 }	 // namespace sek

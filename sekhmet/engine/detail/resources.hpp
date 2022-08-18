@@ -15,6 +15,11 @@ namespace sek::engine
 {
 	class resource_cache;
 
+	namespace attributes
+	{
+		class resource_type;
+	}
+
 	/** @brief Exception thrown by the resource system on runtime errors. */
 	class SEK_API resource_error : public std::runtime_error
 	{
@@ -25,125 +30,6 @@ namespace sek::engine
 		explicit resource_error(const char *msg) : std::runtime_error(msg) {}
 		~resource_error() override;
 	};
-
-	namespace attributes
-	{
-		/** @brief Attribute used to designate a type as a serializable resource. */
-		class resource_type
-		{
-			friend class engine::resource_cache;
-
-		public:
-			/** @brief Initializes resource attribute for type `T` with input archive `Input` and output archive `Output`.
-			 * @note Output archive type is only relevant in editor. */
-			template<typename T,
-					 serialization::input_archive<T> I = serialization::ubj::input_archive,
-					 serialization::output_archive<T> O = serialization::ubj::output_archive>
-			constexpr resource_type(type_selector_t<T>, type_selector_t<I>, type_selector_t<O>) noexcept
-			{
-				m_instantiate = +[]() { return std::static_pointer_cast<void>(std::make_shared<T>()); };
-				m_copy = +[](const void *ptr)
-				{
-					auto &t_ref = *static_cast<const T *>(ptr);
-					return std::static_pointer_cast<void>(std::make_shared<T>(t_ref));
-				};
-
-				m_forward_ref = +[](void *ptr) -> any_ref
-				{
-					auto &t_ref = *static_cast<T *>(ptr);
-					return any_ref{forward_any(t_ref)};
-				};
-
-				m_deserialize = +[](void *ptr, asset_source &src, float &state)
-				{
-					using reader_t = typename I::reader_type;
-					using char_t = typename I::char_type;
-					using traits_t = std::char_traits<char_t>;
-
-					typename reader_t::callback_info callbacks = {
-						.getn = +[](void *p, char_t *dst, std::size_t n) -> std::size_t
-						{
-							auto src = static_cast<asset_source *>(p);
-							return src->read(dst, n * sizeof(char_t));
-						},
-						.bump = +[](void *p, std::size_t n) -> std::size_t
-						{
-							auto src = static_cast<asset_source *>(p);
-							const auto bytes = static_cast<std::int64_t>(n * sizeof(char_t));
-							const auto pos = src->tell();
-							return static_cast<std::size_t>(src->seek(bytes, asset_source::cur) - pos);
-						},
-						.tell = +[](void *p) -> std::size_t
-						{
-							auto src = static_cast<asset_source *>(p);
-							return static_cast<std::size_t>(src->tell());
-						},
-						.peek = +[](void *p) -> typename traits_t::int_type
-						{
-							char_t c;
-							auto src = static_cast<asset_source *>(p);
-							auto total = src->read(&c, sizeof(char_t));
-
-							/* Seek back to the original position. */
-							src->seek(-static_cast<std::int64_t>(total), asset_source::cur);
-
-							if (total == sizeof(char_t)) [[likely]]
-								return traits_t::to_int_type(c);
-							return traits_t::eof();
-						},
-						.take = +[](void *p) -> typename traits_t::int_type
-						{
-							auto src = static_cast<asset_source *>(p);
-							if (char_t c; src->read(&c, sizeof(char_t)) == sizeof(char_t)) [[likely]]
-								return traits_t::to_int_type(c);
-							return traits_t::eof();
-						},
-					};
-
-					auto archive = I{reader_t{&callbacks, &src}};
-					archive.read(*static_cast<T *>(ptr), (state = 0.0f));
-				};
-
-#ifdef SEK_EDITOR /* Serialization is editor-only. */
-				m_serialize = +[](void *ptr, system::native_file &dst)
-				{
-					using writer_t = typename O::writer_type;
-					auto archive = O{writer_t{dst}};
-					archive << *static_cast<T *>(ptr);
-				};
-#endif
-			}
-			/** @brief Initializes resource attribute for type `T` with default (UBJson) input & output archives. */
-			template<typename T>
-			constexpr explicit resource_type(type_selector_t<T> s) noexcept : resource_type(s, {}, {})
-			{
-			}
-
-		private:
-			std::shared_ptr<void> (*m_instantiate)();
-			std::shared_ptr<void> (*m_copy)(const void *);
-
-			any_ref (*m_forward_ref)(void *);
-
-			void (*m_deserialize)(void *, asset_source &, float &);
-
-#ifdef SEK_EDITOR
-			void (*m_serialize)(void *, system::native_file &);
-#endif
-		};
-
-		/** Helper function used to create an instance of `resource_type` attribute for type `T`.
-		 * @tparam T Type to designate as a serializable resource.
-		 * @tparam I Input archive type to use for deserialization (UBJson by default).
-		 * @tparam O Output archive type to use for serialization (UBJson by default). */
-		template<typename T,
-				 serialization::input_archive<T> I = serialization::ubj::input_archive,
-				 serialization::output_archive<T> O = serialization::ubj::output_archive>
-		[[nodiscard]] constexpr resource_type make_resource_type() noexcept
-		{
-			return resource_type{type_selector<T>, type_selector<I>, type_selector<O>};
-		}
-	}	 // namespace attributes
 
 	/** @brief Service used to load resources and manage resource cache. */
 	class resource_cache : public service<access_guard<resource_cache, std::recursive_mutex>>
@@ -194,7 +80,10 @@ namespace sek::engine
 		 * @param copy If set to true, the resource will be copied from the cache.
 		 * @return Shared pointer to the resource or a null pointer if the asset handle is empty.
 		 * @throw resource_error If the asset is not a valid resource. */
-		std::shared_ptr<void> load(const asset_handle &asset, bool copy = false) { return load_impl(asset, copy).first; }
+		std::shared_ptr<void> load(const asset_handle &asset, bool copy = false)
+		{
+			return load_impl(asset, copy).first;
+		}
 		/** @copydoc load
 		 * @note Casts the resource to type `T` using it's type info. */
 		template<typename T>
@@ -261,6 +150,134 @@ namespace sek::engine
 		dense_map<uuid, cache_entry> m_cache;				  /* Cache of resource instances. */
 		dense_map<std::string_view, dense_set<uuid>> m_types; /* Cache of resource types. */
 	};
+
+	namespace attributes
+	{
+		/** @brief Attribute used to designate a type as a serializable resource. */
+		class resource_type
+		{
+			friend class engine::resource_cache;
+
+		public:
+			/** @brief Initializes resource attribute for type `T` with input archive `Input` and output archive `Output`.
+			 * @note Output archive type is only relevant in editor. */
+			template<typename T,
+					 serialization::input_archive<T> I = serialization::ubj::input_archive,
+					 serialization::output_archive<T> O = serialization::ubj::output_archive>
+			constexpr resource_type(type_selector_t<T>, type_selector_t<I>, type_selector_t<O>) noexcept
+			{
+				m_instantiate = +[]() { return std::static_pointer_cast<void>(std::make_shared<T>()); };
+				m_copy = +[](const void *ptr)
+				{
+					auto &t_ref = *static_cast<const T *>(ptr);
+					return std::static_pointer_cast<void>(std::make_shared<T>(t_ref));
+				};
+
+				m_forward_ref = +[](void *ptr) -> any_ref
+				{
+					auto &t_ref = *static_cast<T *>(ptr);
+					return any_ref{forward_any(t_ref)};
+				};
+
+				m_deserialize = +[](void *ptr, asset_source &src, resource_cache &cache, float &state)
+				{
+					using reader_t = typename I::reader_type;
+					using char_t = typename I::char_type;
+					using traits_t = std::char_traits<char_t>;
+
+					typename reader_t::callback_info callbacks = {
+						.getn = +[](void *p, char_t *dst, std::size_t n) -> std::size_t
+						{
+							auto src = static_cast<asset_source *>(p);
+							return src->read(dst, n * sizeof(char_t));
+						},
+						.bump = +[](void *p, std::size_t n) -> std::size_t
+						{
+							auto src = static_cast<asset_source *>(p);
+							const auto bytes = static_cast<std::int64_t>(n * sizeof(char_t));
+							const auto pos = src->tell();
+							return static_cast<std::size_t>(src->seek(bytes, asset_source::cur) - pos);
+						},
+						.tell = +[](void *p) -> std::size_t
+						{
+							auto src = static_cast<asset_source *>(p);
+							return static_cast<std::size_t>(src->tell());
+						},
+						.peek = +[](void *p) -> typename traits_t::int_type
+						{
+							char_t c;
+							auto src = static_cast<asset_source *>(p);
+							auto total = src->read(&c, sizeof(char_t));
+
+							/* Seek back to the original position. */
+							src->seek(-static_cast<std::int64_t>(total), asset_source::cur);
+
+							if (total == sizeof(char_t)) [[likely]]
+								return traits_t::to_int_type(c);
+							return traits_t::eof();
+						},
+						.take = +[](void *p) -> typename traits_t::int_type
+						{
+							auto src = static_cast<asset_source *>(p);
+							if (char_t c; src->read(&c, sizeof(char_t)) == sizeof(char_t)) [[likely]]
+								return traits_t::to_int_type(c);
+							return traits_t::eof();
+						},
+					};
+
+					auto archive = I{reader_t{&callbacks, &src}};
+					archive.read(*static_cast<T *>(ptr), cache, (state = 0.0f));
+				};
+
+#ifdef SEK_EDITOR /* Serialization is editor-only. */
+				m_serialize = +[](void *ptr, system::native_file &dst)
+				{
+					using writer_t = typename O::writer_type;
+					auto archive = O{writer_t{dst}};
+					archive << *static_cast<T *>(ptr);
+				};
+#endif
+			}
+			/** @brief Initializes resource attribute for type `T` with default (UBJson) input & output archives. */
+			template<typename T>
+			constexpr explicit resource_type(type_selector_t<T> s) noexcept : resource_type(s, {}, {})
+			{
+			}
+
+		private:
+			constexpr void deserialize(void *ptr, asset_source &src, resource_cache &cache, float &state) const
+			{
+				m_deserialize(ptr, src, cache, state);
+			}
+			constexpr void deserialize(void *ptr, asset_source &src, float &state) const
+			{
+				deserialize(ptr, src, *resource_cache::instance()->access_unique(), state);
+			}
+
+			std::shared_ptr<void> (*m_instantiate)();
+			std::shared_ptr<void> (*m_copy)(const void *);
+
+			any_ref (*m_forward_ref)(void *);
+
+			void (*m_deserialize)(void *, asset_source &, resource_cache &, float &);
+
+#ifdef SEK_EDITOR
+			void (*m_serialize)(void *, system::native_file &);
+#endif
+		};
+
+		/** Helper function used to create an instance of `resource_type` attribute for type `T`.
+		 * @tparam T Type to designate as a serializable resource.
+		 * @tparam I Input archive type to use for deserialization (UBJson by default).
+		 * @tparam O Output archive type to use for serialization (UBJson by default). */
+		template<typename T,
+				 serialization::input_archive<T> I = serialization::ubj::input_archive,
+				 serialization::output_archive<T> O = serialization::ubj::output_archive>
+		[[nodiscard]] constexpr resource_type make_resource_type() noexcept
+		{
+			return resource_type{type_selector<T>, type_selector<I>, type_selector<O>};
+		}
+	}	 // namespace attributes
 }	 // namespace sek::engine
 
 extern template class SEK_API_IMPORT sek::service<sek::access_guard<sek::engine::resource_cache, std::recursive_mutex>>;

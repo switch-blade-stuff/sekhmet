@@ -789,7 +789,7 @@ struct coro_promise final :
   // This await transformation determines whether cancellation is propagated as
   // an exception.
   auto await_transform(this_coro::throw_if_cancelled_0_t) noexcept
-    requires (!is_noexcept)
+    requires(!is_noexcept)
   {
     struct result
     {
@@ -817,7 +817,7 @@ struct coro_promise final :
   // exception.
   auto await_transform(
       this_coro::throw_if_cancelled_1_t throw_if_cancelled) noexcept
-    requires (!is_noexcept)
+    requires(!is_noexcept)
   {
     struct result
     {
@@ -1020,7 +1020,7 @@ struct coro<Yield, Return, Executor>::initiate_async_resume
   }
 
   template <typename E, typename WaitHandler>
-  requires (!std::is_void_v<result_type>)
+  requires(!std::is_void_v<result_type>)
   auto handle(E exec, WaitHandler&& handler,
       std::true_type /* error is noexcept */,
       std::false_type  /* result is void */)  //noexcept

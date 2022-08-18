@@ -558,73 +558,73 @@ namespace sek
 		// clang-format off
 		/** @copydoc set_scheme */
 		template<typename T>
-		uri &set_scheme(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		uri &set_scheme(const T &value) requires(!std::convertible_to<T, string_view_type>)
 		{
 			return set_scheme(string_view_type{value});
 		}
 		/** @copydoc set_username */
 		template<typename T>
-		uri &set_username(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		uri &set_username(const T &value) requires(!std::convertible_to<T, string_view_type>)
 		{
 			return set_username(string_view_type{value});
 		}
 		/** @copydoc set_password */
 		template<typename T>
-		uri &set_password(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		uri &set_password(const T &value) requires(!std::convertible_to<T, string_view_type>)
 		{
 			return set_password(string_view_type{value});
 		}
 		/** @copydoc set_userinfo */
 		template<typename T>
-		uri &set_userinfo(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		uri &set_userinfo(const T &value) requires(!std::convertible_to<T, string_view_type>)
 		{
 			return set_userinfo(string_view_type{value});
 		}
 		/** @copydoc set_host */
 		template<typename T>
-		uri &set_host(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		uri &set_host(const T &value) requires(!std::convertible_to<T, string_view_type>)
 		{
 			return set_host(string_view_type{value});
 		}
 		/** @copydoc set_port */
 		template<typename T>
-		uri &set_port(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		uri &set_port(const T &value) requires(!std::convertible_to<T, string_view_type>)
 		{
 			return set_port(string_view_type{value});
 		}
 		/** @copydoc set_authority */
 		template<typename T>
-		uri &set_authority(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		uri &set_authority(const T &value) requires(!std::convertible_to<T, string_view_type>)
 		{
 			return set_authority(string_view_type{value});
 		}
 		/** @copydoc set_path */
 		template<typename T>
-		uri &set_path(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		uri &set_path(const T &value) requires(!std::convertible_to<T, string_view_type>)
 		{
 			return set_path(string_view_type{value});
 		}
 		/** @copydoc set_filename */
 		template<typename T>
-		uri &set_filename(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		uri &set_filename(const T &value) requires(!std::convertible_to<T, string_view_type>)
 		{
 			return set_filename(string_view_type{value});
 		}
 		/** @copydoc set_query */
 		template<typename T>
-		uri &set_query(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		uri &set_query(const T &value) requires(!std::convertible_to<T, string_view_type>)
 		{
 			return set_query(string_view_type{value});
 		}
 		/** @copydoc append_query */
 		template<typename T>
-		uri &append_query(const T &value, value_type sep = '&') requires (!std::convertible_to<T, string_view_type>)
+		uri &append_query(const T &value, value_type sep = '&') requires(!std::convertible_to<T, string_view_type>)
 		{
 			return append_query(string_view_type{value}, sep);
 		}
 		/** @copydoc set_fragment */
 		template<typename T>
-		uri &set_fragment(const T &value) requires (!std::convertible_to<T, string_view_type>)
+		uri &set_fragment(const T &value) requires(!std::convertible_to<T, string_view_type>)
 		{
 			return set_fragment(string_view_type{value});
 		}

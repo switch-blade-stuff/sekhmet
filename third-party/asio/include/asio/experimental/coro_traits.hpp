@@ -32,7 +32,7 @@ template <typename T>
 concept decays_to_executor = execution::executor<std::decay_t<T>>;
 
 template <typename T, typename Executor = any_io_executor>
-concept execution_context = requires (T& t)
+concept execution_context = requires(T& t)
 {
   {t.get_executor()} -> convertible_to<Executor>;
 };

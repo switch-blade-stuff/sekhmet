@@ -62,7 +62,7 @@ namespace sek::engine
 	{
 		auto result = metadata.type.construct();
 		float dummy;
-		metadata.attr->m_deserialize(result.data(), src, dummy);
+		metadata.attr->deserialize(result.data(), src, dummy);
 		return result;
 	}
 	any resource_cache::load_anonymous(type_info type, asset_source &src)
@@ -109,7 +109,7 @@ namespace sek::engine
 				/* Read the entry from the asset. */
 				auto src = asset.open();
 				float dummy;
-				metadata->attr->m_deserialize(ptr.get(), src, dummy);
+				metadata->attr->deserialize(ptr.get(), src, *this, dummy);
 			}
 			else
 				ptr = existing->second.data.lock();

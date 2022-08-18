@@ -27,7 +27,7 @@ namespace sek::engine
 	 * preformed for owned components. While creating multiple owning collections for the same component type is
 	 * allowed, such collections must either have the same owned components or be a "specialized" version
 	 * of one another. For example, if owned components of collection `A` are `int, float`, collection `B` can only
-	 * own one of the following: `int`, `int, float`, `int, float, Ts...` where `Ts...` is a sequence of other
+	 * own one of the following: `int`, `int, float` or `int, float, Ts...` where `Ts...` is a sequence of other
 	 * component types. Specialized collections are allowed to exist, since sort order of a more-specialized collection
 	 * will always satisfy a less-specialized one.
 	 *
@@ -374,6 +374,7 @@ namespace sek::engine
 		opt_ptr m_optional = {};
 	};
 
+	/** @brief Non-owning specialization of `component_collection`. */
 	template<typename... I, typename... E, typename... O>
 	class component_collection<owned_t<>, included_t<I...>, excluded_t<E...>, optional_t<O...>>
 	{
