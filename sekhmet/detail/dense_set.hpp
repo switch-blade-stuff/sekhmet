@@ -166,12 +166,18 @@ namespace sek
 			: m_table(other.m_table)
 		{
 		}
-		/** Copy-constructs the set. Allocator is move-constructed.
+		/** Copy-constructs the set.
 		 * @param other Map to copy data and bucket allocator from.
 		 * @param alloc Allocator used to allocate set's value array. */
 		constexpr dense_set(const dense_set &other, const allocator_type &alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, const table_type &, const allocator_type &>)
 			: m_table(other.m_table, alloc)
+		{
+		}
+		/** Move-constructs the set. Allocator is move-constructed.
+		 * @param other Map to move elements and bucket allocator from. */
+		constexpr dense_set(dense_set &&other) noexcept(std::is_nothrow_move_constructible_v<table_type>)
+			: m_table(std::move(other.m_table))
 		{
 		}
 		/** Move-constructs the set.

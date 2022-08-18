@@ -53,13 +53,13 @@ namespace sek::engine
 		asset_package(const asset_package &) = default;
 		asset_package &operator=(const asset_package &) = default;
 
-		/** Returns URI location of the asset package. */
-		[[nodiscard]] constexpr const uri &location() const noexcept { return m_ptr->location(); }
-
 		/** Checks if the asset package is empty (does not contain any assets). */
 		[[nodiscard]] constexpr bool empty() const noexcept { return m_ptr->empty(); }
 		/** Returns the number of assets contained within the package. */
 		[[nodiscard]] constexpr auto size() const noexcept { return m_ptr->size(); }
+
+		/** Returns URI location of the asset package. */
+		[[nodiscard]] constexpr const uri &location() const noexcept { return m_ptr->location(); }
 
 		/** Returns iterator to the first asset of the package. */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return m_ptr->begin(); }

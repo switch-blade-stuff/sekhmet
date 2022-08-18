@@ -415,13 +415,13 @@ namespace sek
 		 * if such subscriber is not found. */
 		template<auto F>
 		[[nodiscard]] constexpr iterator find() const noexcept
-			requires(requires{ delegate{func_t<F>{}}; })
+			requires(requires{ delegate{delegate_func_t<F>{}}; })
 		{
-			return find(delegate{func_t<F>{}});
+			return find(delegate{delegate_func_t<F>{}});
 		}
 		/** @copydoc find */
 		template<auto F>
-		[[nodiscard]] constexpr iterator find(func_t<F>) const noexcept
+		[[nodiscard]] constexpr iterator find(delegate_func_t<F>) const noexcept
 			requires(requires{ find<F>(); })
 		{
 			return find<F>();
@@ -430,27 +430,27 @@ namespace sek
 		 * data instance, or an end iterator if such subscriber is not found. */
 		template<auto F, typename T>
 		[[nodiscard]] constexpr iterator find(T *value) const noexcept
-			requires(requires{ delegate{func_t<F>{}, value}; })
+			requires(requires{ delegate{delegate_func_t<F>{}, value}; })
 		{
-			return find(delegate{func_t<F>{}, value});
+			return find(delegate{delegate_func_t<F>{}, value});
 		}
 		/** @copydoc find */
 		template<auto F, typename T>
 		[[nodiscard]] constexpr iterator find(T &value) const noexcept
-			requires(requires{ delegate{func_t<F>{}, value}; })
+			requires(requires{ delegate{delegate_func_t<F>{}, value}; })
 		{
-			return find(delegate{func_t<F>{}, value});
+			return find(delegate{delegate_func_t<F>{}, value});
 		}
 		/** @copydoc find */
 		template<auto F, typename T>
-		[[nodiscard]] constexpr iterator find(func_t<F>, T *value) const noexcept
+		[[nodiscard]] constexpr iterator find(delegate_func_t<F>, T *value) const noexcept
 			requires(requires{ find<F>(value); })
 		{
 			return find<F>(value);
 		}
 		/** @copydoc find */
 		template<auto F, typename T>
-		[[nodiscard]] constexpr iterator find(func_t<F>, T &value) const noexcept
+		[[nodiscard]] constexpr iterator find(delegate_func_t<F>, T &value) const noexcept
 			requires(requires{ find<F>(value); })
 		{
 			return find<F>(value);
@@ -722,45 +722,45 @@ namespace sek
 		 * if such subscriber is not found. */
 		template<auto F>
 		[[nodiscard]] constexpr iterator find() const noexcept
-			requires(requires{ delegate{func_t<F>{}}; })
+			requires(requires{ delegate{delegate_func_t<F>{}}; })
 		{
 			return m_event.template find<F>();
 		}
 		/** @copydoc find */
 		template<auto F>
-		[[nodiscard]] constexpr iterator find(func_t<F>) const noexcept
+		[[nodiscard]] constexpr iterator find(delegate_func_t<F>) const noexcept
 			requires(requires{ find<F>(); })
 		{
-			return m_event.find(func_t<F>{});
+			return m_event.find(delegate_func_t<F>{});
 		}
 		/** Returns iterator to the subscriber delegate bound to the specified member or free function and the specified
 		 * data instance, or an end iterator if such subscriber is not found. */
 		template<auto F, typename T>
 		[[nodiscard]] constexpr iterator find(T *value) const noexcept
-			requires(requires{ delegate{func_t<F>{}, value}; })
+			requires(requires{ delegate{delegate_func_t<F>{}, value}; })
 		{
 			return m_event.template find<F, T>(value);
 		}
 		/** @copydoc find */
 		template<auto F, typename T>
 		[[nodiscard]] constexpr iterator find(T &value) const noexcept
-			requires(requires{ delegate{func_t<F>{}, value}; })
+			requires(requires{ delegate{delegate_func_t<F>{}, value}; })
 		{
 			return m_event.template find<F, T>(value);
 		}
 		/** @copydoc find */
 		template<auto F, typename T>
-		[[nodiscard]] constexpr iterator find(func_t<F>, T *value) const noexcept
+		[[nodiscard]] constexpr iterator find(delegate_func_t<F>, T *value) const noexcept
 			requires(requires{ find<F>(value); })
 		{
-			return m_event.find(func_t<F>{}, value);
+			return m_event.find(delegate_func_t<F>{}, value);
 		}
 		/** @copydoc find */
 		template<auto F, typename T>
-		[[nodiscard]] constexpr iterator find(func_t<F>, T &value) const noexcept
+		[[nodiscard]] constexpr iterator find(delegate_func_t<F>, T &value) const noexcept
 			requires(requires{ find<F>(value); })
 		{
-			return m_event.find(func_t<F>{}, value);
+			return m_event.find(delegate_func_t<F>{}, value);
 		}
 		// clang-format on
 

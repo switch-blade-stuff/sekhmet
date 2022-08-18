@@ -410,23 +410,41 @@ namespace sek
 		return result;
 	}
 
-	[[nodiscard]] constexpr bool is_absolute_path(auto begin, auto end) noexcept
+	[[nodiscard]] constexpr bool is_allowed_separator(uri::value_type c) noexcept
+	{
+#ifdef SEK_USE_WIN_PATH
+		return c == '/' || c == '\\';
+#else
+		return c == '/';
+#endif
+	}
+	[[nodiscard]] constexpr bool has_root_path(auto begin, auto end) noexcept
 	{
 		if (const auto size = std::distance(begin, end); size != 0)
 		{
 #ifdef SEK_USE_WIN_PATH
 			return (size > 1 && begin[0] >= 'A' && begin[0] <= 'Z' && (begin[1] == ':' || begin[1] == '|')) ||
-				   (begin[0] == '/' || begin[0] == '\\');
+				   is_allowed_separator(begin[0]);
 #else
-			return begin[0] == '/';
+			return is_allowed_separator(begin[0]);
 #endif
 		}
 		return false;
 	}
+	[[nodiscard]] constexpr bool has_filename(auto begin, auto end) noexcept
+	{
+		for (auto item = end; item-- != begin;)
+		{
+			/* Filename is the last part of the path not ending with a separator. */
+			if (is_allowed_separator(*item)) [[unlikely]]
+				return false;
+		}
+		return begin != end;
+	}
 	inline void format_local_uri(uri::string_type &uri_str)
 	{
 		/* Absolute paths must begin with `file://` */
-		if (is_absolute_path(uri_str.begin(), uri_str.end()))
+		if (has_root_path(uri_str.begin(), uri_str.end()))
 			uri_str.insert(0, "file://");
 		else
 			uri_str.insert(0, "file:");

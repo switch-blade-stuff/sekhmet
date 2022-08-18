@@ -54,17 +54,21 @@ namespace sek
 	// clang-format off
 	/** @brief Helper type used to specify a compile-time function. */
 	template<auto F>
-	struct func_t;
+	struct delegate_func_t;
 
 	template<auto F> requires std::is_function_v<decltype(F)>
-	struct func_t<F>
+	struct delegate_func_t<F>
 	{
 	};
 	template<auto F> requires std::is_member_function_pointer_v<decltype(F)>
-	struct func_t<F>
+	struct delegate_func_t<F>
 	{
 	};
 	// clang-format on
+
+	/** Instance of the `delegate_func_t` helper type. */
+	template<auto F>
+	constexpr auto delegate_func = delegate_func_t<F>{};
 
 	template<typename>
 	class delegate;
@@ -172,44 +176,44 @@ namespace sek
 
 		/** Initializes a delegate from a free function. */
 		template<auto F>
-		constexpr delegate(func_t<F>) noexcept requires free_func<F>
+		constexpr delegate(delegate_func_t<F>) noexcept requires free_func<F>
 		{
 			assign<F>();
 		}
 		/** Initializes a delegate from a free and a bound argument. */
 		template<auto F, typename Arg>
-		constexpr delegate(func_t<F>, Arg *arg) noexcept requires free_func<F, Arg *>
+		constexpr delegate(delegate_func_t<F>, Arg *arg) noexcept requires free_func<F, Arg *>
 		{
 			assign<F>(arg);
 		}
 		/** @copydoc delegate */
 		template<auto F, typename Arg>
-		constexpr delegate(func_t<F>, Arg &arg) noexcept requires free_func<F, Arg *>
+		constexpr delegate(delegate_func_t<F>, Arg &arg) noexcept requires free_func<F, Arg *>
 		{
 			assign<F>(arg);
 		}
 		/** @copydoc delegate */
 		template<auto F, typename Arg>
-		constexpr delegate(func_t<F>, Arg &arg) noexcept requires free_func<F, Arg &>
+		constexpr delegate(delegate_func_t<F>, Arg &arg) noexcept requires free_func<F, Arg &>
 		{
 			assign<F>(arg);
 		}
 		/** @copydoc delegate */
 		template<auto F, typename T>
-		constexpr delegate(func_t<F>, T &&arg) noexcept requires free_func<F, T> && candidate_arg<T>
+		constexpr delegate(delegate_func_t<F>, T &&arg) noexcept requires free_func<F, T> && candidate_arg<T>
 		{
 			assign<F>(std::forward<T>(arg));
 		}
 
 		/** Initializes a delegate from a member function and an instance pointer. */
 		template<auto F, typename I>
-		constexpr delegate(func_t<F>, I *instance) noexcept requires mem_func<F>
+		constexpr delegate(delegate_func_t<F>, I *instance) noexcept requires mem_func<F>
 		{
 			assign<F>(instance);
 		}
 		/** Initializes a delegate from a member function and an instance reference. */
 		template<auto F, typename I>
-		constexpr delegate(func_t<F>, I &instance) noexcept requires mem_func<F>
+		constexpr delegate(delegate_func_t<F>, I &instance) noexcept requires mem_func<F>
 		{
 			assign<F>(instance);
 		}
@@ -338,13 +342,13 @@ namespace sek
 		}
 		/** @copydoc assign */
 		template<auto F>
-		constexpr delegate &assign(func_t<F>) noexcept requires free_func<F>
+		constexpr delegate &assign(delegate_func_t<F>) noexcept requires free_func<F>
 		{
 			return assign<F>();
 		}
 		/** @copydoc assign */
 		template<auto F>
-		constexpr delegate &operator=(func_t<F>) noexcept requires free_func<F>
+		constexpr delegate &operator=(delegate_func_t<F>) noexcept requires free_func<F>
 		{
 			return assign<F>();
 		}
@@ -400,25 +404,25 @@ namespace sek
 		}
 		/** @copydoc assign */
 		template<auto F, typename Arg>
-		constexpr delegate &assign(func_t<F>, Arg *arg) noexcept requires free_func<F, Arg *>
+		constexpr delegate &assign(delegate_func_t<F>, Arg *arg) noexcept requires free_func<F, Arg *>
 		{
 			return assign<F>(arg);
 		}
 		/** @copydoc assign */
 		template<auto F, typename Arg>
-		constexpr delegate &assign(func_t<F>, Arg &arg) noexcept requires free_func<F, Arg *>
+		constexpr delegate &assign(delegate_func_t<F>, Arg &arg) noexcept requires free_func<F, Arg *>
 		{
 			return assign<F>(arg);
 		}
 		/** @copydoc assign */
 		template<auto F, typename Arg>
-		constexpr delegate &assign(func_t<F>, Arg &arg) noexcept requires free_func<F, Arg &>
+		constexpr delegate &assign(delegate_func_t<F>, Arg &arg) noexcept requires free_func<F, Arg &>
 		{
 			return assign<F>(arg);
 		}
 		/** @copydoc assign */
 		template<auto F, typename T>
-		constexpr delegate &assign(func_t<F>, T &&arg) noexcept requires free_func<F, T> && candidate_arg<T>
+		constexpr delegate &assign(delegate_func_t<F>, T &&arg) noexcept requires free_func<F, T> && candidate_arg<T>
 		{
 			return assign<F>(std::forward<T>(arg));
 		}
@@ -437,7 +441,7 @@ namespace sek
 		}
 		/** @copydoc assign */
 		template<auto F, typename I>
-		constexpr delegate &assign(func_t<F>, I *instance) noexcept requires mem_func<F>
+		constexpr delegate &assign(delegate_func_t<F>, I *instance) noexcept requires mem_func<F>
 		{
 			return assign<F>(instance);
 		}
@@ -455,7 +459,7 @@ namespace sek
 		}
 		/** @copydoc assign */
 		template<auto F, typename I>
-		constexpr delegate &assign(func_t<F>, I &instance) noexcept requires mem_func<F>
+		constexpr delegate &assign(delegate_func_t<F>, I &instance) noexcept requires mem_func<F>
 		{
 			return assign<F>(instance);
 		}
@@ -525,7 +529,7 @@ namespace sek
 	delegate(R (*)(Arg, Args...), Arg) -> delegate<R(Args...)>;
 
 	template<typename R, typename... Args, R (*F)(Args...)>
-	delegate(func_t<F>) -> delegate<R(Args...)>;
+	delegate(delegate_func_t<F>) -> delegate<R(Args...)>;
 	template<typename R, typename... Args, R (&F)(Args...)>
 	delegate(func_t<F>) -> delegate<R(Args...)>;
 

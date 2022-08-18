@@ -99,8 +99,8 @@ namespace sek::engine::detail
 
 			/* TODO: Refactor ZSTD context API to work with error codes. */
 			const auto in_frames = ctx.decompress(asset_zstd_pool(),
-												  delegate{func_t<&reader_t::read>{}, reader},
-												  delegate{func_t<&writer_t::write>{}, writer},
+												  delegate{delegate_func_t<&reader_t::read>{}, reader},
+												  delegate{delegate_func_t<&writer_t::write>{}, writer},
 												  frames);
 			if (in_frames != frames) [[unlikely]]
 			{

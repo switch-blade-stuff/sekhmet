@@ -199,11 +199,14 @@ namespace sek::engine
 		/** @copydoc fixed_erase */
 		constexpr iterator fixed_erase(entity_t entity) { return base_set::fixed_erase(entity); }
 
-		/** Returns event proxy for the component creation event. */
+		/** Returns event proxy for the component creation event.
+		 * This event is invoked when new components of the underlying type are created and added to entities. */
 		[[nodiscard]] constexpr event_proxy<event_type> on_create() noexcept { return {m_create}; }
-		/** Returns event proxy for the component modification event. */
+		/** Returns event proxy for the component modification event.
+		 * This event is invoked when components of the underlying type are modified via type-specific functions. */
 		[[nodiscard]] constexpr event_proxy<event_type> on_modify() noexcept { return {m_modify}; }
-		/** Returns event proxy for the component removal event. */
+		/** Returns event proxy for the component removal event.
+		 * This event is invoked when components of the underlying type are removed from entities and destroyed. */
 		[[nodiscard]] constexpr event_proxy<event_type> on_remove() noexcept { return {m_remove}; }
 
 	protected:
@@ -217,16 +220,16 @@ namespace sek::engine
 		using base_set::swap_;
 
 	protected:
-		constexpr void dispatch_modify(entity_t e) { m_modify(world(), e); }
 		constexpr void dispatch_create(entity_t e) { m_create(world(), e); }
-		constexpr void dispatch_modify(size_type idx) { dispatch_modify(at(idx)); }
+		constexpr void dispatch_modify(entity_t e) { m_modify(world(), e); }
 		constexpr void dispatch_create(size_type idx) { dispatch_create(at(idx)); }
+		constexpr void dispatch_modify(size_type idx) { dispatch_modify(at(idx)); }
 		constexpr void dispatch_remove(size_type idx) { m_remove(world(), at(idx)); }
 
 	private:
 		entity_world *m_world;
-		event_type m_modify;
 		event_type m_create;
+		event_type m_modify;
 		event_type m_remove;
 		type_info m_type;
 	};

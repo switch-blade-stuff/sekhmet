@@ -419,10 +419,12 @@ namespace sek::serialization
 		};
 
 	public:
-		basic_node_tree(const basic_node_tree &) = delete;
-		basic_node_tree &operator=(const basic_node_tree &) = delete;
+		constexpr basic_node_tree() noexcept = default;
 
-		basic_node_tree() = default;
+		/* TODO: Implement constructor taking a const node_type & which would traverse all nodes & copy their data. */
+		/* TODO: Implement copy constructor & assignment that copy the top-level node. */
+		/* TODO: Move generic implementation of archive frames to node tree,
+		 * make node tree act as a basic non-parsing archive */
 
 		constexpr basic_node_tree(basic_node_tree &&other) noexcept
 			: top_level(std::exchange(other.top_level, {})),
@@ -436,8 +438,7 @@ namespace sek::serialization
 			return *this;
 		}
 
-		/** Allocates a string (n + 1 chars) using the string pool.
-		 * @throw std::bad_alloc on allocation failure. */
+		/** Allocates a string (n + 1 chars) using the string pool. */
 		[[nodiscard]] constexpr char_type *alloc_string(std::size_t n)
 		{
 			auto result = static_cast<char_type *>(string_pool.allocate((n + 1) * sizeof(char_type)));
@@ -445,8 +446,7 @@ namespace sek::serialization
 				throw std::bad_alloc();
 			return result;
 		}
-		/** Copies a string (n + 1 chars) using the string pool.
-		 * @throw std::bad_alloc on allocation failure. */
+		/** Copies a string (n + 1 chars) using the string pool. */
 		[[nodiscard]] constexpr std::basic_string_view<C, T> copy_string(const char_type *c, std::size_t n)
 		{
 			auto dst = alloc_string(n);
@@ -461,19 +461,16 @@ namespace sek::serialization
 		}
 		/** Generates a key string from an index using the string pool.
 		 * @tparam Prefix Prefix of the generated key.
-		 * @param idx Index to use for generating the key.
-		 * @throw std::bad_alloc on allocation failure. */
-		template<basic_static_string Prefix = "__">
+		 * @param idx Index to use for generating the key. */
 		[[nodiscard]] constexpr std::basic_string_view<C, T> make_key(std::size_t idx)
 		{
-			return detail::generate_key<C, T, Prefix>(string_pool, idx);
+			return detail::generate_key<C, T, "__">(string_pool, idx);
 		}
 
 		/** Resizes a container node to the specified capacity.
 		 * @param node Container node to resize.
 		 * @param n New capacity of the container node.
-		 * @return Reference to the container node.
-		 * @throw std::bad_alloc on allocation failure. */
+		 * @return Reference to the container node. */
 		template<typename E>
 		[[nodiscard]] constexpr auto &reserve_container(container_node<E> &node, std::size_t n)
 		{
@@ -492,7 +489,7 @@ namespace sek::serialization
 			return node;
 		}
 
-		void reset()
+		constexpr void reset()
 		{
 			top_level = node_type{};
 			string_pool.release();

@@ -11,6 +11,7 @@ target_sources(${PROJECT_NAME} INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/access_guard.hpp
         ${CMAKE_CURRENT_LIST_DIR}/service.hpp
         ${CMAKE_CURRENT_LIST_DIR}/delegate.hpp
+        ${CMAKE_CURRENT_LIST_DIR}/property.hpp
         ${CMAKE_CURRENT_LIST_DIR}/event.hpp
         ${CMAKE_CURRENT_LIST_DIR}/array_list.hpp
         ${CMAKE_CURRENT_LIST_DIR}/static_string.hpp

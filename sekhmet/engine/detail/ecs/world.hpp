@@ -422,6 +422,9 @@ namespace sek::engine
 		};
 
 	public:
+		typedef event<void(entity_world &, entity_t, type_info)> generic_event_type;
+		typedef event<void(entity_world &, entity_t)> event_type;
+
 		typedef entity_t value_type;
 		typedef const entity_t *pointer;
 		typedef const entity_t *const_pointer;
@@ -434,14 +437,55 @@ namespace sek::engine
 		typedef std::size_t size_type;
 		typedef std::ptrdiff_t difference_type;
 
+	private:
+		template<typename T>
+		static void create_listener(entity_world &world, entity_t entity)
+		{
+			world.m_create(world, entity, type_info::get<T>());
+		}
+		template<typename T>
+		static void modify_listener(entity_world &world, entity_t entity)
+		{
+			world.m_modify(world, entity, type_info::get<T>());
+		}
+		template<typename T>
+		static void remove_listener(entity_world &world, entity_t entity)
+		{
+			world.m_remove(world, entity, type_info::get<T>());
+		}
+
 	public:
 		entity_world(const entity_world &) = delete;
 		entity_world &operator=(const entity_world &) = delete;
-		entity_world(entity_world &&) = delete;
-		entity_world &operator=(entity_world &&) = delete;
 
 		constexpr entity_world() = default;
 		constexpr ~entity_world() { clear_storage(); }
+
+		constexpr entity_world(entity_world &&other) noexcept
+			: m_storage(std::move(other.m_storage)),
+			  m_create(std::move(other.m_create)),
+			  m_modify(std::move(other.m_modify)),
+			  m_remove(std::move(other.m_remove)),
+			  m_sorters(std::move(other.m_sorters)),
+			  m_entities(std::move(other.m_entities)),
+			  m_next(std::exchange(other.m_next, {})),
+			  m_size(std::exchange(other.m_size, {}))
+		{
+			rebind_storage();
+		}
+		constexpr entity_world &operator=(entity_world &&other) noexcept
+		{
+			m_storage = std::move(other.m_storage);
+			m_create = std::move(other.m_create);
+			m_modify = std::move(other.m_modify);
+			m_remove = std::move(other.m_remove);
+			m_sorters = std::move(other.m_sorters);
+			m_entities = std::move(other.m_entities);
+			m_next = std::exchange(other.m_next, {});
+			m_size = std::exchange(other.m_size, {});
+			rebind_storage();
+			return *this;
+		}
 
 		/** Returns iterator to the first entity in the world. */
 		[[nodiscard]] constexpr auto begin() const noexcept { return iterator{m_entities.data()}; }
@@ -1006,12 +1050,66 @@ namespace sek::engine
 			return erase_and_release<C>(*which);
 		}
 
+		/** Returns event proxy for the component creation event.
+		 * This event is invoked when new components of type `C` are created and added to entities. */
+		template<typename C>
+		[[nodiscard]] constexpr event_proxy<event_type> on_create() noexcept
+		{
+			return storage<C>()->on_create();
+		}
+		/** Returns event proxy for the component modification event.
+		 * This event is invoked when components of type `C` are modified via `replace` or `apply`. */
+		template<typename C>
+		[[nodiscard]] constexpr event_proxy<event_type> on_modify() noexcept
+		{
+			return storage<C>()->on_modify();
+		}
+		/** Returns event proxy for the component removal event.
+		 * This event is invoked when components of type `C` are removed from entities and destroyed. */
+		template<typename C>
+		[[nodiscard]] constexpr event_proxy<event_type> on_remove() noexcept
+		{
+			return storage<C>()->on_remove();
+		}
+
+		/** Returns event proxy for the generic component creation event.
+		 * This event is invoked when new components of any type are created and added to entities. */
+		[[nodiscard]] constexpr event_proxy<generic_event_type> on_create() noexcept { return {m_create}; }
+		/** Returns event proxy for the generic component modification event.
+		 * This event is invoked when components of any type are modified via type-specific functions. */
+		[[nodiscard]] constexpr event_proxy<generic_event_type> on_modify() noexcept { return {m_modify}; }
+		/** Returns event proxy for the generic component removal event.
+		 * This event is invoked when components of any type are removed from entities and destroyed. */
+		[[nodiscard]] constexpr event_proxy<generic_event_type> on_remove() noexcept { return {m_remove}; }
+
+		constexpr void swap(entity_world &other) noexcept
+		{
+			using std::swap;
+			swap(m_storage, other.m_storage);
+			swap(m_create, other.m_create);
+			swap(m_modify, other.m_modify);
+			swap(m_remove, other.m_remove);
+			swap(m_sorters, other.m_sorters);
+			swap(m_entities, other.m_entities);
+			swap(m_next, other.m_next);
+			swap(m_size, other.m_size);
+
+			/* Rebind storage for both worlds. */
+			other.rebind_storage();
+			rebind_storage();
+		}
+
 	private:
 		[[nodiscard]] constexpr iterator to_iterator(entity_t e) const noexcept
 		{
 			return iterator{m_entities.data() + e.index().value()};
 		}
 
+		constexpr void rebind_storage()
+		{
+			/* Component sets store references to this world and have to be notified on move & swap. */
+			for (auto &set : m_storage) set->rebind(*this);
+		}
 		constexpr void clear_storage()
 		{
 			/* Cannot clear all at once, since collection handlers require valid references. */
@@ -1053,11 +1151,19 @@ namespace sek::engine
 		template<typename T, typename U = std::remove_cv_t<T>>
 		constexpr component_set<U> &reserve_impl(size_type n = 0)
 		{
-			auto target = m_storage.find(type_info::get<U>());
-			if (target == m_storage.end()) [[unlikely]]
-				target = m_storage.emplace(new component_set<U>(*this)).first;
+			component_set<U> *storage;
+			if (auto target = m_storage.find(type_info::get<U>()); target != m_storage.end()) [[likely]]
+				storage = static_cast<component_set<U> *>(target->get());
+			else
+			{
+				m_storage.emplace(storage = new component_set<U>(*this));
 
-			auto *storage = static_cast<component_set<U> *>(target->get());
+				/* Subscribe to type-specific component events to handle generic event dispatching. */
+				storage->on_create() += delegate_func<&entity_world::create_listener<U>>;
+				storage->on_modify() += delegate_func<&entity_world::modify_listener<U>>;
+				storage->on_remove() += delegate_func<&entity_world::remove_listener<U>>;
+			}
+
 			if (n != 0) [[likely]]
 				storage->reserve(n);
 			return *storage;
@@ -1111,8 +1217,13 @@ namespace sek::engine
 		}
 
 		storage_set m_storage;
+		generic_event_type m_create;
+		generic_event_type m_modify;
+		generic_event_type m_remove;
+
 		std::vector<sorter_t> m_sorters;
 		std::vector<entity_t> m_entities;
+
 		entity_t m_next = entity_t::tombstone();
 		size_type m_size = 0; /* Amount of alive entities within the world. */
 	};
@@ -1133,13 +1244,13 @@ namespace sek::engine
 					// clang-format off
 					[[maybe_unused]] constexpr auto sub_include = []<typename T>(component_set<T> &set, const void *n, const void *p, collection_handler *h)
 					{
-						set.on_create().subscribe_before(n, delegate{func_t<&collection_handler::template handle_create<T>>{}, h});
-						set.on_remove().subscribe_before(p, delegate{func_t<&collection_handler::template handle_remove<T>>{}, h});
+						set.on_create().subscribe_before(n, delegate{delegate_func_t<&collection_handler::template handle_create<T>>{}, h});
+						set.on_remove().subscribe_before(p, delegate{delegate_func_t<&collection_handler::template handle_remove<T>>{}, h});
 					};
 					[[maybe_unused]] constexpr auto sub_exclude = []<typename T>(component_set<T> &set, const void *n, const void *p, collection_handler *h)
 					{
-						set.on_create().subscribe_before(p, delegate{func_t<&collection_handler::template handle_remove<T>>{}, h});
-						set.on_remove().subscribe_before(n, delegate{func_t<&collection_handler::template handle_create<T>>{}, h});
+						set.on_create().subscribe_before(p, delegate{delegate_func_t<&collection_handler::template handle_remove<T>>{}, h});
+						set.on_remove().subscribe_before(n, delegate{delegate_func_t<&collection_handler::template handle_create<T>>{}, h});
 					};
 					// clang-format on
 
@@ -1248,13 +1359,13 @@ namespace sek::engine
 
 					[[maybe_unused]] constexpr auto sub_include = []<typename T>(component_set<T> &set, collection_handler *h)
 					{
-						set.on_create() += delegate{func_t<&collection_handler::template handle_create<T>>{}, h};
-						set.on_remove() += delegate{func_t<&collection_handler::template handle_remove<T>>{}, h};
+						set.on_create() += delegate{delegate_func_t<&collection_handler::template handle_create<T>>{}, h};
+						set.on_remove() += delegate{delegate_func_t<&collection_handler::template handle_remove<T>>{}, h};
 					};
 					[[maybe_unused]] constexpr auto sub_exclude = []<typename T>(component_set<T> &set, collection_handler *h)
 					{
-						set.on_create() += delegate{func_t<&collection_handler::template handle_remove<T>>{}, h};
-						set.on_remove() += delegate{func_t<&collection_handler::template handle_create<T>>{}, h};
+						set.on_create() += delegate{delegate_func_t<&collection_handler::template handle_remove<T>>{}, h};
+						set.on_remove() += delegate{delegate_func_t<&collection_handler::template handle_create<T>>{}, h};
 					};
 					auto *handler = new collection_handler{};
 
