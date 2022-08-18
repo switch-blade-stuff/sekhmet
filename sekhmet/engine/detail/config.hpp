@@ -590,7 +590,7 @@ namespace sek::engine
 		SEK_API entry_ptr<false> load(cfg_path entry, const std::filesystem::path &path, bool cache = true);
 		/** Loads an entry and all it's children from a Json file pointed to by a URI.
 		 * @param entry Full path of the entry.
-		 * @param location URI to a Json file containing source data.
+		 * @param location URI pointing to a Json file containing source data.
 		 * @param cache If set to true, the data will be cached and re-used for de-serialization of new entries.
 		 * @return Entry pointer to the loaded entry.
 		 * @throw config_error If the file fails to open or any entry within the resulting branch fails to initialize. */
@@ -601,13 +601,20 @@ namespace sek::engine
 		 * @param tree Json node tree to store the serialized data in.
 		 * @return `true` on success, `false` on failure (entry does not exist). */
 		SEK_API bool save(entry_ptr<true> which, serialization::json_tree &tree) const;
-		/** Saves an entry and all it's children to a Json node tree.
-		 * @param entry Full path of the entry.
+		/** @brief Saves an entry and all it's children to a Json file.
+		 * @param which Pointer to the entry to be saved.
 		 * @param path Path to a the file to write Json data to.
 		 * @return `true` on success, `false` on failure (entry does not exist).
-		 * @throw config_error If the fails to open. */
+		 * @throw config_error If the file fails to open. */
 		SEK_API bool save(entry_ptr<true> which, const std::filesystem::path &path) const;
-		/** Loads an entry to a Json node tree.
+		/** @copybrief save
+		 * @param which Pointer to the entry to be saved.
+		 * @param location URI pointing to the file write Json data to.
+		 * @return `true` on success, `false` on failure (entry does not exist).
+		 * @throw config_error If the file fails to open. */
+		SEK_API bool save(entry_ptr<true> which, const uri &location) const;
+
+		/** Saves an entry and all it's children to a Json node tree.
 		 * @param entry Full path of the entry.
 		 * @param tree Json node tree to store the serialized data in.
 		 * @return `true` on success, `false` on failure (entry does not exist). */
@@ -615,15 +622,23 @@ namespace sek::engine
 		{
 			return save(find(entry), tree);
 		}
-		/** Loads an entry from a Json file.
+		/** @brief Saves an entry and all it's children to a Json file.
 		 * @param entry Full path of the entry.
 		 * @param path Path to a the file to write Json data to.
 		 * @return `true` on success, `false` on failure (entry does not exist).
-		 * @throw config_error If the fails to open. */
+		 * @throw config_error If the file fails to open. */
 		inline bool save(const cfg_path &entry, const std::filesystem::path &path) const
 		{
 			return save(find(entry), path);
 		}
+		/** @copybrief save
+		 * @param entry Full path of the entry.
+		 * @param location URI pointing to the file write Json data to.
+		 * @return `true` on success, `false` on failure (entry does not exist).
+		 * @throw config_error If the file fails to open. */
+		inline bool save(const cfg_path &entry, const uri &location) const { return save(find(entry), location); }
+
+		/* TODO: Rework config saving & loading to use std::error_code instead. */
 
 	private:
 		bool save_impl(entry_ptr<true> which, output_archive &archive) const;
