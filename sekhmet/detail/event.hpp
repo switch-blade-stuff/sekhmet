@@ -16,6 +16,8 @@ namespace sek
 	template<typename, typename>
 	class basic_event;
 	template<typename>
+	class basic_event_converter;
+	template<typename>
 	class event_proxy;
 	template<typename>
 	class subscriber_handle;
@@ -25,7 +27,7 @@ namespace sek
 
 	/** @brief Structure used to manage a set of delegates.
 	 *
-	 * @tparam R Return type of the event's delegates
+	 * @tparam R Return type of the event's delegates.
 	 * @tparam Args Arguments passed to event's delegates.
 	 * @tparam Alloc Allocator type used for the internal state. */
 	template<typename Alloc, typename R, typename... Args>
@@ -506,6 +508,15 @@ namespace sek
 		id_data_t m_id_data;
 		sub_data_t m_sub_data;
 		event_subscriber m_next_id = event_placeholder;
+	};
+
+	/** @brief Event-like structure used to abstract an event type.
+	 *
+	 * @tparam R Return type of the event's delegates.
+	 * @tparam Args Arguments passed to event's delegates. */
+	template<typename R, typename... Args>
+	class basic_event_converter<R(Args...)>
+	{
 	};
 
 	namespace detail

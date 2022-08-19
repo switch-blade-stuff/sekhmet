@@ -12,11 +12,13 @@
 
 namespace sek
 {
-	/** @brief Exception thrown when a non-bound delegate is invoked. */
+	/** @brief Exception thrown when a delegate cannot be invoked. */
 	class SEK_API delegate_error : public std::runtime_error
 	{
 	public:
-		delegate_error() : runtime_error("Invoked an empty (non-bound) delegate") {}
+		delegate_error() : runtime_error("Failed to invoke a delegate") {}
+		explicit delegate_error(const std::string &msg) : runtime_error(msg) {}
+		explicit delegate_error(const char *msg) : runtime_error(msg) {}
 		~delegate_error() override;
 	};
 
@@ -73,370 +75,503 @@ namespace sek
 	template<typename>
 	class delegate;
 
-	/** @brief Type-erased function wrapper.
+	/** @brief Type-erased function wrapper meant for use with the event system.
 	 *
-	 * Delegate is a more lightweight alternative to `std::function` providing a slightly different set of features.
-	 * As opposed to `std::function`, delegates do not allocate any memory (and thus cannot use stateful functors),
-	 * instead if a member function needs to be called, delegates can be bound to an instance of a type.
+	 * Delegates provide a similar set of functionality to `std::function`, with certain extra features to make it
+	 * suitable for the event system. In particular, aside from storing a heap-allocated state, delegates can store a
+	 * single 16-bit aligned pointer as a bound member. This can be used for efficient storage of instance pointers
+	 * for use with member functions, as no memory allocation will be necessary. In addition, delegates allow the user
+	 * to retrieve a generic `void *` pointer to the bound state at runtime, which can be used to check for equality
+	 * of delegate references.
 	 *
 	 * @tparam R Type returned by the delegate.
 	 * @tparam Args Types of arguments used to invoke the delegate. */
 	template<typename R, typename... Args>
 	class delegate<R(Args...)>
 	{
-	private:
+		class control_block
+		{
+		public:
+			constexpr void *copy() const { return m_copy(this); }
+			constexpr void destroy() { m_delete(this); }
+
+		protected:
+			void *(*m_copy)(const void *);
+			void (*m_delete)(void *);
+		};
+		template<typename T>
+		class heap_data : control_block, ebo_base_helper<T>
+		{
+			using base_t = ebo_base_helper<T>;
+
+		public:
+			heap_data() = delete;
+
+			constexpr heap_data(const heap_data &other) : base_t(other) {}
+			template<typename... TArgs>
+			constexpr explicit heap_data(std::in_place_t, TArgs &&...args) : base_t(std::forward<TArgs>(args)...)
+			{
+				this->m_copy = +[](const void *p) -> void * { return make_data<T>(*static_cast<const heap_data *>(p)); };
+				this->m_delete = +[](void *p) { delete static_cast<heap_data *>(p); };
+			}
+
+			using base_t::get;
+		};
+
+		template<typename T, typename... TArgs>
+		constexpr static heap_data<T> *make_data(TArgs &&...args)
+		{
+			return new heap_data<T>{std::in_place, std::forward<TArgs>(args)...};
+		}
+		template<typename T>
+		constexpr static heap_data<T> *make_data(const heap_data<T> &other)
+		{
+			return new heap_data<T>{other};
+		}
+
 		// clang-format off
-		template<typename RF, typename... ArgsF>
-		constexpr static bool compatible_sign = detail::is_delegate_compatible_v<R(Args...), RF(ArgsF...)>;
-		template<auto F, typename... Inject>
-		constexpr static bool compatible_func = detail::is_delegate_func_v<F, R(Inject..., Args...)>;
-		template<auto F, typename... Inject>
-		constexpr static bool free_func = std::is_function_v<decltype(F)> && compatible_func<F, Inject...>;
-		template<auto F>
-		constexpr static bool mem_func = std::is_member_function_pointer_v<decltype(F)> && compatible_func<F>;
-		template<typename T, typename... Inject>
-		constexpr static bool empty_ftor = std::is_object_v<T> && std::is_empty_v<T> && std::is_invocable_r_v<R, T, Inject..., Args...>;
-		template<typename U>
-		constexpr static bool candidate_arg = sizeof(std::decay_t<U>) <= sizeof(void *) && std::is_trivially_copyable_v<std::decay_t<U>>;
-		template<typename T, typename U>
-		constexpr static bool compatible_arg = candidate_arg<U> && std::is_convertible_v<U, T>;
+		/* State object is stored by-value only if the state is an aligned pointer or the state is empty (since then
+		 * the pointer does not matter). */
+		template<typename T>
+		constexpr static bool aligned_ptr = std::is_pointer_v<T> && (alignof(std::remove_pointer_t<T>) > alignof(std::byte) ||
+																	 std::is_empty_v<std::remove_pointer_t<T>>);
 		// clang-format on
 
-		constexpr delegate(R (*proxy)(const void *, Args...), const void *data) noexcept
-			: m_proxy(proxy), m_data_ptr(data)
+		class data_t
 		{
-		}
+			constexpr static std::uintptr_t external_flag = 2;
+			constexpr static std::uintptr_t managed_flag = 1;
+
+			[[nodiscard]] constexpr static bool is_external(std::uintptr_t ptr) noexcept { return ptr & external_flag; }
+			[[nodiscard]] constexpr static bool is_managed(std::uintptr_t ptr) noexcept { return ptr & managed_flag; }
+
+			[[nodiscard]] constexpr static control_block *heap_cb(std::uintptr_t ptr) noexcept
+			{
+				return std::bit_cast<control_block *>(ptr);
+			}
+			[[nodiscard]] constexpr static void *heap_ptr(std::uintptr_t ptr) noexcept
+			{
+				return std::bit_cast<void *>(heap_cb(ptr) + 1);
+			}
+
+		public:
+			[[nodiscard]] constexpr static void *get(std::uintptr_t ptr) noexcept
+			{
+				auto result = std::bit_cast<void *>(ptr);
+				if (is_managed(ptr))
+				{
+					/* If state is managed, get pointer to the heap data. */
+					result = heap_ptr(ptr);
+					/* If heap data is a pointer to some external instance, dereference heap data. */
+					if (is_external(ptr)) result = *static_cast<void **>(result);
+				}
+				return result;
+			}
+
+		public:
+			constexpr data_t() noexcept = default;
+
+			constexpr data_t(const data_t &other) { copy(other); }
+			constexpr data_t &operator=(const data_t &other)
+			{
+				if (this != &other)
+				{
+					destroy();
+					copy(other);
+				}
+				return *this;
+			}
+
+			constexpr data_t(data_t &&other) noexcept { swap(other); }
+			constexpr data_t &operator=(data_t &&other) noexcept
+			{
+				swap(other);
+				return *this;
+			}
+
+			constexpr ~data_t() { destroy(); }
+
+			template<typename T, typename... TArgs>
+			constexpr explicit data_t(std::in_place_type_t<T>, TArgs &&...args)
+			{
+				if constexpr (!aligned_ptr<T>)
+				{
+					m_ptr = std::bit_cast<std::uintptr_t>(make_data<T>(std::forward<TArgs>(args)...));
+					m_ptr |= managed_flag;
+
+					/* If state is an external pointer that did not fit into local alignment, set the external bit. */
+					if constexpr (std::is_pointer_v<T>) m_ptr |= external_flag;
+				}
+				else
+					std::construct_at(std::bit_cast<T *>(&m_ptr), std::forward<TArgs>(args)...);
+			}
+
+			[[nodiscard]] constexpr void *get() const noexcept { return get(m_ptr); }
+			[[nodiscard]] constexpr std::uintptr_t value() const noexcept { return m_ptr; }
+
+			constexpr void reset()
+			{
+				destroy();
+				m_ptr = 0;
+			}
+
+			constexpr void swap(data_t &other) noexcept { std::swap(m_ptr, other.m_ptr); }
+
+		private:
+			constexpr void copy(const data_t &other)
+			{
+				/* Duplicate the heap-allocated data block if it is not local. */
+				if (is_managed(other.m_ptr))
+					m_ptr = (std::bit_cast<std::uintptr_t>(heap_cb(other.m_ptr)->copy())) |
+							(managed_flag | (other.m_ptr & external_flag));
+				else
+					m_ptr = other.m_ptr;
+			}
+			constexpr void destroy()
+			{
+				if (is_managed(m_ptr)) heap_cb(m_ptr)->destroy();
+			}
+
+			std::uintptr_t m_ptr = 0;
+		};
+
+		template<typename T, typename... Inject>
+		constexpr static bool valid_ftor = std::is_object_v<T> && std::is_invocable_r_v<R, T, Inject..., Args...>;
+		template<typename T, typename... Inject>
+		constexpr static bool empty_ftor = valid_ftor<T, Inject...> && std::is_empty_v<T>;
+		template<typename RF, typename... ArgsF>
+		constexpr static bool valid_sign = detail::is_delegate_compatible_v<R(Args...), RF(ArgsF...)>;
+		template<auto F, typename... Inject>
+		constexpr static bool valid_func = detail::is_delegate_func_v<F, R(Inject..., Args...)>;
+		template<auto F, typename... Inject>
+		constexpr static bool free_func = std::is_function_v<decltype(F)> && valid_func<F, Inject...>;
+		template<auto F>
+		constexpr static bool mem_func = std::is_member_function_pointer_v<decltype(F)> && valid_func<F>;
 
 	public:
 		/** Initializes an empty (non-bound) delegate. */
 		constexpr delegate() noexcept = default;
 
+		constexpr delegate(const delegate &) = default;
+		constexpr delegate &operator=(const delegate &) = default;
+		constexpr delegate(delegate &&) noexcept = default;
+		constexpr delegate &operator=(delegate &&) noexcept = default;
+
 		// clang-format off
-		/** Initializes a delegate from a free function pointer. */
-		template<typename RF, typename... ArgsF>
-		constexpr delegate(RF (*f)(ArgsF...)) noexcept requires compatible_sign<RF, ArgsF...>
+		/** @brief Initializes the delegate from a free function pointer.
+		 * @param f Pointer to the function bound by the delegate.
+		 * @note This overload allocates memory, as alignment of function pointers is unknown. */
+		template<typename FR, typename... FArgs>
+		constexpr delegate(FR (*f)(FArgs...)) noexcept requires valid_sign<FR, FArgs...>
 		{
 			assign(f);
 		}
-		/** Initializes a delegate from a free function pointer and a bound argument. */
-		template<typename Arg>
-		constexpr delegate(R (*f)(Arg *, Args...), Arg *arg) noexcept
+
+		/** @brief Binds a free function pointer to the delegate.
+		 * @copydetails delegate */
+		template<typename FR, typename... FArgs>
+		constexpr delegate &assign(FR (*f)(FArgs...)) noexcept requires valid_sign<FR, FArgs...>
 		{
-			assign(f, arg);
+			using F = FR (*)(FArgs...);
+
+			m_proxy = +[](std::uintptr_t data, Args &&...args) -> R
+			{
+				const auto ptr = static_cast<F>(data_t::get(data));
+				return std::invoke(*ptr, std::forward<Args>(args)...);
+			};
+			m_data = data_t{std::in_place_type<F>, f};
+			return *this;
 		}
-		/** @copydoc delegate */
-		template<typename Arg>
-		constexpr delegate(R (*f)(Arg *, Args...), Arg &arg) noexcept
+		/** @copydoc assign */
+		template<typename FR, typename... FArgs>
+		constexpr delegate &operator=(FR (*f)(FArgs...)) noexcept requires valid_sign<FR, FArgs...>
 		{
-			assign(f, arg);
-		}
-		/** @copydoc delegate */
-		template<typename Arg>
-		constexpr delegate(R (*f)(Arg &, Args...), Arg &arg) noexcept
-		{
-			assign(f, arg);
-		}
-		/** @copydoc delegate */
-		template<typename T, typename U>
-		constexpr delegate(R (*f)(T, Args...), U &&arg) noexcept requires compatible_arg<T, U>
-		{
-			assign(f, std::forward<U>(arg));
+			return assign(f);
 		}
 
-		/** Initializes a delegate from an empty functor. */
+		/** Initializes the delegate from a a free function pointer and an instance argument.
+		 * @param f Pointer to the function bound by the delegate.
+		 * @param instance Instance object passed as the first parameter to the function.
+		 * @note This overload may allocate memory if the following expression evaluates to `false`:
+		 * `std::is_empty_v<I> || alignof(I) > alignof(std::byte)`. */
+		template<typename I>
+		constexpr delegate(R (*f)(I *, Args...), I *instance) noexcept requires aligned_ptr<I *>
+		{
+			assign(f, instance);
+		}
+		/** @copydoc delegate */
+		template<typename I>
+		constexpr delegate(R (*f)(I *, Args...), I &instance) noexcept requires aligned_ptr<I *>
+		{
+			assign(f, instance);
+		}
+		/** @copydoc delegate */
+		template<typename I>
+		constexpr delegate(R (*f)(I &, Args...), I &instance) noexcept requires aligned_ptr<I *>
+		{
+			assign(f, instance);
+		}
+
+		/** @brief Binds a free function pointer and an instance argument to the delegate.
+		 * @copydetails delegate */
+		template<typename I>
+		constexpr delegate &assign(R (*f)(I *, Args...), I *instance) noexcept requires aligned_ptr<I *>
+		{
+			/* Since the first argument is a pointer, bit_cast to `uintptr_t` is safe. */
+			m_proxy = std::bit_cast<R (*)(std::uintptr_t, Args...)>(f);
+			m_data = data_t{std::in_place_type<I *>, instance};
+			return *this;
+		}
+		/** @copydoc assign */
+		template<typename I>
+		constexpr delegate &assign(R (*f)(I *, Args...), I &instance) noexcept requires aligned_ptr<I *>
+		{
+			return assign(f, std::addressof(instance));
+		}
+		/** @copydoc assign */
+		template<typename I>
+		constexpr delegate &assign(R (*f)(I &, Args...), I &instance) noexcept requires aligned_ptr<I *>
+		{
+			return assign(std::bit_cast<R (*)(I *, Args...)>(f), std::addressof(instance));
+		}
+
+		/** @brief Initializes the delegate with an in-place constructed functor.
+		 * @note This overload may allocate memory if the functor type is non-empty. */
+		template<typename F, typename... FArgs>
+		constexpr explicit delegate(std::in_place_type_t<F>, FArgs &&...args) noexcept requires valid_ftor<F>
+		{
+			assign(std::in_place_type<F>, std::forward<FArgs>(args)...);
+		}
+
+		/** @brief Binds an in-place constructed functor to the delegate.
+		 * @copydetails delegate */
+		template<typename F, typename... FArgs>
+		constexpr delegate &assign(std::in_place_type_t<F>, FArgs &&...args) noexcept requires valid_ftor<F>
+		{
+			m_proxy = +[](std::uintptr_t  data, Args...args) -> R
+			{
+			    const auto ptr = static_cast<F *>(data_t::get(data));
+				return std::invoke(*ptr, std::forward<Args>(args)...);
+			};
+			m_data = data_t{std::in_place_type<F>, std::forward<FArgs>(args)...};
+			return *this;
+		}
+
+		/** @brief Initializes the delegate with a functor.
+		 * @note This overload may allocate memory if the functor type is non-empty. */
 		template<typename F>
-		constexpr delegate(F ftor) noexcept requires empty_ftor<F>
+		constexpr delegate(F &&f) noexcept requires valid_ftor<F>
 		{
-			assign(std::forward<F>(ftor));
-		}
-		/** Initializes a delegate from an empty functor and a bound argument. */
-		template<typename F, typename Arg>
-		constexpr delegate(F ftor, Arg *arg) noexcept requires empty_ftor<F, Arg *>
-		{
-			assign(std::forward<F>(ftor), arg);
-		}
-		/** @copydoc delegate */
-		template<typename F, typename Arg>
-		constexpr delegate(F ftor, Arg &arg) noexcept requires empty_ftor<F, Arg *>
-		{
-			assign(std::forward<F>(ftor), arg);
-		}
-		/** @copydoc delegate */
-		template<typename F, typename Arg>
-		constexpr delegate(F ftor, Arg &arg) noexcept requires empty_ftor<F, Arg &>
-		{
-			assign(std::forward<F>(ftor), arg);
-		}
-		/** @copydoc delegate */
-		template<typename F, typename T>
-		constexpr delegate(F ftor, T &&arg) noexcept requires empty_ftor<F, T> && candidate_arg<T>
-		{
-			assign(std::forward<F>(ftor), std::forward<T>(arg));
+			assign(std::forward<F>(f));
 		}
 
-		/** Initializes a delegate from a free function. */
+		/** Binds a functor to the delegate.
+		 * @copydetails delegate */
+		template<typename F>
+		constexpr delegate &assign(F &&f) noexcept requires valid_ftor<F>
+		{
+			return operator=(std::forward<F>(f));
+		}
+		/** @copydoc assign */
+		template<typename F>
+		constexpr delegate &operator=(F &&f) noexcept requires valid_ftor<F>
+		{
+			return assign(std::in_place_type<F>, std::forward<F>(f));
+		}
+
+		/** @brief Initializes the delegate from an empty functor and an instance argument.
+		 * @param instance Instance object passed as the first parameter to the functor.
+		 * @note This overload may allocate memory if the following expression evaluates to `false`:
+		 * `std::is_empty_v<I> || alignof(I) > alignof(std::byte)`. */
+		template<typename F, typename I>
+		constexpr delegate(F &&f, I *instance) noexcept requires empty_ftor<F, I *>
+		{
+			assign(std::forward<F>(f), instance);
+		}
+		/** @copydoc delegate */
+		template<typename F, typename I>
+		constexpr delegate(F &&f, I &instance) noexcept requires empty_ftor<F, I *>
+		{
+			assign(std::forward<F>(f), instance);
+		}
+		/** @copydoc delegate */
+		template<typename F, typename I>
+		constexpr delegate(F &&f, I &instance) noexcept requires empty_ftor<F, I &>
+		{
+			assign(std::forward<F>(f), instance);
+		}
+
+		/** @brief Binds an empty functor and an instance argument to the delegate.
+		 * @copydetails delegate */
+		template<typename F, typename I>
+		constexpr delegate &assign(F &&, I *instance) noexcept requires empty_ftor<F, I *>
+		{
+			m_proxy = +[](std::uintptr_t data, Args...args) -> R
+			{
+				const auto ptr = static_cast<I *>(data_t::get(data));
+				return std::invoke(F{}, ptr, std::forward<Args>(args)...);
+			};
+			m_data = data_t{std::in_place_type<I *>, instance};
+			return *this;
+		}
+		/** @copydoc assign */
+		template<typename F, typename I>
+		constexpr delegate &assign(F &&, I &instance) noexcept requires empty_ftor<F, I *>
+		{
+			m_proxy = +[](std::uintptr_t data, Args...args) -> R
+			{
+				const auto ptr = static_cast<I *>(data_t::get(data));
+				return std::invoke(F{}, ptr, std::forward<Args>(args)...);
+			};
+			m_data = data_t{std::in_place_type<I *>, instance};
+			return *this;
+		}
+		/** @copydoc assign */
+		template<typename F, typename I>
+		constexpr delegate &assign(F &&, I &instance) noexcept requires empty_ftor<F, I &>
+		{
+			m_proxy = +[](std::uintptr_t data, Args...args) -> R
+			{
+				const auto ptr = static_cast<I *>(data_t::get(data));
+				return std::invoke(F{}, *ptr, std::forward<Args>(args)...);
+			};
+			m_data = data_t{std::in_place_type<I *>, instance};
+			return *this;
+		}
+
+		/** Initializes the delegate from a free function. */
 		template<auto F>
 		constexpr delegate(delegate_func_t<F>) noexcept requires free_func<F>
 		{
 			assign<F>();
-		}
-		/** Initializes a delegate from a free and a bound argument. */
-		template<auto F, typename Arg>
-		constexpr delegate(delegate_func_t<F>, Arg *arg) noexcept requires free_func<F, Arg *>
-		{
-			assign<F>(arg);
-		}
-		/** @copydoc delegate */
-		template<auto F, typename Arg>
-		constexpr delegate(delegate_func_t<F>, Arg &arg) noexcept requires free_func<F, Arg *>
-		{
-			assign<F>(arg);
-		}
-		/** @copydoc delegate */
-		template<auto F, typename Arg>
-		constexpr delegate(delegate_func_t<F>, Arg &arg) noexcept requires free_func<F, Arg &>
-		{
-			assign<F>(arg);
-		}
-		/** @copydoc delegate */
-		template<auto F, typename T>
-		constexpr delegate(delegate_func_t<F>, T &&arg) noexcept requires free_func<F, T> && candidate_arg<T>
-		{
-			assign<F>(std::forward<T>(arg));
-		}
-
-		/** Initializes a delegate from a member function and an instance pointer. */
-		template<auto F, typename I>
-		constexpr delegate(delegate_func_t<F>, I *instance) noexcept requires mem_func<F>
-		{
-			assign<F>(instance);
-		}
-		/** Initializes a delegate from a member function and an instance reference. */
-		template<auto F, typename I>
-		constexpr delegate(delegate_func_t<F>, I &instance) noexcept requires mem_func<F>
-		{
-			assign<F>(instance);
-		}
-
-		/** Binds a free function pointer to the delegate. */
-		template<typename RF, typename... ArgsF>
-		constexpr delegate &assign(RF (*f)(ArgsF...)) noexcept requires compatible_sign<RF, ArgsF...>
-		{
-			m_proxy = +[](const void *p, Args ...args) -> R { return std::bit_cast<RF (*)(ArgsF...)>(p)(std::forward<Args>(args)...); };
-			m_data_ptr = std::bit_cast<const void *>(f);
-			return *this;
-		}
-		/** @copydoc assign */
-		template<typename RF, typename... ArgsF>
-		constexpr delegate &operator=(RF (*f)(ArgsF...)) noexcept requires compatible_sign<RF, ArgsF...>
-		{
-			return assign(f);
-		}
-		/** Binds a free function pointer and an argument to the delegate. */
-		template<typename Arg>
-		constexpr delegate &assign(R (*f)(Arg *, Args...), Arg *arg)  noexcept
-		{
-			m_proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
-			m_data_ptr = static_cast<const void *>(arg);
-			return *this;
-		}
-		/** @copydoc assign */
-		template<typename Arg>
-		constexpr delegate &assign(R (*f)(Arg *, Args...), Arg &arg)  noexcept
-		{
-			m_proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
-			m_data_ptr = static_cast<const void *>(std::addressof(arg));
-			return *this;
-		}
-		/** @copydoc assign */
-		template<typename Arg>
-		constexpr delegate &assign(R (*f)(Arg &, Args...), Arg &arg)  noexcept
-		{
-			m_proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
-			m_data_ptr = static_cast<const void *>(std::addressof(arg));
-			return *this;
-		}
-		/** @copydoc assign */
-		template<typename T, typename U>
-		constexpr delegate &assign(R (*f)(T, Args...), U &&arg) noexcept requires compatible_arg<T, U>
-		{
-			m_proxy = std::bit_cast<R (*)(const void *, Args...)>(f);
-			std::construct_at(bytes_ptr<U>(), std::forward<U>(arg));
-			return *this;
-		}
-
-		/** Binds an empty functor to the delegate. */
-		template<typename F>
-		constexpr delegate &assign(F) noexcept requires empty_ftor<F>
-		{
-			m_proxy = +[](const void *, Args...args) -> R
-			{
-				return F{}(std::forward<Args>(args)...);
-			};
-			m_data_ptr = nullptr;
-			return *this;
-		}
-		/** @copydoc assign */
-		template<typename F>
-		constexpr delegate &operator=(F f) noexcept requires empty_ftor<F>
-		{
-			return assign(std::forward<F>(f));
-		}
-		/** Binds an empty functor and an argument to the delegate. */
-		template<typename F, typename Arg>
-		constexpr delegate &assign(F, Arg *arg) noexcept requires empty_ftor<F, Arg *>
-		{
-			m_proxy = +[](const void *p, Args...args) -> R
-			{
-				using U = std::add_const_t<Arg>;
-				return F{}(const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
-			};
-			m_data_ptr = static_cast<const void *>(arg);
-			return *this;
-		}
-		/** @copydoc assign */
-		template<typename F, typename Arg>
-		constexpr delegate &assign(F, Arg &arg) noexcept requires empty_ftor<F, Arg *>
-		{
-			m_proxy = +[](const void *p, Args...args) -> R
-			{
-				using U = std::add_const_t<Arg>;
-				return F{}(const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
-			};
-			m_data_ptr = static_cast<const void *>(std::addressof(arg));
-			return *this;
-		}
-		/** @copydoc assign */
-		template<typename F, typename Arg>
-		constexpr delegate &assign(F, Arg &arg) noexcept requires empty_ftor<F, Arg &>
-		{
-			m_proxy = +[](const void *p, Args...args) -> R
-			{
-				using U = std::add_const_t<Arg>;
-				return F{}(*const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
-			};
-			m_data_ptr = static_cast<const void *>(std::addressof(arg));
-			return *this;
-		}
-		/** @copydoc assign */
-		template<typename F, typename T>
-		constexpr delegate &assign(F, T &&arg) noexcept requires empty_ftor<F, T> && candidate_arg<T>
-		{
-			using U = std::decay_t<T>;
-
-			m_proxy = +[](const void *p, Args...args) -> R
-			{
-				return F{}(ptr_bytes<U>(p), std::forward<Args>(args)...);
-			};
-			std::construct_at(bytes_ptr<U>(), std::forward<T>(arg));
-			return *this;
 		}
 
 		/** Binds a free function to the delegate. */
 		template<auto F>
 		constexpr delegate &assign() noexcept requires free_func<F>
 		{
-			m_proxy = +[](const void *, Args...args) -> R { return F(std::forward<Args>(args)...); };
-			m_data_ptr = nullptr;
-			return *this;
+			return operator=(delegate_func<F>);
 		}
 		/** @copydoc assign */
 		template<auto F>
 		constexpr delegate &assign(delegate_func_t<F>) noexcept requires free_func<F>
 		{
-			return assign<F>();
+			return operator=(delegate_func<F>);
 		}
 		/** @copydoc assign */
 		template<auto F>
 		constexpr delegate &operator=(delegate_func_t<F>) noexcept requires free_func<F>
 		{
-			return assign<F>();
+			m_proxy = +[](std::uintptr_t, Args...args) -> R { return std::invoke(std::forward<Args>(args)...); };
+			m_data = {};
+			return *this;
 		}
 
-		/** Binds a free function and an argument to the delegate. */
-		template<auto F, typename Arg>
-		constexpr delegate &assign(Arg *arg) noexcept requires free_func<F, Arg *>
+		/** @brief Initializes the delegate from a free function and a bound instance argument.
+		 * @param instance Instance object passed as the first parameter to the function.
+		 * @note This overload may allocate memory if the following expression evaluates to `false`:
+		 * `std::is_empty_v<I> || alignof(I) > alignof(std::byte)`. */
+		template<auto F, typename I>
+		constexpr delegate(delegate_func_t<F>, I *arg) noexcept requires free_func<F, I *>
 		{
-			m_proxy = +[](const void *p, Args...args) -> R
-			{
-				using U = std::add_const_t<Arg>;
-				return F(const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
-			};
-			m_data_ptr = static_cast<const void *>(arg);
-			return *this;
+			assign<F>(arg);
 		}
-		/** @copydoc assign */
-		template<auto F, typename Arg>
-		constexpr delegate &assign(Arg &arg) noexcept requires free_func<F, Arg *>
+		/** @copydoc delegate */
+		template<auto F, typename I>
+		constexpr delegate(delegate_func_t<F>, I &arg) noexcept requires free_func<F, I *>
 		{
-			m_proxy = +[](const void *p, Args...args) -> R
-			{
-				using U = std::add_const_t<Arg>;
-				return F(const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
-			};
-			m_data_ptr = static_cast<const void *>(std::addressof(arg));
-			return *this;
+			assign<F>(arg);
 		}
-		/** @copydoc assign */
-		template<auto F, typename Arg>
-		constexpr delegate &assign(Arg &arg) noexcept requires free_func<F, Arg &>
+		/** @copydoc delegate */
+		template<auto F, typename I>
+		constexpr delegate(delegate_func_t<F>, I &arg) noexcept requires free_func<F, I &>
 		{
-			m_proxy = +[](const void *p, Args...args) -> R
-			{
-				using U = std::add_const_t<Arg>;
-				return F(*const_cast<Arg *>(static_cast<U *>(p)), std::forward<Args>(args)...);
-			};
-			m_data_ptr = static_cast<const void *>(std::addressof(arg));
-			return *this;
-		}
-		/** @copydoc assign */
-		template<auto F, typename T>
-		constexpr delegate &assign(T &&arg) noexcept requires free_func<F, T> && candidate_arg<T>
-		{
-			using U = std::decay_t<T>;
-
-			m_proxy = +[](const void *p, Args...args) -> R
-			{
-				return F(ptr_bytes<U>(p), std::forward<Args>(args)...);
-			};
-			std::construct_at(bytes_ptr<U>(), std::forward<T>(arg));
-			return *this;
-		}
-		/** @copydoc assign */
-		template<auto F, typename Arg>
-		constexpr delegate &assign(delegate_func_t<F>, Arg *arg) noexcept requires free_func<F, Arg *>
-		{
-			return assign<F>(arg);
-		}
-		/** @copydoc assign */
-		template<auto F, typename Arg>
-		constexpr delegate &assign(delegate_func_t<F>, Arg &arg) noexcept requires free_func<F, Arg *>
-		{
-			return assign<F>(arg);
-		}
-		/** @copydoc assign */
-		template<auto F, typename Arg>
-		constexpr delegate &assign(delegate_func_t<F>, Arg &arg) noexcept requires free_func<F, Arg &>
-		{
-			return assign<F>(arg);
-		}
-		/** @copydoc assign */
-		template<auto F, typename T>
-		constexpr delegate &assign(delegate_func_t<F>, T &&arg) noexcept requires free_func<F, T> && candidate_arg<T>
-		{
-			return assign<F>(std::forward<T>(arg));
+			assign<F>(arg);
 		}
 
-		/** Binds a member function to the delegate. */
+		/** @brief Binds a free function and an instance argument to the delegate.
+		 * @copydetails delegate */
+		template<auto F, typename I>
+		constexpr delegate &assign(I *instance) noexcept requires free_func<F, I *>
+		{
+			m_proxy = +[](std::uintptr_t data, Args...args) -> R
+			{
+				const auto ptr = static_cast<I *>(data_t::get(data));
+				return std::invoke(F, ptr, std::forward<Args>(args)...);
+			};
+			m_data = data_t{std::in_place_type<I *>, instance};
+			return *this;
+		}
+		/** @copydoc assign */
+		template<auto F, typename I>
+		constexpr delegate &assign(I &instance) noexcept requires free_func<F, I *>
+		{
+			m_proxy = +[](std::uintptr_t data, Args...args) -> R
+			{
+				const auto ptr = static_cast<I *>(data_t::get(data));
+				return std::invoke(F, ptr, std::forward<Args>(args)...);
+			};
+			m_data = data_t{std::in_place_type<I *>, std::addressof(instance)};
+			return *this;
+		}
+		/** @copydoc assign */
+		template<auto F, typename I>
+		constexpr delegate &assign(I &instance) noexcept requires free_func<F, I &>
+		{
+			m_proxy = +[](std::uintptr_t data, Args...args) -> R
+			{
+				const auto ptr = static_cast<I *>(data_t::get(data));
+				return std::invoke(F, *ptr, std::forward<Args>(args)...);
+			};
+			m_data = data_t{std::in_place_type<I *>, std::addressof(instance)};
+			return *this;
+		}
+		/** @copydoc assign */
+		template<auto F, typename I>
+		constexpr delegate &assign(delegate_func_t<F>, I *instance) noexcept requires free_func<F, I *>
+		{
+			return assign<F>(instance);
+		}
+		/** @copydoc assign */
+		template<auto F, typename I>
+		constexpr delegate &assign(delegate_func_t<F>, I &instance) noexcept requires free_func<F, I *>
+		{
+			return assign<F>(instance);
+		}
+		/** @copydoc assign */
+		template<auto F, typename I>
+		constexpr delegate &assign(delegate_func_t<F>, I &instance) noexcept requires free_func<F, I &>
+		{
+			return assign<F>(instance);
+		}
+
+		/** @brief Initializes the delegate from a member function and it's object instance.
+		 * @param instance Bound instance the member function is invoked for.
+		 * @note This overload may allocate memory if the following expression evaluates to `false`:
+		 * `std::is_empty_v<I> || alignof(I) > alignof(std::byte)`. */
+		template<auto F, typename I>
+		constexpr delegate(delegate_func_t<F>, I *instance) noexcept requires mem_func<F>
+		{
+			assign<F>(instance);
+		}
+		/** @copydoc delegate */
+		template<auto F, typename I>
+		constexpr delegate(delegate_func_t<F>, I &instance) noexcept requires mem_func<F>
+		{
+			assign<F>(instance);
+		}
+
+		/** @brief Binds a member function and it's object instance to the delegate.
+		 * @copydetails delegate */
 		template<auto F, typename I>
 		constexpr delegate &assign(I *instance) noexcept requires mem_func<F>
 		{
-			m_proxy = +[](const void *p, Args...args) -> R
+			m_proxy = +[](std::uintptr_t data, Args...args) -> R
 			{
-				using U = std::add_const_t<I>;
-				return (const_cast<I *>(static_cast<U *>(p))->*F)(std::forward<Args>(args)...);
+			    const auto ptr = static_cast<I *>(data_t::get(data));
+			    return std::invoke(ptr, std::forward<Args>(args)...);
 			};
-			m_data_ptr = static_cast<const void *>(instance);
+			m_data = data_t{std::in_place_type<I *>, instance};
 			return *this;
 		}
 		/** @copydoc assign */
@@ -445,17 +580,11 @@ namespace sek
 		{
 			return assign<F>(instance);
 		}
-		/** Binds a member function to the delegate. */
+		/** @copydoc assign */
 		template<auto F, typename I>
 		constexpr delegate &assign(I &instance) noexcept requires mem_func<F>
 		{
-			m_proxy = +[](const void *p, Args...args) -> R
-			{
-				using U = std::add_const_t<I>;
-				return (const_cast<I *>(static_cast<U *>(p))->*F)(std::forward<Args>(args)...);
-			};
-			m_data_ptr = static_cast<const void *>(std::addressof(instance));
-			return *this;
+			return assign(std::addressof(instance));
 		}
 		/** @copydoc assign */
 		template<auto F, typename I>
@@ -465,10 +594,10 @@ namespace sek
 		}
 		// clang-format on
 
-		/** Checks if the delegate is bound to a function. */
+		/** Checks if the delegate is a valid invocation target (is bound to a function or functor). */
 		[[nodiscard]] constexpr bool valid() const noexcept { return m_proxy != nullptr; }
 		/** Returns pointer to the data of the bound argument or object instance. */
-		[[nodiscard]] constexpr const void *data() const noexcept { return m_data_ptr; }
+		[[nodiscard]] constexpr const void *data() const noexcept { return m_data.template get<void>(); }
 
 		/** Invokes the bound function.
 		 * @param args Arguments passed to the function.
@@ -477,76 +606,57 @@ namespace sek
 		constexpr R invoke(Args... args) const
 		{
 			if (valid()) [[likely]]
-				return m_proxy(m_data_ptr, std::forward<Args>(args)...);
+				return m_proxy(m_data.value(), std::forward<Args>(args)...);
 			else
-				throw delegate_error();
+				throw delegate_error("Attempted to invoke an unbound delegate");
 		}
 		/** @copydoc invoke */
 		constexpr R operator()(Args... args) const { return invoke(std::forward<Args>(args)...); }
 
 		[[nodiscard]] constexpr bool operator==(const delegate &other) const noexcept
 		{
-			return m_proxy == other.m_proxy && m_data_ptr == other.m_data_ptr;
+			return m_proxy == other.m_proxy && data() == other.data();
 		}
 
 		constexpr void swap(delegate &other) noexcept
 		{
-			using std::swap;
-			swap(m_proxy, other.m_proxy);
-			swap(m_data_ptr, other.m_data_ptr);
+			std::swap(m_proxy, other.m_proxy);
+			m_data.swap(other.m_data);
 		}
 		friend constexpr void swap(delegate &a, delegate &b) noexcept { a.swap(b); }
 
 	private:
-		template<typename T>
-		[[nodiscard]] constexpr static T ptr_bytes(const void *p) noexcept
-		{
-			return std::bit_cast<T>(std::bit_cast<std::intptr_t>(p));
-		}
-		template<typename T>
-		[[nodiscard]] constexpr T *bytes_ptr() noexcept
-		{
-			return std::bit_cast<T *>(&m_data_bytes);
-		}
-
-		R (*m_proxy)(const void *, Args...) = nullptr;
-		union
-		{
-			std::intptr_t m_data_bytes = {};
-			const void *m_data_ptr;
-		};
+		R (*m_proxy)(std::uintptr_t, Args...) = nullptr;
+		data_t m_data = {};
 	};
 
 	template<typename R, typename... Args>
 	delegate(R (*)(Args...)) -> delegate<R(Args...)>;
-	template<typename R, typename Arg, typename... Args>
-	delegate(R (*)(Arg *, Args...), Arg *) -> delegate<R(Args...)>;
-	template<typename R, typename Arg, typename... Args>
-	delegate(R (*)(Arg *, Args...), Arg &) -> delegate<R(Args...)>;
-	template<typename R, typename Arg, typename... Args>
-	delegate(R (*)(Arg &, Args...), Arg &) -> delegate<R(Args...)>;
-	template<typename R, typename Arg, typename... Args>
-	delegate(R (*)(Arg, Args...), Arg) -> delegate<R(Args...)>;
+
+	template<typename R, typename I, typename... Args>
+	delegate(R (*)(I *, Args...), I *) -> delegate<R(Args...)>;
+	template<typename R, typename I, typename... Args>
+	delegate(R (*)(I *, Args...), I &) -> delegate<R(Args...)>;
+	template<typename R, typename I, typename... Args>
+	delegate(R (*)(I &, Args...), I &) -> delegate<R(Args...)>;
 
 	template<typename R, typename... Args, R (*F)(Args...)>
 	delegate(delegate_func_t<F>) -> delegate<R(Args...)>;
 	template<typename R, typename... Args, R (&F)(Args...)>
 	delegate(delegate_func_t<F>) -> delegate<R(Args...)>;
 
-	template<typename R, typename Arg, typename... Args, R (*F)(Arg *, Args...)>
-	delegate(delegate_func_t<F>, Arg *) -> delegate<R(Args...)>;
-	template<typename R, typename Arg, typename... Args, R (*F)(Arg *, Args...)>
-	delegate(delegate_func_t<F>, Arg &) -> delegate<R(Args...)>;
-	template<typename R, typename Arg, typename... Args, R (*F)(Arg &, Args...)>
-	delegate(delegate_func_t<F>, Arg &) -> delegate<R(Args...)>;
-	template<typename R, typename Arg, typename... Args, R (&F)(Arg *, Args...)>
-	delegate(delegate_func_t<F>, Arg *) -> delegate<R(Args...)>;
-	template<typename R, typename Arg, typename... Args, R (&F)(Arg *, Args...)>
-	delegate(delegate_func_t<F>, Arg &) -> delegate<R(Args...)>;
-	template<typename R, typename Arg, typename... Args, R (&F)(Arg &, Args...)>
-	delegate(delegate_func_t<F>, Arg &) -> delegate<R(Args...)>;
-	template<typename R, typename Arg, typename... Args, R (&F)(Arg, Args...)>
-	delegate(delegate_func_t<F>, Arg) -> delegate<R(Args...)>;
+	template<typename R, typename I, typename... Args, R (*F)(I *, Args...)>
+	delegate(delegate_func_t<F>, I *) -> delegate<R(Args...)>;
+	template<typename R, typename I, typename... Args, R (*F)(I *, Args...)>
+	delegate(delegate_func_t<F>, I &) -> delegate<R(Args...)>;
+	template<typename R, typename I, typename... Args, R (*F)(I &, Args...)>
+	delegate(delegate_func_t<F>, I &) -> delegate<R(Args...)>;
+	template<typename R, typename I, typename... Args, R (&F)(I *, Args...)>
+	delegate(delegate_func_t<F>, I *) -> delegate<R(Args...)>;
+	template<typename R, typename I, typename... Args, R (&F)(I *, Args...)>
+	delegate(delegate_func_t<F>, I &) -> delegate<R(Args...)>;
+	template<typename R, typename I, typename... Args, R (&F)(I &, Args...)>
+	delegate(delegate_func_t<F>, I &) -> delegate<R(Args...)>;
 
 	template<typename R, typename I, typename... Args, R (I::*F)(Args...)>
 	delegate(delegate_func_t<F>, I *) -> delegate<R(Args...)>;
