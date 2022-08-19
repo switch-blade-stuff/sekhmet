@@ -133,8 +133,11 @@ namespace sek
 		/* State object is stored by-value only if the state is an aligned pointer or the state is empty (since then
 		 * the pointer does not matter). */
 		template<typename T>
-		constexpr static bool aligned_ptr = std::is_pointer_v<T> && (alignof(std::remove_pointer_t<T>) > alignof(std::byte) ||
-																	 std::is_empty_v<std::remove_pointer_t<T>>);
+		constexpr static bool is_aligned =
+			std::disjunction_v<std::conjunction<std::is_pointer<T>, std::negation<std::is_function<std::remove_pointer_t<T>>>,
+												std::disjunction<std::bool_constant<(alignof(std::remove_pointer_t<T>) > alignof(std::byte))>,
+																 std::is_empty<std::remove_pointer_t<T>>>>,
+							   std::is_empty<T>>;
 		// clang-format on
 
 		class data_t
@@ -191,20 +194,21 @@ namespace sek
 
 			constexpr ~data_t() { destroy(); }
 
+			// clang-format off
+			template<typename T, typename... TArgs>
+			constexpr explicit data_t(std::in_place_type_t<T>, TArgs &&...args) requires std::is_function_v<std::remove_pointer_t<T>>
+			{
+				init_managed<T>(std::forward<TArgs>(args)...);
+			}
 			template<typename T, typename... TArgs>
 			constexpr explicit data_t(std::in_place_type_t<T>, TArgs &&...args)
 			{
-				if constexpr (!aligned_ptr<T>)
-				{
-					m_ptr = std::bit_cast<std::uintptr_t>(make_data<T>(std::forward<TArgs>(args)...));
-					m_ptr |= managed_flag;
-
-					/* If state is an external pointer that did not fit into local alignment, set the external bit. */
-					if constexpr (std::is_pointer_v<T>) m_ptr |= external_flag;
-				}
+				if (!is_aligned<T>)
+					init_managed<T>(std::forward<TArgs>(args)...);
 				else
-					std::construct_at(std::bit_cast<T *>(&m_ptr), std::forward<TArgs>(args)...);
+					init_local<T>(std::forward<TArgs>(args)...);
 			}
+			// clang-format on
 
 			[[nodiscard]] constexpr void *get() const noexcept { return get(m_ptr); }
 			[[nodiscard]] constexpr std::uintptr_t value() const noexcept { return m_ptr; }
@@ -218,6 +222,21 @@ namespace sek
 			constexpr void swap(data_t &other) noexcept { std::swap(m_ptr, other.m_ptr); }
 
 		private:
+			template<typename T, typename... TArgs>
+			constexpr void init_managed(TArgs &&...args)
+			{
+				m_ptr = std::bit_cast<std::uintptr_t>(make_data<T>(std::forward<TArgs>(args)...));
+				m_ptr |= managed_flag;
+
+				/* If state is an external pointer that did not fit into local alignment, set the external bit. */
+				if constexpr (std::is_pointer_v<T>) m_ptr |= external_flag;
+			}
+			template<typename T, typename... TArgs>
+			constexpr void init_local(TArgs &&...args)
+			{
+				std::construct_at(std::bit_cast<T *>(&m_ptr), std::forward<TArgs>(args)...);
+			}
+
 			constexpr void copy(const data_t &other)
 			{
 				/* Duplicate the heap-allocated data block if it is not local. */
@@ -276,7 +295,7 @@ namespace sek
 
 			m_proxy = +[](std::uintptr_t data, Args &&...args) -> R
 			{
-				const auto ptr = static_cast<F>(data_t::get(data));
+				const auto ptr = std::bit_cast<F>(data_t::get(data));
 				return std::invoke(*ptr, std::forward<Args>(args)...);
 			};
 			m_data = data_t{std::in_place_type<F>, f};
@@ -295,19 +314,19 @@ namespace sek
 		 * @note This overload may allocate memory if the following expression evaluates to `false`:
 		 * `std::is_empty_v<I> || alignof(I) > alignof(std::byte)`. */
 		template<typename I>
-		constexpr delegate(R (*f)(I *, Args...), I *instance) noexcept requires aligned_ptr<I *>
+		constexpr delegate(R (*f)(I *, Args...), I *instance) noexcept requires is_aligned<I *>
 		{
 			assign(f, instance);
 		}
 		/** @copydoc delegate */
 		template<typename I>
-		constexpr delegate(R (*f)(I *, Args...), I &instance) noexcept requires aligned_ptr<I *>
+		constexpr delegate(R (*f)(I *, Args...), I &instance) noexcept requires is_aligned<I *>
 		{
 			assign(f, instance);
 		}
 		/** @copydoc delegate */
 		template<typename I>
-		constexpr delegate(R (*f)(I &, Args...), I &instance) noexcept requires aligned_ptr<I *>
+		constexpr delegate(R (*f)(I &, Args...), I &instance) noexcept requires is_aligned<I *>
 		{
 			assign(f, instance);
 		}
@@ -315,7 +334,7 @@ namespace sek
 		/** @brief Binds a free function pointer and an instance argument to the delegate.
 		 * @copydetails delegate */
 		template<typename I>
-		constexpr delegate &assign(R (*f)(I *, Args...), I *instance) noexcept requires aligned_ptr<I *>
+		constexpr delegate &assign(R (*f)(I *, Args...), I *instance) noexcept requires is_aligned<I *>
 		{
 			/* Since the first argument is a pointer, bit_cast to `uintptr_t` is safe. */
 			m_proxy = std::bit_cast<R (*)(std::uintptr_t, Args...)>(f);
@@ -324,13 +343,13 @@ namespace sek
 		}
 		/** @copydoc assign */
 		template<typename I>
-		constexpr delegate &assign(R (*f)(I *, Args...), I &instance) noexcept requires aligned_ptr<I *>
+		constexpr delegate &assign(R (*f)(I *, Args...), I &instance) noexcept requires is_aligned<I *>
 		{
 			return assign(f, std::addressof(instance));
 		}
 		/** @copydoc assign */
 		template<typename I>
-		constexpr delegate &assign(R (*f)(I &, Args...), I &instance) noexcept requires aligned_ptr<I *>
+		constexpr delegate &assign(R (*f)(I &, Args...), I &instance) noexcept requires is_aligned<I *>
 		{
 			return assign(std::bit_cast<R (*)(I *, Args...)>(f), std::addressof(instance));
 		}

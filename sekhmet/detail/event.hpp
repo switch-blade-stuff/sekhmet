@@ -510,10 +510,10 @@ namespace sek
 		event_subscriber m_next_id = event_placeholder;
 	};
 
-	/** @brief Event-like structure used to abstract an event type.
+	/** @brief Event-like structure used to convert signature of an event.
 	 *
-	 * @tparam R Return type of the event's delegates.
-	 * @tparam Args Arguments passed to event's delegates. */
+	 * @tparam R New return type of the event's delegates.
+	 * @tparam Args New arguments passed to event's delegates. */
 	template<typename R, typename... Args>
 	class basic_event_converter<R(Args...)>
 	{

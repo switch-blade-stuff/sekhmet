@@ -68,7 +68,7 @@ namespace sek::engine
 		class plugin_base : plugin_data
 		{
 		public:
-			static Child instance;
+			static Child &instance();
 
 			explicit plugin_base(plugin_info info) noexcept : plugin_data(info)
 			{
@@ -131,22 +131,55 @@ namespace sek::engine
 
 namespace impl
 {
+	template<typename F>
+	struct static_exec
+	{
+		constexpr static_exec() noexcept : static_exec(F{}) {}
+		constexpr static_exec(F &&f) noexcept { std::invoke(f); }
+	};
+	template<typename F>
+	static_exec(F &&) -> static_exec<F>;
+
 	template<sek::basic_static_string Id>
-	struct plugin_instance : sek::engine::detail::plugin_base<plugin_instance<Id>>
+	class plugin_instance : sek::engine::detail::plugin_base<plugin_instance<Id>>
 	{
 		friend class sek::engine::detail::plugin_base<plugin_instance>;
 
-		plugin_instance();
+		static static_exec<void (*)()> bootstrap;
+
+	public:
+		using sek::engine::detail::plugin_base<plugin_instance<Id>>::instance;
+		using sek::engine::detail::plugin_base<plugin_instance<Id>>::on_disable;
+		using sek::engine::detail::plugin_base<plugin_instance<Id>>::on_enable;
+		using sek::engine::detail::plugin_base<plugin_instance<Id>>::info;
 
 	private:
+		plugin_instance();
 		void init();
+	};
+
+	template<sek::basic_static_string Func, sek::basic_static_string Plugin>
+	struct exec_on_plugin_enable : static_exec<exec_on_plugin_enable<Func, Plugin>>
+	{
+		static exec_on_plugin_enable instance;
+		static bool invoke();
+
+		constexpr void operator()() const noexcept { plugin_instance<Plugin>::instance().on_enable += invoke; }
+	};
+	template<sek::basic_static_string Func, sek::basic_static_string Plugin>
+	struct exec_on_plugin_disable : static_exec<exec_on_plugin_disable<Func, Plugin>>
+	{
+		static exec_on_plugin_disable instance;
+		static void invoke();
+
+		constexpr void operator()() const noexcept { plugin_instance<Plugin>::instance().on_disable += invoke; }
 	};
 }	 // namespace impl
 
 /** @brief Macro used to reference the internal unique type of a plugin.
- * @param id String id used to uniquely identify a plugin.
- * @note Referenced plugin must be declared first. */
+ * @param id String id used to uniquely identify a plugin. */
 #define SEK_PLUGIN(id) impl::plugin_instance<(id)>
+
 /** @brief Macro used to define an instance of a plugin.
  * @param id String id used to uniquely identify a plugin.
  * @param ver Version of the plugin in the following format: `"<major>.<minor>.<patch>"`.
@@ -171,15 +204,66 @@ namespace impl
  * @endcode */
 #define SEK_PLUGIN_INSTANCE(id, ver)                                                                                   \
 	static_assert(SEK_ARRAY_SIZE(id), "Plugin id must not be empty");                                                  \
+                                                                                                                       \
+	/* Definition of plugin instance constructor. */                                                                   \
 	template<>                                                                                                         \
 	SEK_PLUGIN(id)::plugin_instance() : plugin_base({sek::version{SEK_ENGINE_VERSION}, sek::version{ver}, (id)})       \
 	{                                                                                                                  \
 	}                                                                                                                  \
+	/* Static instantiation & bootstrap implementation. 2-stage bootstrap is required in order                         \
+	 * to allow for `SEK_PLUGIN(id)::instance()` to be called on static initialization. */                             \
 	template<>                                                                                                         \
-	impl::plugin_instance<(id)> sek::engine::detail::plugin_base<impl::plugin_instance<(id)>>::instance = {};          \
+	impl::plugin_instance<(id)> &sek::engine::detail::plugin_base<impl::plugin_instance<(id)>>::instance()             \
+	{                                                                                                                  \
+		static impl::plugin_instance<(id)> value;                                                                      \
+		return value;                                                                                                  \
+	}                                                                                                                  \
+	template<>                                                                                                         \
+	impl::static_exec<void (*)()> impl::plugin_instance<(id)>::bootstrap = +[]() { instance(); };                      \
                                                                                                                        \
+	/* User-facing initialization function. */                                                                         \
 	template<>                                                                                                         \
 	void impl::plugin_instance<(id)>::init()
+
+/** @brief Macro used to bootstrap code execution when a plugin is enabled.
+ * @param plugin Id of the target plugin.
+ * @param func Unique name used to disambiguate functions executed during plugin enable process.
+ *
+ * @example
+ * @code{.cpp}
+ * SEK_ON_PLUGIN_ENABLE("test_plugin", "test_enable")
+ * {
+ * 	printf("test_plugin is enabled\n");
+ * 	return true;
+ * }
+ * @endcode */
+#define SEK_ON_PLUGIN_ENABLE(plugin, func)                                                                             \
+	template<>                                                                                                         \
+	bool impl::exec_on_plugin_enable<(plugin), (func)>::invoke();                                                      \
+	template<>                                                                                                         \
+	impl::exec_on_plugin_enable<(plugin), (func)> impl::exec_on_plugin_enable<(plugin), (func)>::instance = {};        \
+                                                                                                                       \
+	template<>                                                                                                         \
+	bool impl::exec_on_plugin_enable<(plugin), (func)>::invoke()
+/** @brief Macro used to bootstrap code execution when a plugin is disabled.
+ * @param plugin Id of the target plugin.
+ * @param func Unique name used to disambiguate functions executed during plugin disable process.
+ *
+ * @example
+ * @code{.cpp}
+ * SEK_ON_PLUGIN_DISABLE("test_plugin", "test_disable")
+ * {
+ * 	printf("test_plugin is disabled\n");
+ * }
+ * @endcode */
+#define SEK_ON_PLUGIN_DISABLE(plugin, func)                                                                            \
+	template<>                                                                                                         \
+	void impl::exec_on_plugin_disable<(plugin), (func)>::invoke();                                                     \
+	template<>                                                                                                         \
+	impl::exec_on_plugin_disable<(plugin), (func)> impl::exec_on_plugin_disable<(plugin), (func)>::instance = {};      \
+                                                                                                                       \
+	template<>                                                                                                         \
+	void impl::exec_on_plugin_disable<(plugin), (func)>::invoke()
 
 #if defined(SEK_PLUGIN_NAME) && defined(SEK_PLUGIN_VERSION)
 /** @brief Macro used to define a plugin with name & version specified by the current plugin project.
@@ -188,5 +272,11 @@ namespace impl
 /** @brief Macro used to reference the type of a plugin with name & version specified by the current plugin project.
  * See `SEK_PLUGIN` for details. */
 #define SEK_PROJECT_PLUGIN SEK_PLUGIN(SEK_PLUGIN_NAME)
+/** @brief Macro used to bootstrap code execution when the current project's plugin is enabled.
+ * See `SEK_ON_PLUGIN_ENABLE` for details. */
+#define SEK_ON_PROJECT_PLUGIN_ENABLE(func) SEK_ON_PLUGIN_ENABLE(SEK_PLUGIN_NAME, func)
+/** @brief Macro used to bootstrap code execution when the current project's plugin is disabled.
+ * See `SEK_ON_PLUGIN_DISABLE` for details. */
+#define SEK_ON_PROJECT_PLUGIN_DISABLE(func) SEK_ON_PLUGIN_DISABLE(SEK_PLUGIN_NAME, func)
 #endif
 // clang-format on
