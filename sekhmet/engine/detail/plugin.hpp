@@ -131,39 +131,62 @@ namespace sek::engine
 
 namespace impl
 {
-	template<sek::basic_static_string>
-	struct sekhmet_plugin_instance;
-}
+	template<sek::basic_static_string Id>
+	struct plugin_instance : sek::engine::detail::plugin_base<plugin_instance<Id>>
+	{
+		friend class sek::engine::detail::plugin_base<plugin_instance>;
 
-/** @brief Macro used to reference the type of a plugin.
+		plugin_instance();
+
+	private:
+		void init();
+	};
+}	 // namespace impl
+
+/** @brief Macro used to reference the internal unique type of a plugin.
  * @param id String id used to uniquely identify a plugin.
  * @note Referenced plugin must be declared first. */
-#define SEK_PLUGIN_TYPE(id) impl::sekhmet_plugin_instance<(id)>
-/** @brief Macro used to define a plugin.
+#define SEK_PLUGIN(id) impl::plugin_instance<(id)>
+/** @brief Macro used to define an instance of a plugin.
  * @param id String id used to uniquely identify a plugin.
- * @param ver Version of the plugin in the following format: `"<major>.<minor>.<patch>"`. */
-#define SEK_PLUGIN(id, ver)                                                                                                   \
-	namespace impl                                                                                                            \
-	{                                                                                                                         \
-		static_assert(SEK_ARRAY_SIZE(id), "Plugin id must not be empty");                                                     \
-                                                                                                                              \
-		template<>                                                                                                            \
-		struct sekhmet_plugin_instance<(id)> : sek::engine::detail::plugin_base<sekhmet_plugin_instance<(id)>>                \
-		{                                                                                                                     \
-			sekhmet_plugin_instance() : plugin_base({sek::version{SEK_ENGINE_VERSION}, sek::version{ver}, (id)})              \
-			{                                                                                                                 \
-			}                                                                                                                 \
-			void init();                                                                                                      \
-		};                                                                                                                    \
-	}                                                                                                                         \
-	template<>                                                                                                                \
-	impl::sekhmet_plugin_instance<(id)> sek::engine::detail::plugin_base<impl::sekhmet_plugin_instance<(id)>>::instance = {}; \
-	void impl::sekhmet_plugin_instance<(id)>::init()
+ * @param ver Version of the plugin in the following format: `"<major>.<minor>.<patch>"`.
+ *
+ * @example
+ * @code{.cpp}
+ * SEK_PLUGIN_INSTANCE("my_plugin", "0.1.2")
+ * {
+ * 	printf("%s is initializing! version: %d.%d.%d\n",
+ * 		   info.id.data(),
+ * 		   info.engine_ver.major(),
+ * 		   info.engine_ver.minor(),
+ * 		   info.engine_ver.patch());
+ *
+ * 	on_enable += +[]()
+ * 	{
+ * 		printf("Enabling my_plugin\n");
+ * 		return true;
+ * 	};
+ * 	on_disable += +[]() { printf("Disabling my_plugin\n"); };
+ * }
+ * @endcode */
+#define SEK_PLUGIN_INSTANCE(id, ver)                                                                                   \
+	static_assert(SEK_ARRAY_SIZE(id), "Plugin id must not be empty");                                                  \
+	template<>                                                                                                         \
+	SEK_PLUGIN(id)::plugin_instance() : plugin_base({sek::version{SEK_ENGINE_VERSION}, sek::version{ver}, (id)})       \
+	{                                                                                                                  \
+	}                                                                                                                  \
+	template<>                                                                                                         \
+	impl::plugin_instance<(id)> sek::engine::detail::plugin_base<impl::plugin_instance<(id)>>::instance = {};          \
+                                                                                                                       \
+	template<>                                                                                                         \
+	void impl::plugin_instance<(id)>::init()
 
 #if defined(SEK_PLUGIN_NAME) && defined(SEK_PLUGIN_VERSION)
-/** @brief Macro used to define a plugin with name & version specified by the current plugin project. */
-#define SEK_PROJECT_PLUGIN() SEK_PLUGIN(SEK_PLUGIN_NAME, SEK_PLUGIN_VERSION)
-/** @brief Macro used to reference the type of a plugin with name & version specified by the current plugin project. */
-#define SEK_PROJECT_PLUGIN_TYPE SEK_PLUGIN_TYPE(SEK_PLUGIN_NAME)
+/** @brief Macro used to define a plugin with name & version specified by the current plugin project.
+ * See `SEK_PLUGIN_INSTANCE` for details. */
+#define SEK_PROJECT_PLUGIN_INSTANCE() SEK_PLUGIN_INSTANCE(SEK_PLUGIN_NAME, SEK_PLUGIN_VERSION)
+/** @brief Macro used to reference the type of a plugin with name & version specified by the current plugin project.
+ * See `SEK_PLUGIN` for details. */
+#define SEK_PROJECT_PLUGIN SEK_PLUGIN(SEK_PLUGIN_NAME)
 #endif
 // clang-format on

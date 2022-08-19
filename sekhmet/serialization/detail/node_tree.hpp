@@ -7,6 +7,7 @@
 #include "sekhmet/detail/assert.hpp"
 #include "sekhmet/detail/buffer_allocator.hpp"
 
+#include "manipulators.hpp"
 #include "util.hpp"
 
 namespace sek::serialization

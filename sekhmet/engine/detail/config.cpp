@@ -277,7 +277,7 @@ namespace sek::engine
 		if (!value.empty()) f.write(serialization::keyed_entry(value.type().name(), any_proxy{value}), r);
 
 		/* Serialize children nodes. */
-		f.write(serialization::keyed_entry("nodes", nodes_proxy{nodes}), r);
+		f.write(serialization::keyed_entry("__nodes", nodes_proxy{nodes}), r);
 	}
 	void config_registry::entry_node::deserialize(input_frame &f, const config_registry &r)
 	{
@@ -286,7 +286,7 @@ namespace sek::engine
 			if (!entry.has_key()) [[unlikely]]
 				continue;
 
-			if (const auto key = entry.key(); key == "nodes")
+			if (const auto key = entry.key(); key == "__nodes")
 				entry->read(nodes_proxy{nodes}, path, r);
 			else if (const auto type = type_info::get(key); type) /* Key holds the entry type. */
 			{
@@ -307,9 +307,9 @@ namespace sek::engine
 		else
 		{
 			/* Otherwise, the target node is somewhere down the stack, pop the first element off the stack,
-			 * skip the "nodes" table entry through a proxy and keep on unwinding the stack. */
+			 * skip the "__nodes" table entry through a proxy and keep on unwinding the stack. */
 			s.pop_back();
-			f.read(serialization::keyed_entry("nodes", nodes_proxy{s}), r);
+			f.read(serialization::keyed_entry("__nodes", nodes_proxy{s}), r);
 		}
 	}
 

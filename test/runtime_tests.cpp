@@ -382,7 +382,7 @@ TEST(runtime_tests, config_test)
 	reg_guard_t reg_guard;
 
 	{
-		const auto data = R"({ "nodes": { "test_entry": { "test_config": { "some_int": 1, "flag": true }}}})"sv;
+		const auto data = R"({ "__nodes": { "test_entry": { "test_config": { "some_int": 1, "flag": true }}}})"sv;
 
 		sek::serialization::json::input_archive archive(data.data(), data.size());
 		EXPECT_NO_THROW(reg_guard.access_unique()->load("test_category", std::move(*archive.tree)));

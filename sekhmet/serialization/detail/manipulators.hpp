@@ -24,9 +24,8 @@ namespace sek::serialization
 	/** Reads or writes an entry with an explicit key.
 	 * @param key Key of the entry.
 	 * @param value Value to be read or written, forwarded by the manipulator.
-	 * @note If the current entry (entry of the object being deserialized) is an array entry,
-	 * specifying an explicit entry key will have no effect.
-	 * @note Names consisting of an underscore followed by decimal digits (`_[0-9]+`) are reserved. */
+	 * @note An archive is allowed to ignore this manipulator.
+	 * @note Names consisting of one or multiple underscores followed by decimal digits (`_+[0-9]+`) are reserved. */
 	template<typename C, typename T>
 	constexpr keyed_entry_t<C, T> keyed_entry(std::basic_string_view<C> key, T &&value) noexcept(detail::noexcept_fwd<T>)
 	{
@@ -47,7 +46,11 @@ namespace sek::serialization
 	}
 
 	/** @brief Archive manipulator used read or write size of the current container.
-	 * @note If the archive does not support fixed-size containers, size will be left unmodified. */
+	 *
+	 * By default, archives should infer container size during serialization. This manipulator is used to specify
+	 * an explicit container size.
+	 *
+	 * @note An archive is allowed to ignore this manipulator. */
 	template<typename T>
 	struct container_size_t
 	{
@@ -55,7 +58,7 @@ namespace sek::serialization
 	};
 	/** Reads or writes size of the current container entry.
 	 * @param size Size of the container, forwarded by the manipulator.
-	 * @note If the archive does not support fixed-size containers, size will be left unmodified.*/
+	 * @note An archive is allowed to ignore this manipulator. */
 	template<typename T>
 	constexpr container_size_t<T> container_size(T &&size) noexcept
 		requires std::integral<std::decay_t<T>>
@@ -65,16 +68,56 @@ namespace sek::serialization
 
 	/** @brief Archive manipulator used to switch the archive to array output mode.
 	 *
-	 * By default archives serialize types as table-like entries.
-	 * This manipulator is used to switch an archive to array output mode.
+	 * By default archives serialize types as table-like "object" entries. This manipulator is used to switch an
+	 * archive to array output mode.
 	 *
-	 * @note Entries written to an array will not be accessible via a key.
-	 * @warning Switching an archive to array output mode after multiple entries have already been
-	 * written or after the container size was specified, leads to undefined behavior. */
+	 * @note An archive is allowed to ignore this manipulator.
+	 * @warning Entries written to an array will not be accessible via a key. Doing so will result in serialization errors.
+	 * @warning Switching an archive to array output mode after multiple entries have already been written or after the
+	 * container size was specified, will result in serialization errors. */
 	struct array_mode_t
 	{
 	};
 	/** Switches archive to array output mode.
 	 * @copydetails array_mode_t */
 	constexpr array_mode_t array_mode() noexcept { return {}; }
+
+	/** @brief Archive manipulator used to explicitly switch an archive to dynamic-type mode.
+	 *
+	 * By default, type-aware archives would either use a dynamic datatype or determine the data type during
+	 * serialization. Sometimes it may be desirable to force an archive into dynamic-type mode, which is what
+	 * this manipulator accomplishes.
+	 *
+	 * @note Archives may ignore this manipulator.
+	 * @note If type information is supported, an archive may be switched to dynamic mode at any point in time, even
+	 * after multiple entries have been serialized. */
+	struct dynamic_type_t
+	{
+	};
+	/** Switches archive to dynamic type mode.
+	 * @copydetails array_mode_t */
+	constexpr dynamic_type_t dynamic_type() noexcept { return {}; }
+	/** @brief Archive manipulator used to explicitly specify datatype of an archive.
+	 *
+	 * By default, type-aware archives would either use a dynamic datatype or determine the data type during
+	 * serialization. Sometimes it may be desirable to explicitly specify a datatype for an archive (for example
+	 * to reduce encoding size).
+	 *
+	 * @note Archives may ignore this manipulator.
+	 * @warning Forcing an explicit data type may require explicit conversions during serialization and may result in
+	 * serialization errors if an archive does not support the desired type conversion.
+	 * @warning Switching an archive type after multiple entries have already been serialized will result in
+	 * serialization errors. */
+	template<typename T>
+	struct explicit_type_t
+	{
+		typedef T type;
+	};
+	/** Switches archive to an explicit type.
+	 * @copydetails explicit_type_t */
+	template<typename T>
+	constexpr explicit_type_t<T> explicit_type() noexcept
+	{
+		return {};
+	}
 }	 // namespace sek::serialization
