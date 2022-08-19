@@ -37,13 +37,13 @@ room for skill ceiling.
 - [X] Runtime reflection system
 - [X] Plugin system
 - [ ] Compile-time configurable serialization library    (currently under rework)
-    - [ ] Intermediate structured archive base           (currently under rework)
+    - [ ] Intermediate structured archive           (currently under rework)
     - [ ] Json input & output archives                   (currently under rework)
     - [ ] UBJson input & output archives                 (currently under rework)
     - [ ] Raw binary input & output archives             (currently under rework)
 - [ ] Asset/resource system. (currently under rework)
     - [ ] "local" asset loading                          (currently under rework)
-    - [ ] Network config loading (via URI)
+    - [ ] Network asset loading (via URI)
 - [ ] Config management system
     - [X] "local" config saving/loading
     - [ ] Network config saving/loading (via URI)
