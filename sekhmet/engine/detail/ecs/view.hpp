@@ -18,13 +18,14 @@ namespace sek::engine
 	 * Component views act as "weak" references to a group of component sets. Iterating a component view will iterate
 	 * over entities of it's included and optional sets, discarding any entities from the excluded sets. Component views
 	 * are very cheap to create and do not have any side-effects, however they require double-indirection when
-	 * retrieving a component (set -> entity -> component instead of set -> component).
+	 * retrieving a component (set -> entity -> component instead of set -> component). Unlike collections, views
+	 * do not track creation and destruction of entities.
 	 *
 	 * @tparam I Component types captured by the view.
 	 * @tparam E Component types excluded from the view.
-	 * @tparam O Optional components of the view. */
+	 * @tparam P Optional components of the view. */
 	template<typename... I, typename... E, typename... O>
-	class component_view<included_t<I...>, excluded_t<E...>, optional_t<O...>>
+	class component_view<included_t<I...>, excluded_t<E...>, optional_t<P...>>
 	{
 		static_assert(sizeof...(I) != 0, "View include at least 1 component type");
 
@@ -34,12 +35,12 @@ namespace sek::engine
 		using set_ptr_t = transfer_cv_t<T, component_set<std::remove_cv_t<T>>> *;
 		using inc_ptr = std::tuple<set_ptr_t<I>...>;
 		using exc_ptr = std::tuple<set_ptr_t<E>...>;
-		using opt_ptr = std::tuple<set_ptr_t<O>...>;
+		using opt_ptr = std::tuple<set_ptr_t<P>...>;
 
 		template<typename T>
 		constexpr static bool is_inc = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<I>...>;
 		template<typename T>
-		constexpr static bool is_opt = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<O>...>;
+		constexpr static bool is_opt = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<P>...>;
 
 		template<typename T>
 		[[nodiscard]] constexpr static bool accept(entity_t e, const inc_ptr &inc) noexcept
@@ -180,7 +181,7 @@ namespace sek::engine
 		 * @param exc Pointers to component sets of excluded components.
 		 * @param opt Pointers to component sets of optional components.
 		 * @note The smallest component set will be used as the main set. */
-		constexpr explicit component_view(set_ptr_t<I>... inc, set_ptr_t<E>... exc, set_ptr_t<O>... opt)
+		constexpr explicit component_view(set_ptr_t<I>... inc, set_ptr_t<E>... exc, set_ptr_t<P>... opt)
 			: m_set(select_common(inc...)), m_included(inc...), m_excluded(exc...), m_optional(opt...)
 		{
 			SEK_ASSERT(((inc != nullptr) && ...), "Included component sets can not be null");
@@ -263,21 +264,21 @@ namespace sek::engine
 
 		/** Applies the functor to every entity of the view.
 		 * Functor may optionally return a value, which if evaluated to `false`, prematurely terminates iteration. */
-		template<std::invocable<entity_t, I *..., O *...> F>
+		template<std::invocable<entity_t, I *..., P *...> F>
 		constexpr void for_each(F &&f) const
 		{
 			for (auto first = begin(), last = end(); first != last; ++first)
 			{
-				const auto cmp = std::tuple<I *..., O *...>{get<I..., O...>(first)};
+				const auto cmp = std::tuple<I *..., P *...>{get<I..., P...>(first)};
 				const auto e = *first;
 
-				if constexpr (std::convertible_to<std::invoke_result_t<F, entity_t, I *..., O *...>, bool>)
+				if constexpr (std::convertible_to<std::invoke_result_t<F, entity_t, I *..., P *...>, bool>)
 				{
-					if (!std::invoke(std::forward<F>(f), e, std::get<I *>(cmp)..., std::get<O *>(cmp)...)) [[unlikely]]
+					if (!std::invoke(std::forward<F>(f), e, std::get<I *>(cmp)..., std::get<P *>(cmp)...)) [[unlikely]]
 						break;
 				}
 				else
-					std::invoke(std::forward<F>(f), e, std::get<I *>(cmp)..., std::get<O *>(cmp)...);
+					std::invoke(std::forward<F>(f), e, std::get<I *>(cmp)..., std::get<P *>(cmp)...);
 			}
 		}
 
@@ -313,22 +314,21 @@ namespace sek::engine
 		opt_ptr m_optional;
 	};
 
-	template<typename I, typename... O>
-	class component_view<included_t<I>, excluded_t<>, optional_t<O...>>
+	/** @brief Optimized specialization of `component_view` that iterates over a single component set. */
+	template<typename I, typename... P>
+	class component_view<included_t<I>, excluded_t<>, optional_t<P...>>
 	{
-		using common_set = generic_component_set;
-
 		template<typename T>
 		using set_t = transfer_cv_t<T, component_set<std::remove_cv_t<T>>>;
 		template<typename T>
 		using set_ptr_t = set_t<T> *;
 
-		using opt_ptr = std::tuple<set_ptr_t<O>...>;
+		using opt_ptr = std::tuple<set_ptr_t<P>...>;
 
 		template<typename T>
 		constexpr static bool is_inc = std::same_as<std::remove_cv_t<T>, std::remove_cv_t<I>>;
 		template<typename T>
-		constexpr static bool is_opt = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<O>...>;
+		constexpr static bool is_opt = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<P>...>;
 
 		class view_iterator
 		{
@@ -440,7 +440,7 @@ namespace sek::engine
 		/** Initializes component view from pointers to component sets.
 		 * @param inc Pointer to component set of included component type.
 		 * @param opt Pointers to component sets of optional components. */
-		constexpr explicit component_view(set_ptr_t<I> inc, set_ptr_t<O>... opt) : m_set(inc), m_optional(opt...)
+		constexpr explicit component_view(set_ptr_t<I> inc, set_ptr_t<P>... opt) : m_set(inc), m_optional(opt...)
 		{
 			SEK_ASSERT(inc != nullptr, "Included component set can not be null");
 		}
@@ -526,21 +526,21 @@ namespace sek::engine
 
 		/** Applies the functor to every entity of the view.
 		 * Functor may optionally return a value, which if evaluated to `false`, prematurely terminates iteration. */
-		template<std::invocable<entity_t, I *, O *...> F>
+		template<std::invocable<entity_t, I *, P *...> F>
 		constexpr void for_each(F &&f) const
 		{
 			for (auto first = begin(), last = end(); first != last; ++first)
 			{
-				const auto cmp = std::tuple<I *, O *...>{get<I, O...>(first)};
+				const auto cmp = std::tuple<I *, P *...>{get<I, P...>(first)};
 				const auto e = *first;
 
-				if constexpr (std::convertible_to<std::invoke_result_t<F, entity_t, I *, O *...>, bool>)
+				if constexpr (std::convertible_to<std::invoke_result_t<F, entity_t, I *, P *...>, bool>)
 				{
-					if (!std::invoke(std::forward<F>(f), e, std::get<I *>(cmp), std::get<O *>(cmp)...)) [[unlikely]]
+					if (!std::invoke(std::forward<F>(f), e, std::get<I *>(cmp), std::get<P *>(cmp)...)) [[unlikely]]
 						break;
 				}
 				else
-					std::invoke(std::forward<F>(f), e, std::get<I *>(cmp), std::get<O *>(cmp)...);
+					std::invoke(std::forward<F>(f), e, std::get<I *>(cmp), std::get<P *>(cmp)...);
 			}
 		}
 

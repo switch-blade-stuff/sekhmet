@@ -463,7 +463,7 @@ namespace sek
 		}
 		/** @copydoc dispatch */
 		constexpr const basic_event &operator()(Args... args) const { return dispatch(std::forward<Args>(args)...); }
-		/** Invokes subscribers of the event with the passed arguments and collects the results using a callback.
+		/** Invokes subscribers of the event with the passed arguments and owns the results using a callback.
 		 *
 		 * @param col Collector callback receiving results of subscriber calls.
 		 * @param args Arguments passed to the subscriber delegates.

@@ -12,18 +12,14 @@ namespace sek::engine
 	 *
 	 * Component traits must contain a compile-time constant of type `std::size_t` named `page_size`, specifying
 	 * size of allocation pages used by component pools, a `allocator_type` typedef used to specify the allocator of
-	 * used to allocate components.
-	 *
-	 * Optionally, traits may define an `is_fixed` typedef which, if present, will prevent components of this type
-	 * from being sorted either by a component pool or component collections. */
+	 * used to allocate components. */
 	template<typename T>
 	struct component_traits
 	{
+		/** Size of individual component pages of component sets. */
 		constexpr static std::size_t page_size = 1024;
+		/** Allocator type used for component pages. */
 		typedef std::allocator<T> allocator_type;
 	};
-
-	template<typename T>
-	concept fixed_component = requires { typename component_traits<T>::is_fixed; };
 
 }	 // namespace sek::engine

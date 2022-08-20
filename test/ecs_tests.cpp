@@ -381,8 +381,8 @@ TEST(ecs_tests, collection_test)
 	EXPECT_EQ(std::addressof(world.get<int>(e4)), c3.get<int>(e4));
 	EXPECT_EQ(std::addressof(world.get<int>(e4)), c5.get<int>(e4));
 
-	EXPECT_TRUE(world.is_collected<int>());
-	EXPECT_TRUE(world.is_collected<float>());
-	EXPECT_TRUE(world.is_collected<flag_t>());
-	EXPECT_FALSE(world.is_collected<dummy_t>());
+	EXPECT_TRUE(world.is_owned<int>());
+	EXPECT_TRUE(world.is_owned<float>());
+	EXPECT_TRUE(world.is_owned<flag_t>());
+	EXPECT_FALSE(world.is_owned<dummy_t>());
 }

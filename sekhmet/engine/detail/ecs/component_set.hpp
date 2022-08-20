@@ -22,7 +22,10 @@ namespace sek::engine
 		using base_set = basic_entity_set<std::allocator<entity_t>>;
 
 	public:
-		typedef event<void(entity_world &, entity_t)> event_type;
+		typedef event<void(entity_world &, entity_t)> create_event_type;
+		typedef event<void(entity_world &, entity_t)> modify_event_type;
+		typedef event<void(entity_world &, entity_t)> remove_event_type;
+		typedef event<void(entity_world &, entity_t, bool)> locked_event_type;
 
 		typedef typename base_set::value_type value_type;
 		typedef typename base_set::pointer pointer;
@@ -113,6 +116,12 @@ namespace sek::engine
 		/** Returns type info of the stored component type. */
 		[[nodiscard]] constexpr type_info type() const noexcept { return m_type; }
 
+		/** Checks if a component for the specified entity is "locked". Pointers to
+		 * locked components are guaranteed to always be stable. */
+		[[nodiscard]] virtual bool is_locked(entity_t entity) const noexcept = 0;
+		/** @copydoc is_locked */
+		[[nodiscard]] virtual bool is_locked(const_iterator which) const noexcept = 0;
+
 		/** Returns `any_ref` reference to the component at the specified offset. */
 		[[nodiscard]] virtual any_ref get_any(size_type i) noexcept = 0;
 		/** @copydoc get_any */
@@ -148,26 +157,64 @@ namespace sek::engine
 		 * @note Does not clear component events. */
 		constexpr void clear() { base_set::clear(); }
 
-		/** @copydoc base_set::sort_n */
+		/** @copydoc base_set::sort_n
+		 * @warning Sorting a set when any of it's components are locked will result in undefined behavior. */
 		template<typename Sort = detail::default_sort, typename... Args>
 		constexpr void sort_n(size_type n, Sort sort = {}, Args &&...args)
 		{
 			base_set::sort_n(n, sort, std::forward<Args>(args)...);
 		}
-		/** @copydoc base_set::sort */
+		/** @copydoc base_set::sort
+		 * @warning Sorting a set when any of it's components are locked will result in undefined behavior. */
 		template<typename Sort = detail::default_sort, typename... Args>
 		constexpr void sort(Sort sort = {}, Args &&...args)
 		{
 			base_set::sort(sort, std::forward<Args>(args)...);
 		}
-		/** @copydoc base_set::sort */
+		/** @copydoc base_set::sort
+		 * @warning Sorting a set when any of it's components are locked will result in undefined behavior. */
 		constexpr void sort(const_iterator from, const_iterator to) { base_set::sort(from, to); }
-		/** @copydoc base_set::sort */
+		/** @copydoc base_set::sort
+		 * @warning Sorting a set when any of it's components are locked will result in undefined behavior. */
 		template<std::bidirectional_iterator I>
 		constexpr void sort(I from, I to)
 		{
 			base_set::sort(from, to);
 		}
+
+		/** Locks component for the specified entity in place. Pointers to locked components are guaranteed to always
+		 * be stable, however locking a component prevents it from being sorted or owned by collections.
+		 * @note Empty component types are never locked. */
+		virtual void lock(entity_t entity) noexcept = 0;
+		/** @copydoc lock */
+		virtual void lock(const_iterator which) noexcept = 0;
+		/** Unlocks a locked component. See `lock`.
+		 * @return `true` if the component was previously locked, `false` otherwise.
+		 * @note Empty component types are never locked. */
+		virtual bool unlock(entity_t entity) noexcept = 0;
+		/** @copydoc unlock */
+		virtual bool unlock(const_iterator which) noexcept = 0;
+
+		/** @brief Replaces component of the specified entity with a new value.
+		 * @param entity Entity whose component to replace.
+		 * @param value New value of the component.
+		 * @return Iterator to the entity of the modified component.
+		 * @warning Using an entity not contained within the set will result in undefined behavior. */
+		virtual iterator replace(entity_t entity, any value) = 0;
+		/** @copydoc replace */
+		virtual iterator replace(const_iterator entity, any value) = 0;
+
+		/** @brief Applies the passed delegate to component of the specified entity.
+		 * @param entity Target entity.
+		 * @param f Delegate applied to the entity's component.
+		 * @return Iterator to the entity of the modified component.
+		 * @warning Using an entity not contained within the set will result in undefined behavior. */
+		virtual iterator apply(entity_t entity, const delegate<void(any_ref)> &f) = 0;
+		/** @copybrief apply
+		 * @param which Iterator to the target entity.
+		 * @param f Delegate applied to the entity's component.
+		 * @return Iterator to the entity of the modified component. */
+		virtual iterator apply(const_iterator which, const delegate<void(any_ref)> &f) = 0;
 
 		/** Inserts an entity and it's component into the set. Tombstones (if any) are re-used.
 		 * @param entity Entity to insert.
@@ -191,27 +238,42 @@ namespace sek::engine
 			return end();
 		}
 
-		/** Erases the entity and it's component from the set using the preferred method (swap & pop if component type is not fixed). */
-		constexpr iterator erase(const_iterator which) { return base_set::erase(which); }
-		/** @copydoc erase */
+		/** Erases the entity and it's component from the set using the preferred method (swap & pop if component type is not locked). */
 		constexpr iterator erase(entity_t entity) { return base_set::erase(entity); }
+		/** @copydoc erase */
+		constexpr iterator erase(const_iterator which) { return base_set::erase(which); }
 		/** Erases the entity and it's component from the set in-place, leaving a tombstone. */
-		constexpr iterator fixed_erase(const_iterator which) { return base_set::fixed_erase(which); }
-		/** @copydoc fixed_erase */
 		constexpr iterator fixed_erase(entity_t entity) { return base_set::fixed_erase(entity); }
+		/** @copydoc fixed_erase */
+		constexpr iterator fixed_erase(const_iterator which) { return base_set::fixed_erase(which); }
 
 		/** Returns event proxy for the component creation event.
 		 * This event is invoked when new components of the underlying type are created and added to entities. */
-		[[nodiscard]] constexpr event_proxy<event_type> on_create() noexcept { return {m_create}; }
+		[[nodiscard]] constexpr event_proxy<create_event_type> on_create() noexcept { return {m_create}; }
 		/** Returns event proxy for the component modification event.
-		 * This event is invoked when components of the underlying type are modified via type-specific functions. */
-		[[nodiscard]] constexpr event_proxy<event_type> on_modify() noexcept { return {m_modify}; }
+		 * This event is invoked when components of the underlying type are modified via `replace` or `apply`. */
+		[[nodiscard]] constexpr event_proxy<modify_event_type> on_modify() noexcept { return {m_modify}; }
 		/** Returns event proxy for the component removal event.
 		 * This event is invoked when components of the underlying type are removed from entities and destroyed. */
-		[[nodiscard]] constexpr event_proxy<event_type> on_remove() noexcept { return {m_remove}; }
+		[[nodiscard]] constexpr event_proxy<remove_event_type> on_remove() noexcept { return {m_remove}; }
+		/** Returns event proxy for the component locking event. This event is invoked when components of the underlying
+		 * type are locked or unlocked. Event listeners receive reference to the parent world of the set, entity of
+		 * the locked or unlocked component and a boolean indicating the state of the lock. */
+		[[nodiscard]] constexpr event_proxy<locked_event_type> on_locked() noexcept { return {m_locked}; }
 
 	protected:
-		using base_set::swap;
+		constexpr void swap(generic_component_set &other) noexcept
+		{
+			base_set::swap(other);
+
+			using std::swap;
+			swap(m_world, other.m_world);
+			swap(m_create, other.m_create);
+			swap(m_modify, other.m_modify);
+			swap(m_remove, other.m_remove);
+			swap(m_locked, other.m_locked);
+			swap(m_type, other.m_type);
+		}
 
 		using base_set::erase_;
 		using base_set::fixed_erase_;
@@ -223,15 +285,18 @@ namespace sek::engine
 	protected:
 		constexpr void dispatch_create(entity_t e) { m_create(world(), e); }
 		constexpr void dispatch_modify(entity_t e) { m_modify(world(), e); }
+		constexpr void dispatch_locked(entity_t e, bool l) { m_locked(world(), e, l); }
 		constexpr void dispatch_create(size_type idx) { dispatch_create(at(idx)); }
 		constexpr void dispatch_modify(size_type idx) { dispatch_modify(at(idx)); }
 		constexpr void dispatch_remove(size_type idx) { m_remove(world(), at(idx)); }
+		constexpr void dispatch_locked(size_type idx, bool l) { dispatch_locked(at(idx), l); }
 
 	private:
 		entity_world *m_world;
-		event_type m_create;
-		event_type m_modify;
-		event_type m_remove;
+		create_event_type m_create;
+		modify_event_type m_modify;
+		remove_event_type m_remove;
+		locked_event_type m_locked;
 		type_info m_type;
 	};
 
@@ -254,8 +319,26 @@ namespace sek::engine
 			using alloc_traits = std::allocator_traits<alloc_type>;
 			using alloc_base = ebo_base_helper<alloc_type>;
 
-			using pages_alloc = typename alloc_traits::template rebind_alloc<T *>;
-			using pages_data = std::vector<T *, pages_alloc>;
+			using pages_alloc = typename alloc_traits::template rebind_alloc<std::byte *>;
+			using pages_data = std::vector<std::byte *, pages_alloc>;
+
+			[[nodiscard]] constexpr static size_type bitfield_size(size_type n) noexcept
+			{
+				/* Align the bitfield to be a multiple of component size (or size_t, whichever is greater). */
+				constexpr auto mult = std::max(sizeof(T), sizeof(std::size_t));
+				const auto bytes = (n / sizeof(std::byte) + !!(n % sizeof(std::byte)));
+				const auto rem = bytes % mult;
+				return bytes - rem + (rem ? mult : 0);
+			}
+			[[nodiscard]] constexpr static size_type page_bytes(size_type n) noexcept
+			{
+				/* A page is made up of a bitfield indicating locked components, followed by an array of components */
+				return bitfield_size(n) + n * sizeof(T);
+			}
+			[[nodiscard]] constexpr static T *page_data(std::byte *ptr) noexcept
+			{
+				return std::bit_cast<T *>(ptr + bitfield_size(page_size));
+			}
 
 		public:
 			component_pool(const component_pool &) = delete;
@@ -294,13 +377,37 @@ namespace sek::engine
 
 				if (idx >= m_pages.size() || m_pages[idx] == nullptr) [[unlikely]]
 					return nullptr;
-				return m_pages[idx] + off;
+				return page_data(m_pages[idx]) + off;
 			}
 			[[nodiscard]] constexpr T &component_ref(size_type i) const noexcept
 			{
 				const auto idx = page_idx(i);
 				const auto off = page_off(i);
-				return m_pages[idx][off];
+				return page_data(m_pages[idx])[off];
+			}
+
+			[[nodiscard]] constexpr bool is_locked(size_type i) const noexcept
+			{
+				/* `off` in this case is the bit offset. */
+				const auto idx = page_idx(i);
+				const auto off = page_off(i);
+
+				/* Bitset is always aligned to at least size_t. */
+				const auto bitset = static_cast<std::size_t *>(m_pages[idx]);
+				return bitset[off / sizeof(std::size_t)] & (1ul << (off % sizeof(std::size_t)));
+			}
+			[[nodiscard]] constexpr bool toggle_lock(size_type i, bool value) noexcept
+			{
+				/* `off` in this case is the bit offset. */
+				const auto idx = page_idx(i);
+				const auto off = page_off(i);
+
+				/* Bitset is always aligned to at least size_t. */
+				const auto bitset = static_cast<std::size_t *>(m_pages[idx]);
+				const auto mask = (1ul << (off % sizeof(std::size_t)));
+				const auto old = bitset[off / sizeof(std::size_t)] & mask;
+				bitset[off / sizeof(std::size_t)] &= ~(value ? mask : 0);
+				return old;
 			}
 
 			constexpr void reserve(size_type n)
@@ -320,10 +427,14 @@ namespace sek::engine
 
 			constexpr void move_value(size_type to, size_type from)
 			{
+				SEK_ASSERT(!(is_locked(to) || is_locked(from)), "Cannot move locked components");
+
 				component_ref(to) = std::move(component_ref(from));
 			}
 			constexpr void swap_value(size_type a, size_type b)
 			{
+				SEK_ASSERT(!(is_locked(to) || is_locked(from)), "Cannot swap locked components");
+
 				using std::swap;
 				swap(component_ref(a), component_ref(b));
 			}
@@ -344,8 +455,9 @@ namespace sek::engine
 						   sek::detail::alloc_eq(alloc(), other.alloc()));
 			}
 
-			[[nodiscard]] constexpr T *alloc_page() { return alloc_traits::allocate(alloc(), page_size); }
-			constexpr void dealloc_page(T *page) { alloc_traits::deallocate(alloc(), page, page_size); }
+			[[nodiscard]] constexpr std::byte *alloc_page() { return alloc_traits::allocate(alloc(), page_size); }
+			constexpr void dealloc_page(std::byte *page) { alloc_traits::deallocate(alloc(), page, page_size); }
+
 			[[nodiscard]] constexpr T *alloc_entry(size_type i)
 			{
 				const auto idx = page_idx(i);
@@ -357,7 +469,7 @@ namespace sek::engine
 				auto &page = m_pages[idx];
 				if (page == nullptr) [[unlikely]]
 					page = alloc_page();
-				return page + page_off(i);
+				return page_data(page) + page_off(i);
 			}
 
 			pages_data m_pages;
@@ -388,6 +500,9 @@ namespace sek::engine
 
 			constexpr void reserve(size_type) {}
 
+			[[nodiscard]] constexpr bool is_locked(size_type) const noexcept { return false; }
+			[[nodiscard]] constexpr bool toggle_lock(size_type, bool) noexcept { return false; }
+
 			template<typename... Args>
 			constexpr T &emplace(size_type i, Args &&...args)
 			{
@@ -411,7 +526,11 @@ namespace sek::engine
 		using base_iter = typename base_t::iterator;
 
 	public:
-		typedef typename base_t::event_type event_type;
+		typedef typename base_t::create_event_type create_event_type;
+		typedef typename base_t::modify_event_type modify_event_type;
+		typedef typename base_t::remove_event_type remove_event_type;
+		typedef typename base_t::locked_event_type locked_event_type;
+
 		typedef typename base_t::difference_type difference_type;
 		typedef typename base_t::size_type size_type;
 
@@ -583,7 +702,6 @@ namespace sek::engine
 
 	private:
 		constexpr static size_type page_size = component_traits<T>::page_size;
-		constexpr static bool is_fixed = fixed_component<T>;
 
 	public:
 		component_set() = delete;
@@ -656,6 +774,14 @@ namespace sek::engine
 		/** @copydoc base_t::offset(base_iter) */
 		[[nodiscard]] constexpr size_type offset(const_iterator which) const noexcept { return which.offset(); }
 
+		/** @copydoc base_t::is_locked(base_iter) */
+		[[nodiscard]] constexpr bool is_locked(entity_t entity) const noexcept final
+		{
+			return is_locked(offset(entity));
+		}
+		/** @copydoc is_locked */
+		[[nodiscard]] constexpr bool is_locked(const_iterator which) const noexcept { return is_locked(offset(which)); }
+
 		/** Returns reference to the component of an entity at the specified offset . */
 		[[nodiscard]] constexpr auto &get(size_type i) noexcept { return component_ref(i); }
 		/** @copydoc get */
@@ -693,11 +819,24 @@ namespace sek::engine
 		/** @copydoc base_t::swap(base_iter, base_iter) */
 		constexpr void swap(const_iterator a, const_iterator b) { base_t::swap(offset(a), offset(b)); }
 
+		/** Locks component for the specified entity in place. Pointers to locked components are guaranteed to always
+		 * be stable, however locking a component prevents it from being sorted or owned by collections.
+		 * @note Empty component types are never locked. */
+		constexpr void lock(entity_t entity) noexcept final { toggle_lock(offset(entity), entity, true); }
+		/** @copydoc lock */
+		constexpr void lock(const_iterator which) noexcept { toggle_lock(offset(which), *which, true); }
+		/** Unlocks a locked component. See `lock`.
+		 * @return `true` if the component was previously locked, `false` otherwise.
+		 * @note Empty component types are never locked. */
+		constexpr bool unlock(entity_t entity) noexcept final { return toggle_lock(offset(entity), entity, false); }
+		/** @copydoc unlock */
+		constexpr bool unlock(const_iterator which) noexcept { return toggle_lock(offset(which), *which, false); }
+
 		// clang-format off
 		/** @brief Replaces component of the specified entity with an in-place constructed instance.
 		 * @param entity Entity whose component to replace.
 		 * @param args Arguments passed to component's constructor.
-		 * @return Iterator to the replaced entity and component.
+		 * @return Iterator to the modified entity and component.
 		 * @warning Using an entity not contained within the set will result in undefined behavior. */
 		template<typename... Args>
 		constexpr iterator replace(entity_t entity, Args &&...args) requires std::constructible_from<T, Args...>
@@ -707,7 +846,7 @@ namespace sek::engine
 		/** @copybrief replace
 		 * @param which Iterator to the entity whose component to replace.
 		 * @param args Arguments passed to component's constructor.
-		 * @return Iterator to the replaced entity and component. */
+		 * @return Iterator to the modified entity and component. */
 		template<typename... Args>
 		constexpr iterator replace(const_iterator which, Args &&...args) requires std::constructible_from<T, Args...>
 		{
@@ -717,19 +856,21 @@ namespace sek::engine
 		/** @brief Applies the passed functor to component of the specified entity.
 		 * @param entity Target entity.
 		 * @param f Functor to apply to the entity's component.
+		 * @return Iterator to the modified entity and component.
 		 * @warning Using an entity not contained within the set will result in undefined behavior. */
 		template<typename F>
-		constexpr reference apply(entity_t entity, F &&f) requires std::is_invocable_v<F, entity_t, T &>
+		constexpr iterator apply(entity_t entity, F &&f) requires std::is_invocable_v<F, entity_t, T &>
 		{
-			return *to_iterator(apply_impl(offset(entity), entity, std::forward<F>(f)));
+			return to_iterator(apply_impl(offset(entity), entity, std::forward<F>(f)));
 		}
 		/** @copybrief apply
 		 * @param which Iterator to the target entity.
-		 * @param f Functor to apply to the entity's component. */
+		 * @param f Functor to apply to the entity's component.
+		 * @return Iterator to the modified entity and component. */
 		template<typename F>
-		constexpr reference apply(const_iterator which, F &&f) requires std::is_invocable_v<F, entity_t, T &>
+		constexpr iterator apply(const_iterator which, F &&f) requires std::is_invocable_v<F, entity_t, T &>
 		{
-			return *to_iterator(apply_impl(offset(which), which->first, std::forward<F>(f)));
+			return to_iterator(apply_impl(offset(which), which->first, std::forward<F>(f)));
 		}
 
 		/** @brief Inserts the specified entity into the set and constructs it's component in-place. Tombstones (if any) are re-used.
@@ -1054,6 +1195,13 @@ namespace sek::engine
 				m_pool.reserve(n);
 		}
 
+		constexpr bool toggle_lock(size_type idx, entity_t e, bool l) noexcept
+		{
+			dispatch_locked(e, l);
+			return m_pool.toggle_lock(idx, l);
+		}
+		[[nodiscard]] constexpr bool is_locked(size_type idx) const noexcept { return m_pool.is_locked(idx); }
+
 		template<typename F>
 		constexpr size_type apply_impl(size_type idx, entity_t e, F &&f)
 		{
@@ -1158,7 +1306,7 @@ namespace sek::engine
 		}
 		constexpr size_type erase_(size_type idx) final
 		{
-			if constexpr (is_fixed)
+			if (is_locked(idx))
 				return fixed_erase_(idx);
 			else
 			{
@@ -1182,8 +1330,43 @@ namespace sek::engine
 		constexpr void swap_(size_type lhs, size_type rhs) final { m_pool.swap_value(lhs, rhs); }
 
 		/* generic_component_set overrides */
-		[[nodiscard]] any_ref get_any(base_iter entity) noexcept final { return get_any(entity.offset()); }
-		[[nodiscard]] any_ref get_any(base_iter entity) const noexcept final { return get_any(entity.offset()); }
+		void lock(base_iter which) noexcept final
+		{
+			const auto idx = which.offset();
+			return toggle_lock(idx, at(idx), true);
+		}
+		bool unlock(base_iter which) noexcept final
+		{
+			const auto idx = which.offset();
+			return toggle_lock(idx, at(idx), false);
+		}
+
+		[[nodiscard]] constexpr base_iter replace(size_type idx, any &value)
+		{
+			return base_t::end() - value.is_const() ? replace_impl(idx, value.cast<const T &>()) :
+													  replace_impl(idx, value.cast<T &>());
+		}
+		base_iter replace(entity_t entity, any value) final { return replace(offset(entity), value); }
+		base_iter replace(base_iter which, any value) final { return replace(which.offset(), value); }
+
+		[[nodiscard]] constexpr base_iter apply(size_type idx, entity_t e, const delegate<void(any_ref)> &f)
+		{
+			const auto proxy = [&f]<typename U>(entity_t e, U &&data) { f(e, std::forward<U>(data)); };
+			return base_t::end() - apply_impl(idx, e, proxy);
+		}
+		base_iter apply(entity_t entity, const delegate<void(any_ref)> &f) final
+		{
+			return apply(offset(entity), entity, f);
+		}
+		base_iter apply(base_iter which, const delegate<void(any_ref)> &f) final
+		{
+			return apply(which.offset(), *which, f);
+		}
+
+		[[nodiscard]] bool is_locked(base_iter which) const noexcept final { return is_locked(which.offset()); }
+
+		[[nodiscard]] any_ref get_any(base_iter which) noexcept final { return get_any(which.offset()); }
+		[[nodiscard]] any_ref get_any(base_iter which) const noexcept final { return get_any(which.offset()); }
 
 		base_iter insert(entity_t entity, any value) final
 		{
@@ -1241,6 +1424,11 @@ namespace sek::engine
 		[[nodiscard]] constexpr entity_t entity() const noexcept { return m_entity; }
 		/** Returns the bound component set. */
 		[[nodiscard]] constexpr set_type *set() const noexcept { return m_set; }
+		/** Checks if the pointed-to component is locked. */
+		[[nodiscard]] constexpr bool is_locked() const noexcept
+		{
+			return m_set != nullptr && m_set->is_locked(m_entity);
+		}
 
 		/** Returns pointer to the associated component. */
 		[[nodiscard]] constexpr pointer get() const noexcept { return std::addressof(m_set->find(m_entity)->second); }
@@ -1268,6 +1456,12 @@ namespace sek::engine
 		/** Resets pointer to an empty state.
 		 * @return Pair where first is the old entity and second is pointer to the old set. */
 		constexpr std::pair<entity_t, set_ptr> reset() noexcept { return reset(entity_t::tombstone(), nullptr); }
+
+		/** Locks the pointed-to component. */
+		constexpr void lock() noexcept { m_set->lock(m_entity); }
+		/** Unlocks the pointed-to component.
+		 * @return `true` if the component was previously locked, `false` otherwise. */
+		constexpr bool unlock() noexcept { return m_set->unlock(m_entity); }
 
 		[[nodiscard]] constexpr bool operator==(const component_ptr &) const noexcept = default;
 		[[nodiscard]] constexpr bool operator!=(const component_ptr &) const noexcept = default;

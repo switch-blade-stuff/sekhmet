@@ -109,13 +109,13 @@ class LeafPattern(Pattern):
     def flat(self, *types):
         return [self] if not types or type(self) in types else []
 
-    def match(self, left, collected=None):
-        collected = [] if collected is None else collected
+    def match(self, left, owned=None):
+        owned = [] if owned is None else owned
         pos, match = self.single_match(left)
         if match is None:
-            return False, left, collected
+            return False, left, owned
         left_ = left[:pos] + left[pos + 1:]
-        same_name = [a for a in collected if a.name == self.name]
+        same_name = [a for a in owned if a.name == self.name]
         if type(self.value) in (int, list):
             if type(self.value) is int:
                 increment = 1
@@ -124,10 +124,10 @@ class LeafPattern(Pattern):
                              else match.value)
             if not same_name:
                 match.value = increment
-                return True, left_, collected + [match]
+                return True, left_, owned + [match]
             same_name[0].value += increment
-            return True, left_, collected
-        return True, left_, collected + [match]
+            return True, left_, owned
+        return True, left_, owned + [match]
 
 
 class BranchPattern(Pattern):
@@ -218,24 +218,24 @@ class Option(LeafPattern):
 
 class Required(BranchPattern):
 
-    def match(self, left, collected=None):
-        collected = [] if collected is None else collected
+    def match(self, left, owned=None):
+        owned = [] if owned is None else owned
         l = left
-        c = collected
+        c = owned
         for pattern in self.children:
             matched, l, c = pattern.match(l, c)
             if not matched:
-                return False, left, collected
+                return False, left, owned
         return True, l, c
 
 
 class Optional(BranchPattern):
 
-    def match(self, left, collected=None):
-        collected = [] if collected is None else collected
+    def match(self, left, owned=None):
+        owned = [] if owned is None else owned
         for pattern in self.children:
-            m, left, collected = pattern.match(left, collected)
-        return True, left, collected
+            m, left, owned = pattern.match(left, owned)
+        return True, left, owned
 
 
 class OptionsShortcut(Optional):
@@ -245,11 +245,11 @@ class OptionsShortcut(Optional):
 
 class OneOrMore(BranchPattern):
 
-    def match(self, left, collected=None):
+    def match(self, left, owned=None):
         assert len(self.children) == 1
-        collected = [] if collected is None else collected
+        owned = [] if owned is None else owned
         l = left
-        c = collected
+        c = owned
         l_ = None
         matched = True
         times = 0
@@ -262,21 +262,21 @@ class OneOrMore(BranchPattern):
             l_ = l
         if times >= 1:
             return True, l, c
-        return False, left, collected
+        return False, left, owned
 
 
 class Either(BranchPattern):
 
-    def match(self, left, collected=None):
-        collected = [] if collected is None else collected
+    def match(self, left, owned=None):
+        owned = [] if owned is None else owned
         outcomes = []
         for pattern in self.children:
-            matched, _, _ = outcome = pattern.match(left, collected)
+            matched, _, _ = outcome = pattern.match(left, owned)
             if matched:
                 outcomes.append(outcome)
         if outcomes:
             return min(outcomes, key=lambda outcome: len(outcome[1]))
-        return False, left, collected
+        return False, left, owned
 
 
 class Tokens(list):
@@ -575,7 +575,7 @@ def docopt(doc, argv=None, help=True, version=None, options_first=False):
         #    options_shortcut.children += [Option(o.short, o.long, o.argcount)
         #                    for o in argv if type(o) is Option]
     extras(help, version, argv, doc)
-    matched, left, collected = pattern.fix().match(argv)
+    matched, left, owned = pattern.fix().match(argv)
     if matched and left == []:  # better error message if left?
-        return Dict((a.name, a.value) for a in (pattern.flat() + collected))
+        return Dict((a.name, a.value) for a in (pattern.flat() + owned))
     raise DocoptExit()

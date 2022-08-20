@@ -12,44 +12,39 @@ namespace sek::engine
 	/** @brief Query structure used to build a component collection or a view.
 	 *
 	 * @tparam W World type used for the query.
-	 * @tparam C Component types collected by the query (owned by a collection made from the query).
+	 * @tparam O Component types owned by the query (owned by collections made using the query).
 	 * @tparam I Component types included by the query.
 	 * @tparam E Component types excluded from the query.
-	 * @tparam O Component types optional to the query (must be included).
+	 * @tparam P Component types optional to the query (must be included).
 	 *
-	 * @note Excluded components must not be the same as collected, included and optional.
-	 * @note Collected components cannot be fixed-storage (`component_traits::is_fixed` must not be defined).
-	 * @note Collecting queries can only be created for non-constant worlds. */
-	template<typename W, typename... C, typename... I, typename... E, typename... O>
-	class entity_query<W, owned_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>
+	 * @note Excluded components must not be the same as owned, included and optional.
+	 * @note Owning queries can only be created for non-constant worlds. */
+	template<typename W, typename... O, typename... I, typename... E, typename... P>
+	class entity_query<W, owned_t<O...>, included_t<I...>, excluded_t<E...>, optional_t<P...>>
 	{
 		friend class entity_world;
 
 		constexpr static bool is_read_only = std::is_const_v<W>;
 
 		template<typename T>
-		constexpr static bool is_fixed = fixed_component<std::remove_cv_t<T>>;
-		template<typename T>
-		constexpr static bool is_coll = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<C>...>;
+		constexpr static bool is_own = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<O>...>;
 		template<typename T>
 		constexpr static bool is_inc = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<I>...>;
 		template<typename T>
-		constexpr static bool is_opt = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<O>...>;
+		constexpr static bool is_opt = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<P>...>;
 
-		static_assert(!(is_fixed<C> || ...), "Cannot collect fixed-storage components");
+		static_assert(!(is_own<E> || ...), "Excluded component types can not be owned");
+		static_assert(!(is_inc<E> || ...), "Excluded component types can not be included");
+		static_assert(!(is_opt<E> || ...), "Excluded component types can not be optional");
 
 		template<typename... Ts>
-		using collect_query =
-			entity_query<W, owned_t<C..., Ts...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>;
+		using own_query = entity_query<W, owned_t<O..., Ts...>, included_t<I...>, excluded_t<E...>, optional_t<P...>>;
 		template<typename... Ts>
-		using include_query =
-			entity_query<W, owned_t<C...>, included_t<I..., Ts...>, excluded_t<E...>, optional_t<O...>>;
+		using include_query = entity_query<W, owned_t<O...>, included_t<I..., Ts...>, excluded_t<E...>, optional_t<P...>>;
 		template<typename... Ts>
-		using exclude_query =
-			entity_query<W, owned_t<C...>, included_t<I...>, excluded_t<E..., Ts...>, optional_t<O...>>;
+		using exclude_query = entity_query<W, owned_t<O...>, included_t<I...>, excluded_t<E..., Ts...>, optional_t<P...>>;
 		template<typename... Ts>
-		using optional_query =
-			entity_query<W, owned_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O..., Ts...>>;
+		using optional_query = entity_query<W, owned_t<O...>, included_t<I...>, excluded_t<E...>, optional_t<P..., Ts...>>;
 
 	public:
 		entity_query() = delete;
@@ -85,43 +80,45 @@ namespace sek::engine
 			return optional_query<transfer_cv_t<W, Cs>...>{*m_parent};
 		}
 
-		/** Returns a new query with `Cs` components added to the collected (owned) components list.
+		/** Returns a new query with `Cs` components added to the owned components list.
 		 * @return New query instance.
-		 * @note Collected components are implicitly included.
-		 * @note Collecting queries are only allowed for non-const worlds. */
+		 * @note Owned components are implicitly included.
+		 * @note Owning queries are only allowed for non-const worlds. */
 		template<typename... Cs>
-		constexpr auto collect() const
+		constexpr auto own() const
 		{
 			static_assert(!is_read_only, "Collections are not available for read-only queries");
-			return collect_query<Cs...>{*m_parent};
+			return own_query<Cs...>{*m_parent};
 		}
-		/** Returns a component collection made using this query.
+		/** Returns a component collection made using this query. See `component_collection`.
 		 * @note Collections are only allowed for non-const worlds.
-		 * @note Collections sort owned components and track any modifications to component sets. */
+		 * @note Collections sort owned components and track any modifications to component sets.
+		 * @note If any component from the owned list is locked, entities of those components will be excluded from
+		 * the resulting collection. */
 		[[nodiscard]] constexpr auto collection() const
 		{
 			static_assert(!is_read_only, "Collections are not available for read-only queries");
-			using handler_t = detail::collection_handler<owned_t<C...>, included_t<I...>, excluded_t<E...>>;
+			using handler_t = detail::collection_handler<owned_t<O...>, included_t<I...>, excluded_t<E...>>;
 
 			// clang-format off
-			return component_collection<owned_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>{
+			return component_collection<owned_t<O...>, included_t<I...>, excluded_t<E...>, optional_t<P...>>{
 				handler_t::make_handler(*m_parent),
-				m_parent->template storage<C>()...,
+				m_parent->template storage<O>()...,
 				m_parent->template storage<I>()...,
-				m_parent->template storage<O>()...
+				m_parent->template storage<P>()...
 			};
 			// clang-format on
 		}
 
-		/** Returns a component view made using this query.
-		 * @note Views ignore collected components. */
+		/** Returns a component view made using this query. See `component_view`.
+		 * @note Views ignore owned components. */
 		[[nodiscard]] constexpr auto view() const
 		{
 			// clang-format off
-			return component_view<included_t<I...>, excluded_t<E...>, optional_t<O...>>{
+			return component_view<included_t<I...>, excluded_t<E...>, optional_t<P...>>{
 				m_parent->template storage<I>()...,
 				m_parent->template storage<E>()...,
-				m_parent->template storage<O>()...
+				m_parent->template storage<P>()...
 			};
 			// clang-format on
 		}
@@ -138,26 +135,21 @@ namespace sek::engine
 	constexpr auto entity_world::query() noexcept { return entity_query{*this}; }
 	constexpr auto entity_world::query() const noexcept { return entity_query{*this}; }
 
-	template<typename... I, typename... E, typename... O>
-	constexpr auto entity_world::view(excluded_t<E...>, optional_t<O...>) noexcept
+	template<typename... I, typename... E, typename... P>
+	constexpr auto entity_world::view(excluded_t<E...>, optional_t<P...>) noexcept
 	{
-		return query().template include<I...>().template exclude<E...>().template optional<O...>().view();
+		return query().template include<I...>().template exclude<E...>().template optional<P...>().view();
 	}
-	template<typename... I, typename... E, typename... O>
-	constexpr auto entity_world::view(excluded_t<E...>, optional_t<O...>) const noexcept
+	template<typename... I, typename... E, typename... P>
+	constexpr auto entity_world::view(excluded_t<E...>, optional_t<P...>) const noexcept
 	{
-		return query().template include<I...>().template exclude<E...>().template optional<O...>().view();
+		return query().template include<I...>().template exclude<E...>().template optional<P...>().view();
 	}
 
-	template<typename... C, typename... I, typename... E, typename... O>
-	constexpr auto entity_world::collection(included_t<I...>, excluded_t<E...>, optional_t<O...>) noexcept
+	template<typename... O, typename... I, typename... E, typename... P>
+	constexpr auto entity_world::collection(included_t<I...>, excluded_t<E...>, optional_t<P...>) noexcept
 	{
-		return query()
-			.template collect<C...>()
-			.template include<I...>()
-			.template exclude<E...>()
-			.template optional<O...>()
-			.collection();
+		return query().template own<O...>().template include<I...>().template exclude<E...>().template optional<P...>().collection();
 	}
 
 }	 // namespace sek::engine

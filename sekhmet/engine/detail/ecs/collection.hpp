@@ -13,10 +13,10 @@ namespace sek::engine
 	template<typename, typename = included_t<>, typename = excluded_t<>, typename = optional_t<>>
 	class component_collection;
 
-	/** @brief Structure used to collect and provide a view of components for a set of entities.
+	/** @brief Structure used to own and provide a view of components for a set of entities.
 	 *
 	 * Component collections act as "strong" references to a group of component sets. Iterating a component collection
-	 * will iterate over entities of it's owned (collected) included and optional sets, discarding any entities from the
+	 * will iterate over entities of it's owned included and optional sets, discarding any entities from the
 	 * excluded sets. Collections track component events on relevant component types in order to provide more efficient
 	 * iteration than a `component_view`.
 	 *
@@ -31,6 +31,9 @@ namespace sek::engine
 	 * component types. Specialized collections are allowed to exist, since sort order of a more-specialized collection
 	 * will always satisfy a less-specialized one.
 	 *
+	 * In addition, components owned by a collection cannot be "locked", as that will prevent them from being sorted.
+	 * Because of this, a collection will always exclude entities of owned components if they are locked.
+	 *
 	 * If no owned components are specified, collections will act as an event-aware view which tracks modifications of
 	 * relevant component sets.
 	 *
@@ -41,37 +44,35 @@ namespace sek::engine
 	 * creation of other collections (or regular sorting) of owned types and will potentially result in frequent
 	 * sorting of component sets.
 	 *
-	 * @tparam C Component types collected (owned) by the collection.
+	 * @tparam O Component types owned by the collection.
 	 * @tparam I Component types captured by the collection.
 	 * @tparam E Component types excluded from the collection.
-	 * @tparam O Optional components of the collection.
+	 * @tparam P Optional components of the collection.
 	 * @tparam Alloc Allocator used for internal entity set. */
-	template<typename... C, typename... I, typename... E, typename... O>
-	class component_collection<owned_t<C...>, included_t<I...>, excluded_t<E...>, optional_t<O...>>
+	template<typename... O, typename... I, typename... E, typename... P>
+	class component_collection<owned_t<O...>, included_t<I...>, excluded_t<E...>, optional_t<P...>>
 	{
 		template<typename, typename, typename, typename, typename>
 		friend class entity_query;
 
-		using handler_t = detail::collection_handler<owned_t<C...>, included_t<I...>, excluded_t<E...>>;
+		using handler_t = detail::collection_handler<owned_t<O...>, included_t<I...>, excluded_t<E...>>;
 
 		template<typename T>
 		using set_ptr_t = transfer_cv_t<T, component_set<std::remove_cv_t<T>>> *;
-		using coll_ptr = std::tuple<set_ptr_t<C>...>;
+		using own_ptr = std::tuple<set_ptr_t<O>...>;
 		using inc_ptr = std::tuple<set_ptr_t<I>...>;
-		using opt_ptr = std::tuple<set_ptr_t<O>...>;
+		using opt_ptr = std::tuple<set_ptr_t<P>...>;
 
 		template<typename T>
-		constexpr static bool is_fixed = fixed_component<std::remove_cv_t<T>>;
-		template<typename T>
-		constexpr static bool is_coll = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<C>...>;
+		constexpr static bool is_own = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<O>...>;
 		template<typename T>
 		constexpr static bool is_inc = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<I>...>;
 		template<typename T>
-		constexpr static bool is_opt = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<O>...>;
+		constexpr static bool is_opt = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<P>...>;
 
-		static_assert(!((is_coll<E> || is_inc<E> || is_opt<E>) || ...),
-					  "Excluded, included and collected component types must not intersect");
-		static_assert(!(is_fixed<C> || ...), "Cannot collect fixed-storage components");
+		static_assert(!(is_own<E> || ...), "Excluded component types can not be owned");
+		static_assert(!(is_inc<E> || ...), "Excluded component types can not be included");
+		static_assert(!(is_opt<E> || ...), "Excluded component types can not be optional");
 
 		class collection_iterator
 		{
@@ -91,7 +92,7 @@ namespace sek::engine
 			{
 			}
 			constexpr collection_iterator(const component_collection *coll, difference_type off) noexcept
-				: m_coll(coll), m_off(off)
+				: m_own(coll), m_off(off)
 			{
 			}
 
@@ -133,11 +134,11 @@ namespace sek::engine
 
 			[[nodiscard]] constexpr collection_iterator operator+(difference_type n) const noexcept
 			{
-				return collection_iterator{m_coll, m_off + n};
+				return collection_iterator{m_own, m_off + n};
 			}
 			[[nodiscard]] constexpr collection_iterator operator-(difference_type n) const noexcept
 			{
-				return collection_iterator{m_coll, m_off - n};
+				return collection_iterator{m_own, m_off - n};
 			}
 			[[nodiscard]] constexpr difference_type operator-(const collection_iterator &other) const noexcept
 			{
@@ -156,7 +157,7 @@ namespace sek::engine
 			/** Returns reference to the entity at offset `i` from this iterator. */
 			[[nodiscard]] constexpr reference operator[](difference_type i) const noexcept
 			{
-				return m_coll->at(static_cast<size_type>(m_off + i));
+				return m_own->at(static_cast<size_type>(m_off + i));
 			}
 
 			[[nodiscard]] constexpr auto operator<=>(const collection_iterator &other) const noexcept
@@ -167,13 +168,13 @@ namespace sek::engine
 
 			constexpr void swap(collection_iterator &other) noexcept
 			{
-				std::swap(m_coll, other.m_coll);
+				std::swap(m_own, other.m_own);
 				std::swap(m_off, other.m_off);
 			}
 			friend constexpr void swap(collection_iterator &a, collection_iterator &b) noexcept { a.swap(b); }
 
 		private:
-			const component_collection *m_coll = nullptr;
+			const component_collection *m_own = nullptr;
 			difference_type m_off = 0;
 		};
 
@@ -192,11 +193,11 @@ namespace sek::engine
 		typedef typename iterator::difference_type difference_type;
 
 	private:
-		constexpr component_collection(handler_t *h, set_ptr_t<C>... c, set_ptr_t<I>... i, set_ptr_t<O>... o) noexcept
-			: m_handler(h), m_collected(c...), m_included(i...), m_optional(o...)
+		constexpr component_collection(handler_t *h, set_ptr_t<O>... c, set_ptr_t<I>... i, set_ptr_t<P>... p) noexcept
+			: m_handler(h), m_owned(c...), m_included(i...), m_optional(p...)
 		{
 			SEK_ASSERT(h != nullptr, "Collection handler must not be null");
-			SEK_ASSERT(((c != nullptr) && ...), "Collected component sets must not be null");
+			SEK_ASSERT(((c != nullptr) && ...), "Owned component sets must not be null");
 			SEK_ASSERT(((i != nullptr) && ...), "Included component sets must not be null");
 		}
 
@@ -235,7 +236,7 @@ namespace sek::engine
 		/** Returns reference to the last entity. */
 		[[nodiscard]] constexpr reference back() const noexcept { return *std::prev(end()); }
 		/** Returns reference the entity located at the specified offset within the collection. */
-		[[nodiscard]] constexpr reference at(size_type i) const noexcept { return std::get<0>(m_collected)->at(i); }
+		[[nodiscard]] constexpr reference at(size_type i) const noexcept { return std::get<0>(m_owned)->at(i); }
 		/** @copydoc at */
 		[[nodiscard]] constexpr reference operator[](size_type i) const noexcept { return at(i); }
 
@@ -252,13 +253,13 @@ namespace sek::engine
 		{
 			/* Collections are always sorted from the first set, meaning index of the entity in the first set
 			 * is the same for all sorted (owned) component sets . */
-			return std::get<0>(m_collected)->offset(entity);
+			return std::get<0>(m_owned)->offset(entity);
 		}
 
 		/** Checks if the the collection contains the specified entity. */
 		[[nodiscard]] constexpr bool contains(entity_t entity) const noexcept
 		{
-			if (const auto coll = std::get<0>(m_collected); coll == nullptr) [[unlikely]]
+			if (const auto coll = std::get<0>(m_owned); coll == nullptr) [[unlikely]]
 				return false;
 			else
 			{
@@ -271,7 +272,7 @@ namespace sek::engine
 		/** Returns iterator to the specified entity, or an end iterator if the entity does not belong to the collection. */
 		[[nodiscard]] constexpr iterator find(entity_t entity) const noexcept
 		{
-			if (const auto coll = std::get<0>(m_collected); coll == nullptr) [[unlikely]]
+			if (const auto coll = std::get<0>(m_owned); coll == nullptr) [[unlikely]]
 				return iterator{this};
 			else if (const auto pos = coll->find(entity); pos != coll->end() && pos.offset() < m_handler->size) [[likely]]
 				return iterator{this, pos.offset()};
@@ -314,29 +315,29 @@ namespace sek::engine
 
 		/** Applies the functor to every entity of the collection.
 		 * Functor may optionally return a value, which if evaluated to `false`, prematurely terminates iteration. */
-		template<std::invocable<entity_t, C *..., I *..., O *...> F>
+		template<std::invocable<entity_t, O *..., I *..., P *...> F>
 		constexpr void for_each(F &&f) const
 		{
 			for (auto first = begin(), last = end(); first != last; ++first)
 			{
 				using std::get;
-				const auto cmp = std::tuple<C *..., I *..., O *...>{this->get<C..., I..., O...>(first)};
+				const auto cmp = std::tuple<O *..., I *..., P *...>{this->get<O..., I..., P...>(first)};
 				const auto e = *first;
 
-				if constexpr (std::convertible_to<std::invoke_result_t<F, entity_t, C *..., I *..., O *...>, bool>)
+				if constexpr (std::convertible_to<std::invoke_result_t<F, entity_t, O *..., I *..., P *...>, bool>)
 				{
-					if (!std::invoke(std::forward<F>(f), e, get<C *>(cmp)..., get<I *>(cmp)..., get<O *>(cmp)...)) [[unlikely]]
+					if (!std::invoke(std::forward<F>(f), e, get<O *>(cmp)..., get<I *>(cmp)..., get<P *>(cmp)...)) [[unlikely]]
 						break;
 				}
 				else
-					std::invoke(std::forward<F>(f), e, get<C *>(cmp)..., get<I *>(cmp)..., get<O *>(cmp)...);
+					std::invoke(std::forward<F>(f), e, get<O *>(cmp)..., get<I *>(cmp)..., get<P *>(cmp)...);
 			}
 		}
 
 		constexpr void swap(component_collection &other) noexcept
 		{
 			std::swap(m_handler, other.m_handler);
-			std::swap(m_collected, other.m_collected);
+			std::swap(m_owned, other.m_owned);
 			std::swap(m_included, other.m_included);
 			std::swap(m_optional, other.m_optional);
 		}
@@ -351,8 +352,8 @@ namespace sek::engine
 		template<typename T>
 		[[nodiscard]] constexpr T *get_impl(const_iterator which) const noexcept
 		{
-			if constexpr (is_coll<T>)
-				return std::addressof(std::get<set_ptr_t<T>>(m_collected)->get(offset(which)));
+			if constexpr (is_own<T>)
+				return std::addressof(std::get<set_ptr_t<T>>(m_owned)->get(offset(which)));
 			else
 				return get_impl<T>(*which);
 		}
@@ -360,8 +361,8 @@ namespace sek::engine
 		[[nodiscard]] constexpr T *get_impl(entity_t e) const noexcept
 		{
 			using std::get;
-			if constexpr (is_coll<T>)
-				return std::addressof(get<set_ptr_t<T>>(m_collected)->get(offset(e)));
+			if constexpr (is_own<T>)
+				return std::addressof(get<set_ptr_t<T>>(m_owned)->get(offset(e)));
 			else if constexpr (is_inc<T>)
 				return std::addressof(get<set_ptr_t<T>>(m_included)->get(e));
 			else
@@ -369,14 +370,14 @@ namespace sek::engine
 		}
 
 		handler_t *m_handler = nullptr;
-		coll_ptr m_collected = {};
+		own_ptr m_owned = {};
 		inc_ptr m_included = {};
 		opt_ptr m_optional = {};
 	};
 
 	/** @brief Non-owning specialization of `component_collection`. */
-	template<typename... I, typename... E, typename... O>
-	class component_collection<owned_t<>, included_t<I...>, excluded_t<E...>, optional_t<O...>>
+	template<typename... I, typename... E, typename... P>
+	class component_collection<owned_t<>, included_t<I...>, excluded_t<E...>, optional_t<P...>>
 	{
 		template<typename, typename, typename, typename, typename>
 		friend class entity_query;
@@ -386,17 +387,15 @@ namespace sek::engine
 		template<typename T>
 		using set_ptr_t = transfer_cv_t<T, component_set<std::remove_cv_t<T>>> *;
 		using inc_ptr = std::tuple<set_ptr_t<I>...>;
-		using exc_ptr = std::tuple<set_ptr_t<E>...>;
-		using opt_ptr = std::tuple<set_ptr_t<O>...>;
+		using opt_ptr = std::tuple<set_ptr_t<P>...>;
 
-		template<typename T>
-		constexpr static bool is_fixed = fixed_component<std::remove_cv_t<T>>;
 		template<typename T>
 		constexpr static bool is_inc = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<I>...>;
 		template<typename T>
-		constexpr static bool is_opt = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<O>...>;
+		constexpr static bool is_opt = is_in_v<std::remove_cv_t<T>, std::remove_cv_t<P>...>;
 
-		static_assert(!((is_inc<E> || is_opt<E>) || ...), "Excluded and included component types must not intersect");
+		static_assert(!(is_inc<E> || ...), "Excluded component types can not be included");
+		static_assert(!(is_opt<E> || ...), "Excluded component types can not be optional");
 		static_assert(sizeof...(I) != 0, "Collection must include at least 1 component type");
 
 		using set_iter = typename entity_set::iterator;
@@ -502,8 +501,8 @@ namespace sek::engine
 		typedef typename iterator::difference_type difference_type;
 
 	private:
-		constexpr component_collection(handler_t *h, set_ptr_t<I>... i, set_ptr_t<O>... o) noexcept
-			: m_handler(h), m_included(i...), m_optional(o...)
+		constexpr component_collection(handler_t *h, set_ptr_t<I>... i, set_ptr_t<P>... p) noexcept
+			: m_handler(h), m_included(i...), m_optional(p...)
 		{
 			SEK_ASSERT(h != nullptr, "Collection handler must not be null");
 			SEK_ASSERT(((i != nullptr) && ...), "Included component sets must not be null");
@@ -620,22 +619,22 @@ namespace sek::engine
 
 		/** Applies the functor to every entity of the collection.
 		 * Functor may optionally return a value, which if evaluated to `false`, prematurely terminates iteration. */
-		template<std::invocable<entity_t, I *..., O *...> F>
+		template<std::invocable<entity_t, I *..., P *...> F>
 		constexpr void for_each(F &&f) const
 		{
 			for (auto first = begin(), last = end(); first != last; ++first)
 			{
 				using std::get;
-				const auto cmp = std::tuple<I *..., O *...>{this->get<I..., O...>(first)};
+				const auto cmp = std::tuple<I *..., P *...>{this->get<I..., P...>(first)};
 				const auto e = *first;
 
-				if constexpr (std::convertible_to<std::invoke_result_t<F, entity_t, I *..., O *...>, bool>)
+				if constexpr (std::convertible_to<std::invoke_result_t<F, entity_t, I *..., P *...>, bool>)
 				{
-					if (!std::invoke(std::forward<F>(f), e, get<I *>(cmp)..., get<O *>(cmp)...)) [[unlikely]]
+					if (!std::invoke(std::forward<F>(f), e, get<I *>(cmp)..., get<P *>(cmp)...)) [[unlikely]]
 						break;
 				}
 				else
-					std::invoke(std::forward<F>(f), e, get<I *>(cmp)..., get<O *>(cmp)...);
+					std::invoke(std::forward<F>(f), e, get<I *>(cmp)..., get<P *>(cmp)...);
 			}
 		}
 

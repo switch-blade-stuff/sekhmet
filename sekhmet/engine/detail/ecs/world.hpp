@@ -72,7 +72,7 @@ namespace sek::engine
 				type_count = sizeof...(C) + sizeof...(I) + sizeof...(E);
 
 				if constexpr (sizeof...(C) != 0)
-					is_collected = +[](type_info info) -> bool { return ((type_info::get<C>() == info) || ...); };
+					is_owned = +[](type_info info) -> bool { return ((type_info::get<C>() == info) || ...); };
 				if constexpr (sizeof...(I) != 0)
 					is_included = +[](type_info info) -> bool { return ((type_info::get<I>() == info) || ...); };
 				if constexpr (sizeof...(E) != 0)
@@ -87,7 +87,7 @@ namespace sek::engine
 			constexpr void swap(collection_sorter &other) noexcept
 			{
 				std::swap(type_count, other.type_count);
-				std::swap(is_collected, other.is_collected);
+				std::swap(is_owned, other.is_owned);
 				std::swap(is_included, other.is_included);
 				std::swap(is_excluded, other.is_excluded);
 				std::swap(m_delete, other.m_delete);
@@ -95,9 +95,9 @@ namespace sek::engine
 			}
 			friend constexpr void swap(collection_sorter &a, collection_sorter &b) noexcept { a.swap(b); }
 
-			std::size_t type_count; /* Total amount of collected, included & excluded types. */
+			std::size_t type_count; /* Total amount of owned, included & excluded types. */
 
-			bool (*is_collected)(type_info info) = +[](type_info) -> bool { return false; };
+			bool (*is_owned)(type_info info) = +[](type_info) -> bool { return false; };
 			bool (*is_included)(type_info info) = +[](type_info) -> bool { return false; };
 			bool (*is_excluded)(type_info info) = +[](type_info) -> bool { return false; };
 
@@ -722,20 +722,86 @@ namespace sek::engine
 		 * @tparam I Components included by the component view.
 		 * @tparam E Components excluded by the component view.
 		 * @tparam O Optional components of the component view.
-		 * @note Collected component types are implicitly included. */
+		 * @note Owned component types are implicitly included. */
 		template<typename... C, typename... I, typename... E, typename... O>
 		[[nodiscard]] constexpr auto collection(included_t<I...> = included_t<>{},
 												excluded_t<E...> = excluded_t<>{},
 												optional_t<O...> = optional_t<>{}) noexcept;
 
-		/** Checks if the specified component types are collected (owned) by a collection.
-		 * @return `true` if any of the components are collected (owned) by a collection, `false` otherwise. */
+		/** Checks if the specified component types are owned by a collection. */
 		template<typename... Cs>
-		[[nodiscard]] constexpr bool is_collected() const noexcept
+		[[nodiscard]] constexpr bool is_owned() const noexcept
 		{
-			constexpr auto p = [](const sorter_t &sorter) { return (sorter.is_collected(type_info::get<Cs>()) || ...); };
+			constexpr auto p = [](const sorter_t &sorter) { return (sorter.is_owned(type_info::get<Cs>()) || ...); };
 			return std::any_of(m_sorters.begin(), m_sorters.end(), p);
 		}
+
+		/** Checks if any components of the specified entity are "locked". Pointers to
+		 * locked components are guaranteed to always be stable. */
+		template<typename C, typename... Cs>
+		[[nodiscard]] constexpr bool is_locked(entity_t entity) const noexcept
+		{
+			if constexpr (sizeof...(Cs) == 0)
+			{
+				const auto set = get_storage<C>();
+				return set != nullptr && set->is_locked(entity);
+			}
+			else
+				return is_locked<C>(entity) || (is_locked<Cs>(entity) || ...);
+		}
+		/** @copydoc is_locked */
+		template<typename C, typename... Cs>
+		[[nodiscard]] constexpr bool is_locked(const_iterator which) const noexcept
+		{
+			return is_locked<C, Cs...>(*which);
+		}
+
+		/** Checks if components of the specified entity can be sorted. Components cannot be sorted if they are
+		 * owned by collections or "locked". */
+		template<typename C, typename... Cs>
+		[[nodiscard]] constexpr bool is_sortable(entity_t entity) const noexcept
+		{
+			return !(is_owned<C, Cs...>() || is_locked<C, Cs...>(entity));
+		}
+		/** @copydoc is_sortable */
+		template<typename C, typename... Cs>
+		[[nodiscard]] constexpr bool is_sortable(const_iterator which) const noexcept
+		{
+			return is_sortable<C, Cs...>(*which);
+		}
+
+		/** Locks components for the specified entity in place. Pointers to locked components are guaranteed to always
+		 * be stable, however locking a component prevents it from being packed or sorted. */
+		template<typename C, typename... Cs>
+		constexpr void lock(entity_t entity) noexcept
+		{
+			if constexpr (sizeof...(Cs) != 0)
+				(lock<C>(entity), (lock<Cs>(entity), ...));
+			else if (const auto set = get_storage<C>(); set != nullptr) [[likely]]
+				set->lock(entity);
+		}
+		/** @copydoc lock */
+		template<typename C, typename... Cs>
+		constexpr void lock(const_iterator which) noexcept
+		{
+			lock<C, Cs...>(*which);
+		}
+		/** Unlocks any locked components. See `lock`. */
+		template<typename C, typename... Cs>
+		constexpr void unlock(entity_t entity) noexcept
+		{
+			if constexpr (sizeof...(Cs) != 0)
+				(unlock<C>(entity), (unlock<Cs>(entity), ...));
+			else if (const auto set = get_storage<C>(); set != nullptr) [[likely]]
+				set->lock(entity);
+		}
+		/** @copydoc unlock */
+		template<typename C, typename... Cs>
+		constexpr void unlock(const_iterator which) noexcept
+		{
+			unlock<C, Cs...>(*which);
+		}
+
 		/** Sorts components according to the specified order. Components will be grouped together in order
 		 * to maximize cache performance.
 		 *
@@ -755,7 +821,7 @@ namespace sek::engine
 		template<typename Parent, typename C, typename... Cs>
 		constexpr void sort()
 		{
-			SEK_ASSERT(!is_collected<C>(), "Cannot sort components owned by collections");
+			SEK_ASSERT(!is_owned<C>(), "Cannot sort components owned by collections");
 
 			auto &src = reserve<Parent>();
 			auto &dst = reserve<C>();
@@ -806,7 +872,7 @@ namespace sek::engine
 		constexpr void sort(S &&sort, P &&pred) requires(std::is_invocable_r_v<bool, P, const C &, const C &> ||
 														 std::is_invocable_r_v<bool, P, entity_t, entity_t>)
 		{
-			SEK_ASSERT(!is_collected<C>(), "Cannot sort components owned by collections");
+			SEK_ASSERT(!is_owned<C>(), "Cannot sort components owned by collections");
 
 			auto *storage = get_storage<C>();
 			if (storage == nullptr) [[unlikely]]
@@ -1171,7 +1237,7 @@ namespace sek::engine
 			constexpr auto pred = [](const sorter_t &sorter) -> bool
 			{
 				return sorter.type_count == sizeof...(Coll) + sizeof...(Inc) + sizeof...(Exc) &&
-					   (sorter.is_collected(type_info::get<Coll>()) && ...) &&
+					   (sorter.is_owned(type_info::get<Coll>()) && ...) &&
 					   (sorter.is_included(type_info::get<Inc>()) && ...) &&
 					   (sorter.is_excluded(type_info::get<Exc>()) && ...);
 			};
@@ -1183,15 +1249,14 @@ namespace sek::engine
 			constexpr auto pred = [](const sorter_t &s) -> bool
 			{
 				return s.type_count > sizeof...(Coll) + sizeof...(Inc) + sizeof...(Exc) &&
-					   (s.is_collected(type_info::get<Coll>()) || ...);
+					   (s.is_owned(type_info::get<Coll>()) || ...);
 			};
 			return std::pair{std::find_if(m_sorters.begin(), m_sorters.end(), pred), m_sorters.end()};
 		}
 		template<typename... Coll, typename... Inc, typename... Exc>
 		[[nodiscard]] constexpr auto prev_sorter(owned_t<Coll...>, included_t<Inc...>, excluded_t<Exc...>) const noexcept
 		{
-			constexpr auto pred = [](const sorter_t &s) -> bool
-			{ return (s.is_collected(type_info::get<Coll>()) || ...); };
+			constexpr auto pred = [](const sorter_t &s) -> bool { return (s.is_owned(type_info::get<Coll>()) || ...); };
 			return std::pair{std::find_if(m_sorters.begin(), m_sorters.end(), pred), m_sorters.end()};
 		}
 		template<typename... Coll, typename... Inc, typename... Exc>
@@ -1199,7 +1264,7 @@ namespace sek::engine
 		{
 			constexpr auto pred = [](const sorter_t &s) -> bool
 			{
-				if (const auto overlap = (0lu + ... + s.is_collected(type_info::get<Coll>())); overlap == 0)
+				if (const auto overlap = (0lu + ... + s.is_owned(type_info::get<Coll>())); overlap == 0)
 					return false;
 				else
 				{
@@ -1226,15 +1291,33 @@ namespace sek::engine
 
 	namespace detail
 	{
-		template<typename... C, typename... I, typename... E>
-		struct collection_handler<owned_t<C...>, included_t<I...>, excluded_t<E...>>
+		template<typename... O, typename... I, typename... E>
+		struct collection_handler<owned_t<O...>, included_t<I...>, excluded_t<E...>>
 		{
+			template<typename T>
+			[[nodiscard]] constexpr static bool accept(entity_world &w, std::tuple<component_set<O> *...> o, entity_t e) noexcept
+			{
+				constexpr auto accept_owned = [](std::tuple<component_set<O> *...> o, entity_t e)
+				{
+					const auto set = std::get<component_set<O> *>(o);
+					return (std::is_same_v<T, O> || set->contains(e)) && !set->is_locked(e);
+				};
+
+				return ((accept_owned(o, e) && ...) &&
+					   ((std::is_same_v<T, I> || w.template get_storage<I>()->contains(e)) && ...) &&
+					   ((std::is_same_v<T, E> || !w.template get_storage<E>()->contains(e)) && ...);
+			}
+			[[nodiscard]] constexpr static std::tuple<component_set<O> *...> get_storage(entity_world &world) noexcept
+			{
+				return std::tuple<component_set<O> *...>{world.template get_storage<O>()...};
+			}
+
 			[[nodiscard]] static collection_handler *make_handler(entity_world &world)
 			{
-				auto sorter = world.find_sorter(owned_t<C...>{}, included_t<I...>{}, excluded_t<E...>{});
+				auto sorter = world.find_sorter(owned_t<O...>{}, included_t<I...>{}, excluded_t<E...>{});
 				if (sorter.first == sorter.second)
 				{
-					SEK_ASSERT(!world.has_conflicts(owned_t<C...>{}, included_t<I...>{}, excluded_t<E...>{}),
+					SEK_ASSERT(!world.has_conflicts(owned_t<O...>{}, included_t<I...>{}, excluded_t<E...>{}),
 							   "Conflicting collections detected");
 
 					// clang-format off
@@ -1248,25 +1331,32 @@ namespace sek::engine
 						set.on_create().subscribe_before(p, delegate{delegate_func_t<&collection_handler::template handle_remove<T>>{}, h});
 						set.on_remove().subscribe_before(n, delegate{delegate_func_t<&collection_handler::template handle_create<T>>{}, h});
 					};
+					[[maybe_unused]] constexpr auto sub_locked = []<typename T>(component_set<T> &set, collection_handler *h)
+					{
+						set.on_locked().subscribe(delegate{delegate_func_t<&collection_handler::template handle_locked<T>>{}, h});
+					};
 					// clang-format on
 
 					/* Next collection should be the more restricted one, while the previous is the less restricted one.
 					 * Since collections sort their components, the most-restricted collection will sort inside the
 					 * least-restricted one. */
-					const auto next = world.next_sorter(owned_t<C...>{}, included_t<I...>{}, excluded_t<E...>{});
-					const auto prev = world.prev_sorter(owned_t<C...>{}, included_t<I...>{}, excluded_t<E...>{});
+					const auto next = world.next_sorter(owned_t<O...>{}, included_t<I...>{}, excluded_t<E...>{});
+					const auto prev = world.prev_sorter(owned_t<O...>{}, included_t<I...>{}, excluded_t<E...>{});
 
 					const void *next_handler = (next.first == next.second ? nullptr : next.first->get());
 					const void *prev_handler = (prev.first == prev.second ? nullptr : prev.first->get());
 					auto *handler = new collection_handler{};
 
-					/* Handle addition and removal of new components for both included and excluded types. */
-					(sub_include(world.template reserve<C>(), next_handler, prev_handler, handler), ...);
+					/* Handle locking for all owned types. */
+					(sub_locked(world.template reserve<O>(), handler), ...);
+
+					/* Handle addition and removal of new components for owned, included and excluded types. */
+					(sub_include(world.template reserve<O>(), next_handler, prev_handler, handler), ...);
 					(sub_include(world.template reserve<I>(), next_handler, prev_handler, handler), ...);
 					(sub_exclude(world.template reserve<E>(), next_handler, prev_handler, handler), ...);
 
-					/* Go through all collected entities & sort their components. */
-					handler->template sort_entities<C...>(world);
+					/* Go through all owned entities & sort their components. */
+					handler->template sort_entities<O...>(world);
 
 					world.m_sorters.emplace_back(handler);
 					return handler;
@@ -1274,70 +1364,66 @@ namespace sek::engine
 				return static_cast<collection_handler *>(sorter.first->get());
 			}
 
-			template<typename T, typename... Ts>
+			template<typename T>
+			constexpr void swap_entities(component_set<T> *storage, std::size_t a, entity_t b)
+			{
+				const auto b_idx = storage->offset(b);
+				if (a != b_idx) storage->swap(a, b_idx);
+			}
+			constexpr void add_entity(std::tuple<component_set<O> *...> storage, entity_t entity)
+			{
+				const auto last_pos = size++;
+				(swap_entities(get<component_set<O> *>(storage), last_pos, entity), ...);
+			}
+			constexpr void remove_entity(std::tuple<component_set<O> *...> storage, entity_t entity)
+			{
+				const auto last_pos = --size;
+				(swap_entities(get<component_set<O> *>(storage), last_pos, entity), ...);
+			}
+
 			constexpr void sort_entities(entity_world &world)
 			{
-				using std::get;
-				const auto storage = std::tuple<component_set<T> *, component_set<Ts> *...>(world.get_storage<T>(),
-																							world.get_storage<Ts>()...);
-				for (std::size_t count = get<component_set<T> *>(storage)->size(), i = 0; i != count; ++i)
+				using T = type_seq_element_t<0, type_seq_t<O...>>;
+
+				const auto storage = get_storage(world);
+				for (auto count = std::get<0>(storage)->size(), i = 0; i != count; ++i)
 				{
-					const auto entity = get<component_set<T> *>(storage)->data()[i];
-					const auto accept = (get<component_set<Ts> *>(storage)->contains(entity) && ...) &&
-										((std::is_same_v<T, I> || world.get_storage<I>()->contains(entity)) && ...) &&
-										((std::is_same_v<T, E> || !world.get_storage<E>()->contains(entity)) && ...);
-					if (accept && size <= i)
-					{
-						constexpr auto swap_elements = []<typename U>(component_set<U> *storage, std::size_t a, entity_t e)
-						{
-							const auto b = storage->offset(e);
-							if (a != b) storage->swap(a, b);
-						};
-						const auto last_pos = size++;
-						(swap_elements(get<component_set<C> *>(storage), last_pos, entity), ...);
-					}
+					const auto entity = std::get<0>(storage)->data()[i];
+					if (size <= i && accept<T>(world, storage, entity)) add_entity(storage, entity);
 				}
 			}
+
 			template<typename T>
 			void handle_create(entity_world &world, entity_t entity)
 			{
-				using std::get;
-				const auto storage = std::tuple<component_set<C> &...>{world.template reserve<C...>()};
-				const auto accept = ((std::is_same_v<T, C> || get<component_set<C> &>(storage).contains(entity)) && ...) &&
-									((std::is_same_v<T, I> || world.reserve<I>().contains(entity)) && ...) &&
-									((std::is_same_v<T, E> || !world.reserve<E>().contains(entity)) && ...);
-
 				/* If the offset of the accepted entity is greater than the current size of the collection,
-				 * it should be appended to the collection. */
-				if (accept && size <= get<0>(storage).offset(entity))
-				{
-					constexpr auto swap_elements = []<typename U>(component_set<U> &storage, std::size_t a, entity_t e)
-					{
-						const auto b = storage.offset(e);
-						if (a != b) storage.swap(a, b);
-					};
-					const auto last_pos = size++;
-					(swap_elements(get<component_set<C> &>(storage), last_pos, entity), ...);
-				}
+				 * it should be appended to the collection. Entities are accepted only if they satisfy the
+				 * owned/included/excluded requirements and their components are not locked. */
+				if (const auto storage = get_storage(world); !contains(storage, entity) && accept<T>(world, storage, entity))
+					add_entity(storage, entity);
 			}
 			template<typename T>
 			void handle_remove(entity_world &world, entity_t entity)
 			{
-				using std::get;
-				const auto storage = std::tuple<component_set<C> &...>{world.template reserve<C...>()};
-
-				/* If the removed entity is collected by the collection, decrement the collection size and
+				/* If the removed entity is owned by the collection, decrement the collection size and
 				 * remove the entity by swapping it to the end. */
-				if (get<0>(storage).contains(entity) && get<0>(storage).offset(entity) < size)
-				{
-					constexpr auto swap_elements = []<typename U>(component_set<U> &storage, std::size_t a, entity_t e)
-					{
-						const auto b = storage.offset(e);
-						if (a != b) storage.swap(a, b);
-					};
-					const auto last_pos = --size;
-					(swap_elements(get<component_set<C> &>(storage), last_pos, entity), ...);
-				}
+				if (const auto storage = get_storage(world); std::get<0>(storage)->contains(entity) && contains(storage, entity))
+					remove_entity(storage, entity);
+			}
+			template<typename T>
+			void handle_locked(entity_world &world, entity_t entity, bool is_locked)
+			{
+				/* If the component was locked, we need to remove the entity if we own it.
+				 * If the component was unlocked, we need to add the entity if it passes the requirements. */
+				if (is_locked)
+					handle_remove<T>(world, entity);
+				else
+					handle_create<T>(world, entity);
+			}
+
+			[[nodiscard]] constexpr bool contains(std::tuple<component_set<O> *...> storage, entity_t entity) const noexcept
+			{
+				return size > std::get<0>(storage)->offset(entity);
 			}
 
 			std::size_t size = 0;
@@ -1395,7 +1481,7 @@ namespace sek::engine
 				entities.erase(entity);
 			}
 
-			entity_set entities;
+			entity_set entities = {};
 		};
 
 		template<typename T>
