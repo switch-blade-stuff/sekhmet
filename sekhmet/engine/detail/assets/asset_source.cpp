@@ -6,14 +6,6 @@
 
 namespace sek::engine
 {
-	template<typename T>
-	inline static T return_if(expected<T, std::error_code> &&exp)
-	{
-		if (!exp.has_value()) [[unlikely]]
-			throw std::system_error(exp.error());
-		return std::move(exp.value());
-	}
-
 	std::size_t asset_source::read(void *dst, std::size_t n) { return return_if(read(std::nothrow, dst, n)); }
 	std::size_t asset_source::read(asio::mutable_buffer &dst) { return return_if(read(std::nothrow, dst)); }
 	expected<std::size_t, std::error_code> asset_source::read(std::nothrow_t, void *dst, std::size_t n) noexcept

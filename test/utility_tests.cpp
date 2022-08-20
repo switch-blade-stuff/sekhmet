@@ -7,6 +7,7 @@
 #include <string>
 
 #include "sekhmet/utility.hpp"
+#include "sekhmet/version.hpp"
 
 namespace
 {
@@ -39,6 +40,8 @@ TEST(utility_tests, version_test)
 	v3.to_string<char>(std::back_inserter(s));
 	EXPECT_EQ(s, "0.1.2");
 }
+
+#include "sekhmet/uuid.hpp"
 
 TEST(utility_tests, uuid_test)
 {
@@ -201,7 +204,7 @@ TEST(utility_tests, event_test)
 
 	// clang-format off
 	sub2 = proxy.subscribe_before(sub2, +[](int &i) { EXPECT_EQ(i++, 1); });
-	proxy.subscribe_before(sub2, sek::delegate{+[](int j, int &i) { EXPECT_EQ(i, j); }, 1});
+	proxy.subscribe_before(sub2, sek::delegate<void(int &)>{[j = 1](int &i) { EXPECT_EQ(i, j); }});
 	proxy.subscribe_after(sub2, +[](int &i) { EXPECT_EQ(i--, 2); });
 	EXPECT_EQ(proxy.size(), 5);
 	// clang-format on
@@ -246,10 +249,7 @@ template<>
 
 TEST(utility_tests, message_test)
 {
-	using namespace sek::engine::attributes;
 	using namespace sek::engine::literals;
-
-	sek::engine::type_info::reflect<test_message>().attribute(make_message_type<test_message>);
 
 	constexpr static auto msg_data = test_message{10};
 	constexpr auto filter = [](std::size_t &ctr, const test_message &msg)
@@ -268,14 +268,18 @@ TEST(utility_tests, message_test)
 	std::size_t filter_ctr = 0, receiver_ctr = 0;
 
 	{
-		auto [l, proxy] = sek::engine::message_queue<test_message>::on_send();
-		proxy += sek::delegate<bool(const test_message &)>{filter, filter_ctr};
-		EXPECT_EQ(proxy.size(), 1);
+		auto guard = sek::engine::message_queue<test_message, sek::engine::message_scope::GLOBAL>::on_send();
+		auto proxy = guard.access_unique();
+
+		proxy->subscribe(sek::delegate<bool(const test_message &)>{filter, filter_ctr});
+		EXPECT_EQ(proxy->size(), 1);
 	}
 	{
-		auto [l, proxy] = sek::engine::message_queue<test_message>::on_receive();
-		proxy += sek::delegate<bool(const test_message &)>{receiver, receiver_ctr};
-		EXPECT_EQ(proxy.size(), 1);
+		auto guard = sek::engine::message_queue<test_message, sek::engine::message_scope::GLOBAL>::on_receive();
+		auto proxy = guard.access_unique();
+
+		proxy->subscribe(sek::delegate<bool(const test_message &)>{receiver, receiver_ctr});
+		EXPECT_EQ(proxy->size(), 1);
 	}
 
 	sek::engine::message_queue<test_message>::send(msg_data);
@@ -292,18 +296,4 @@ TEST(utility_tests, message_test)
 
 	filter_ctr = 0;
 	receiver_ctr = 0;
-
-	auto attr = "test_message"_type.get_attribute<message_type>().cast<message_type>();
-
-	attr.send(msg_data);
-	EXPECT_EQ(filter_ctr, 1);
-	EXPECT_EQ(receiver_ctr, 1);
-
-	attr.queue(msg_data);
-	EXPECT_EQ(filter_ctr, 2);
-	EXPECT_EQ(receiver_ctr, 1);
-
-	attr.dispatch();
-	EXPECT_EQ(filter_ctr, 2);
-	EXPECT_EQ(receiver_ctr, 2);
 }

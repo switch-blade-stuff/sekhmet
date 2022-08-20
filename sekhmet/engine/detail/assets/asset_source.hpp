@@ -33,6 +33,13 @@ namespace sek::engine
 		{
 		}
 
+				template<typename T>
+				inline static T return_if(expected<T, std::error_code> &&exp)
+				{
+					if (!exp.has_value()) [[unlikely]]
+						throw std::system_error(exp.error());
+					return std::move(exp.value());
+				}
 	public:
 		asset_source(const asset_source &) = delete;
 		asset_source &operator=(const asset_source &) = delete;
@@ -42,8 +49,8 @@ namespace sek::engine
 		 * @throw std::system_error On implementation-defined file errors. */
 		explicit asset_source(system::native_file &&file) : m_data(detail::asset_io_data(std::move(file)))
 		{
-			m_offset = m_data.file().tell();
-			m_size = m_data.file().size();
+			m_offset = m_data.file()->tell();
+			m_size = m_data.file()->size();
 		}
 		/** @copydoc asset_source
 		 * @param offset Offset from the start of the file at which the asset's data starts.
@@ -51,22 +58,22 @@ namespace sek::engine
 		asset_source(system::native_file &&file, std::uint64_t offset)
 			: m_data(detail::asset_io_data(std::move(file))), m_offset(offset)
 		{
-			m_size = m_data.file().size() - offset;
-			m_data.file().setpos(offset);
+			m_size = m_data.file()->size() - offset;
+			m_data.file()->setpos(offset);
 		}
 		/** @copydoc asset_source
 		 * @param size Size of the asset. */
 		asset_source(system::native_file &&file, std::uint64_t offset, std::uint64_t size)
 			: m_data(detail::asset_io_data(std::move(file))), m_offset(offset), m_size(size)
 		{
-			m_data.file().setpos(offset);
+			m_data.file()->setpos(offset);
 		}
 
 		/** Initializes asset source from an asset buffer.
 		 * @param buff Buffer containing the asset. */
 		explicit asset_source(asset_buffer &&buff) noexcept : m_data(detail::asset_io_data(std::move(buff)))
 		{
-			m_size = m_data.buffer().size();
+			m_size = return_if(m_data.size());
 		}
 		/** @copydoc asset_source
 		 * @param offset Offset from the start of the buffer at which the asset's data starts.
@@ -74,15 +81,15 @@ namespace sek::engine
 		asset_source(asset_buffer &&buff, std::uint64_t offset) noexcept
 			: m_data(detail::asset_io_data(std::move(buff))), m_offset(offset)
 		{
-			m_size = m_data.buffer().size() - offset;
-			m_data.buffer().setpos(offset);
+			m_size = return_if(m_data.size()) - offset;
+			return_if(m_data.setpos(offset));
 		}
 		/** @copydoc asset_source
 		 * @param size Size of the asset. */
 		asset_source(asset_buffer &&buff, std::uint64_t offset, std::uint64_t size) noexcept
 			: m_data(detail::asset_io_data(std::move(buff))), m_offset(offset), m_size(size)
 		{
-			m_data.buffer().setpos(offset);
+			return_if(m_data.setpos(offset));
 		}
 
 		/** Initializes an empty asset source. */

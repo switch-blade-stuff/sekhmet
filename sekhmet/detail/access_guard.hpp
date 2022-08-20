@@ -179,12 +179,16 @@ namespace sek
 
 	public:
 		access_guard(const access_guard &) = delete;
-		access_guard(access_guard &&) = delete;
 		access_guard &operator=(const access_guard &) = delete;
-		access_guard &operator=(access_guard &&) = delete;
+
+		constexpr access_guard(access_guard &&other) noexcept = default;
+		constexpr access_guard &operator=(access_guard &&other) noexcept = default;
 
 		// clang-format off
-		constexpr access_guard() noexcept(noexcept(mutex_type{}) && noexcept(value_type{})) = default;
+		constexpr access_guard()
+			noexcept(noexcept(mutex_type{}) && noexcept(value_type{}))
+			requires(std::is_default_constructible_v<mutex_type> &&
+			         std::is_default_constructible_v<value_type>) = default;
 
 		/** Initializes value in-place.
 		 * @param args Arguments passed to constructor of the value type. */
@@ -247,11 +251,9 @@ namespace sek
 		}
 
 		/** Acquires a unique lock and returns an accessor handle. */
-		[[nodiscard]] constexpr auto access_unique()
+		[[nodiscard]] constexpr typename typedef_base::unique_handle access_unique()
 		{
-			using handle_t = typename typedef_base::unique_handle;
-			using lock_t = typename typedef_base::unique_lock;
-			return handle_t{m_value, lock_t{m_mtx}};
+			return {m_value, typename typedef_base::unique_lock{m_mtx}};
 		}
 		/** Attempts to acquire a unique lock and returns an optional accessor handle. */
 		[[nodiscard]] constexpr auto try_access_unique() requires allow_try
@@ -268,9 +270,7 @@ namespace sek
 		/** Acquires a shared lock and returns an accessor handle. */
 		[[nodiscard]] constexpr auto access_shared() requires allow_shared
 		{
-			using handle_t = typename typedef_base::shared_handle;
-			using lock_t = typename typedef_base::shared_lock;
-			return handle_t{m_value, lock_t{m_mtx}};
+			return typename typedef_base::shared_handle{m_value, typename typedef_base::shared_lock{m_mtx}};
 		}
 		/** Attempts to acquire a unique lock and returns an optional accessor handle. */
 		[[nodiscard]] constexpr auto try_access_shared() requires allow_shared
@@ -284,6 +284,15 @@ namespace sek
 				return result_t{std::nullopt};
 		}
 		// clang-format on
+
+		/** Returns reference to the underlying value. */
+		[[nodiscard]] constexpr auto &value() noexcept { return m_value; }
+		/** @copydoc value */
+		[[nodiscard]] constexpr const auto &value() const noexcept { return m_value; }
+		/** Returns reference to the underlying mutex. */
+		[[nodiscard]] constexpr auto &mutex() noexcept { return m_mtx; }
+		/** @copydoc mutex */
+		[[nodiscard]] constexpr const auto &mutex() const noexcept { return m_mtx; }
 
 	private:
 		value_type m_value = {};

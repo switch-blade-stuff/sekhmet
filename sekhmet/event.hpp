@@ -5,3 +5,4 @@
 #pragma once
 
 #include "detail/event.hpp"
+#include "detail/event_proxy.hpp"

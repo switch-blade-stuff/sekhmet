@@ -10,10 +10,10 @@
 #include <utility>
 
 #include "sekhmet/access_guard.hpp"
-#include "sekhmet/detail/aligned_storage.hpp"
-#include "sekhmet/detail/assert.hpp"
 #include "sekhmet/dense_map.hpp"
 #include "sekhmet/dense_set.hpp"
+#include "sekhmet/detail/aligned_storage.hpp"
+#include "sekhmet/detail/assert.hpp"
 #include "sekhmet/detail/meta_util.hpp"
 #include "sekhmet/service.hpp"
 
@@ -1326,6 +1326,12 @@ namespace sek::engine
 		}
 		/** @copydoc cast */
 		template<typename T>
+		[[nodiscard]] explicit operator T()
+		{
+			return cast<T>();
+		}
+		/** @copydoc cast */
+		template<typename T>
 		[[nodiscard]] T cast() const
 		{
 			auto ptr = try_cast<std::remove_reference_t<T>>();
@@ -1337,6 +1343,12 @@ namespace sek::engine
 				throw bad_any_type(std::move(msg));
 			}
 			return static_cast<T>(*ptr);
+		}
+		/** @copydoc cast */
+		template<typename T>
+		[[nodiscard]] explicit operator T() const
+		{
+			return cast<T>();
 		}
 
 		/** @brief Converts the underlying object to the passed type.
@@ -1592,7 +1604,19 @@ namespace sek::engine
 		[[nodiscard]] T cast();
 		/** @copydoc cast */
 		template<typename T>
+		[[nodiscard]] explicit operator T()
+		{
+			return cast<T>();
+		}
+		/** @copydoc cast */
+		template<typename T>
 		[[nodiscard]] T cast() const;
+		/** @copydoc cast */
+		template<typename T>
+		[[nodiscard]] explicit operator T() const
+		{
+			return cast<T>();
+		}
 
 		/** @brief Converts the underlying object to the passed type.
 		 *

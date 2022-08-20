@@ -9,7 +9,6 @@
 #include "sekhmet/detail/bswap.hpp"
 #include "sekhmet/detail/define.h"
 #include "sekhmet/delegate.hpp"
-#include "sekhmet/dynarray.hpp"
 #include "sekhmet/thread_pool.hpp"
 
 namespace sek::engine
@@ -347,14 +346,14 @@ namespace sek::engine
 		std::size_t m_in_frame;	 /* Index of the next frame to be read. */
 		std::size_t m_out_frame; /* Index of the next frame to be submitted. */
 
-		dynarray<thread_task> m_task_queue;
+		std::vector<thread_task> m_task_queue;
 
 		/* To avoid erasing & inserting tasks, committed tasks are swapped to the start of the queue.
 		 * Queue base then points to the first non-empty task. */
 		std::size_t m_queue_base;
 
 		/* Empty task buffers are cached for reuse. */
-		dynarray<buffer_t> m_reuse_list;
+		std::vector<buffer_t> m_reuse_list;
 
 		read_t m_read;	 /* Delegate used to read source data. */
 		write_t m_write; /* Delegate used to write result. */

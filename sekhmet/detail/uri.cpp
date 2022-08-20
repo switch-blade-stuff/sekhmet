@@ -295,7 +295,7 @@ namespace sek
 
 			bias = puny_adapt_delta(i_offset, next, (i ? 2 : puny_damp));
 			i += i_offset;
-			n += i / next;
+			n += static_cast<char32_t>(i / next);
 			i %= next;
 
 			cp_buff.insert(i++, 1, n);

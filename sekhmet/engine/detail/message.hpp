@@ -41,18 +41,14 @@ namespace sek::engine
 		template<typename T, message_scope S>
 		struct queue_data final : queue_data<void, S>
 		{
+			constexpr queue_data() noexcept { this->type = type_info::get<T>(); }
 			~queue_data() final = default;
-
-			[[nodiscard]] type_info type() const noexcept final { return type_info::get<T>(); }
 
 			event<bool(const T &)> receive_event;
 			event<bool(const T &)> send_event;
 
 		private:
-			void dispatch_receive(const any &value) final
-			{
-				return receive_event.dispatch(value.template cast<const T &>());
-			}
+			void dispatch_receive(const any &value) final { receive_event.dispatch(value.template cast<const T &>()); }
 			bool dispatch_send(const any &value) final
 			{
 				bool result = false;
@@ -64,8 +60,6 @@ namespace sek::engine
 		struct queue_data<void, S> : queue_sync<S>
 		{
 			virtual ~queue_data() = default;
-
-			[[nodiscard]] virtual type_info type() const noexcept = 0;
 
 			void dispatch()
 			{
@@ -82,6 +76,10 @@ namespace sek::engine
 				if (dispatch_send(value)) [[likely]]
 					dispatch_receive(value);
 			}
+
+			type_info type;
+			event<bool(any_ref)> receive_event;
+			event<bool(any_ref)> send_event;
 
 		protected:
 			virtual void dispatch_receive(const any &) = 0;
@@ -102,7 +100,7 @@ namespace sek::engine
 			{
 				typedef std::true_type is_transparent;
 
-				hash_t operator()(const entry_type &data) const noexcept { return hash(data.second->type()); }
+				hash_t operator()(const entry_type &data) const noexcept { return hash(data.second->type); }
 				hash_t operator()(std::string_view key) const noexcept { return fnv1a(key.data(), key.size()); }
 			};
 			struct data_cmp
@@ -112,11 +110,11 @@ namespace sek::engine
 				bool operator()(const entry_type &a, const entry_type &b) const noexcept { return a == b; }
 				bool operator()(const entry_type &a, std::string_view b) const noexcept
 				{
-					return a.second->type().name() == b;
+					return a.second->type.name() == b;
 				}
 				bool operator()(std::string_view a, const entry_type &b) const noexcept
 				{
-					return a == b.second->type().name();
+					return a == b.second->type.name();
 				}
 			};
 
@@ -180,7 +178,7 @@ namespace sek::engine
 			auto pos = m_table.find(t);
 			if (pos == m_table.end()) [[unlikely]]
 				pos = m_table.emplace(f, f()).first;
-			return pos->second;
+			return *pos->second;
 		}
 		template<message_scope S>
 		void message_table_base<S>::erase(std::string_view type, data_type *(*factory)())
@@ -211,22 +209,37 @@ namespace sek::engine
 		/** Queues a message for later dispatch.
 		 * @tparam type Type of the message to be queued.
 		 * @param value `any` containing value of the message. */
-		inline static void queue(std::string_view type, any value);
+		static void queue(std::string_view type, any value)
+		{
+			auto *queue = detail::message_table<Scope>::instance().find(type);
+			if (queue != nullptr) [[likely]]
+				queue->queue(std::forward<any>(value));
+		}
 		/** @copydoc send */
-		inline static void queue(type_info type, any value) { queue(type.name(), std::move(value)); }
+		static void queue(type_info type, any value) { queue(type.name(), std::move(value)); }
 		/** Sends a message immediately, bypassing the queue.
 		 * @tparam type Type of the message to be sent.
 		 * @param value `any` containing value of the message. */
-		inline static void send(std::string_view type, any value);
+		static void send(std::string_view type, any value)
+		{
+			auto *queue = detail::message_table<Scope>::instance().find(type);
+			if (queue != nullptr) [[likely]]
+				queue->send(std::forward<any>(value));
+		}
 		/** @copydoc send */
-		inline static void send(type_info type, any value) { send(type.name(), std::move(value)); }
+		static void send(type_info type, any value) { send(type.name(), std::move(value)); }
 
 		/** Dispatches queued messages of the specified type. */
-		inline static void dispatch(std::string_view type);
+		static void dispatch(std::string_view type)
+		{
+			auto *queue = detail::message_table<Scope>::instance().find(type);
+			if (queue != nullptr) [[likely]]
+				queue->dispatch();
+		}
 		/** @copydoc send */
-		inline static void dispatch(type_info type) { dispatch(type.name()); }
+		static void dispatch(type_info type) { dispatch(type.name()); }
 		/** Dispatches queued messages of all types. */
-		inline static void dispatch();
+		static void dispatch() { detail::message_table<Scope>::instance().dispatch_all(); }
 	};
 
 	template<>
@@ -241,19 +254,6 @@ namespace sek::engine
 		generic_message_queue<message_scope::GLOBAL>::dispatch();
 		generic_message_queue<message_scope::THREAD>::dispatch();
 	}
-
-	template<message_scope S>
-	void generic_message_queue<S>::dispatch(std::string_view type)
-	{
-		if (auto *queue = detail::message_table<S>().instance().find(type); queue != nullptr) [[likely]]
-			queue->dispatch();
-	}
-	template<message_scope S>
-	void generic_message_queue<S>::dispatch()
-	{
-		detail::message_table<S>().instance().dispatch_all();
-	}
-
 	template<>
 	void generic_message_queue<message_scope::ALL>::queue(std::string_view type, any value)
 	{
@@ -267,19 +267,6 @@ namespace sek::engine
 		generic_message_queue<message_scope::THREAD>::send(type, std::move(value));
 	}
 
-	template<message_scope S>
-	void generic_message_queue<S>::queue(std::string_view type, any value)
-	{
-		if (auto *queue = detail::message_table<S>().instance().find(type); queue != nullptr) [[likely]]
-			queue->queue(std::forward<any>(value));
-	}
-	template<message_scope S>
-	void generic_message_queue<S>::send(std::string_view type, any value)
-	{
-		if (auto *queue = detail::message_table<S>().instance().find(type); queue != nullptr) [[likely]]
-			queue->send(std::forward<any>(value));
-	}
-
 	/** @brief Type-specific message queue used to queue & dispatch messages.
 	 * @tparam T Message type handled by the message queue.
 	 * @tparam Scope Target scope of the message queue.
@@ -287,9 +274,6 @@ namespace sek::engine
 	template<typename T, message_scope Scope = message_scope::ALL>
 	class message_queue
 	{
-	public:
-		typedef event<bool(const T &)> event_type;
-
 	public:
 		/** Queues a message for later dispatch.
 		 * @param args Arguments passed to the constructor of the message.
@@ -341,7 +325,7 @@ namespace sek::engine
 		}
 	};
 
-	/** @brief Global `message_queue` of type `T`. Global queues are synchronized via an internal mutex. */
+	/** @brief Global specialization of `message_queue`. Global queues are synchronized via an internal mutex. */
 	template<typename T>
 	class message_queue<T, message_scope::GLOBAL>
 	{
@@ -352,31 +336,31 @@ namespace sek::engine
 		/** Queues a message for later dispatch.
 		 * @param args Arguments passed to the constructor of the message. */
 		template<typename... Args>
-		inline static void queue(Args &&...args)
+		static void queue(Args &&...args)
 		{
 			queue_impl(std::forward<Args>(args)...);
 		}
 		/** Queues a message for later dispatch.
 		 * @param value Value of the message to be sent. */
-		inline static void queue(const T &value) { queue_impl(value); }
+		static void queue(const T &value) { queue_impl(value); }
 		/** @copydoc send */
-		inline static void queue(T &&value) { queue_impl(std::forward<T>(value)); }
+		static void queue(T &&value) { queue_impl(std::forward<T>(value)); }
 
 		/** Sends a message immediately, bypassing the queue.
 		 * @param args Arguments passed to the constructor of the message. */
 		template<typename... Args>
-		inline static void send(Args &&...args)
+		static void send(Args &&...args)
 		{
 			send_impl(std::forward<Args>(args)...);
 		}
 		/** Sends a message immediately, bypassing the queue.
 		 * @param value Value of the message to be sent. */
-		inline static void send(const T &value) { send_impl(value); }
+		static void send(const T &value) { send_impl(value); }
 		/** @copydoc send */
-		inline static void send(T &&value) { send_impl(std::forward<T>(value)); }
+		static void send(T &&value) { send_impl(std::forward<T>(value)); }
 
 		/** Dispatches all queued messages. */
-		inline static void dispatch()
+		static void dispatch()
 		{
 			auto &data = global_data();
 			std::unique_lock<std::mutex> l(data.mtx);
@@ -389,7 +373,7 @@ namespace sek::engine
 		 * Event subscribers can return `false` to prematurely terminate message dispatching.
 		 *
 		 * @return Access guard to the event proxy. */
-		inline static ref_guard<event_proxy<event_type>, std::mutex> on_receive()
+		static ref_guard<event_proxy<event_type>, std::mutex> on_receive()
 		{
 			auto &data = global_data();
 			return {event_proxy<event_type>{data.receive_event}, mutex_ref{data.mtx}};
@@ -401,7 +385,7 @@ namespace sek::engine
 		 * the receive event).
 		 *
 		 * @return Access guard to the event proxy. */
-		inline static ref_guard<event_proxy<event_type>, std::mutex> on_send()
+		static ref_guard<event_proxy<event_type>, std::mutex> on_send()
 		{
 			auto &data = global_data();
 			return {event_proxy<event_type>{data.send_event}, mutex_ref{data.mtx}};
@@ -420,21 +404,21 @@ namespace sek::engine
 		}
 
 		template<typename... Args>
-		inline static void queue_impl(Args &&...args)
+		static void queue_impl(Args &&...args)
 		{
 			auto &data = global_data();
 			std::unique_lock<std::mutex> l(data.mtx);
 			data.queue(make_any<T>(std::forward<Args>(args)...));
 		}
 		template<typename... Args>
-		inline static void send_impl(Args &&...args)
+		static void send_impl(Args &&...args)
 		{
 			auto &data = global_data();
 			std::unique_lock<std::mutex> l(data.mtx);
 			data.send(make_any<T>(std::forward<Args>(args)...));
 		}
 	};
-	/** @brief Thread-local `message_queue` of type `T`. Thread-local queues are not synchronized. */
+	/** @brief Thread-local specialization of `message_queue`. Thread-local queues are not synchronized. */
 	template<typename T>
 	class message_queue<T, message_scope::THREAD>
 	{
@@ -445,31 +429,31 @@ namespace sek::engine
 		/** Queues a message for later dispatch.
 		 * @param args Arguments passed to the constructor of the message. */
 		template<typename... Args>
-		inline static void queue(Args &&...args)
+		static void queue(Args &&...args)
 		{
 			queue_impl(std::forward<Args>(args)...);
 		}
 		/** Queues a message for later dispatch.
 		 * @param value Value of the message to be sent. */
-		inline static void queue(const T &value) { queue_impl(value); }
+		static void queue(const T &value) { queue_impl(value); }
 		/** @copydoc send */
-		inline static void queue(T &&value) { queue_impl(std::forward<T>(value)); }
+		static void queue(T &&value) { queue_impl(std::forward<T>(value)); }
 
 		/** Sends a message immediately, bypassing the queue.
 		 * @param args Arguments passed to the constructor of the message. */
 		template<typename... Args>
-		inline static void send(Args &&...args)
+		static void send(Args &&...args)
 		{
 			send_impl(std::forward<Args>(args)...);
 		}
 		/** Sends a message immediately, bypassing the queue.
 		 * @param value Value of the message to be sent. */
-		inline static void send(const T &value) { send_impl(value); }
+		static void send(const T &value) { send_impl(value); }
 		/** @copydoc send */
-		inline static void send(T &&value) { send_impl(std::forward<T>(value)); }
+		static void send(T &&value) { send_impl(std::forward<T>(value)); }
 
 		/** Dispatches all queued messages. */
-		inline static void dispatch() { global_data().dispatch(); }
+		static void dispatch() { global_data().dispatch(); }
 
 		/** @brief Returns proxy for the receive event.
 		 *
@@ -477,7 +461,7 @@ namespace sek::engine
 		 * Event subscribers can return `false` to prematurely terminate message dispatching.
 		 *
 		 * @return Event proxy for the receive event. */
-		inline static event_proxy<event_type> on_receive() { return {global_data().revieve_event}; }
+		static event_proxy<event_type> on_receive() { return {global_data().receive_event}; }
 		/** @brief Returns proxy for the send event.
 		 *
 		 * Send event is invoked when a message is sent or queued and is used to filter message data. Event subscribers
@@ -485,7 +469,7 @@ namespace sek::engine
 		 * the receive event).
 		 *
 		 * @return Event proxy for the send event. */
-		inline static event_proxy<event_type> on_send() { return {global_data().send_event}; }
+		static event_proxy<event_type> on_send() { return {global_data().send_event}; }
 
 	private:
 		static detail::queue_data<void, message_scope::THREAD> *local_data()
@@ -500,12 +484,12 @@ namespace sek::engine
 		}
 
 		template<typename... Args>
-		inline static void queue_impl(Args &&...args)
+		static void queue_impl(Args &&...args)
 		{
 			global_data().queue(make_any<T>(std::forward<Args>(args)...));
 		}
 		template<typename... Args>
-		inline static void send_impl(Args &&...args)
+		static void send_impl(Args &&...args)
 		{
 			global_data().send(make_any<T>(std::forward<Args>(args)...));
 		}

@@ -5,10 +5,13 @@
 #pragma once
 
 #include <bit>
+#include <functional>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 
 #include "define.h"
+#include "ebo_base_helper.hpp"
 
 namespace sek
 {
@@ -257,7 +260,7 @@ namespace sek
 		template<typename T, typename... Inject>
 		constexpr static bool valid_ftor = std::is_object_v<T> && std::is_invocable_r_v<R, T, Inject..., Args...>;
 		template<typename T, typename... Inject>
-		constexpr static bool empty_ftor = valid_ftor<T, Inject...> && std::is_empty_v<T>;
+		constexpr static bool empty_ftor = valid_ftor<std::remove_reference_t<T>, Inject...> && std::is_empty_v<T>;
 		template<typename RF, typename... ArgsF>
 		constexpr static bool valid_sign = detail::is_delegate_compatible_v<R(Args...), RF(ArgsF...)>;
 		template<auto F, typename... Inject>
@@ -293,7 +296,7 @@ namespace sek
 		{
 			using F = FR (*)(FArgs...);
 
-			m_proxy = +[](std::uintptr_t data, Args &&...args) -> R
+			m_proxy = +[](std::uintptr_t data, Args...args) -> R
 			{
 				const auto ptr = std::bit_cast<F>(data_t::get(data));
 				return std::invoke(*ptr, std::forward<Args>(args)...);
@@ -357,7 +360,7 @@ namespace sek
 		/** @brief Initializes the delegate with an in-place constructed functor.
 		 * @note This overload may allocate memory if the functor type is non-empty. */
 		template<typename F, typename... FArgs>
-		constexpr explicit delegate(std::in_place_type_t<F>, FArgs &&...args) noexcept requires valid_ftor<F>
+		constexpr explicit delegate(std::in_place_type_t<F>, FArgs &&...args) noexcept requires valid_ftor<std::remove_reference_t<F>>
 		{
 			assign(std::in_place_type<F>, std::forward<FArgs>(args)...);
 		}
@@ -365,7 +368,7 @@ namespace sek
 		/** @brief Binds an in-place constructed functor to the delegate.
 		 * @copydetails delegate */
 		template<typename F, typename... FArgs>
-		constexpr delegate &assign(std::in_place_type_t<F>, FArgs &&...args) noexcept requires valid_ftor<F>
+		constexpr delegate &assign(std::in_place_type_t<F>, FArgs &&...args) noexcept requires valid_ftor<std::remove_reference_t<F>>
 		{
 			m_proxy = +[](std::uintptr_t  data, Args...args) -> R
 			{
@@ -379,7 +382,7 @@ namespace sek
 		/** @brief Initializes the delegate with a functor.
 		 * @note This overload may allocate memory if the functor type is non-empty. */
 		template<typename F>
-		constexpr delegate(F &&f) noexcept requires valid_ftor<F>
+		constexpr delegate(F &&f) noexcept requires valid_ftor<std::remove_reference_t<F>>
 		{
 			assign(std::forward<F>(f));
 		}
@@ -387,13 +390,13 @@ namespace sek
 		/** Binds a functor to the delegate.
 		 * @copydetails delegate */
 		template<typename F>
-		constexpr delegate &assign(F &&f) noexcept requires valid_ftor<F>
+		constexpr delegate &assign(F &&f) noexcept requires valid_ftor<std::remove_reference_t<F>>
 		{
 			return operator=(std::forward<F>(f));
 		}
 		/** @copydoc assign */
 		template<typename F>
-		constexpr delegate &operator=(F &&f) noexcept requires valid_ftor<F>
+		constexpr delegate &operator=(F &&f) noexcept requires valid_ftor<std::remove_reference_t<F>>
 		{
 			return assign(std::in_place_type<F>, std::forward<F>(f));
 		}
@@ -403,19 +406,19 @@ namespace sek
 		 * @note This overload may allocate memory if the following expression evaluates to `false`:
 		 * `std::is_empty_v<I> || alignof(I) > alignof(std::byte)`. */
 		template<typename F, typename I>
-		constexpr delegate(F &&f, I *instance) noexcept requires empty_ftor<F, I *>
+		constexpr delegate(F &&f, I *instance) noexcept requires empty_ftor<std::remove_reference_t<F>, I *>
 		{
 			assign(std::forward<F>(f), instance);
 		}
 		/** @copydoc delegate */
 		template<typename F, typename I>
-		constexpr delegate(F &&f, I &instance) noexcept requires empty_ftor<F, I *>
+		constexpr delegate(F &&f, I &instance) noexcept requires empty_ftor<std::remove_reference_t<F>, I *>
 		{
 			assign(std::forward<F>(f), instance);
 		}
 		/** @copydoc delegate */
 		template<typename F, typename I>
-		constexpr delegate(F &&f, I &instance) noexcept requires empty_ftor<F, I &>
+		constexpr delegate(F &&f, I &instance) noexcept requires empty_ftor<std::remove_reference_t<F>, I &>
 		{
 			assign(std::forward<F>(f), instance);
 		}
@@ -423,7 +426,7 @@ namespace sek
 		/** @brief Binds an empty functor and an instance argument to the delegate.
 		 * @copydetails delegate */
 		template<typename F, typename I>
-		constexpr delegate &assign(F &&, I *instance) noexcept requires empty_ftor<F, I *>
+		constexpr delegate &assign(F &&, I *instance) noexcept requires empty_ftor<std::remove_reference_t<F>, I *>
 		{
 			m_proxy = +[](std::uintptr_t data, Args...args) -> R
 			{
@@ -435,26 +438,26 @@ namespace sek
 		}
 		/** @copydoc assign */
 		template<typename F, typename I>
-		constexpr delegate &assign(F &&, I &instance) noexcept requires empty_ftor<F, I *>
+		constexpr delegate &assign(F &&, I &instance) noexcept requires empty_ftor<std::remove_reference_t<F>, I *>
 		{
 			m_proxy = +[](std::uintptr_t data, Args...args) -> R
 			{
 				const auto ptr = static_cast<I *>(data_t::get(data));
 				return std::invoke(F{}, ptr, std::forward<Args>(args)...);
 			};
-			m_data = data_t{std::in_place_type<I *>, instance};
+			m_data = data_t{std::in_place_type<I *>, std::addressof(instance)};
 			return *this;
 		}
 		/** @copydoc assign */
 		template<typename F, typename I>
-		constexpr delegate &assign(F &&, I &instance) noexcept requires empty_ftor<F, I &>
+		constexpr delegate &assign(F &&, I &instance) noexcept requires empty_ftor<std::remove_reference_t<F>, I &>
 		{
 			m_proxy = +[](std::uintptr_t data, Args...args) -> R
 			{
 				const auto ptr = static_cast<I *>(data_t::get(data));
 				return std::invoke(F{}, *ptr, std::forward<Args>(args)...);
 			};
-			m_data = data_t{std::in_place_type<I *>, instance};
+			m_data = data_t{std::in_place_type<I *>, std::addressof(instance)};
 			return *this;
 		}
 
@@ -616,7 +619,7 @@ namespace sek
 		/** Checks if the delegate is a valid invocation target (is bound to a function or functor). */
 		[[nodiscard]] constexpr bool valid() const noexcept { return m_proxy != nullptr; }
 		/** Returns pointer to the data of the bound argument or object instance. */
-		[[nodiscard]] constexpr const void *data() const noexcept { return m_data.template get<void>(); }
+		[[nodiscard]] constexpr const void *data() const noexcept { return m_data.get(); }
 
 		/** Invokes the bound function.
 		 * @param args Arguments passed to the function.

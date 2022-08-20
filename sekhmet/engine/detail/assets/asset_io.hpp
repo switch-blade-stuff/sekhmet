@@ -117,10 +117,7 @@ namespace sek::engine
 			return n;
 		}
 		/** Reads data from the buffer into the ASIO mutable buffer and advances the read position. */
-		[[nodiscard]] constexpr std::size_t read(asio::mutable_buffer &dst) noexcept
-		{
-			return read(dst.data(), dst.size());
-		}
+		[[nodiscard]] std::size_t read(asio::mutable_buffer &dst) noexcept { return read(dst.data(), dst.size()); }
 
 		/** Seeks data buffer to the specified read position. */
 		constexpr std::uint64_t setpos(std::uint64_t pos) noexcept { return m_pos = pos; }
@@ -180,6 +177,7 @@ namespace sek::engine
 				case system::seek_cur: return data->m_buff.setpos(data->m_buff.tell() + static_cast<std::uint64_t>(off));
 				case system::seek_end: return data->m_buff.setpos(data->m_buff.size() + static_cast<std::uint64_t>(off));
 				}
+				return unexpected{std::make_error_code(std::errc::invalid_argument)};
 			}
 			// clang-format on
 
@@ -243,10 +241,20 @@ namespace sek::engine
 				m_vtable = &file_vtable;
 				return *std::construct_at(&m_file);
 			}
+			constexpr system::native_file &init_file(system::native_file &&file)
+			{
+				m_vtable = &file_vtable;
+				return *std::construct_at(&m_file, std::forward<system::native_file>(file));
+			}
 			constexpr asset_buffer &init_buff(std::size_t n)
 			{
 				m_vtable = &buff_vtable;
 				return *std::construct_at(&m_buff, n);
+			}
+			constexpr asset_buffer &init_buff(asset_buffer &&buff)
+			{
+				m_vtable = &buff_vtable;
+				return *std::construct_at(&m_buff, std::forward<asset_buffer>(buff));
 			}
 			constexpr asset_buffer &init_buff(const void *data, std::size_t n)
 			{

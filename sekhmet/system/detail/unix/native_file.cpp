@@ -31,16 +31,16 @@ namespace sek::system::detail
 	constexpr auto access = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
 
 	inline static std::error_code current_error() noexcept { return std::make_error_code(std::errc{errno}); }
-	inline static std::int64_t page_size() noexcept
+	inline static std::uint64_t page_size() noexcept
 	{
 		const auto res = sysconf(_SC_PAGE_SIZE);
-		return res < 0 ? SEK_KB(8) : static_cast<std::int64_t>(res);
+		return res < 0 ? SEK_KB(8) : static_cast<std::uint64_t>(res);
 	}
 
 	native_file_handle::~native_file_handle()
 	{
-		if (m_descriptor >= 0 && ::close(m_descriptor) != 0) [[unlikely]]
-			throw std::system_error(current_error());
+		if (m_descriptor >= 0) [[likely]]
+			::close(m_descriptor);
 	}
 
 	expected<void, std::error_code> native_file_handle::open(const char *path, openmode mode) noexcept
