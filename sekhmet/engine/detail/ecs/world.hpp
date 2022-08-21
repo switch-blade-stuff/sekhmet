@@ -1231,47 +1231,47 @@ namespace sek::engine
 			return *storage;
 		}
 
-		template<typename... Coll, typename... Inc, typename... Exc>
-		[[nodiscard]] constexpr auto find_sorter(owned_t<Coll...>, included_t<Inc...>, excluded_t<Exc...>) const noexcept
+		template<typename... O, typename... I, typename... E>
+		[[nodiscard]] constexpr auto find_sorter(owned_t<O...>, included_t<I...>, excluded_t<E...>) const noexcept
 		{
 			constexpr auto pred = [](const sorter_t &sorter) -> bool
 			{
-				return sorter.type_count == sizeof...(Coll) + sizeof...(Inc) + sizeof...(Exc) &&
-					   (sorter.is_owned(type_info::get<Coll>()) && ...) &&
-					   (sorter.is_included(type_info::get<Inc>()) && ...) &&
-					   (sorter.is_excluded(type_info::get<Exc>()) && ...);
+				// clang-format off
+				return sorter.type_count == sizeof...(O) + sizeof...(I) + sizeof...(E) &&
+					   (sorter.is_owned(type_info::get<O>()) && ...) &&
+					   (sorter.is_included(type_info::get<I>()) && ...) &&
+					   (sorter.is_excluded(type_info::get<E>()) && ...);
+				// clang-format on
 			};
 			return std::pair{std::find_if(m_sorters.begin(), m_sorters.end(), pred), m_sorters.end()};
 		}
-		template<typename... Coll, typename... Inc, typename... Exc>
-		[[nodiscard]] constexpr auto next_sorter(owned_t<Coll...>, included_t<Inc...>, excluded_t<Exc...>) const noexcept
+		template<typename... O, typename... I, typename... E>
+		[[nodiscard]] constexpr auto next_sorter(owned_t<O...>, included_t<I...>, excluded_t<E...>) const noexcept
 		{
-			constexpr auto pred = [](const sorter_t &s) -> bool
-			{
-				return s.type_count > sizeof...(Coll) + sizeof...(Inc) + sizeof...(Exc) &&
-					   (s.is_owned(type_info::get<Coll>()) || ...);
+			constexpr auto pred = [](const sorter_t &s) -> bool {
+				return s.type_count > sizeof...(O) + sizeof...(I) + sizeof...(E) && (s.is_owned(type_info::get<O>()) || ...);
 			};
 			return std::pair{std::find_if(m_sorters.begin(), m_sorters.end(), pred), m_sorters.end()};
 		}
-		template<typename... Coll, typename... Inc, typename... Exc>
-		[[nodiscard]] constexpr auto prev_sorter(owned_t<Coll...>, included_t<Inc...>, excluded_t<Exc...>) const noexcept
+		template<typename... O, typename... I, typename... E>
+		[[nodiscard]] constexpr auto prev_sorter(owned_t<O...>, included_t<I...>, excluded_t<E...>) const noexcept
 		{
-			constexpr auto pred = [](const sorter_t &s) -> bool { return (s.is_owned(type_info::get<Coll>()) || ...); };
+			constexpr auto pred = [](const sorter_t &s) -> bool { return (s.is_owned(type_info::get<O>()) || ...); };
 			return std::pair{std::find_if(m_sorters.begin(), m_sorters.end(), pred), m_sorters.end()};
 		}
-		template<typename... Coll, typename... Inc, typename... Exc>
-		[[nodiscard]] constexpr bool has_conflicts(owned_t<Coll...>, included_t<Inc...>, excluded_t<Exc...>) const noexcept
+		template<typename... O, typename... Inc, typename... E>
+		[[nodiscard]] constexpr bool has_conflicts(owned_t<Coll...>, included_t<Inc...>, excluded_t<E...>) const noexcept
 		{
 			constexpr auto pred = [](const sorter_t &s) -> bool
 			{
-				if (const auto overlap = (0lu + ... + s.is_owned(type_info::get<Coll>())); overlap == 0)
+				if (const auto overlap = (0lu + ... + s.is_owned(type_info::get<O>())); overlap == 0)
 					return false;
 				else
 				{
-					const auto weak = (0lu + ... + s.is_included(type_info::get<Inc>())) +
-									  (0lu + ... + s.is_excluded(type_info::get<Exc>()));
+					const auto weak = (0lu + ... + s.is_included(type_info::get<I>())) +
+									  (0lu + ... + s.is_excluded(type_info::get<E>()));
 					const auto count = weak + overlap;
-					return !(count == (sizeof...(Coll) + sizeof...(Inc) + sizeof...(Exc)) || count == s.type_count);
+					return !(count == (sizeof...(O) + sizeof...(I) + sizeof...(E)) || count == s.type_count);
 				}
 			};
 			return std::any_of(m_sorters.begin(), m_sorters.end(), pred);
@@ -1297,13 +1297,13 @@ namespace sek::engine
 			template<typename T>
 			[[nodiscard]] constexpr static bool accept(entity_world &w, std::tuple<component_set<O> *...> o, entity_t e) noexcept
 			{
-				constexpr auto accept_owned = [](std::tuple<component_set<O> *...> o, entity_t e)
+				constexpr auto accept_owned = []<typename U>(type_selector_t<U>, std::tuple<component_set<O> *...> o, entity_t e)
 				{
-					const auto set = std::get<component_set<O> *>(o);
-					return (std::is_same_v<T, O> || set->contains(e)) && !set->is_locked(e);
+					const auto set = std::get<component_set<U> *>(o);
+					return (std::is_same_v<T, U> || set->contains(e)) && !set->is_locked(e);
 				};
 
-				return ((accept_owned(o, e) && ...) &&
+				return ((accept_owned(type_selector<O>, o, e) && ...) &&
 					   ((std::is_same_v<T, I> || w.template get_storage<I>()->contains(e)) && ...) &&
 					   ((std::is_same_v<T, E> || !w.template get_storage<E>()->contains(e)) && ...);
 			}

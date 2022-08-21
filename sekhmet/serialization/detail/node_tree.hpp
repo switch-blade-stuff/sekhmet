@@ -12,6 +12,134 @@
 
 namespace sek::serialization
 {
+	template<typename, typename, typename = void>
+	class basic_node_tree;
+
+	/** @brief Helper structure used to select conversion function of a `node_type` overload. */
+	template<typename T>
+	struct convert_from_t
+	{
+	};
+	/** @copydoc convert_from_t */
+	template<typename T>
+	struct convert_to_t
+	{
+	};
+
+	/** @brief Structure used to pass node (de)serialization context to specializations of `node_type`. */
+	class node_context
+	{
+		template<typename, typename, typename>
+		friend class basic_node_tree;
+
+	private:
+		using allocator_type = sek::detail::buffer_allocator<SEK_KB(8)>;
+
+		constexpr explicit node_context(allocator_type &alloc) noexcept : m_alloc(alloc) {}
+
+	public:
+		node_context() = delete;
+		node_context(const node_context &) = delete;
+		node_context &operator=(const node_context &) = delete;
+		node_context(node_context &&) = delete;
+		node_context &operator=(node_context &&) = delete;
+
+		/** Allocates `n` contiguous objects of type `T`. */
+		template<typename T>
+		[[nodiscard]] constexpr T *allocate(std::size_t n) const
+		{
+			return allocate<T>(n, std::align_val_t{alignof(T)});
+		}
+		/** @copydoc allocate */
+		template<typename T>
+		[[nodiscard]] constexpr T *allocate(std::size_t n, std::align_val_t align) const
+		{
+			return static_cast<T *>(m_alloc.allocate(n * sizeof(T), align));
+		}
+
+		/** Reallocates a previously allocated chunk of memory. */
+		template<typename T>
+		[[nodiscard]] constexpr T *reallocate(T *ptr, std::size_t old_n, std::size_t n) const
+		{
+			return reallocate<T>(ptr, old_n, n, std::align_val_t{alignof(T)});
+		}
+		/** @copydoc reallocate */
+		template<typename T>
+		[[nodiscard]] constexpr T *reallocate(T *ptr, std::size_t old_n, std::size_t n, std::align_val_t align) const
+		{
+			return static_cast<T *>(m_alloc.reallocate(ptr, old_n * sizeof(T), n * sizeof(T), align));
+		}
+
+		/** Deallocates a previously allocated chunk of memory. */
+		template<typename T>
+		constexpr void deallocate(T *ptr, std::size_t n) const
+		{
+			dereallocate<T>(ptr, n, std::align_val_t{alignof(T)});
+		}
+		/** @copydoc deallocate */
+		template<typename T>
+		constexpr void deallocate(T *ptr, std::size_t n, std::align_val_t align) const
+		{
+			m_alloc.deallocate(ptr, n * sizeof(T), align);
+		}
+
+	private:
+		allocator_type &m_alloc;
+	};
+
+	/** @brief Template used for defining separate data types for use with `basic_node_tree`.
+	 *
+	 * Specializations of this template must provide member `operator()` functions, used to preform
+	 * overload resolution of serialization functions and conversion between data types. If a `node_type`
+	 * template instance does not have an available operator, it is ignored.
+	 *
+	 * Every `operator()` receives an instance of `node_context` that may be used to preform additional memory
+	 * allocations required for node type conversion (for example to handle allocation of strings).
+	 *
+	 * @tparam Name Name of the node value used for debugging purposes.
+	 * @tparam T Type of the node value.
+	 *
+	 * @example
+	 * @code{.cpp}
+	 * template<>
+	 * struct node_type<"int32", std::int32_t>
+	 * {
+	 * 	template<typename T>
+	 * 	constexpr static bool valid_int = std::signed_integral<T> && sizeof(T) == sizeof(std::int32_t);
+	 *
+	 * 	template<typename I>
+	 * 	[[nodiscard]] constexpr std::int32_t operator()(node_context, convert_from_t<I>, I i, auto &&...) requires valid_int<I>
+	 * 	{
+	 * 		return static_cast<std::int32_t>(i);
+	 * 	}
+	 * 	template<typename I>
+	 * 	[[nodiscard]] constexpr I operator()(node_context, convert_to_t<I>, std::int32_t i, auto &&...) requires std::is_convertible_v<std::int32_t, I>
+	 * 	{
+	 * 		return static_cast<I>(i);
+	 * 	}
+	 * };
+	 *
+	 * template<>
+	 * struct node_type<"uint32",std::uint32_t>
+	 * {
+	 * 	template<typename T>
+	 * 	constexpr static bool valid_int = std::unsigned_integral<T> && sizeof(T) == sizeof(std::uint32_t);
+	 *
+	 * 	template<typename I>
+	 * 	[[nodiscard]] constexpr std::uint32_t operator()(node_context, convert_from_t<I>, I i, auto &&...) requires valid_int<I>
+	 * 	{
+	 * 		return static_cast<std::uint32_t>(i);
+	 * 	}
+	 * 	template<typename I>
+	 * 	[[nodiscard]] constexpr I operator()(node_context, convert_to_t<I>, std::uint32_t i, auto &&...) requires std::is_convertible_v<std::uint32_t, I>
+	 * 	{
+	 * 		return static_cast<I>(i);
+	 * 	}
+	 * };
+	 * @endcode */
+	template<basic_static_string Name, typename T>
+	struct node_type;
+
 	/** @brief Template for value nodes for use with `basic_node_tree`.
 	 * @note Value nodes must be trivial types and provide a public `type_selector` member typedef,
 	 * used to store the type of the value node. */
@@ -20,33 +148,6 @@ namespace sek::serialization
 
 	namespace detail
 	{
-		template<typename N, typename K, typename A>
-		struct container_element_base;
-		template<typename N>
-		struct container_element_base<N, void, void>
-		{
-			N value;
-		};
-		template<typename N, typename K>
-		struct container_element_base<N, void, K>
-		{
-			N value;
-			K key;
-		};
-		template<typename N, typename A>
-		struct container_element_base<N, A, void>
-		{
-			A attribute;
-			N value;
-		};
-		template<typename N, typename A, typename K>
-		struct container_element_base
-		{
-			A attribute;
-			N value;
-			K key;
-		};
-
 		template<typename A>
 		struct attribute_typedef
 		{
@@ -56,368 +157,282 @@ namespace sek::serialization
 		struct attribute_typedef<void>
 		{
 		};
+
+		template<typename>
+		struct node_traits;
+		template<basic_static_string Name, typename T>
+		struct node_traits<node_type<Name, T>>
+		{
+			using type = T;
+
+			constexpr static auto name = Name;
+		};
+		template<typename N>
+		using node_value_type_t = typename node_traits<N>::type;
+
+		// clang-format off
+		/* To convert to a node's value type, we check if a `convert_from_t` overload exists that returns node's value type. */
+		template<typename N, typename T, typename... Args>
+		concept convertible_to_node = std::is_invocable_r_v<node_value_type_t<N>, N, convert_from_t<std::remove_cvref_t<T>>, T, Args...>;
+		/* To convert from a node's value type, we check if a `convert_to_t` overload exists that returns the desired type. */
+		template<typename N, typename T, typename... Args>
+		concept convertible_from_node = std::is_invocable_r_v<T, N, convert_to_t<std::remove_cvref_t<T>>, node_value_type_t<N>, Args...>;
+		// clang-format on
+
+		/* To check if a node value cast is available, we check if the converted-to node's value type is convertible
+		 * from the converted-from node's value type. */
+		template<typename NFrom, typename NTo>
+		concept valid_node_cast = convertible_from_node<NFrom, node_value_type_t<NTo>>;
+
+		template<typename...>
+		class node_data;
+		template<>
+		class node_data<>
+		{
+		};
+		template<typename T, typename... Ts>
+		class node_data<T, Ts...> : ebo_base_helper<node_value_type_t<T>>, public node_data<Ts...>
+		{
+			using base_t = ebo_base_helper<node_value_type_t<T>>;
+
+		public:
+			constexpr static auto id = T::id;
+
+			using base_t::get;
+		};
+
+		template<typename... Ts>
+		class node_storage
+		{
+			template<auto Id, typename U, typename... Us>
+			constexpr static auto *cast_data(node_data<U, Us...> *data) noexcept
+			{
+				if constexpr (node_data<U, Us...>::id != Id)
+					return cast_data<Id>(static_cast<node_data<Us...> *>(data));
+				else
+					return data;
+			}
+			template<auto Id, typename U, typename... Us>
+			constexpr static auto *cast_data(const node_data<U, Us...> *data) noexcept
+			{
+				if constexpr (node_data<U, Us...>::id != Id)
+					return cast_data<Id>(static_cast<const node_data<Us...> *>(data));
+				else
+					return data;
+			}
+
+		public:
+			constexpr node_storage() noexcept = default;
+
+			template<typename N>
+			[[nodiscard]] constexpr node_value_type_t<N> *get() noexcept
+			{
+				return get<N::id>();
+			}
+			template<typename N>
+			[[nodiscard]] constexpr const node_value_type_t<N> *get() const noexcept
+			{
+				return get<N::id>();
+			}
+
+			constexpr void swap(node_storage &other) noexcept { std::swap(m_data, other.m_data); }
+
+		private:
+			type_storage<node_data<Ts...>> m_data;
+		};
+
+		template<typename N, typename K, typename A>
+		struct container_item_base;
+		template<typename N>
+		struct container_item_base<N, void, void>
+		{
+			N value;
+		};
+		template<typename N, typename K>
+		struct container_item_base<N, void, K>
+		{
+			N value;
+			K key;
+		};
+		template<typename N, typename A>
+		struct container_item_base<N, A, void>
+		{
+			A attribute;
+			N value;
+		};
+		template<typename N, typename A, typename K>
+		struct container_item_base
+		{
+			A attribute;
+			N value;
+			K key;
+		};
 	}	 // namespace detail
 
-	/** @brief Structure used to store a serialized node tree.
+	/** @brief Serialization archive used to store a serialized node tree.
 	 *
-	 * Node trees are used to implement structured serialization archives
-	 * and to transfer serialized data between compatible archive formats.
+	 * Node trees are used as a base to implement structured serialization archives and to transfer serialized data
+	 * between compatible archive formats. A specialized archive should derive from the node tree and implement custom
+	 * data format parsing or generation.
 	 *
 	 * For example, all Json-based archives (Json, & UBJson) use the `json_node_tree` specialization of `basic_node_tree`.
 	 *
-	 * @tparam C Character type used for node & attribute keys.
-	 * @tparam N Type of value nodes stored within the tree.
-	 * @tparam A Type of attributes stored within the tree.
-	 * @tparam T Traits type of `C`.
+	 * @tparam Nodes Specializations of the `node_type` template, used to specify individual data types of tree's nodes.
+	 * @tparam C Character type used to store container keys.
+	 * @tparam A Type of attribute value assigned to each node. If set to `void`, nodes do not have attributes.
 	 *
-	 * @note If attribute type is set to `void`, tree nodes will not have attributes.
-	 * @note Node trees do not provide full serialization functionality themselves,
-	 * they only act as serialized data storage. */
-	template<typename C, typename N, typename A, typename T = std::char_traits<C>>
-	class basic_node_tree : public detail::attribute_typedef<A>
+	 * @note Node value types must be trivially copyable. */
+	template<typename... Nodes, typename C, typename A>
+	class basic_node_tree<type_seq_t<Nodes...>, C, A> : public detail::attribute_typedef<A>
 	{
-		static_assert(std::is_trivially_copyable_v<N>);
-		static_assert(std::is_trivially_copyable_v<A> || std::is_void_v<A>);
+		static_assert((std::is_trivially_copyable_v<detail::node_value_type_t<Nodes>> && ...),
+					  "Node value types must be trivially copyable");
 
-	public:
-		typedef C char_type;
-		typedef T traits_type;
-		typedef std::basic_string_view<C, T> key_type;
-		typedef N value_node;
-
-		/** @brief Structure containing value & storage type selectors. */
-		struct type_selector
-		{
-			/** Value data type selector. */
-			typename N::type_selector value = {};
-			/** Storage type selector. */
-			enum : std::uint8_t
-			{
-				/** Node has a dynamic type (used for container types). */
-				DYNAMIC,
-				/** Node is a value node. */
-				VALUE,
-				/** Node is an array node. */
-				ARRAY,
-				/** Node is a table node. */
-				TABLE,
-			} storage = DYNAMIC;
-
-			[[nodiscard]] constexpr bool operator==(const type_selector &) const noexcept = default;
-			[[nodiscard]] constexpr bool operator!=(const type_selector &) const noexcept = default;
-		};
-
-	private:
-		template<typename>
-		struct container_element;
-		template<typename>
-		class container_node;
-
-		// clang-format off
+		template<typename E>
+		constexpr static bool has_attribute = requires(E e) { e.attribute; };
 		template<typename E>
 		constexpr static bool has_key = requires(E e) { e.key; };
-		// clang-format on
 
-		template<typename Element>
-		class node_iterator
-		{
-			template<typename>
-			friend class container_node;
+		using node_data_t = detail::node_storage<Nodes...>;
+		using key_type = std::basic_string_view<C>;
+		using id_type = std::uint32_t;
 
-		public:
-			typedef Element value_type;
-			typedef Element *pointer;
-			typedef Element &reference;
-			typedef std::ptrdiff_t difference_type;
+		template<typename T>
+		constexpr static id_type node_id = type_seq_index_v<T, type_seq_t<Nodes...>> + 1;
 
-			typedef std::random_access_iterator_tag iterator_category;
+		constexpr static id_type dynamic_id = (4u << (std::numeric_limits<id_type>::digits - 4)); /* No fixed type. */
+		constexpr static id_type object_id = (2u << (std::numeric_limits<id_type>::digits - 4)); /* Node is an object. */
+		constexpr static id_type array_id = (1u << (std::numeric_limits<id_type>::digits - 4));	 /* Node is an array. */
 
-			/** `true` if the pointed-to entry has a key, `false` otherwise. */
-			constexpr static bool has_key = basic_node_tree::has_key<Element>;
-
-		private:
-			constexpr explicit node_iterator(value_type *ptr) noexcept : m_ptr(ptr) {}
-
-		public:
-			constexpr node_iterator() noexcept = default;
-			constexpr node_iterator(const node_iterator &) noexcept = default;
-			constexpr node_iterator &operator=(const node_iterator &) noexcept = default;
-			constexpr node_iterator(node_iterator &&) noexcept = default;
-			constexpr node_iterator &operator=(node_iterator &&) noexcept = default;
-
-			constexpr node_iterator &operator+=(difference_type n) noexcept
-			{
-				m_ptr += n;
-				return *this;
-			}
-			constexpr node_iterator &operator++() noexcept
-			{
-				++m_ptr;
-				return *this;
-			}
-			constexpr node_iterator operator++(int) noexcept
-			{
-				auto temp = *this;
-				operator++();
-				return temp;
-			}
-			constexpr node_iterator &operator-=(difference_type n) noexcept
-			{
-				m_ptr -= n;
-				return *this;
-			}
-			constexpr node_iterator &operator--() noexcept
-			{
-				--m_ptr;
-				return *this;
-			}
-			constexpr node_iterator operator--(int) noexcept
-			{
-				auto temp = *this;
-				operator--();
-				return temp;
-			}
-
-			[[nodiscard]] constexpr node_iterator operator+(difference_type n) const noexcept
-			{
-				auto result = *this;
-				result.m_ptr += n;
-				return result;
-			}
-			[[nodiscard]] constexpr node_iterator operator-(difference_type n) const noexcept
-			{
-				auto result = *this;
-				result.m_ptr -= n;
-				return result;
-			}
-
-			/** Returns pointer to the associated entry. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return m_ptr; }
-			/** @copydoc get */
-			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
-			/** Returns reference to the associated entry. */
-			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
-			/** Returns reference to the entry at `n` offset from the iterator. */
-			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return get()[n]; }
-
-			/** Returns reference to the type of the pointed-to node. */
-			[[nodiscard]] constexpr auto &type() const noexcept;
-			/** Returns reference to the value of the pointed-to node. */
-			[[nodiscard]] constexpr auto &value() const noexcept;
-			/** Returns reference to the key of the pointed-to node.
-			 * @note This function is available only for keyed entries. */
-			[[nodiscard]] constexpr auto &key() const noexcept;
-			/** Returns reference to the value of the node's attribute. */
-			[[nodiscard]] constexpr auto &attribute() const noexcept;
-
-			[[nodiscard]] friend constexpr difference_type operator-(node_iterator a, node_iterator b) noexcept
-			{
-				return a.m_ptr - b.m_ptr;
-			}
-			[[nodiscard]] friend constexpr node_iterator operator+(difference_type n, node_iterator a) noexcept
-			{
-				return a + n;
-			}
-
-			[[nodiscard]] constexpr auto operator<=>(const node_iterator &other) const noexcept
-			{
-				return m_ptr <=> other.m_ptr;
-			}
-			[[nodiscard]] constexpr bool operator==(const node_iterator &other) const noexcept
-			{
-				return m_ptr == other.m_ptr;
-			}
-
-		private:
-			value_type *m_ptr;
-		};
-		template<typename Element>
-		class container_node
-		{
-			template<typename, typename, typename, typename>
-			friend class basic_node_tree;
-
-		public:
-			typedef node_iterator<Element> iterator;
-			typedef node_iterator<const Element> const_iterator;
-
-			typedef typename iterator::value_type value_type;
-			typedef typename iterator::pointer pointer;
-			typedef typename iterator::reference reference;
-			typedef typename const_iterator::pointer const_pointer;
-			typedef typename const_iterator::reference const_reference;
-			typedef typename iterator::difference_type difference_type;
-			typedef std::size_t size_type;
-
-		public:
-			/** Initializes an empty container node. */
-			constexpr container_node() noexcept = default;
-
-			/** Returns iterator to the first entry of the container node. */
-			[[nodiscard]] constexpr iterator begin() noexcept { return iterator{m_data}; }
-			/** Returns iterator to the first entry of the container node. */
-			[[nodiscard]] constexpr const_iterator begin() const noexcept { return const_iterator{m_data}; }
-			/** @copydoc begin */
-			[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
-			/** Returns iterator one past the last entry of the container node. */
-			[[nodiscard]] constexpr iterator end() noexcept { return iterator{m_data + m_size}; }
-			/** Returns iterator one past the last entry of the container node. */
-			[[nodiscard]] constexpr const_iterator end() const noexcept { return const_iterator{m_data + m_size}; }
-			/** @copydoc end */
-			[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
-
-			/** Returns reference to the first entry of the container node. */
-			[[nodiscard]] constexpr reference front() noexcept { return *begin(); }
-			/** @copydoc front */
-			[[nodiscard]] constexpr const_reference front() const noexcept { return *begin(); }
-			/** Returns reference to the last entry of the container node. */
-			[[nodiscard]] constexpr reference back() noexcept { return *(end() - 1); }
-			/** @copydoc back */
-			[[nodiscard]] constexpr const_reference back() const noexcept { return *(end() - 1); }
-			/** Returns reference to the nth entry of the container node. */
-			[[nodiscard]] constexpr reference at(size_type i) noexcept
-			{
-				return begin()[static_cast<difference_type>(i)];
-			}
-			/** @copydoc at */
-			[[nodiscard]] constexpr const_reference at(size_type i) const noexcept
-			{
-				return begin()[static_cast<difference_type>(i)];
-			}
-
-			/** Inserts a node at the specified location within the container.
-			 * If there is not enough space (`capacity() <= size()`, returns `false`), otherwise returns `true`. */
-			constexpr bool insert(const_iterator where, value_type &&node) noexcept
-			{
-				if (capacity() <= size()) [[unlikely]]
-					return false;
-				else
-				{
-					auto old_pos = m_data + (where - cbegin());
-					const auto old_size = m_size++;
-
-					std::move_backward(old_pos, m_data + old_size, m_data + m_size);
-					*old_pos = std::move(node);
-					return true;
-				}
-			}
-			/** @copydoc insert */
-			constexpr bool insert(const_iterator where, const value_type &node) noexcept
-			{
-				if (capacity() <= size()) [[unlikely]]
-					return false;
-				else
-				{
-					auto old_pos = m_data + (where - cbegin());
-					const auto old_size = m_size++;
-
-					std::move_backward(old_pos, m_data + old_size, m_data + m_size);
-					*old_pos = node;
-					return true;
-				}
-			}
-
-			/** Checks if the container is empty. */
-			[[nodiscard]] constexpr bool empty() const noexcept { return m_size == 0; }
-			/** Returns the size of the container node. */
-			[[nodiscard]] constexpr size_type size() const noexcept { return m_size; }
-			/** Returns the capacity of the container node. */
-			[[nodiscard]] constexpr size_type capacity() const noexcept { return m_capacity; }
-
-		private:
-			value_type *m_data = nullptr;
-			size_type m_size = 0;
-			size_type m_capacity = 0;
-
-		public:
-			/** Type of container elements. `type_selector::DYNAMIC` by default. */
-			type_selector element_type;
-		};
+		constexpr static id_type container_id = array_id | object_id; /* Node is an object. */
+		constexpr static id_type empty_id = 0;						  /* Node is empty. */
 
 	public:
-		/** @brief Container node used to store un-keyed entries. */
-		typedef container_node<container_element<void>> array_node;
-		/** @brief Container node used to store keyed entries. */
-		typedef container_node<container_element<key_type>> table_node;
-		/** @brief Storage for container & value nodes. */
-		class node_type
+		typedef std::size_t size_type;
+		typedef std::ptrdiff_t difference_type;
+
+	private:
+		constexpr static size_type buffer_size = SEK_KB(8);
+
+		class value_node;
+		template<typename Element>
+		struct container_data
 		{
-			template<typename, typename, typename, typename>
-			friend class basic_node_tree;
+			size_type size = 0;
+			size_type capacity = 0;
+			Element *data = nullptr;
+		};
+
+		using array_element = container_data<detail::container_item_base<value_node, void, A>>;
+		using array_data = container_data<array_element>;
+		using object_element = container_data<detail::container_item_base<value_node, key_type, A>>;
+		using object_data = container_data<object_element>;
+
+		class value_node
+		{
+			constexpr static auto pad_size = std::max(sizeof(node_data_t), std::max(sizeof(array_data), sizeof(object_data)));
 
 		public:
-			/** Initializes an empty value node. */
-			constexpr node_type() noexcept : m_value{} {}
+			constexpr value_node() noexcept = default;
+			constexpr ~value_node() noexcept = default;
 
-			/** Returns reference to the data of a value node. */
-			[[nodiscard]] constexpr auto &value() noexcept { return m_value; }
-			/** @copydoc value */
-			[[nodiscard]] constexpr auto &value() const noexcept { return m_value; }
-			/** Returns reference to the data of an array node. */
-			[[nodiscard]] constexpr auto &array() noexcept { return m_array; }
-			/** @copydoc array */
-			[[nodiscard]] constexpr auto &array() const noexcept { return m_array; }
-			/** Returns reference to the data of a table node. */
-			[[nodiscard]] constexpr auto &table() noexcept { return m_table; }
-			/** @copydoc table */
-			[[nodiscard]] constexpr auto &table() const noexcept { return m_table; }
-
-			/** Checks if the node is a value node. */
-			[[nodiscard]] constexpr bool is_value() const noexcept { return type.storage == type_selector::VALUE; }
-			/** Checks if the node is an array node. */
-			[[nodiscard]] constexpr bool is_array() const noexcept { return type.storage == type_selector::ARRAY; }
-			/** Checks if the node is a table node. */
-			[[nodiscard]] constexpr bool is_table() const noexcept { return type.storage == type_selector::TABLE; }
-
-			/** Sets the node to value storage & returns reference to the node. */
-			constexpr auto &to_value() noexcept
+			constexpr value_node(const value_node &other) : m_type_id(other.m_type_id), m_padding(other.m_padding) {}
+			constexpr value_node &operator=(const value_node &other)
 			{
-				type.storage = type_selector::VALUE;
-				m_value = {};
-				return *this;
-			}
-			/** Sets the node to array storage & returns reference to the node. */
-			constexpr auto &to_array() noexcept
-			{
-				type.storage = type_selector::ARRAY;
-				m_array = {};
-				return *this;
-			}
-			/** Sets the node to table storage & returns reference to the node. */
-			constexpr auto &to_table() noexcept
-			{
-				type.storage = type_selector::TABLE;
-				m_table = {};
+				if (this != &other)
+				{
+					m_type_id = other.m_type_id;
+					m_padding = other.m_padding;
+				}
 				return *this;
 			}
 
-			constexpr void swap(node_type &other) noexcept
+			constexpr value_node(value_node &&other) noexcept { swap(other); }
+			constexpr value_node &operator=(value_node &&other) noexcept
 			{
-				std::swap(type, other.type);
-				std::swap(padding, other.padding);
+				swap(other);
+				return *this;
 			}
 
-			/** Storage & data type of the node. */
-			type_selector type;
+			/** Checks if the node is empty (does not contain any data). */
+			[[nodiscard]] constexpr bool empty() const noexcept { return m_type_id == empty_id; }
+			/** Checks if the node is an array container. */
+			[[nodiscard]] constexpr bool is_array() const noexcept { return m_type_id & array_id; }
+			/** Checks if the node is an object container. */
+			[[nodiscard]] constexpr bool is_object() const noexcept { return m_type_id & object_id; }
+			/** Checks if the node is a container (array or object). */
+			[[nodiscard]] constexpr bool is_container() const noexcept { return m_type_id & container_id; }
+			/** Checks if the node is a container with dynamic type. */
+			[[nodiscard]] constexpr bool is_dynamic() const noexcept { return m_type_id & dynamic_id; }
+
+			/** Returns a 0-based index id of the `node_type` instance that corresponds with the current type of the node.
+			 * If the node is a container node, it's type corresponds to the type of it's elements (unless `is_dynamic`
+			 * evaluates to `true`). If the node is a value node, it's type corresponds to the type of the stored value.
+			 * @note Result is only valid if the node is not empty. */
+			[[nodiscard]] constexpr id_type type() const noexcept { return (m_type_id & ~container_id) - 1; }
+
+			/** @brief Returns reference to the underlying value of a value node.
+			 * @tparam N `node_type` corresponding to the contained value.
+			 * @note Result is only valid if the node is not a container. */
+			template<typename N>
+			[[nodiscard]] constexpr auto &get() noexcept
+			{
+				return *m_value.template get<N>();
+			}
+			/** @copydoc get */
+			template<typename N>
+			[[nodiscard]] constexpr auto &get() const noexcept
+			{
+				return *m_value.template get<N>();
+			}
+			/** @copybrief get
+			 * @tparam Type 0-based index corresponding to the `node_type` of the contained value.
+			 * @note Result is only valid if the node is not a container. */
+			template<id_type Type>
+			[[nodiscard]] constexpr auto &get() noexcept
+			{
+				return get<type_seq_element_t<Type, type_seq_t<Nodes...>>>();
+			}
+			/** @copydoc get */
+			template<id_type Type>
+			[[nodiscard]] constexpr auto &get() const noexcept
+			{
+				return get<type_seq_element_t<Type, type_seq_t<Nodes...>>>();
+			}
+
+			/** Returns the size of a container (array or object) node.
+			 * @note Result is only valid if the node is a container node. */
+			[[nodiscard]] constexpr size_type size() const noexcept
+			{
+				return is_array() ? m_array.size : m_object.size;
+			}
+			/** Returns the capacity of a container (array or object) node.
+			 * @note Result is only valid if the node is a container node. */
+			[[nodiscard]] constexpr size_type capacity() const noexcept
+			{
+				return is_array() ? m_array.capacity : m_object.capacity;
+			}
+
+			constexpr void swap(value_node &other) noexcept
+			{
+				std::swap(m_padding, other.m_padding);
+				std::swap(m_type_id, other.m_type_id);
+			}
+			friend constexpr void swap(value_node &a, value_node &b) noexcept { a.swap(b); }
 
 		private:
 			union
 			{
-				std::byte padding[sizeof(value_node) > sizeof(array_node) ? sizeof(value_node) : sizeof(array_node)];
-				value_node m_value; /* Data of a value node. */
-				array_node m_array; /* Data of an array node. */
-				table_node m_table; /* Data of a table node. */
+				std::byte m_padding[pad_size] = {};
+				node_data_t m_value;
+				array_data m_array;
+				array_data m_object;
 			};
+			id_type m_type_id = empty_id;
 		};
 
-	private:
-		using node_pool_t = sek::detail::buffer_allocator<sizeof(node_type) * 64>;
-		using string_pool_t = sek::detail::buffer_allocator<SEK_KB(8)>;
-
-		template<typename K>
-		struct container_element : detail::container_element_base<node_type, A, K>
-		{
-		};
+		using node_allocator = sek::detail::buffer_allocator<std::max<size_type>(buffer_size / sizeof(value_node), 8)>;
+		using buffer_allocator = sek::detail::buffer_allocator<buffer_size>;
 
 	public:
 		constexpr basic_node_tree() noexcept = default;
@@ -427,115 +442,33 @@ namespace sek::serialization
 		/* TODO: Move generic implementation of archive frames to node tree,
 		 * make node tree act as a basic non-parsing archive */
 
-		constexpr basic_node_tree(basic_node_tree &&other) noexcept
-			: top_level(std::exchange(other.top_level, {})),
-			  string_pool(std::exchange(other.string_pool, {})),
-			  node_pool(std::exchange(other.node_pool, {}))
-		{
-		}
-		constexpr basic_node_tree &operator=(basic_node_tree &&other) noexcept
-		{
-			swap(other);
-			return *this;
-		}
+		constexpr basic_node_tree(basic_node_tree &&) noexcept = default;
+		constexpr basic_node_tree &operator=(basic_node_tree &&) noexcept = default;
 
-		/** Allocates a string (n + 1 chars) using the string pool. */
-		[[nodiscard]] constexpr char_type *alloc_string(std::size_t n)
-		{
-			auto result = static_cast<char_type *>(string_pool.allocate((n + 1) * sizeof(char_type)));
-			if (!result) [[unlikely]]
-				throw std::bad_alloc();
-			return result;
-		}
-		/** Copies a string (n + 1 chars) using the string pool. */
-		[[nodiscard]] constexpr std::basic_string_view<C, T> copy_string(const char_type *c, std::size_t n)
-		{
-			auto dst = alloc_string(n);
-			*std::copy_n(c, n, dst) = '\0';
-			return {dst, n};
-		}
-		/** @copydoc copy_string */
-		template<typename U = T>
-		[[nodiscard]] constexpr std::basic_string_view<C, T> copy_string(std::basic_string_view<C, U> str)
-		{
-			return copy_string(str.data(), str.size());
-		}
-		/** Generates a key string from an index using the string pool.
-		 * @tparam Prefix Prefix of the generated key.
-		 * @param idx Index to use for generating the key. */
-		[[nodiscard]] constexpr std::basic_string_view<C, T> make_key(std::size_t idx)
-		{
-			return detail::generate_key<C, T, "__">(string_pool, idx);
-		}
-
-		/** Resizes a container node to the specified capacity.
-		 * @param node Container node to resize.
-		 * @param n New capacity of the container node.
-		 * @return Reference to the container node. */
-		template<typename E>
-		[[nodiscard]] constexpr auto &reserve_container(container_node<E> &node, std::size_t n)
-		{
-			if (n > node.capacity()) [[likely]]
-			{
-				const auto old_bytes = node.capacity() * sizeof(E);
-				const auto new_bytes = n * sizeof(E);
-
-				auto new_data = node_pool.reallocate(node.m_data, old_bytes, new_bytes, std::align_val_t{alignof(E)});
-				if (!new_data) [[unlikely]]
-					throw std::bad_alloc();
-
-				node.m_data = static_cast<E *>(new_data);
-				node.m_capacity = n;
-			}
-			return node;
-		}
-
+		/** Clears any serialized data and releases all allocated memory. */
 		constexpr void reset()
 		{
-			top_level = node_type{};
-			string_pool.release();
-			node_pool.release();
+			m_top_level = value_node{};
+			m_buffer_alloc.release();
+			m_node_alloc.release();
 		}
 
 		constexpr void swap(basic_node_tree &other) noexcept
 		{
-			top_level.swap(other.top_level);
-			string_pool.swap(other.string_pool);
-			node_pool.swap(other.node_pool);
+			m_top_level.swap(other.m_top_level);
+			m_buffer_alloc.swap(other.m_buffer_alloc);
+			m_node_alloc.swap(other.m_node_alloc);
 		}
 		friend constexpr void swap(basic_node_tree &a, basic_node_tree &b) noexcept { a.swap(b); }
 
-	public:
-		/** Top-most node of the node tree. */
-		node_type top_level = {};
-		/** Allocation pool used for string allocation. */
-		string_pool_t string_pool;
-		/** Allocation pool used for node allocation. */
-		node_pool_t node_pool;
-	};
+	private:
+		[[nodiscard]] constexpr node_context make_context() noexcept { return node_context{m_buffer_alloc}; }
 
-	template<typename C, typename N, typename A, typename T>
-	template<typename E>
-	constexpr auto &basic_node_tree<C, N, A, T>::node_iterator<E>::type() const noexcept
-	{
-		return m_ptr->value.type;
-	}
-	template<typename C, typename N, typename A, typename T>
-	template<typename E>
-	constexpr auto &basic_node_tree<C, N, A, T>::node_iterator<E>::value() const noexcept
-	{
-		return m_ptr->value;
-	}
-	template<typename C, typename N, typename A, typename T>
-	template<typename E>
-	constexpr auto &basic_node_tree<C, N, A, T>::node_iterator<E>::key() const noexcept
-	{
-		return m_ptr->key;
-	}
-	template<typename C, typename N, typename A, typename T>
-	template<typename E>
-	constexpr auto &basic_node_tree<C, N, A, T>::node_iterator<E>::attribute() const noexcept
-	{
-		return m_ptr->attribute;
-	}
+		/** Top-most node of the node tree. */
+		value_node m_top_level = {};
+		/** Allocator used for general buffer allocation. */
+		buffer_allocator m_buffer_alloc;
+		/** Allocator used for node allocation. */
+		node_allocator m_node_alloc;
+	};
 }	 // namespace sek::serialization

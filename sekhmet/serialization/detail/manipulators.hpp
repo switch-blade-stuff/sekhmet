@@ -45,6 +45,19 @@ namespace sek::serialization
 		return keyed_entry_t<C, T>{key, std::forward<T>(value)};
 	}
 
+	/** @brief Archive manipulator used to read or write an entry attribute. */
+	template<typename T>
+	struct entry_attribute_t
+	{
+		T value;
+	};
+	/** @copydoc T */
+	template<typename T>
+	constexpr entry_attribute_t<T> entry_attribute(T &&value) noexcept(detail::noexcept_fwd<T>)
+	{
+		return entry_attribute_t{std::forward<T>(value)};
+	}
+
 	/** @brief Archive manipulator used read or write size of the current container.
 	 *
 	 * By default, archives should infer container size during serialization. This manipulator is used to specify

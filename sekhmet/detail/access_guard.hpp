@@ -94,15 +94,16 @@ namespace sek
 		template<typename>
 		friend class std::optional;
 
-		constexpr access_handle(T &ref, L &&lock) noexcept(std::is_nothrow_move_constructible_v<L>)
+	public:
+		typedef T element_type;
+		typedef std::remove_reference_t<T> *pointer;
+		typedef std::remove_reference_t<T> &reference;
+
+	private:
+		constexpr access_handle(reference ref, L &&lock) noexcept(std::is_nothrow_move_constructible_v<L>)
 			: m_ptr(std::addressof(ref)), m_lock(std::move(lock))
 		{
 		}
-
-	public:
-		typedef T element_type;
-		typedef T *pointer;
-		typedef T &reference;
 
 	public:
 		access_handle() = delete;
@@ -128,7 +129,7 @@ namespace sek
 		[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
 
 	private:
-		T *m_ptr;
+		pointer m_ptr;
 		L m_lock;
 	};
 
@@ -213,40 +214,24 @@ namespace sek
 		{
 		}
 
-		/** Initializes value by-copy. */
-		constexpr access_guard(const value_type &value)
-			noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-			         std::is_nothrow_default_constructible_v<mutex_type>)
-			requires(std::is_copy_constructible_v<value_type> &&
-					 std::is_default_constructible_v<mutex_type>)
-			: m_value(value)
+		/** Initializes the value from passed argument. */
+		template<typename U = value_type>
+		constexpr access_guard(U &&value)
+			noexcept(std::is_nothrow_default_constructible_v<mutex_type> &&
+			         std::is_nothrow_constructible_v<value_type, U>)
+			requires(std::is_default_constructible_v<mutex_type> &&
+                     std::is_constructible_v<value_type, U>)
+			: m_value(std::forward<U>(value))
 		{
 		}
-		/** Initializes the value and mutex using the copy constructor. */
-		constexpr access_guard(const value_type &value, const mutex_type &mtx)
-			noexcept(std::is_nothrow_copy_constructible_v<value_type> &&
-					 std::is_nothrow_copy_constructible_v<mutex_type>)
-			requires(std::is_copy_constructible_v<value_type> &&
-					 std::is_copy_constructible_v<mutex_type>)
-			: m_value(value), m_mtx(mtx)
-		{
-		}
-		/** Initializes value using it's move constructor. */
-		constexpr access_guard(value_type &&value)
-			noexcept(std::is_nothrow_move_constructible_v<value_type> &&
-			         std::is_nothrow_default_constructible_v<mutex_type>)
-			requires(std::is_move_constructible_v<value_type> &&
-					 std::is_default_constructible_v<mutex_type>)
-			: m_value(std::move(value))
-		{
-		}
-		/** Initializes the value and mutex using the move constructor. */
-		constexpr access_guard(const value_type &value, mutex_type &&mtx)
-			noexcept(std::is_nothrow_move_constructible_v<value_type> &&
-					 std::is_nothrow_move_constructible_v<mutex_type>)
-			requires(std::is_move_constructible_v<value_type> &&
-					 std::is_move_constructible_v<mutex_type>)
-			: m_value(value), m_mtx(mtx)
+		/** Initializes the value and the mutex from passed arguments. */
+		template<typename U = value_type, typename V = mutex_type>
+		constexpr access_guard(U &&value, V &&mtx)
+			noexcept(std::is_nothrow_constructible_v<value_type, U> &&
+					 std::is_nothrow_constructible_v<mutex_type, V>)
+			requires(std::is_constructible_v<value_type, U> &&
+					 std::is_constructible_v<mutex_type, V>)
+			: m_value(std::forward<U>(value)), m_mtx(std::forward<V>(mtx))
 		{
 		}
 

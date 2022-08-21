@@ -52,7 +52,8 @@ namespace sek::detail
 			m_main_page = nullptr;
 		}
 
-		constexpr void deallocate(void *, std::size_t, std::size_t) {}
+		constexpr void deallocate(void *, std::size_t) {}
+		constexpr void deallocate(void *, std::size_t, std::align_val_t) {}
 		constexpr void *allocate(std::size_t n) { return allocate(n, std::align_val_t{alignof(std::max_align_t)}); }
 		constexpr void *allocate(std::size_t n, std::align_val_t align)
 		{
