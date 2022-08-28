@@ -857,7 +857,7 @@ namespace sek
 									   std::forward_as_tuple(std::forward<Args>(args)...));
 				// clang-format on
 			}
-			/** Constructs a value (of value_type) in-place.
+			/** Constructs a value (of element_t) in-place.
 			 * If a value for any of the the constructed keys is already present within the map, replaces that value.
 			 * @param args Arguments used to construct the value object.
 			 * @return Pair where first element is the iterator to the inserted element
@@ -893,7 +893,7 @@ namespace sek
 			{
 				return try_insert(value).first;
 			}
-			/** Attempts to insert a sequence of values (of value_type) into the map.
+			/** Attempts to insert a sequence of values (of element_t) into the map.
 			 * Does not replace values with conflicting keys.
 			 * @param first Iterator to the start of the value sequence.
 			 * @param first Iterator to the end of the value sequence.
@@ -905,7 +905,7 @@ namespace sek
 				while (first != last) inserted += try_insert(*first++).second;
 				return inserted;
 			}
-			/** Attempts to insert a sequence of values (of value_type) specified by the initializer list into the map.
+			/** Attempts to insert a sequence of values (of element_t) specified by the initializer list into the map.
 			 * Does not replace values with conflicting keys.
 			 * @param il Initializer list containing the values.
 			 * @return Amount of elements inserted. */
@@ -914,7 +914,7 @@ namespace sek
 				return try_insert(il.begin(), il.end());
 			}
 
-			/** Inserts a value (of value_type) into the map.
+			/** Inserts a value (of element_t) into the map.
 			 * If a value for any of the the keys is already present within the map, replaces that value.
 			 * @param value Value to insert.
 			 * @return Pair where first element is the iterator to the inserted element
@@ -939,7 +939,7 @@ namespace sek
 			{
 				return insert(value).first;
 			}
-			/** Inserts a sequence of values (of value_type) into the map.
+			/** Inserts a sequence of values (of element_t) into the map.
 			 * If a value for any of the the keys is already present within the map, replaces that value.
 			 * @param first Iterator to the start of the value sequence.
 			 * @param first Iterator to the end of the value sequence.
@@ -951,7 +951,7 @@ namespace sek
 				while (first != last) inserted += insert(*first++).second;
 				return inserted;
 			}
-			/** Inserts a sequence of values (of value_type) specified by the initializer list into the map.
+			/** Inserts a sequence of values (of element_t) specified by the initializer list into the map.
 			 * If a value for any of the the keys is already present within the map, replaces that value.
 			 * @param il Initializer list containing the values.
 			 * @return Amount of new elements inserted. */

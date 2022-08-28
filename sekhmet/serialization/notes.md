@@ -47,7 +47,7 @@ compatible type) containing the key of a keyed entry. In case a key for an entry
 the iterator may return a placeholder or throw `archive_error` exception.
 
 Input archives implementing container functionality must implement the `Container` standard keyed requirement
-with `value_type` being the implementation-defined entry type.
+with `element_t` being the implementation-defined entry type.
 
 ### Manipulators
 

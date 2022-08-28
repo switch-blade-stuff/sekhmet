@@ -1,5 +1,5 @@
 /*
- * Created by switchblade on 2021-12-08
+ * Created by switchblade on 07/05/22
  */
 
 #pragma once
@@ -7,39 +7,97 @@
 #include <iterator>
 #include <stdexcept>
 
-#include "sparse_hash_table.hpp"
+#include "ordered_hash_table.hpp"
+#include "table_util.hpp"
 
 namespace sek
 {
-	/** @brief One-to-one sparse table based associative container providing fast insertion & deletion,
-	 * but higher memory overhead than a tree-based map.
+	/** @brief One-to-one associative container providing fast insertion while preserving insertion order.
 	 *
-	 * Sparse maps are implemented via an open-addressing hash table.
-	 * This allows for efficient insertion & deletion at the expense of greater memory overhead.
-	 * Sparse maps always retain iterator validity on erasure.
-	 * Iterators are invalidated on insertion if a re-hash is required.
+	 * Ordered maps are implemented via a closed-addressing contiguous (packed) storage hash table and a linked list
+	 * used to keep track of the insertion order. This allows for efficient constant-time insertion and optimal cache locality.
+	 * Ordered maps may invalidate iterators on insertion due to the internal packed storage being resized.
+	 * On erasure, iterators to the erased element are invalidated.
 	 *
-	 * @note Iteration over a sparse map is O(n), where n is the amount of buckets within the map.
-	 * This comes from a requirement for iterators to be valid after erasure operations
-	 * (thus bucket list may contain tombstones). In addition, de-referencing sparse map iterators requires one level of indirection,
-	 * since the buckets do not contain map values themselves.
+	 * @note Due to internal implementation, iterators of the map return a pair of references, instead of reference to a pair.
 	 *
 	 * @tparam K Type of objects used as keys.
 	 * @tparam M Type of objects associated with keys.
-	 * @tparam KeyHash Functor used to generate hashes for keys. By default uses `default_hash` which calls static non-member
-	 * `hash` function via ADL if available, otherwise invokes `std::hash`.
+	 * @tparam KeyHash Functor used to generate hashes for keys. By default uses `default_hash` which calls static
+	 * non-member `hash` function via ADL if available, otherwise invokes `std::hash`.
 	 * @tparam KeyComp Predicate used to compare keys.
 	 * @tparam Alloc Allocator used for the map. */
 	template<typename K, typename M, typename KeyHash = default_hash, typename KeyComp = std::equal_to<K>, typename Alloc = std::allocator<std::pair<const K, M>>>
-	class sparse_map
+	class ordered_map
 	{
 	public:
 		typedef K key_type;
 		typedef M mapped_type;
-		typedef std::pair<const K, M> value_type;
+		typedef std::pair<const key_type, mapped_type> value_type;
+		typedef Alloc allocator_type;
 
 	private:
-		using table_type = detail::sparse_hash_table<K, value_type, KeyHash, KeyComp, pair_first, Alloc>;
+		constexpr static auto enable_three_way = requires(value_type a, value_type b) {
+													 std::compare_three_way{}(a.first, b.first);
+													 std::compare_three_way{}(a.second, b.second);
+												 };
+		constexpr static auto enable_equal = requires(value_type a, value_type b) {
+												 std::equal_to<>{}(a.first, b.first);
+												 std::equal_to<>{}(a.second, b.second);
+											 };
+
+		using table_value = std::pair<key_type, mapped_type>;
+
+		template<bool IsConst>
+		class value_pointer
+		{
+			using mapped_ref = std::conditional_t<IsConst, const mapped_type, mapped_type> &;
+			using mapped_ptr = std::conditional_t<IsConst, const mapped_type, mapped_type> *;
+
+		public:
+			typedef std::pair<const key_type &, mapped_ref> reference;
+			typedef std::pair<const key_type &, mapped_ref> *pointer;
+
+		private:
+			using map_pointer = std::conditional_t<IsConst, const value_type, value_type> *;
+			using table_pointer = std::conditional_t<IsConst, const table_value, table_value> *;
+
+		public:
+			constexpr value_pointer() noexcept = default;
+			template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
+			constexpr value_pointer(const value_pointer<OtherConst> &other) noexcept
+				: m_ref(other.m_ref.first, other.m_ref.second)
+			{
+			}
+
+			constexpr explicit value_pointer(pointer ptr) noexcept : m_ref{ptr->first, ptr->second} {}
+			constexpr explicit value_pointer(map_pointer ptr) noexcept : m_ref{ptr->first, ptr->second} {}
+			constexpr explicit value_pointer(table_pointer ptr) noexcept : m_ref{ptr->first, ptr->second} {}
+
+			[[nodiscard]] constexpr pointer get() noexcept { return &m_ref; }
+			[[nodiscard]] constexpr pointer operator->() noexcept { return get(); }
+			[[nodiscard]] constexpr reference operator*() const noexcept { return m_ref; }
+
+			[[nodiscard]] constexpr auto operator<=>(const value_pointer &) const noexcept = default;
+			[[nodiscard]] constexpr bool operator==(const value_pointer &) const noexcept = default;
+
+		private:
+			reference m_ref = {};
+		};
+
+		struct value_traits
+		{
+			using value_type = std::pair<const key_type, mapped_type>;
+
+			using pointer = value_pointer<false>;
+			using const_pointer = value_pointer<true>;
+
+			using reference = typename pointer::reference;
+			using const_reference = typename const_pointer::reference;
+		};
+
+		using table_type = detail::ordered_hash_table<K, table_value, value_traits, KeyHash, KeyComp, pair_first, Alloc>;
+
 		// clang-format off
 		constexpr static bool transparent_key = requires
 		{
@@ -49,54 +107,56 @@ namespace sek
 		// clang-format on
 
 	public:
-		typedef typename table_type::pointer pointer;
-		typedef typename table_type::const_pointer const_pointer;
-		typedef typename table_type::reference reference;
-		typedef typename table_type::const_reference const_reference;
-		typedef typename table_type::size_type size_type;
-		typedef typename table_type::difference_type difference_type;
+		typedef typename value_traits::pointer pointer;
+		typedef typename value_traits::const_pointer const_pointer;
+		typedef typename value_traits::reference reference;
+		typedef typename value_traits::const_reference const_reference;
 
-		typedef typename table_type::allocator_type allocator_type;
 		typedef typename table_type::hash_type hash_type;
 		typedef typename table_type::key_equal key_equal;
 
 		typedef typename table_type::iterator iterator;
 		typedef typename table_type::const_iterator const_iterator;
-		typedef typename table_type::node_handle node_handle;
+		typedef typename table_type::reverse_iterator reverse_iterator;
+		typedef typename table_type::const_reverse_iterator const_reverse_iterator;
+		typedef typename table_type::local_iterator local_iterator;
+		typedef typename table_type::const_local_iterator const_local_iterator;
+		typedef typename table_type::size_type size_type;
+		typedef typename table_type::difference_type difference_type;
 
 	public:
-		constexpr sparse_map() noexcept(std::is_nothrow_default_constructible_v<table_type>) = default;
-		constexpr ~sparse_map() = default;
+		constexpr ordered_map() noexcept(std::is_nothrow_default_constructible_v<table_type>) = default;
+		constexpr ~ordered_map() = default;
 
 		/** Constructs a map with the specified allocators.
-		 * @param alloc Allocator used to allocate map's elements. */
-		constexpr explicit sparse_map(const allocator_type &alloc) : sparse_map(key_equal{}, hash_type{}, alloc) {}
+		 * @param alloc Allocator used to allocate map's value array. */
+		constexpr explicit ordered_map(const allocator_type &alloc) : ordered_map(key_equal{}, hash_type{}, alloc) {}
 		/** Constructs a map with the specified hasher & allocators.
 		 * @param key_hash Key hasher.
-		 * @param alloc Allocator used to allocate map's elements. */
-		constexpr explicit sparse_map(const hash_type &key_hash, const allocator_type &alloc = allocator_type{})
-			: sparse_map(key_equal{}, key_hash, alloc)
+		 * @param alloc Allocator used to allocate map's value array. */
+		constexpr explicit ordered_map(const hash_type &key_hash, const allocator_type &alloc = allocator_type{})
+			: ordered_map(key_equal{}, key_hash, alloc)
 		{
 		}
 		/** Constructs a map with the specified comparator, hasher & allocators.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param alloc Allocator used to allocate map's elements. */
-		constexpr explicit sparse_map(const key_equal &key_compare,
-									  const hash_type &key_hash = {},
-									  const allocator_type &alloc = allocator_type{})
-			: sparse_map(0, key_compare, key_hash, alloc)
+		 * @param alloc Allocator used to allocate map's value array. */
+		constexpr explicit ordered_map(const key_equal &key_compare,
+									   const hash_type &key_hash = {},
+									   const allocator_type &alloc = allocator_type{})
+			: m_table(key_compare, key_hash, alloc)
 		{
 		}
 		/** Constructs a map with the specified minimum capacity.
 		 * @param capacity Capacity of the map.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param alloc Allocator used to allocate map's elements. */
-		constexpr explicit sparse_map(size_type capacity,
-									  const key_equal &key_compare = {},
-									  const hash_type &key_hash = {},
-									  const allocator_type &alloc = allocator_type{})
+		 * @param alloc Allocator used to allocate map's value array. */
+		constexpr explicit ordered_map(size_type capacity,
+									   const key_equal &key_compare = {},
+									   const hash_type &key_hash = {},
+									   const allocator_type &alloc = allocator_type{})
 			: m_table(capacity, key_compare, key_hash, alloc)
 		{
 		}
@@ -106,14 +166,14 @@ namespace sek
 		 * @param first Iterator to the end of the value sequence.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param alloc Allocator used to allocate map's elements. */
+		 * @param alloc Allocator used to allocate map's value array. */
 		template<std::random_access_iterator Iterator>
-		constexpr sparse_map(Iterator first,
-							 Iterator last,
-							 const KeyComp &key_compare = {},
-							 const KeyHash &key_hash = {},
-							 const allocator_type &alloc = allocator_type{})
-			: sparse_map(static_cast<size_type>(std::distance(first, last)), key_compare, key_hash, alloc)
+		constexpr ordered_map(Iterator first,
+							  Iterator last,
+							  const key_equal &key_compare = {},
+							  const hash_type &key_hash = {},
+							  const allocator_type &alloc = allocator_type{})
+			: ordered_map(static_cast<size_type>(std::distance(first, last)), key_compare, key_hash, alloc)
 		{
 			insert(first, last);
 		}
@@ -122,15 +182,14 @@ namespace sek
 		 * @param first Iterator to the end of the value sequence.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param alloc Allocator used to allocate map's elements.
-		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
+		 * @param alloc Allocator used to allocate map's value array. */
 		template<std::forward_iterator Iterator>
-		constexpr sparse_map(Iterator first,
-							 Iterator last,
-							 const KeyComp &key_compare = {},
-							 const KeyHash &key_hash = {},
-							 const allocator_type &alloc = allocator_type{})
-			: sparse_map(key_compare, key_hash, alloc)
+		constexpr ordered_map(Iterator first,
+							  Iterator last,
+							  const key_equal &key_compare = {},
+							  const hash_type &key_hash = {},
+							  const allocator_type &alloc = allocator_type{})
+			: ordered_map(key_compare, key_hash, alloc)
 		{
 			insert(first, last);
 		}
@@ -138,41 +197,39 @@ namespace sek
 		 * @param il Initializer list containing values.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param alloc Allocator used to allocate map's elements.
-		 * @param bucket_alloc Allocator used to allocate map's internal bucket array. */
-		constexpr sparse_map(std::initializer_list<value_type> il,
-							 const KeyComp &key_compare = {},
-							 const KeyHash &key_hash = {},
-							 const allocator_type &alloc = allocator_type{})
-			: sparse_map(il.begin(), il.end(), key_compare, key_hash, alloc)
+		 * @param alloc Allocator used to allocate map's value array. */
+		constexpr ordered_map(std::initializer_list<value_type> il,
+							  const key_equal &key_compare = {},
+							  const hash_type &key_hash = {},
+							  const allocator_type &alloc = allocator_type{})
+			: ordered_map(il.begin(), il.end(), key_compare, key_hash, alloc)
 		{
 		}
 
 		/** Copy-constructs the map. Allocator is copied via `select_on_container_copy_construction`.
 		 * @param other Map to copy data and allocators from. */
-		constexpr sparse_map(const sparse_map &other) noexcept(std::is_nothrow_copy_constructible_v<table_type>)
+		constexpr ordered_map(const ordered_map &other) noexcept(std::is_nothrow_copy_constructible_v<table_type>)
 			: m_table(other.m_table)
 		{
 		}
 		/** Copy-constructs the map.
 		 * @param other Map to copy data and bucket allocator from.
-		 * @param alloc Allocator used to allocate map's elements. */
-		constexpr sparse_map(const sparse_map &other, const allocator_type &alloc) noexcept(
+		 * @param alloc Allocator used to allocate map's value array. */
+		constexpr ordered_map(const ordered_map &other, const allocator_type &alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, const table_type &, const allocator_type &>)
 			: m_table(other.m_table, alloc)
 		{
 		}
-
 		/** Move-constructs the map. Allocator is move-constructed.
 		 * @param other Map to move elements and allocators from. */
-		constexpr sparse_map(sparse_map &&other) noexcept(std::is_nothrow_move_constructible_v<table_type>)
+		constexpr ordered_map(ordered_map &&other) noexcept(std::is_nothrow_move_constructible_v<table_type>)
 			: m_table(std::move(other.m_table))
 		{
 		}
 		/** Move-constructs the map.
 		 * @param other Map to move elements and bucket allocator from.
-		 * @param alloc Allocator used to allocate map's elements. */
-		constexpr sparse_map(sparse_map &&other, const allocator_type &alloc) noexcept(
+		 * @param alloc Allocator used to allocate map's value array. */
+		constexpr ordered_map(ordered_map &&other, const allocator_type &alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &>)
 			: m_table(std::move(other.m_table), alloc)
 		{
@@ -180,14 +237,14 @@ namespace sek
 
 		/** Copy-assigns the map.
 		 * @param other Map to copy elements from. */
-		constexpr sparse_map &operator=(const sparse_map &other)
+		constexpr ordered_map &operator=(const ordered_map &other)
 		{
 			if (this != &other) m_table = other.m_table;
 			return *this;
 		}
 		/** Move-assigns the map.
 		 * @param other Map to move elements from. */
-		constexpr sparse_map &operator=(sparse_map &&other) noexcept(std::is_nothrow_move_assignable_v<table_type>)
+		constexpr ordered_map &operator=(ordered_map &&other) noexcept(std::is_nothrow_move_assignable_v<table_type>)
 		{
 			m_table = std::move(other.m_table);
 			return *this;
@@ -206,22 +263,35 @@ namespace sek
 		/** @copydoc cend */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
 
+		/** Returns reverse iterator to the end of the map. */
+		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return m_table.rbegin(); }
+		/** Returns reverse iterator to the start of the map. */
+		[[nodiscard]] constexpr reverse_iterator rend() noexcept { return m_table.rend(); }
+		/** Returns const reverse iterator to the end of the map. */
+		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return m_table.crbegin(); }
+		/** Returns const reverse iterator to the start of the map. */
+		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return m_table.crend(); }
+		/** @copydoc crbegin */
+		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return crbegin(); }
+		/** @copydoc crend */
+		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return crend(); }
+
 		/** Locates an element for the specific key.
 		 * @param key Key to search for.
 		 * @return Iterator to the element mapped to key. */
-		constexpr iterator find(const key_type &key) noexcept { return m_table.find(key); }
+		constexpr auto find(const key_type &key) noexcept { return m_table.find(key); }
 		/** @copydoc find */
-		constexpr const_iterator find(const key_type &key) const noexcept { return m_table.find(key); }
+		constexpr auto find(const key_type &key) const noexcept { return m_table.find(key); }
 		/** @copydoc find
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
-		constexpr const_iterator find(const auto &key) noexcept
+		constexpr auto find(const auto &key) noexcept
 			requires transparent_key
 		{
 			return m_table.find(key);
 		}
 		/** @copydoc find */
-		constexpr const_iterator find(const auto &key) const noexcept
+		constexpr auto find(const auto &key) const noexcept
 			requires transparent_key
 		{
 			return m_table.find(key);
@@ -285,14 +355,9 @@ namespace sek
 		/** Returns reference to object at the specific key or inserts a new value if it does not exist.
 		 * @param key Key to search for.
 		 * @return Reference to the object mapped to key. */
-		constexpr mapped_type &operator[](const key_type &key) noexcept
-		{
-			return try_emplace(key, mapped_type{}).first->second;
-		}
-		/** Returns reference to object at the specific key or inserts a new value if it does not exist.
-		 * @param key Key to search for.
-		 * @return Reference to the object mapped to key. */
-		constexpr mapped_type &operator[](key_type &&key) noexcept
+		constexpr mapped_type &operator[](const key_type &key) { return try_emplace(key, mapped_type{}).first->second; }
+		/** @copydoc operator[] */
+		constexpr mapped_type &operator[](key_type &&key)
 		{
 			return try_emplace(std::forward<key_type>(key), mapped_type{}).first->second;
 		}
@@ -449,9 +514,9 @@ namespace sek
 		 * @return `true` if the element was removed, `false` otherwise. */
 		constexpr bool erase(const key_type &key)
 		{
-			if (auto target = m_table.find(key); target != m_table.end())
+			if (auto target = find(key); target != end())
 			{
-				m_table.erase(target);
+				erase(target);
 				return true;
 			}
 			else
@@ -460,81 +525,16 @@ namespace sek
 		/** @copydoc erase
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
-		template<typename... Args>
 		constexpr bool erase(const auto &key)
 			requires transparent_key
 		{
-			if (auto target = m_table.find(key); target != m_table.end())
+			if (auto target = find(key); target != end())
 			{
-				m_table.erase(target);
+				erase(target);
 				return true;
 			}
 			else
 				return false;
-		}
-
-		/** Extracts the specified node from the map.
-		 * @param where Iterator to the target node.
-		 * @return Node handle to the extracted node. */
-		constexpr node_handle extract(const_iterator where) { return m_table.extract_node(where); }
-		/** Extracts the specified node from the map.
-		 * @param key Key of the target node.
-		 * @return Node handle to the extracted node or, if the key is not present, an empty node handle. */
-		constexpr node_handle extract(const key_type &key)
-		{
-			if (auto target = m_table.find(key); target != m_table.end())
-				return m_table.extract_node(target);
-			else
-				return {};
-		}
-		/** @copydoc extract
-		 * @note This overload participates in overload resolution only
-		 * if both key hasher and key comparator are transparent. */
-		constexpr node_handle extract(const auto &key)
-			requires transparent_key
-		{
-			if (auto target = m_table.find(key); target != m_table.end())
-				return m_table.extract_node(target);
-			else
-				return {};
-		}
-
-		/** Inserts the specified node into the map.
-		 * If a value with the same key is already present within the map, replaces that value.
-		 * @param node Node to insert.
-		 * @return Pair where first element is the iterator to the inserted node
-		 * and second is boolean indicating whether the node was inserted or replaced (`true` if inserted new, `false` if replaced). */
-		constexpr std::pair<iterator, bool> insert(node_handle &&node)
-		{
-			return m_table.insert_node(std::forward<node_handle>(node));
-		}
-		/** @copydetails insert
-		 * @param hint Hint for where to insert the node.
-		 * @param node Node to insert.
-		 * @return Iterator to the inserted node.
-		 * @note Hint is required for compatibility with STL algorithms and is ignored. */
-		constexpr iterator insert([[maybe_unused]] const_iterator hint, node_handle &&node)
-		{
-			return insert(std::forward<node_handle>(node)).first;
-		}
-		/** Attempts to insert the specified node into t`he map.
-		 * If a value with the same key is already present within the map, does
-		 * not replace it.
-		 * @param node Node to insert.
-		 * @return Pair where first element is the iterator to the potentially inserted node
-		 * and second is boolean indicating whether the node was inserted (`true` if inserted, `false` otherwise). */
-		constexpr std::pair<iterator, bool> try_insert(node_handle &&node)
-		{
-			return m_table.try_insert_node(std::forward<node_handle>(node));
-		}
-		/** @copydetails try_insert
-		 * @param hint Hint for where to insert the node.
-		 * @param node Node to insert.
-		 * @return Iterator to the potentially inserted node or the node that prevented insertion.
-		 * @note Hint is required for compatibility with STL algorithms and is ignored. */
-		constexpr iterator try_insert([[maybe_unused]] const_iterator hint, node_handle &&node)
-		{
-			return insert(std::forward<node_handle>(node)).first;
 		}
 
 		/** Returns current amount of elements in the map. */
@@ -545,8 +545,54 @@ namespace sek
 		[[nodiscard]] constexpr size_type max_size() const noexcept { return m_table.max_size(); }
 		/** Checks if the map is empty. */
 		[[nodiscard]] constexpr size_type empty() const noexcept { return size() == 0; }
+
 		/** Returns current amount of buckets in the map. */
 		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return m_table.bucket_count(); }
+		/** Returns the maximum amount of buckets. */
+		[[nodiscard]] constexpr size_type max_bucket_count() const noexcept { return m_table.max_bucket_count(); }
+
+		/** Returns local iterator to the start of a bucket. */
+		[[nodiscard]] constexpr local_iterator begin(size_type bucket) noexcept { return m_table.begin(bucket); }
+		/** Returns const local iterator to the start of a bucket. */
+		[[nodiscard]] constexpr const_local_iterator cbegin(size_type bucket) const noexcept
+		{
+			return m_table.cbegin(bucket);
+		}
+		/** @copydoc cbegin */
+		[[nodiscard]] constexpr const_local_iterator begin(size_type bucket) const noexcept
+		{
+			return m_table.begin(bucket);
+		}
+		/** Returns local iterator to the end of a bucket. */
+		[[nodiscard]] constexpr local_iterator end(size_type bucket) noexcept { return m_table.end(bucket); }
+		/** Returns const local iterator to the end of a bucket. */
+		[[nodiscard]] constexpr const_local_iterator cend(size_type bucket) const noexcept
+		{
+			return m_table.cend(bucket);
+		}
+		/** @copydoc cbegin */
+		[[nodiscard]] constexpr const_local_iterator end(size_type bucket) const noexcept
+		{
+			return m_table.end(bucket);
+		}
+
+		/** Returns the amount of elements stored within the bucket. */
+		[[nodiscard]] constexpr size_type bucket_size(size_type bucket) const noexcept
+		{
+			return m_table.bucket_size(bucket);
+		}
+		/** Returns the index of the bucket associated with a key. */
+		[[nodiscard]] constexpr size_type bucket(const key_type &key) const noexcept { return m_table.bucket(key); }
+		/** @copydoc bucket
+		 * @note This overload participates in overload resolution only
+		 * if both key hasher and key comparator are transparent. */
+		[[nodiscard]] constexpr size_type bucket(const auto &key) const noexcept
+			requires transparent_key
+		{
+			return m_table.bucket(key);
+		}
+		/** Returns the index of the bucket containing the pointed-to element. */
+		[[nodiscard]] constexpr size_type bucket(const_iterator iter) const noexcept { return m_table.bucket(iter); }
 
 		/** Returns current load factor of the map. */
 		[[nodiscard]] constexpr auto load_factor() const noexcept { return m_table.load_factor(); }
@@ -558,29 +604,20 @@ namespace sek
 			SEK_ASSERT(f > .0f);
 			m_table.max_load_factor = f;
 		}
-		/** Returns current tombstone factor of the map. */
-		[[nodiscard]] constexpr auto tombstone_factor() const noexcept { return m_table.tombstone_factor(); }
-		/** Returns current max tombstone factor of the map. */
-		[[nodiscard]] constexpr auto max_tombstone_factor() const noexcept { return m_table.max_tombstone_factor; }
-		/** Sets current max tombstone factor of the map. */
-		constexpr void max_tombstone_factor(float f) noexcept
-		{
-			SEK_ASSERT(f > .0f);
-			m_table.max_tombstone_factor = f;
-		}
 
-		[[nodiscard]] constexpr allocator_type get_allocator() const noexcept { return m_table.get_allocator(); }
+		[[nodiscard]] constexpr allocator_type get_allocator() const noexcept { return m_table.allocator(); }
+
 		[[nodiscard]] constexpr hash_type hash_function() const noexcept { return m_table.get_hash(); }
 		[[nodiscard]] constexpr key_equal key_eq() const noexcept { return m_table.get_comp(); }
 
-		[[nodiscard]] constexpr bool operator==(const sparse_map &other) const noexcept
+		[[nodiscard]] constexpr bool operator==(const ordered_map &other) const noexcept
 			requires(requires(const_iterator a, const_iterator b) { std::equal_to<>{}(*a, *b); })
 		{
 			return std::is_permutation(begin(), end(), other.begin(), other.end());
 		}
 
-		constexpr void swap(sparse_map &other) noexcept { m_table.swap(other.m_table); }
-		friend constexpr void swap(sparse_map &a, sparse_map &b) noexcept { a.swap(b); }
+		constexpr void swap(ordered_map &other) noexcept { m_table.swap(other.m_table); }
+		friend constexpr void swap(ordered_map &a, ordered_map &b) noexcept { a.swap(b); }
 
 	private:
 		/** Hash table used to implement the map. */

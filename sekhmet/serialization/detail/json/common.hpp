@@ -7,7 +7,7 @@
 #include "../archive_reader.hpp"
 #include "../archive_writer.hpp"
 #include "../manipulators.hpp"
-#include "../node_tree.hpp"
+#include "value.hpp"
 
 namespace sek::serialization
 {

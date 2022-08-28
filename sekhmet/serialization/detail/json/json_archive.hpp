@@ -143,8 +143,8 @@ namespace sek::serialization::json
 			return *this;
 		}
 
-		/** Initializes input archive from a json node tree.
-		 * @param tree Json node tree containing source data. */
+		/** Initializes input archive from a json data tree.
+		 * @param tree Json data tree containing source data. */
 		explicit basic_input_archive(tree_type &tree) : basic_input_archive(tree, std::pmr::get_default_resource()) {}
 		/** @copydoc basic_input_archive */
 		explicit basic_input_archive(tree_type &&tree)
@@ -435,8 +435,8 @@ namespace sek::serialization::json
 			return *this;
 		}
 
-		/** Initializes output archive from a json node tree.
-		 * @param tree Json node tree containing source data. */
+		/** Initializes output archive from a json data tree.
+		 * @param tree Json data tree containing source data. */
 		explicit basic_output_archive(tree_type &tree) : basic_output_archive(tree, std::pmr::get_default_resource()) {}
 		/** @copydoc basic_input_archive */
 		explicit basic_output_archive(tree_type &&tree)
@@ -548,7 +548,7 @@ namespace sek::serialization::json
 			base_t::reset();
 		}
 
-		/** Replaces the internal node tree with the specified one and returns pointer to the old tree. */
+		/** Replaces the internal data tree with the specified one and returns pointer to the old tree. */
 		constexpr tree_type *reset(tree_type *new_tree = nullptr) noexcept
 		{
 			m_can_flush = m_can_flush || new_tree != nullptr;

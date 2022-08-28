@@ -1,26 +1,23 @@
 /*
- * Created by switchblade on 2021-12-11
+ * Created by switchblade on 07/05/22
  */
 
 #pragma once
 
 #include <iterator>
+#include <stdexcept>
 
-#include "sparse_hash_table.hpp"
+#include "ordered_hash_table.hpp"
+#include "table_util.hpp"
 
 namespace sek
 {
-	/** @brief Sparse table based set providing fast insertion & deletion, but higher memory overhead than a tree-based set.
+	/** @brief Set container providing fast insertion while preserving insertion order.
 	 *
-	 * Sparse sets are implemented via an open-addressing hash table.
-	 * This allows for efficient insertion & deletion at the expense of greater memory overhead.
-	 * Sparse sets always retain iterator validity on erasure.
-	 * Iterators are invalidated on insertion if a re-hash is required.
-	 *
-	 * @note Iteration over a sparse set is O(n), where n is the amount of buckets within the set.
-	 * This comes from a requirement for iterators to be valid after erasure operations
-	 * (thus bucket list may contain tombstones). In addition, de-referencing sparse set iterators requires one level of indirection,
-	 * since the buckets do not contain set values themselves.
+	 * Ordered sets are implemented via a closed-addressing contiguous (packed) storage hash table and a linked list
+	 * used to keep track of the insertion order. This allows for efficient constant-time insertion and optimal cache locality.
+	 * Ordered sets may invalidate iterators on insertion due to the internal packed storage being resized.
+	 * On erasure, iterators to the erased element are invalidated.
 	 *
 	 * @tparam T Type of objects stored in the set.
 	 * @tparam KeyHash Functor used to generate hashes for keys. By default uses `default_hash` which calls static
@@ -28,14 +25,26 @@ namespace sek
 	 * @tparam KeyComp Predicate used to compare keys.
 	 * @tparam Alloc Allocator used for the set. */
 	template<typename T, typename KeyHash = default_hash, typename KeyComp = std::equal_to<T>, typename Alloc = std::allocator<T>>
-	class sparse_set
+	class ordered_set
 	{
 	public:
 		typedef T key_type;
 		typedef T value_type;
+		typedef Alloc allocator_type;
 
 	private:
-		using table_type = detail::sparse_hash_table<T, value_type, KeyHash, KeyComp, forward_identity, Alloc>;
+		struct value_traits
+		{
+			using value_type = T;
+
+			using reference = value_type &;
+			using const_reference = const value_type &;
+
+			using pointer = value_type *;
+			using const_pointer = const value_type *;
+		};
+
+		using table_type = detail::ordered_hash_table<T, T, value_traits, KeyHash, KeyComp, forward_identity, Alloc>;
 
 		// clang-format off
 		constexpr static bool transparent_key = requires
@@ -46,54 +55,57 @@ namespace sek
 		// clang-format on
 
 	public:
-		typedef typename table_type::pointer pointer;
-		typedef typename table_type::const_pointer const_pointer;
-		typedef typename table_type::reference reference;
-		typedef typename table_type::const_reference const_reference;
-		typedef typename table_type::size_type size_type;
-		typedef typename table_type::difference_type difference_type;
+		typedef typename value_traits::const_pointer pointer;
+		typedef typename value_traits::const_pointer const_pointer;
+		typedef typename value_traits::const_reference reference;
+		typedef typename value_traits::const_reference const_reference;
 
-		typedef typename table_type::allocator_type allocator_type;
 		typedef typename table_type::hash_type hash_type;
 		typedef typename table_type::key_equal key_equal;
 
 		typedef typename table_type::const_iterator iterator;
 		typedef typename table_type::const_iterator const_iterator;
-		typedef typename table_type::node_handle node_handle;
+		typedef typename table_type::const_reverse_iterator reverse_iterator;
+		typedef typename table_type::const_reverse_iterator const_reverse_iterator;
+		typedef typename table_type::const_local_iterator local_iterator;
+		typedef typename table_type::const_local_iterator const_local_iterator;
+		typedef typename table_type::size_type size_type;
+		typedef typename table_type::difference_type difference_type;
 
 	public:
-		constexpr sparse_set() noexcept(std::is_nothrow_default_constructible_v<table_type>) = default;
-		constexpr ~sparse_set() = default;
+		constexpr ordered_set() noexcept(std::is_nothrow_default_constructible_v<table_type>) = default;
+		constexpr ~ordered_set() = default;
 
 		/** Constructs a set with the specified allocators.
-		 * @param alloc Allocator used to allocate set's elements. */
-		constexpr explicit sparse_set(const allocator_type &alloc) : sparse_set(key_equal{}, hash_type{}, alloc) {}
+		 * @param alloc Allocator used to allocate set's value array.
+		 * @param bucket_alloc Allocator used to allocate set's bucket array. */
+		constexpr explicit ordered_set(const allocator_type &alloc) : ordered_set(key_equal{}, hash_type{}, alloc) {}
 		/** Constructs a set with the specified hasher & allocators.
 		 * @param key_hash Key hasher.
-		 * @param alloc Allocator used to allocate set's elements. */
-		constexpr explicit sparse_set(const hash_type &key_hash, const allocator_type &alloc = allocator_type{})
-			: sparse_set(key_equal{}, key_hash, alloc)
+		 * @param alloc Allocator used to allocate set's value array. */
+		constexpr explicit ordered_set(const hash_type &key_hash, const allocator_type &alloc = allocator_type{})
+			: ordered_set(key_equal{}, key_hash, alloc)
 		{
 		}
 		/** Constructs a set with the specified comparator, hasher & allocators.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param alloc Allocator used to allocate set's elements. */
-		constexpr explicit sparse_set(const key_equal &key_compare,
-									  const hash_type &key_hash = {},
-									  const allocator_type &alloc = allocator_type{})
-			: sparse_set(0, key_compare, key_hash, alloc)
+		 * @param alloc Allocator used to allocate set's value array. */
+		constexpr explicit ordered_set(const key_equal &key_compare,
+									   const hash_type &key_hash = {},
+									   const allocator_type &alloc = allocator_type{})
+			: m_table(key_compare, key_hash, alloc)
 		{
 		}
 		/** Constructs a set with the specified minimum capacity.
 		 * @param capacity Capacity of the set.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param alloc Allocator used to allocate set's elements. */
-		constexpr explicit sparse_set(size_type capacity,
-									  const KeyComp &key_compare = {},
-									  const KeyHash &key_hash = {},
-									  const allocator_type &alloc = allocator_type{})
+		 * @param alloc Allocator used to allocate set's value array. */
+		constexpr explicit ordered_set(size_type capacity,
+									   const KeyComp &key_compare = {},
+									   const KeyHash &key_hash = {},
+									   const allocator_type &alloc = allocator_type{})
 			: m_table(capacity, key_compare, key_hash, alloc)
 		{
 		}
@@ -103,14 +115,14 @@ namespace sek
 		 * @param first Iterator to the end of the value sequence.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param alloc Allocator used to allocate set's elements. */
+		 * @param alloc Allocator used to allocate set's value array. */
 		template<std::random_access_iterator Iterator>
-		constexpr sparse_set(Iterator first,
-							 Iterator last,
-							 const KeyComp &key_compare = {},
-							 const KeyHash &key_hash = {},
-							 const allocator_type &alloc = allocator_type{})
-			: sparse_set(static_cast<size_type>(std::distance(first, last)), key_compare, key_hash, alloc)
+		constexpr ordered_set(Iterator first,
+							  Iterator last,
+							  const KeyComp &key_compare = {},
+							  const KeyHash &key_hash = {},
+							  const allocator_type &alloc = allocator_type{})
+			: ordered_set(static_cast<size_type>(std::distance(first, last)), key_compare, key_hash, alloc)
 		{
 			insert(first, last);
 		}
@@ -119,14 +131,14 @@ namespace sek
 		 * @param first Iterator to the end of the value sequence.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param alloc Allocator used to allocate set's elements. */
+		 * @param alloc Allocator used to allocate set's value array. */
 		template<std::forward_iterator Iterator>
-		constexpr sparse_set(Iterator first,
-							 Iterator last,
-							 const KeyComp &key_compare = {},
-							 const KeyHash &key_hash = {},
-							 const allocator_type &alloc = allocator_type{})
-			: sparse_set(key_compare, key_hash, alloc)
+		constexpr ordered_set(Iterator first,
+							  Iterator last,
+							  const KeyComp &key_compare = {},
+							  const KeyHash &key_hash = {},
+							  const allocator_type &alloc = allocator_type{})
+			: ordered_set(key_compare, key_hash, alloc)
 		{
 			insert(first, last);
 		}
@@ -134,41 +146,39 @@ namespace sek
 		 * @param il Initializer list containing values.
 		 * @param key_compare Key comparator.
 		 * @param key_hash Key hasher.
-		 * @param alloc Allocator used to allocate set's elements. */
-		constexpr sparse_set(std::initializer_list<value_type> il,
-							 const KeyComp &key_compare = {},
-							 const KeyHash &key_hash = {},
-							 const allocator_type &alloc = allocator_type{})
-			: sparse_set(il.begin(), il.end(), key_compare, key_hash, alloc)
+		 * @param alloc Allocator used to allocate set's value array. */
+		constexpr ordered_set(std::initializer_list<value_type> il,
+							  const KeyComp &key_compare = {},
+							  const KeyHash &key_hash = {},
+							  const allocator_type &alloc = allocator_type{})
+			: ordered_set(il.begin(), il.end(), key_compare, key_hash, alloc)
 		{
 		}
 
 		/** Copy-constructs the set. Allocator is copied via `select_on_container_copy_construction`.
 		 * @param other Map to copy data and allocators from. */
-		constexpr sparse_set(const sparse_set &other) noexcept(std::is_nothrow_copy_constructible_v<table_type>)
+		constexpr ordered_set(const ordered_set &other) noexcept(std::is_nothrow_copy_constructible_v<table_type>)
 			: m_table(other.m_table)
 		{
 		}
 		/** Copy-constructs the set.
-		 * @param other Map to copy data from.
-		 * @param alloc Allocator used to allocate set's elements.
-		 * @param bucket_alloc Allocator used to allocate set's internal bucket array. */
-		constexpr sparse_set(const sparse_set &other, const allocator_type &alloc) noexcept(
+		 * @param other Map to copy data and bucket allocator from.
+		 * @param alloc Allocator used to allocate set's value array. */
+		constexpr ordered_set(const ordered_set &other, const allocator_type &alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, const table_type &, const allocator_type &>)
 			: m_table(other.m_table, alloc)
 		{
 		}
-
 		/** Move-constructs the set. Allocator is move-constructed.
-		 * @param other Map to move elements and allocators from. */
-		constexpr sparse_set(sparse_set &&other) noexcept(std::is_nothrow_move_constructible_v<table_type>)
+		 * @param other Map to move elements and bucket allocator from. */
+		constexpr ordered_set(ordered_set &&other) noexcept(std::is_nothrow_move_constructible_v<table_type>)
 			: m_table(std::move(other.m_table))
 		{
 		}
 		/** Move-constructs the set.
 		 * @param other Map to move elements and bucket allocator from.
-		 * @param alloc Allocator used to allocate set's elements. */
-		constexpr sparse_set(sparse_set &&other, const allocator_type &alloc) noexcept(
+		 * @param alloc Allocator used to allocate set's value array. */
+		constexpr ordered_set(ordered_set &&other, const allocator_type &alloc) noexcept(
 			std::is_nothrow_constructible_v<table_type, table_type &&, const allocator_type &>)
 			: m_table(std::move(other.m_table), alloc)
 		{
@@ -176,14 +186,14 @@ namespace sek
 
 		/** Copy-assigns the set.
 		 * @param other Map to copy elements from. */
-		constexpr sparse_set &operator=(const sparse_set &other)
+		constexpr ordered_set &operator=(const ordered_set &other)
 		{
 			if (this != &other) m_table = other.m_table;
 			return *this;
 		}
 		/** Move-assigns the set.
 		 * @param other Map to move elements from. */
-		constexpr sparse_set &operator=(sparse_set &&other) noexcept(std::is_nothrow_move_assignable_v<table_type>)
+		constexpr ordered_set &operator=(ordered_set &&other) noexcept(std::is_nothrow_move_assignable_v<table_type>)
 		{
 			m_table = std::move(other.m_table);
 			return *this;
@@ -202,21 +212,26 @@ namespace sek
 		/** @copydoc cend */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
 
+		/** Returns reverse iterator to the end of the set. */
+		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return m_table.rbegin(); }
+		/** Returns reverse iterator to the start of the set. */
+		[[nodiscard]] constexpr reverse_iterator rend() noexcept { return m_table.rend(); }
+		/** Returns const reverse iterator to the end of the set. */
+		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return m_table.crbegin(); }
+		/** Returns const reverse iterator to the start of the set. */
+		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return m_table.crend(); }
+		/** @copydoc crbegin */
+		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return crbegin(); }
+		/** @copydoc crend */
+		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return crend(); }
+
 		/** Locates an element within the set.
 		 * @param key Key to search for.
 		 * @return Iterator to the element setped to key. */
-		constexpr iterator find(const key_type &key) noexcept { return m_table.find(key); }
-		/** @copydoc find */
 		constexpr const_iterator find(const key_type &key) const noexcept { return m_table.find(key); }
 		/** @copydoc find
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
-		constexpr const_iterator find(const auto &key) noexcept
-			requires transparent_key
-		{
-			return m_table.find(key);
-		}
-		/** @copydoc find */
 		constexpr const_iterator find(const auto &key) const noexcept
 			requires transparent_key
 		{
@@ -366,73 +381,13 @@ namespace sek
 		constexpr bool erase(const auto &value)
 			requires transparent_key
 		{
-			if (auto target = m_table.find(value); target != m_table.end())
+			if (auto target = m_table.find(value); m_table.end() != target)
 			{
 				m_table.erase(target);
 				return true;
 			}
 			else
 				return false;
-		}
-
-		/** Extracts the specified node from the set.
-		 * @param where Iterator to the target node.
-		 * @return Node handle to the extracted node. */
-		constexpr node_handle extract(const_iterator where) { return m_table.extract_node(where); }
-		/** Extracts the specified node from the set.
-		 * @param key Key of the target node.
-		 * @return Node handle to the extracted node or, if the key is not present, an empty node handle. */
-		constexpr node_handle extract(const key_type &key)
-		{
-			if (auto target = m_table.find(key); target != m_table.end())
-				return m_table.extract_node(target);
-			else
-				return {};
-		}
-		/** @copydoc extract
-		 * @note This overload participates in overload resolution only
-		 * if both key hasher and key comparator are transparent. */
-		constexpr node_handle extract(const auto &key)
-			requires transparent_key
-		{
-			return m_table.extract_node(key);
-		}
-
-		/** Inserts the specified node into the set.
-		 * If the same value is already present within the set, replaces that value.
-		 * @param node Node to insert.
-		 * @return Pair where first element is the iterator to the inserted node
-		 * and second is boolean indicating whether the node was inserted or replaced (`true` if inserted new, `false` if replaced). */
-		constexpr std::pair<iterator, bool> insert(node_handle &&node)
-		{
-			return m_table.insert_node(std::forward<node_handle>(node));
-		}
-		/** @copydetails insert
-		 * @param hint Hint for where to insert the node.
-		 * @param node Node to insert.
-		 * @return Iterator to the inserted node.
-		 * @note Hint is required for compatibility with STL algorithms and is ignored. */
-		constexpr iterator insert([[maybe_unused]] const_iterator hint, node_handle &&node)
-		{
-			return insert(std::forward<node_handle>(node)).first;
-		}
-		/** Attempts to insert the specified node into the set.
-		 * If the same value is already present within the set, does not replace it.
-		 * @param node Node to insert.
-		 * @return Pair where first element is the iterator to the potentially inserted node
-		 * and second is boolean indicating whether the node was inserted (`true` if inserted, `false` otherwise). */
-		constexpr std::pair<iterator, bool> try_insert(node_handle &&node)
-		{
-			return m_table.try_insert_node(std::forward<node_handle>(node));
-		}
-		/** @copydetails try_insert
-		 * @param hint Hint for where to insert the node.
-		 * @param node Node to insert.
-		 * @return Iterator to the potentially inserted node or the node that prevented insertion.
-		 * @note Hint is required for compatibility with STL algorithms and is ignored. */
-		constexpr iterator try_insert([[maybe_unused]] const_iterator hint, node_handle &&node)
-		{
-			return insert(std::forward<node_handle>(node)).first;
 		}
 
 		/** Returns current amount of elements in the set. */
@@ -443,8 +398,44 @@ namespace sek
 		[[nodiscard]] constexpr size_type max_size() const noexcept { return m_table.max_size(); }
 		/** Checks if the set is empty. */
 		[[nodiscard]] constexpr size_type empty() const noexcept { return size() == 0; }
+
 		/** Returns current amount of buckets in the set. */
 		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return m_table.bucket_count(); }
+		/** Returns the maximum amount of buckets. */
+		[[nodiscard]] constexpr size_type max_bucket_count() const noexcept { return m_table.max_bucket_count(); }
+
+		/** Returns local iterator to the start of a bucket. */
+		[[nodiscard]] constexpr local_iterator begin(size_type bucket) const noexcept { return m_table.begin(bucket); }
+		/** Returns const local iterator to the start of a bucket. */
+		[[nodiscard]] constexpr const_local_iterator cbegin(size_type bucket) const noexcept
+		{
+			return m_table.cbegin(bucket);
+		}
+		/** Returns local iterator to the end of a bucket. */
+		[[nodiscard]] constexpr local_iterator end(size_type bucket) const noexcept { return m_table.end(bucket); }
+		/** Returns const local iterator to the end of a bucket. */
+		[[nodiscard]] constexpr const_local_iterator cend(size_type bucket) const noexcept
+		{
+			return m_table.cend(bucket);
+		}
+
+		/** Returns the amount of elements stored within the bucket. */
+		[[nodiscard]] constexpr size_type bucket_size(size_type bucket) const noexcept
+		{
+			return m_table.bucket_size(bucket);
+		}
+		/** Returns the index of the bucket associated with a key. */
+		[[nodiscard]] constexpr size_type bucket(const key_type &key) const noexcept { return m_table.bucket(key); }
+		/** @copydoc bucket
+		 * @note This overload participates in overload resolution only
+		 * if both key hasher and key comparator are transparent. */
+		[[nodiscard]] constexpr size_type bucket(const auto &key) const noexcept
+			requires transparent_key
+		{
+			return m_table.bucket(key);
+		}
+		/** Returns the index of the bucket containing the pointed-to element. */
+		[[nodiscard]] constexpr size_type bucket(const_iterator iter) const noexcept { return m_table.bucket(iter); }
 
 		/** Returns current load factor of the set. */
 		[[nodiscard]] constexpr auto load_factor() const noexcept { return m_table.load_factor(); }
@@ -456,30 +447,20 @@ namespace sek
 			SEK_ASSERT(f > .0f);
 			m_table.max_load_factor = f;
 		}
-		/** Returns current tombstone factor of the set. */
-		[[nodiscard]] constexpr auto tombstone_factor() const noexcept { return m_table.tombstone_factor(); }
-		/** Returns current max tombstone factor of the set. */
-		[[nodiscard]] constexpr auto max_tombstone_factor() const noexcept { return m_table.max_tombstone_factor; }
-		/** Sets current max tombstone factor of the set. */
-		constexpr void max_tombstone_factor(float f) noexcept
-		{
-			SEK_ASSERT(f > .0f);
-			m_table.max_tombstone_factor = f;
-		}
 
-		[[nodiscard]] constexpr allocator_type get_allocator() const noexcept { return m_table.get_allocator(); }
+		[[nodiscard]] constexpr allocator_type get_allocator() const noexcept { return m_table.allocator(); }
 
 		[[nodiscard]] constexpr hash_type hash_function() const noexcept { return m_table.get_hash(); }
 		[[nodiscard]] constexpr key_equal key_eq() const noexcept { return m_table.get_comp(); }
 
-		[[nodiscard]] constexpr bool operator==(const sparse_set &other) const noexcept
+		[[nodiscard]] constexpr bool operator==(const ordered_set &other) const noexcept
 			requires(requires(const_iterator a, const_iterator b) { std::equal_to<>{}(*a, *b); })
 		{
 			return std::is_permutation(begin(), end(), other.begin(), other.end());
 		}
 
-		constexpr void swap(sparse_set &other) noexcept { m_table.swap(other.m_table); }
-		friend constexpr void swap(sparse_set &a, sparse_set &b) noexcept { a.swap(b); }
+		constexpr void swap(ordered_set &other) noexcept { m_table.swap(other.m_table); }
+		friend constexpr void swap(ordered_set &a, ordered_set &b) noexcept { a.swap(b); }
 
 	private:
 		/** Hash table used to implement the set. */

@@ -15,14 +15,11 @@ namespace sek
 	/** @brief One-to-one dense table based associative container providing fast iteration & insertion.
 	 *
 	 * Dense maps are implemented via a closed-addressing contiguous (packed) storage hash table.
-	 * This allows for efficient iteration & insertion (iterate over a packed array & push on top of the array).
-	 * Dense maps may invalidate iterators on insertion due to the internal packed storage being re-sized.
-	 * On erasure, iterators to the erased element and elements after the erased one may be invalidated.
+	 * This allows for efficient iteration & insertion (iterate over a packed array & push on top of the array) and
+	 * optimal cache locality. Dense maps may invalidate iterators on insertion due to the internal packed storage
+	 * being re-sized. On erasure, iterators to the erased element and elements after the erased one may be invalidated.
 	 *
-	 * @note Dense map iterators do not return references/pointers to pairs, instead they return special proxy
-	 * reference & pointer types. This comes from a requirement for dense array elements to be assignable,
-	 * thus using pairs where one of the elements is const is not possible.
-	 * @note Dense maps do not provide node functionality, since the data is laid out in a contiguous packed array.
+	 * @note Due to internal implementation, iterators of the map return a pair of references, instead of reference to a pair.
 	 *
 	 * @tparam K Type of objects used as keys.
 	 * @tparam M Type of objects associated with keys.
@@ -37,131 +34,71 @@ namespace sek
 		typedef K key_type;
 		typedef M mapped_type;
 		typedef std::pair<const key_type, mapped_type> value_type;
+		typedef Alloc allocator_type;
 
 	private:
-		/* Since we cannot store value_type directly within the table (const key cannot be assigned by the dense
-		 * vector), need to do this ugliness with a proxy reference/value & proxy pointer types. */
+		constexpr static auto enable_three_way = requires(value_type a, value_type b) {
+													 std::compare_three_way{}(a.first, b.first);
+													 std::compare_three_way{}(a.second, b.second);
+												 };
+		constexpr static auto enable_equal = requires(value_type a, value_type b) {
+												 std::equal_to<>{}(a.first, b.first);
+												 std::equal_to<>{}(a.second, b.second);
+											 };
 
-		constexpr static auto enable_three_way =
-			requires(value_type a, value_type b)
-		{
-			std::compare_three_way{}(a.first, b.first);
-			std::compare_three_way{}(a.second, b.second);
-		};
-		constexpr static auto enable_equal =
-			requires(value_type a, value_type b)
-		{
-			std::equal_to<>{}(a.first, b.first);
-			std::equal_to<>{}(a.second, b.second);
-		};
+		using table_value = std::pair<key_type, mapped_type>;
 
-		// clang-format off
-		template<bool Const>
-		class value_pointer;
-		template<bool Const>
-		class value_reference
-		{
-		public:
-			value_reference() = delete;
-
-			/* Conversions from relevant references. */
-			constexpr value_reference(value_type &ref) noexcept : first{ref.first}, second{ref.second} {}
-			constexpr value_reference(std::pair<key_type, mapped_type> &ref) noexcept : first{ref.first}, second{ref.second} {}
-			constexpr value_reference(const value_type &ref) noexcept requires(Const) : first{ref.first}, second{ref.second} {}
-			constexpr value_reference(const std::pair<key_type, mapped_type> &ref) noexcept requires(Const) : first{ref.first}, second{ref.second} {}
-
-			/* Here overloading operator& is fine, since we want to use value_pointer for pointers. */
-			[[nodiscard]] constexpr value_pointer<Const> operator&() const noexcept { return value_pointer<Const>{this}; }
-			[[nodiscard]] constexpr operator value_type() const noexcept { return {first, second}; }
-
-			[[nodiscard]] constexpr auto operator<=>(const value_reference &other) const noexcept requires enable_three_way
-			{
-				using res_t = typename std::common_comparison_category<decltype(std::compare_three_way{}(first, other.first)),
-				                                                       decltype(std::compare_three_way{}(second, other.second))>::type;
-
-				if (const res_t cmp_first = std::compare_three_way{}(first, other.first); cmp_first == std::strong_ordering::equal)
-					return res_t{std::compare_three_way{}(second, other.second)};
-				else
-					return cmp_first;
-			}
-			[[nodiscard]] constexpr auto operator<=>(const value_type &other) const noexcept requires enable_three_way
-			{
-				using res_t = typename std::common_comparison_category<decltype(std::compare_three_way{}(first, other.first)),
-																	   decltype(std::compare_three_way{}(second, other.second))>::type;
-
-				if (const res_t cmp_first = std::compare_three_way{}(first, other.first); cmp_first == std::strong_ordering::equal)
-					return res_t{std::compare_three_way{}(second, other.second)};
-				else
-					return cmp_first;
-			}
-			[[nodiscard]] constexpr bool operator==(const value_reference &other) const noexcept requires enable_equal
-			{
-				return first == other.first || second == other.second;
-			}
-			[[nodiscard]] constexpr bool operator==(const value_type &other) const noexcept requires enable_equal
-			{
-				return first == other.first || second == other.second;
-			}
-
-			const key_type &first;
-			std::conditional_t<Const, const mapped_type, mapped_type> &second;
-		};
-		template<bool Const>
+		template<bool IsConst>
 		class value_pointer
 		{
-		public:
-			using pointer = value_reference<Const> *;
+			using mapped_ref = std::conditional_t<IsConst, const mapped_type, mapped_type> &;
+			using mapped_ptr = std::conditional_t<IsConst, const mapped_type, mapped_type> *;
 
 		public:
-			value_pointer(const value_pointer &) = delete;
-			value_pointer &operator=(const value_pointer &) = delete;
-
-			constexpr value_pointer(value_pointer &&) noexcept = default;
-			constexpr value_pointer &operator=(value_pointer &&) noexcept = default;
-
-			/* Conversions from relevant pointers. */
-			constexpr value_pointer(value_type *ptr) noexcept : ref{*ptr} {}
-			constexpr value_pointer(std::pair<key_type, mapped_type> *ptr) noexcept : ref{*ptr} {}
-			constexpr value_pointer(const value_type *ptr) noexcept requires(Const) : ref{*ptr} {}
-			constexpr value_pointer(const std::pair<key_type, mapped_type> *ptr) noexcept requires(Const) : ref{*ptr} {}
-
-			/* Conversion from value reference. */
-			constexpr value_pointer(value_reference<Const> &&ref) noexcept : ref{ref} {}
-			constexpr value_pointer(const value_reference<Const> *ptr) noexcept : ref{*ptr} {}
-
-			/* Pointer-like operators. */
-			[[nodiscard]] constexpr pointer operator->() noexcept { return std::addressof(ref); }
-			[[nodiscard]] constexpr value_reference<Const> operator*() const noexcept { return ref; }
-
-			/* Since value_reference stores reference to adjacent pair members, comparing the first element is enough. */
-			[[nodiscard]] constexpr auto operator<=>(const value_pointer &other) const noexcept
-			{
-				return std::addressof(ref.first) <=> std::addressof(other.ref.first);
-			}
-			[[nodiscard]] constexpr bool operator==(const value_pointer &other) const noexcept
-			{
-				return std::addressof(ref.first) == std::addressof(other.ref.first);
-			}
+			typedef std::pair<const key_type &, mapped_ref> reference;
+			typedef std::pair<const key_type &, mapped_ref> *pointer;
 
 		private:
-			value_reference<Const> ref;
+			using map_pointer = std::conditional_t<IsConst, const value_type, value_type> *;
+			using table_pointer = std::conditional_t<IsConst, const table_value, table_value> *;
+
+		public:
+			constexpr value_pointer() noexcept = default;
+			template<bool OtherConst, typename = std::enable_if_t<IsConst && !OtherConst>>
+			constexpr value_pointer(const value_pointer<OtherConst> &other) noexcept
+				: m_ref(other.m_ref.first, other.m_ref.second)
+			{
+			}
+
+			constexpr explicit value_pointer(pointer ptr) noexcept : m_ref{ptr->first, ptr->second} {}
+			constexpr explicit value_pointer(map_pointer ptr) noexcept : m_ref{ptr->first, ptr->second} {}
+			constexpr explicit value_pointer(table_pointer ptr) noexcept : m_ref{ptr->first, ptr->second} {}
+
+			[[nodiscard]] constexpr pointer get() noexcept { return &m_ref; }
+			[[nodiscard]] constexpr pointer operator->() noexcept { return get(); }
+			[[nodiscard]] constexpr reference operator*() const noexcept { return m_ref; }
+
+			[[nodiscard]] constexpr auto operator<=>(const value_pointer &) const noexcept = default;
+			[[nodiscard]] constexpr bool operator==(const value_pointer &) const noexcept = default;
+
+		private:
+			reference m_ref = {};
 		};
-		// clang-format on
 
 		struct value_traits
 		{
 			using value_type = std::pair<const key_type, mapped_type>;
 
-			using reference = value_reference<false>;
-			using const_reference = value_reference<true>;
-
 			using pointer = value_pointer<false>;
 			using const_pointer = value_pointer<true>;
+
+			using reference = typename pointer::reference;
+			using const_reference = typename const_pointer::reference;
 		};
 
-		// clang-format off
-		using table_type = detail::dense_hash_table<K, std::pair<key_type, mapped_type>, value_traits, KeyHash, KeyComp, pair_first, Alloc>;
+		using table_type = detail::dense_hash_table<K, table_value, value_traits, KeyHash, KeyComp, pair_first, Alloc>;
 
+		// clang-format off
 		constexpr static bool transparent_key = requires
 		{
 			typename KeyHash::is_transparent;
@@ -170,14 +107,11 @@ namespace sek
 		// clang-format on
 
 	public:
-		typedef value_pointer<false> pointer;
-		typedef value_pointer<true> const_pointer;
-		typedef value_reference<false> reference;
-		typedef value_reference<true> const_reference;
-		typedef typename table_type::size_type size_type;
-		typedef typename table_type::difference_type difference_type;
+		typedef typename value_traits::pointer pointer;
+		typedef typename value_traits::const_pointer const_pointer;
+		typedef typename value_traits::reference reference;
+		typedef typename value_traits::const_reference const_reference;
 
-		typedef typename table_type::allocator_type allocator_type;
 		typedef typename table_type::hash_type hash_type;
 		typedef typename table_type::key_equal key_equal;
 
@@ -187,6 +121,8 @@ namespace sek
 		typedef typename table_type::const_reverse_iterator const_reverse_iterator;
 		typedef typename table_type::local_iterator local_iterator;
 		typedef typename table_type::const_local_iterator const_local_iterator;
+		typedef typename table_type::size_type size_type;
+		typedef typename table_type::difference_type difference_type;
 
 	public:
 		constexpr dense_map() noexcept(std::is_nothrow_default_constructible_v<table_type>) = default;
@@ -468,7 +404,7 @@ namespace sek
 		{
 			return m_table.try_emplace(key, std::forward<Args>(args)...);
 		}
-		/** Constructs a value (of value_type) in-place.
+		/** Constructs a value (of element_t) in-place.
 		 * If a value for the constructed key is already present within the map, replaces that value.
 		 * @param args Arguments used to construct the value object.
 		 * @return Pair where first element is the iterator to the inserted element
@@ -504,7 +440,7 @@ namespace sek
 		{
 			return try_insert(value).first;
 		}
-		/** Attempts to insert a sequence of values (of value_type) into the map.
+		/** Attempts to insert a sequence of values (of element_t) into the map.
 		 * If values with the same key are already present within the map, does not replace them.
 		 * @param first Iterator to the start of the value sequence.
 		 * @param first Iterator to the end of the value sequence.
@@ -514,7 +450,7 @@ namespace sek
 		{
 			return m_table.try_insert(first, last);
 		}
-		/** Attempts to insert a sequence of values (of value_type) specified by the initializer list into the map.
+		/** Attempts to insert a sequence of values (of element_t) specified by the initializer list into the map.
 		 * If values with the same key are already present within the map, does not replace them.
 		 * @param il Initializer list containing the values.
 		 * @return Amount of elements inserted. */
@@ -523,7 +459,7 @@ namespace sek
 			return try_insert(il.begin(), il.end());
 		}
 
-		/** Inserts a value (of value_type) into the map.
+		/** Inserts a value (of element_t) into the map.
 		 * If a value with the same key is already present within the map, replaces that value.
 		 * @param value Value to insert.
 		 * @return Pair where first element is the iterator to the inserted element
@@ -548,7 +484,7 @@ namespace sek
 		{
 			return insert(value).first;
 		}
-		/** Inserts a sequence of values (of value_type) into the map.
+		/** Inserts a sequence of values (of element_t) into the map.
 		 * If values with the same key are already present within the map, replaces them.
 		 * @param first Iterator to the start of the value sequence.
 		 * @param first Iterator to the end of the value sequence.
@@ -558,7 +494,7 @@ namespace sek
 		{
 			return m_table.insert(first, last);
 		}
-		/** Inserts a sequence of values (of value_type) specified by the initializer list into the map.
+		/** Inserts a sequence of values (of element_t) specified by the initializer list into the map.
 		 * If values with the same key are already present within the map, replaces them.
 		 * @param il Initializer list containing the values.
 		 * @return Amount of new elements inserted. */

@@ -95,7 +95,7 @@ namespace sek
 		/** Returns constant reference to the element at the end of the string. */
 		[[nodiscard]] constexpr const_reference back() const noexcept { return value[size() - 1]; }
 
-		/** Returns size of the string (amount of value_type units). */
+		/** Returns size of the string (amount of element_t units). */
 		[[nodiscard]] constexpr size_type size() const noexcept { return detail::str_length(value, N); }
 		/** @copydoc size */
 		[[nodiscard]] constexpr size_type length() const noexcept { return size(); }

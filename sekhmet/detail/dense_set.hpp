@@ -15,14 +15,9 @@ namespace sek
 	/** @brief Dense table based set providing fast iteration & insertion.
 	 *
 	 * Dense sets are implemented via a closed-addressing contiguous (packed) storage hash table.
-	 * This allows for efficient iteration & insertion (iterate over a packed array & push on top of the array).
-	 * Dense sets may invalidate iterators on insertion due to the internal packed storage being re-sized.
-	 * On erasure, iterators to the erased element and elements after the erased one may be invalidated.
-	 *
-	 * @note Dense set iterators do not return references/pointers to pairs, instead they return special proxy
-	 * reference & pointer types. This comes from a requirement for dense array elements to be assignable,
-	 * thus using pairs where one of the elements is const is not possible.
-	 * @note Dense sets do not provide node functionality, since the data is laid out in a contiguous packed array.
+	 * This allows for efficient iteration & insertion (iterate over a packed array & push on top of the array) and
+	 * optimal cache locality. Dense sets may invalidate iterators on insertion due to the internal packed storage
+	 * being re-sized. On erasure, iterators to the erased element and elements after the erased one may be invalidated.
 	 *
 	 * @tparam T Type of objects stored in the set.
 	 * @tparam KeyHash Functor used to generate hashes for keys. By default uses `default_hash` which calls static
@@ -35,6 +30,7 @@ namespace sek
 	public:
 		typedef T key_type;
 		typedef T value_type;
+		typedef Alloc allocator_type;
 
 	private:
 		struct value_traits
@@ -59,14 +55,11 @@ namespace sek
 		// clang-format on
 
 	public:
-		typedef typename table_type::const_pointer pointer;
-		typedef typename table_type::const_pointer const_pointer;
-		typedef typename table_type::const_reference reference;
-		typedef typename table_type::const_reference const_reference;
-		typedef typename table_type::size_type size_type;
-		typedef typename table_type::difference_type difference_type;
+		typedef typename value_traits::const_pointer pointer;
+		typedef typename value_traits::const_pointer const_pointer;
+		typedef typename value_traits::const_reference reference;
+		typedef typename value_traits::const_reference const_reference;
 
-		typedef typename table_type::allocator_type allocator_type;
 		typedef typename table_type::hash_type hash_type;
 		typedef typename table_type::key_equal key_equal;
 
@@ -76,6 +69,8 @@ namespace sek
 		typedef typename table_type::const_reverse_iterator const_reverse_iterator;
 		typedef typename table_type::const_local_iterator local_iterator;
 		typedef typename table_type::const_local_iterator const_local_iterator;
+		typedef typename table_type::size_type size_type;
+		typedef typename table_type::difference_type difference_type;
 
 	public:
 		constexpr dense_set() noexcept(std::is_nothrow_default_constructible_v<table_type>) = default;
@@ -262,7 +257,7 @@ namespace sek
 		/** Resizes the internal storage to have space for at least n elements. */
 		constexpr void reserve(size_type n) { m_table.reserve(n); }
 
-		/** Constructs a value (of value_type) in-place.
+		/** Constructs a value (of element_t) in-place.
 		 * If the same value is already present within the set, replaces that value.
 		 * @param args Arguments used to construct the value object.
 		 * @return Pair where first element is the iterator to the inserted element
@@ -298,7 +293,7 @@ namespace sek
 		{
 			return try_insert(value).first;
 		}
-		/** Attempts to insert a sequence of values (of value_type) into the set.
+		/** Attempts to insert a sequence of values (of element_t) into the set.
 		 * If same values are already present within the set, does not replace them.
 		 * @param first Iterator to the start of the value sequence.
 		 * @param first Iterator to the end of the value sequence.
@@ -308,7 +303,7 @@ namespace sek
 		{
 			return m_table.try_insert(first, last);
 		}
-		/** Attempts to insert a sequence of values (of value_type) specified by the initializer list into the set.
+		/** Attempts to insert a sequence of values (of element_t) specified by the initializer list into the set.
 		 * If same values are already present within the set, does not replace them.
 		 * @param il Initializer list containing the values.
 		 * @return Amount of elements inserted. */
@@ -317,7 +312,7 @@ namespace sek
 			return try_insert(il.begin(), il.end());
 		}
 
-		/** Inserts a value (of value_type) into the set.
+		/** Inserts a value (of element_t) into the set.
 		 * If the same value is already present within the set, replaces that value.
 		 * @param value Value to insert.
 		 * @return Pair where first element is the iterator to the inserted element
@@ -342,7 +337,7 @@ namespace sek
 		{
 			return insert(value).first;
 		}
-		/** Inserts a sequence of values (of value_type) into the set.
+		/** Inserts a sequence of values (of element_t) into the set.
 		 * If same values are already present within the set, replaces them.
 		 * @param first Iterator to the start of the value sequence.
 		 * @param first Iterator to the end of the value sequence.
@@ -352,7 +347,7 @@ namespace sek
 		{
 			return m_table.insert(first, last);
 		}
-		/** Inserts a sequence of values (of value_type) specified by the initializer list into the set.
+		/** Inserts a sequence of values (of element_t) specified by the initializer list into the set.
 		 * If same values are already present within the set, replaces them.
 		 * @param il Initializer list containing the values.
 		 * @return Amount of new elements inserted. */
