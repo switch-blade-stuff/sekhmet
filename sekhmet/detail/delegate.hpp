@@ -43,6 +43,8 @@ namespace sek
 		struct is_delegate_func : std::false_type {};
 		template<typename RF, typename... ArgsF, RF (*F)(ArgsF...), typename RD, typename... ArgsD>
 		struct is_delegate_func<F, RD(ArgsD...)> : is_delegate_compatible<RD(ArgsD...), RF(ArgsF...)> {};
+		template<typename RF, typename... ArgsF, RF (&F)(ArgsF...), typename RD, typename... ArgsD>
+		struct is_delegate_func<F, RD(ArgsD...)> : is_delegate_compatible<RD(ArgsD...), RF(ArgsF...)> {};
 		template<typename RF, typename I, typename... ArgsF, RF (I::*F)(ArgsF...), typename RD, typename... ArgsD>
 		struct is_delegate_func<F, RD(ArgsD...)> : is_delegate_compatible<RD(ArgsD...), RF(ArgsF...)> {};
 		template<typename RF, typename I, typename... ArgsF, RF (I::*F)(ArgsF...) const, typename RD, typename... ArgsD>
@@ -56,20 +58,33 @@ namespace sek
 		// clang-format on
 	}	 // namespace detail
 
-	// clang-format off
 	/** @brief Helper type used to specify a compile-time function. */
 	template<auto F>
 	struct delegate_func_t;
-
-	template<auto F> requires std::is_function_v<decltype(F)>
+	template<typename R, typename... Args, R (*F)(Args...)>
 	struct delegate_func_t<F>
 	{
 	};
-	template<auto F> requires std::is_member_function_pointer_v<decltype(F)>
+	template<typename R, typename... Args, R (&F)(Args...)>
 	struct delegate_func_t<F>
 	{
 	};
-	// clang-format on
+	template<typename R, typename I, typename... Args, R (I::*F)(Args...)>
+	struct delegate_func_t<F>
+	{
+	};
+	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const>
+	struct delegate_func_t<F>
+	{
+	};
+	template<typename R, typename I, typename... Args, R (I::*F)(Args...) volatile>
+	struct delegate_func_t<F>
+	{
+	};
+	template<typename R, typename I, typename... Args, R (I::*F)(Args...) const volatile>
+	struct delegate_func_t<F>
+	{
+	};
 
 	/** Instance of the `delegate_func_t` helper type. */
 	template<auto F>
@@ -266,7 +281,7 @@ namespace sek
 		template<auto F, typename... Inject>
 		constexpr static bool valid_func = detail::is_delegate_func_v<F, R(Inject..., Args...)>;
 		template<auto F, typename... Inject>
-		constexpr static bool free_func = std::is_function_v<decltype(F)> && valid_func<F, Inject...>;
+		constexpr static bool free_func = std::is_function_v<std::remove_pointer_t<decltype(F)>> && valid_func<F, Inject...>;
 		template<auto F>
 		constexpr static bool mem_func = std::is_member_function_pointer_v<decltype(F)> && valid_func<F>;
 
@@ -484,7 +499,7 @@ namespace sek
 		template<auto F>
 		constexpr delegate &operator=(delegate_func_t<F>) noexcept requires free_func<F>
 		{
-			m_proxy = +[](std::uintptr_t, Args...args) -> R { return std::invoke(std::forward<Args>(args)...); };
+			m_proxy = +[](std::uintptr_t, Args...args) -> R { return std::invoke(F, std::forward<Args>(args)...); };
 			m_data = {};
 			return *this;
 		}
@@ -591,7 +606,7 @@ namespace sek
 			m_proxy = +[](std::uintptr_t data, Args...args) -> R
 			{
 			    const auto ptr = static_cast<I *>(data_t::get(data));
-			    return std::invoke(ptr, std::forward<Args>(args)...);
+			    return std::invoke(F, ptr, std::forward<Args>(args)...);
 			};
 			m_data = data_t{std::in_place_type<I *>, instance};
 			return *this;

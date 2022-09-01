@@ -29,10 +29,17 @@ namespace sek::serialization
 	public:
 		typedef inout_archive_category archive_category;
 
-		typedef std::vector<std::byte, Alloc<std::byte>> binary_type;
-		typedef std::basic_string<C, T, Alloc<C>> string_type;
+		typedef Alloc<C> string_allocator;
+
+		typedef std::basic_string<C, T, string_allocator> string_type;
 		typedef std::basic_string_view<C, T> string_view_type;
 		typedef string_type key_type;
+
+		typedef Alloc<std::pair<const key_type, basic_json_value>> object_allocator;
+		typedef ordered_map<key_type, basic_json_value, object_allocator> object_type;
+
+		typedef Alloc<basic_json_value> array_allocator;
+		typedef std::vector<basic_json_value, array_allocator> array_type;
 
 		typedef basic_json_value value_type;
 		typedef std::size_t size_type;
@@ -44,61 +51,41 @@ namespace sek::serialization
 		using float64_t = double;
 
 		template<typename U>
-		[[nodiscard]] constexpr static bool compatible_bool() noexcept
-		{
-			return std::is_convertible_v<U, bool> && !std::integral<U>;
-		}
+		constexpr static bool is_compatible_int = std::integral<U>;
 		template<typename U>
-		[[nodiscard]] constexpr static bool compatible_int() noexcept
-		{
-			return std::integral<U>;
-		}
+		constexpr static bool is_compatible_float = std::floating_point<U>;
 		template<typename U>
-		[[nodiscard]] constexpr static bool compatible_float() noexcept
-		{
-			return std::floating_point<U>;
-		}
+		constexpr static bool is_compatible_bool = std::is_convertible_v<U, bool> && !std::integral<U>;
 		template<typename U>
-		[[nodiscard]] constexpr static bool compatible_string() noexcept
-		{
-			return std::is_constructible_v<string_type, U>;
-		}
-		template<typename U>
-		[[nodiscard]] constexpr static bool compatible_binary() noexcept
-		{
-			return std::is_constructible_v<binary_type, U>;
-		}
+		constexpr static bool is_compatible_string = std::is_constructible_v<string_type, U> && !std::integral<U>;
 
 		template<detail::pair_like U, typename... Args>
-		[[nodiscard]] constexpr static bool compatible_object_pair() noexcept
+		[[nodiscard]] constexpr static bool is_compatible_object_pair() noexcept
 		{
 			using first_t = std::remove_cvref_t<decltype(std::declval<U>().first)>;
 			using second_t = std::remove_cvref_t<decltype(std::declval<U>().second)>;
-
-			return compatible_string<first_t>() && std::constructible_from<value_type, second_t, Args...>;
+			return is_compatible_string<first_t> && std::constructible_from<basic_json_value, second_t, Args...>;
 		}
 		template<typename U, typename... Args>
-		[[nodiscard]] constexpr static bool compatible_object_pair() noexcept
+		[[nodiscard]] constexpr static bool is_compatible_object_pair() noexcept
 		{
 			return false;
 		}
+
+		// clang-format off
 		template<typename U, typename... Args>
-		[[nodiscard]] constexpr static bool compatible_object() noexcept
-		{
-			return std::ranges::range<U> && compatible_object_pair<std::ranges::range_value_t<U>, Args...>();
-		}
+		constexpr static bool is_compatible_object = std::ranges::range<U> && is_compatible_object_pair<std::ranges::range_value_t<U>, Args...>();
 		template<typename U, typename... Args>
-		[[nodiscard]] constexpr static bool compatible_array() noexcept
-		{
-			return std::ranges::range<U> && std::constructible_from<value_type, U, Args...> &&
-				   !compatible_object_pair<std::ranges::range_value_t<U>, Args...>();
-		}
+		constexpr static bool is_compatible_array = std::ranges::range<U> && std::constructible_from<basic_json_value, U, Args...> &&
+				   !is_compatible_object_pair<std::ranges::range_value_t<U>, Args...>();
+		// clang-format on
 
 		template<typename U, typename... Args>
-		[[nodiscard]] constexpr static bool is_serializable() noexcept
-		{
-			return serializable<U, basic_json_value, Args...>;
-		}
+		constexpr static bool is_literal = is_compatible_string<U> || is_compatible_int<U> ||
+										   is_compatible_float<U> || is_compatible_bool<U> ||
+										   is_compatible_object<U, Args...> || is_compatible_array<U, Args...>;
+		template<typename U, typename... Args>
+		constexpr static bool is_serializable = serializable<U, basic_json_value, Args...>;
 
 		template<typename U>
 		[[nodiscard]] constexpr static json_type int_type() noexcept
@@ -131,9 +118,6 @@ namespace sek::serialization
 				return json_type::FLOAT_64;
 		}
 
-		using object_type = ordered_map<key_type, basic_json_value, Alloc<std::pair<const key_type, basic_json_value>>>;
-		using array_type = std::vector<basic_json_value, Alloc<basic_json_value>>;
-
 	public:
 		/** Initializes an empty object value. */
 		constexpr basic_json_value() noexcept : m_object() {}
@@ -144,11 +128,11 @@ namespace sek::serialization
 		// clang-format off
 		/** Initializes a boolean value. */
 		template<typename U>
-		constexpr basic_json_value(U &&value) noexcept requires(compatible_bool<std::remove_cvref_t<U>>())
+		constexpr basic_json_value(U &&value) noexcept requires(is_compatible_bool<std::remove_cvref_t<U>>)
 			: m_bool(value), m_type(json_type::BOOL) {}
 		/** Initializes an integer number value. */
 		template<typename U>
-		constexpr basic_json_value(U &&value) noexcept requires(compatible_int<std::remove_cvref_t<U>>())
+		constexpr basic_json_value(U &&value) noexcept requires(is_compatible_int<std::remove_cvref_t<U>>)
 			: m_type(int_type<std::remove_cvref_t<U>>())
 		{
 			if constexpr (!std::is_signed_v<std::remove_cvref_t<U>>)
@@ -158,7 +142,7 @@ namespace sek::serialization
 		}
 		/** Initializes a floating-point number value. */
 		template<typename U>
-		constexpr basic_json_value(U &&value) noexcept requires(compatible_float<std::remove_cvref_t<U>>())
+		constexpr basic_json_value(U &&value) noexcept requires(is_compatible_float<std::remove_cvref_t<U>>)
 			: m_type(float_type<std::remove_cvref_t<U>>())
 		{
 			if constexpr (sizeof(std::remove_cvref_t<U>) <= sizeof(float32_t))
@@ -170,24 +154,148 @@ namespace sek::serialization
 		/** Initializes a string value. */
 		template<typename U>
 		constexpr basic_json_value(U &&value) noexcept(noexcept(string_type{std::forward<U>(value)}))
-			requires(compatible_string<std::remove_cvref_t<U>>())
+			requires(is_compatible_string<std::remove_cvref_t<U>>)
 			: m_string(std::forward<U>(value)), m_type(json_type::STRING) {}
-		/** Initializes a binary value. */
-		template<typename U>
-		constexpr basic_json_value(U &&value) noexcept(noexcept(binary_type{std::forward<U>(value)}))
-			requires(compatible_binary<std::remove_cvref_t<U>>())
-			: m_binary(std::forward<U>(value)), m_type(json_type::BINARY) {}
 
-		/** Initializes a Json array. */
+		/** Initializes a Json array.
+		 * @param value Value passed to the array's constructor. */
 		template<typename U>
-		constexpr basic_json_value(U &&value) requires(compatible_array<std::remove_cvref_t<U>>());
-		/** Initializes a Json object. */
+		constexpr basic_json_value(U &&value) requires(is_compatible_array<std::remove_cvref_t<U>>)
+			: m_array(std::forward<U>(value)), m_type(json_type::ARRAY)
+		{
+		}
+		/** @copydoc basic_json_value
+		 * @param alloc Allocator used for the array. */
 		template<typename U>
-		constexpr basic_json_value(U &&value) requires(compatible_object<std::remove_cvref_t<U>>());
+		constexpr basic_json_value(U &&value, const array_allocator &alloc) requires(is_compatible_array<std::remove_cvref_t<U>>)
+			: m_array(std::forward<U>(value), alloc), m_type(json_type::ARRAY)
+		{
+		}
 
+		/** Initializes a Json object.
+		 * @param value Value passed to the object's constructor. */
+		template<typename U>
+		constexpr basic_json_value(U &&value) requires(is_compatible_object<std::remove_cvref_t<U>>)
+			: m_object(std::forward<U>(value)), m_type(json_type::OBJECT)
+		{
+		}
+		/** @copydoc basic_json_value
+		 * @param alloc Allocator used for the object. */
+		template<typename U>
+		constexpr basic_json_value(U &&value, const object_allocator &alloc) requires(is_compatible_object<std::remove_cvref_t<U>>)
+			: m_object(std::forward<U>(value), alloc), m_type(json_type::OBJECT)
+		{
+		}
+
+		/** Serialized an object into a Json value using either the member or ADL-selected `serialize` function. */
+		template<typename U, typename... Args>
+		constexpr basic_json_value(U &&value, Args &&...args)
+			requires(is_serializable<std::remove_cvref_t<U>, Args...> &&
+					 !is_literal<std::remove_cvref_t<U>, Args...>);
 		// clang-format on
 
+		/** Initializes a Json array from an initializer list of values.
+		 * @param il Initializer list containing values of the array.
+		 * @param alloc Allocator used for the array. */
+		constexpr basic_json_value(std::initializer_list<typename array_type::value_type> il, const array_allocator &alloc = {})
+			: m_array(il, alloc), m_type(json_type::ARRAY)
+		{
+		}
+		/** Initializes a Json object from an initializer list of key-value pairs.
+		 * @param il Initializer list containing key-value pairs of the object.
+		 * @param alloc Allocator used for the object. */
+		constexpr basic_json_value(std::initializer_list<typename object_type::value_type> il,
+								   const object_allocator &alloc = {})
+			: m_object(il, alloc), m_type(json_type::OBJECT)
+		{
+		}
+
 		constexpr ~basic_json_value() { destroy_impl(); }
+
+		/** Returns Json type of the contained value. If the value is a Json container (array or object),
+		 * element type will be OR'ed with the container type. */
+		[[nodiscard]] constexpr json_type type() const noexcept { return m_type; }
+
+		/** Checks if the contained value is null. */
+		[[nodiscard]] constexpr bool is_null() const noexcept { return m_type == json_type::NULL_VALUE; }
+		/** Checks if the contained value is a boolean. */
+		[[nodiscard]] constexpr bool is_bool() const noexcept { return m_type == json_type::BOOL; }
+		/** Checks if the contained value is a string. */
+		[[nodiscard]] constexpr bool is_string() const noexcept { return m_type == json_type::STRING; }
+
+		/** Checks if the contained value is a number (integer or floating-point). */
+		[[nodiscard]] constexpr bool is_number() const noexcept
+		{
+			return (m_type & json_type::NUMBER_MASK) != json_type{0} && !is_container();
+		}
+
+		/** Checks if the contained value is a signed integer. */
+		[[nodiscard]] constexpr bool is_int() const noexcept
+		{
+			return (m_type & (json_type::NUMBER_MASK | json_type::SIGN_FLAG | json_type::CONTAINER_MASK)) ==
+				   (json_type::SIGN_FLAG | json_type::NUMBER_INT);
+		}
+		/** Checks if the contained value is a signed 8-bit integer. */
+		[[nodiscard]] constexpr bool is_int8() const noexcept { return m_type == json_type::INT_8; }
+		/** Checks if the contained value is a signed 16-bit integer. */
+		[[nodiscard]] constexpr bool is_int16() const noexcept { return m_type == json_type::INT_16; }
+		/** Checks if the contained value is a signed 32-bit integer. */
+		[[nodiscard]] constexpr bool is_int32() const noexcept { return m_type == json_type::INT_32; }
+		/** Checks if the contained value is a signed 64-bit integer. */
+		[[nodiscard]] constexpr bool is_int64() const noexcept { return m_type == json_type::INT_64; }
+
+		/** Checks if the contained value is an unsigned integer. */
+		[[nodiscard]] constexpr bool is_uint() const noexcept
+		{
+			return (m_type & (json_type::NUMBER_MASK | json_type::SIGN_FLAG | json_type::CONTAINER_MASK)) == json_type::NUMBER_INT;
+		}
+		/** Checks if the contained value is an unsigned 8-bit integer. */
+		[[nodiscard]] constexpr bool is_uint8() const noexcept { return m_type == json_type::UINT_8; }
+		/** Checks if the contained value is an unsigned 16-bit integer. */
+		[[nodiscard]] constexpr bool is_uint16() const noexcept { return m_type == json_type::UINT_16; }
+		/** Checks if the contained value is an unsigned 32-bit integer. */
+		[[nodiscard]] constexpr bool is_uint32() const noexcept { return m_type == json_type::UINT_32; }
+		/** Checks if the contained value is an unsigned 64-bit integer. */
+		[[nodiscard]] constexpr bool is_uint64() const noexcept { return m_type == json_type::UINT_64; }
+
+		/** Checks if the contained value is a floating-point number. */
+		[[nodiscard]] constexpr bool is_float() const noexcept
+		{
+			return (m_type & (json_type::NUMBER_MASK | json_type::CONTAINER_MASK)) == json_type::NUMBER_FLOAT;
+		}
+		/** Checks if the contained value is a 32-bit floating-point number. */
+		[[nodiscard]] constexpr bool is_float32() const noexcept { return m_type == json_type::FLOAT_32; }
+		/** Checks if the contained value is a 64-bit floating-point number. */
+		[[nodiscard]] constexpr bool is_float64() const noexcept { return m_type == json_type::FLOAT_64; }
+
+		/** Checks if the contained value is a Json container (array or object). */
+		[[nodiscard]] constexpr bool is_container() const noexcept
+		{
+			return (m_type & json_type::CONTAINER_MASK) != json_type{0};
+		}
+		/** Checks if the contained value is a Json array. */
+		[[nodiscard]] constexpr bool is_array() const noexcept
+		{
+			return (m_type & json_type::CONTAINER_MASK) == json_type::ARRAY;
+		}
+		/** Checks if the contained value is a Json object. */
+		[[nodiscard]] constexpr bool is_object() const noexcept
+		{
+			return (m_type & json_type::CONTAINER_MASK) == json_type::OBJECT;
+		}
+
+		/** If the contained value is a Json container (array or object), checks if the container is empty.
+		 * If the contained value is not a Json container, returns `false`. */
+		[[nodiscard]] constexpr bool empty() const noexcept
+		{
+			return is_array() ? m_array.empty() : is_object() && m_object.empty();
+		}
+		/** If the contained value is a Json container (array or object), returns it's size.
+		 * If the contained value is not a Json container, returns `0`. */
+		[[nodiscard]] constexpr size_type size() const noexcept
+		{
+			return is_array() ? m_array.size() : is_object() ? m_object.size() : 0;
+		}
 
 	private:
 		constexpr void destroy_impl()
@@ -198,8 +306,6 @@ namespace sek::serialization
 				std::destroy_at(&m_array);
 			else if (m_type == json_type::STRING)
 				std::destroy_at(&m_string);
-			else if (m_type == json_type::BINARY)
-				std::destroy_at(&m_binary);
 		}
 
 		union
@@ -215,7 +321,6 @@ namespace sek::serialization
 			float64_t m_float64;
 
 			string_type m_string;
-			binary_type m_binary;
 			object_type m_object;
 			array_type m_array;
 		};

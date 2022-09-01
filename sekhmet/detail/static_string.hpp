@@ -367,6 +367,22 @@ namespace sek
 		C value[N] = {0};
 	};
 
+	template<typename C, std::size_t N>
+	basic_static_string(const C (&)[N]) -> basic_static_string<C, N, std::char_traits<C>>;
+
+	template<typename To, typename ToT = std::char_traits<To>, typename From, typename FromT = std::char_traits<From>, std::size_t N>
+	[[nodiscard]] constexpr basic_static_string<To, N, ToT> static_string_cast(basic_static_string<From, N, FromT> str) noexcept
+	{
+		basic_static_string<To, N, ToT> result;
+		for (std::size_t i = 0; i < N; ++i) result[i] = static_cast<To>(str[i]);
+		return result;
+	}
+	template<typename To, typename ToT = std::char_traits<To>, typename From, std::size_t N>
+	[[nodiscard]] constexpr basic_static_string<To, N, ToT> static_string_cast(const From (&str)[N]) noexcept
+	{
+		return static_string_cast<To, ToT>(basic_static_string<From, N>{str});
+	}
+
 	template<typename C, std::size_t N, typename T>
 	constexpr void swap(basic_static_string<C, N, T> &a, basic_static_string<C, N, T> &b) noexcept
 	{

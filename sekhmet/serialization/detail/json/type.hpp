@@ -32,9 +32,6 @@ namespace sek::serialization
 		BOOL = 0b000'0001,
 		/** String value. */
 		STRING = 0b000'0010,
-		/** Binary value.
-		 * @note Not all Json-like formats support binary data. */
-		BINARY = 0b000'0011,
 
 		/** Mask used to extract value of the number type flags (either `NUMBER_FLOAT` or `NUMBER_INT`). */
 		NUMBER_MASK = 0b11'0000,
