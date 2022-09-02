@@ -84,11 +84,14 @@ namespace sek
 			return m_event->subscribe(std::move(subscriber));
 		}
 		/** @copydoc subscribe */
-		constexpr event_subscriber operator+=(const delegate<R(Args...)> &subscriber) { return m_event += subscriber; }
+		constexpr event_subscriber operator+=(const delegate<R(Args...)> &subscriber)
+		{
+			return (*m_event) += subscriber;
+		}
 		/** @copydoc subscribe */
 		constexpr event_subscriber operator+=(delegate<R(Args...)> &&subscriber)
 		{
-			return m_event += std::move(subscriber);
+			return (*m_event) += std::move(subscriber);
 		}
 
 		/** @brief Adds a subscriber delegate to the underlying event after the specified subscriber.
@@ -214,13 +217,13 @@ namespace sek
 		 * @return true if the subscriber was unsubscribed, false otherwise. */
 		constexpr bool unsubscribe(const delegate<R(Args...)> &subscriber) { return m_event->unsubscribe(subscriber); }
 		/** @copydoc unsubscribe */
-		constexpr bool operator-=(const delegate<R(Args...)> &subscriber) { return m_event -= subscriber; }
+		constexpr bool operator-=(const delegate<R(Args...)> &subscriber) { return (*m_event) -= subscriber; }
 		/** Removes a subscriber delegate from the underlying event.
 		 * @param id Id of the underlying event's event_subscriber.
 		 * @return true if the subscriber was unsubscribed, false otherwise. */
 		constexpr bool unsubscribe(event_subscriber id) { return m_event->unsubscribe(id); }
 		/** @copydoc unsubscribe */
-		constexpr bool operator-=(event_subscriber id) { return m_event -= id; }
+		constexpr bool operator-=(event_subscriber id) { return (*m_event) -= id; }
 
 		/** Returns iterator to the subscriber delegate using it's id or if such subscriber is not found. */
 		[[nodiscard]] constexpr iterator find(event_subscriber id) const noexcept { return m_event->find(id); }
