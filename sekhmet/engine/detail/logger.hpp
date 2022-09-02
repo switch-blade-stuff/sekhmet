@@ -67,9 +67,8 @@ namespace sek::engine
 		 *
 		 * Format string should follow the `fmt` <a href="https://fmt.dev/latest/syntax.html#syntax">format string
 		 * syntax</a> with the following additional named arguments available by default:
-		 * 	* `L` - Long level string as `const string_type &`.
-		 * 	* `l` - Short level string as `const string_type &`.
 		 * 	* `M` - Main log message as `const string_type &`.
+		 * 	* `L` - Level string as `const string_type &`.
 		 * 	* `T` - Current time as `std::tm`. */
 		template<typename L, typename F>
 		constexpr basic_logger(const L &level, const F &format) : m_format(format), m_level(level)
@@ -98,9 +97,8 @@ namespace sek::engine
 		 *
 		 * Format string should follow the `fmt` <a href="https://fmt.dev/latest/syntax.html#syntax">format string
 		 * syntax</a> with the following additional named arguments available by default:
-		 * 	* `L` - Long level string as `const string_type &`.
-		 * 	* `l` - Short level string as `const string_type &`.
 		 * 	* `M` - Main log message as `const string_type &`.
+		 * 	* `L` - Level string as `const string_type &`.
 		 * 	* `T` - Current time as `std::tm`. */
 		template<typename S>
 		constexpr void format(const S &str) { m_format = str; }
