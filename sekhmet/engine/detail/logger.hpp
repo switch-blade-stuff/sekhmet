@@ -56,29 +56,13 @@ namespace sek::engine
 		constexpr basic_logger() = default;
 
 		/** Initializes logger with the specified log level.
-		 * @param level String used for both long & short log level. */
+		 * @param level String containing the log level. */
 		template<typename S>
-		constexpr explicit basic_logger(const S &level) : basic_logger(level, level)
-		{
-		}
-		/** @copydoc basic_logger */
-		constexpr explicit basic_logger(const value_type *level) : basic_logger(level, level) {}
-		/** Initializes logger with the specified log level.
-		 * @param level_long String used for long log level.
-		 * @param level_short String used for short log level. */
-		template<typename S0, typename S1>
-		constexpr basic_logger(const S0 &level_long, const S1 &level_short)
-			: basic_logger(level_long, level_short, default_format)
-		{
-		}
-		/** @copydoc basic_logger */
-		constexpr basic_logger(const value_type *level_long, const value_type *level_short)
-			: basic_logger(level_long, level_short, default_format)
+		constexpr explicit basic_logger(const S &level) : m_level(level)
 		{
 		}
 		/** Initializes logger with the specified log level & format string.
-		 * @param level_long String used for long log level.
-		 * @param level_short String used for short log level.
+		 * @param level String containing the log level.
 		 * @param format String containing log message format.
 		 *
 		 * Format string should follow the `fmt` <a href="https://fmt.dev/latest/syntax.html#syntax">format string
@@ -87,25 +71,17 @@ namespace sek::engine
 		 * 	* `l` - Short level string as `const string_type &`.
 		 * 	* `M` - Main log message as `const string_type &`.
 		 * 	* `T` - Current time as `std::tm`. */
-		template<typename S0, typename S1, typename S2>
-		constexpr basic_logger(const S0 &level_long, const S1 &level_short, const S2 &format)
-			: m_format(format), m_level_short(level_short), m_level_long(level_long)
-		{
-		}
-		/** @copydoc basic_logger */
-		constexpr basic_logger(const value_type *level_long, const value_type *level_short, const value_type *format)
-			: m_format(format), m_level_short(level_short), m_level_long(level_long)
+		template<typename L, typename F>
+		constexpr basic_logger(const L &level, const F &format) : m_format(format), m_level(level)
 		{
 		}
 
 		/** Checks if the logger is enabled. */
 		[[nodiscard]] constexpr bool is_enabled() const noexcept { return m_enabled; }
+		/** Returns the current level string. */
+		[[nodiscard]] constexpr const string_type &level() const noexcept { return m_level; }
 		/** Returns the current format string. */
 		[[nodiscard]] constexpr const string_type &format() const noexcept { return m_format; }
-		/** Returns the current long level string. */
-		[[nodiscard]] constexpr const string_type &level_long() const noexcept { return m_level_long; }
-		/** Returns the current short level string. */
-		[[nodiscard]] constexpr const string_type &level_short() const noexcept { return m_level_short; }
 
 		/** Enables the logger. */
 		constexpr void enable() noexcept { m_enabled = true; }
@@ -113,6 +89,10 @@ namespace sek::engine
 		constexpr void disable() noexcept { m_enabled = false; }
 
 		// clang-format off
+		/** @brief Replaces the current log level strings.
+		 * @param str String used for both long & short log level. */
+		template<typename S>
+		constexpr void level(const S &str) { m_level = str; }
 		/** Replaces the current format string.
 		 * @param str String containing log message format.
 		 *
@@ -124,29 +104,12 @@ namespace sek::engine
 		 * 	* `T` - Current time as `std::tm`. */
 		template<typename S>
 		constexpr void format(const S &str) { m_format = str; }
-		/** @brief Replaces the current log level strings.
-		 * @param str String used for both long & short log level. */
-		template<typename S>
-		constexpr void level(const S &str) { level(str, str); }
 		// clang-format on
 
+		/** @copydoc level */
+		constexpr void level(string_type &&str) { m_level = std::move(str); }
 		/** @copydoc format */
 		constexpr void format(string_type &&str) { m_format = std::move(str); }
-		/** @copybrief level
-		 * @param level_long String used for long log level.
-		 * @param level_short String used for short log level. */
-		template<typename S0, typename S1>
-		constexpr void level(const S0 &level_long, const S1 &level_short)
-		{
-			m_level_short = level_short;
-			m_level_long = level_long;
-		}
-		/** @copydoc level */
-		constexpr void level(string_type &&level_long, string_type &&level_short)
-		{
-			m_level_short = std::move(level_short);
-			m_level_long = std::move(level_long);
-		}
 
 		/** @brief Logs the provided message and any additional arguments even if the logger is disabled.
 		 * @param msg Message string.
@@ -171,10 +134,9 @@ namespace sek::engine
 		basic_logger &log_explicit(const std::locale &loc, string_view_type msg, Args &&...args)
 		{
 			// clang-format off
-			string_type str = fmt::format(loc, m_format, fmt::arg("M", msg),
+			string_type str = fmt::format(loc, m_format,
 										  fmt::arg("T", fmt::localtime(std::time(nullptr))),
-										  fmt::arg("L", m_level_long),
-										  fmt::arg("l", m_level_short),
+										  fmt::arg("L", m_level), fmt::arg("M", msg),
 										  std::forward<Args>(args)...);
 			// clang-format on
 			m_log_event(str);
@@ -198,58 +160,40 @@ namespace sek::engine
 	private:
 		log_event m_log_event;
 		string_type m_format = {default_format.data(), default_format.size()};
-		string_type m_level_short;
-		string_type m_level_long;
+		string_type m_level;
 		bool m_enabled = true;
 	};
 
-	// clang-format off
 	template<typename C, typename T>
 	shared_guard<basic_logger<C, T>> &basic_logger<C, T>::info()
 	{
-		static shared_guard<basic_logger> instance{
-			std::in_place_type<basic_logger>,
-			static_string_cast<C, T>("INFO"),
-			static_string_cast<C, T>("I")};
+		static shared_guard<basic_logger> instance{static_string_cast<C, T>("INFO").data()};
 		return instance;
 	}
 	template<typename C, typename T>
 	shared_guard<basic_logger<C, T>> &basic_logger<C, T>::warn()
 	{
-		static shared_guard<basic_logger> instance{
-			std::in_place_type<basic_logger>,
-			static_string_cast<C, T>("WARN"),
-			static_string_cast<C, T>("W")};
+		static shared_guard<basic_logger> instance{static_string_cast<C, T>("WARN").data()};
 		return instance;
 	}
 	template<typename C, typename T>
 	shared_guard<basic_logger<C, T>> &basic_logger<C, T>::debug()
 	{
-		static shared_guard<basic_logger> instance{
-				std::in_place_type<basic_logger>,
-				static_string_cast<C, T>("DEBUG"),
-				static_string_cast<C, T>("D")};
+		static shared_guard<basic_logger> instance{static_string_cast<C, T>("DEBUG").data()};
 		return instance;
 	}
 	template<typename C, typename T>
 	shared_guard<basic_logger<C, T>> &basic_logger<C, T>::error()
 	{
-		static shared_guard<basic_logger> instance{
-			std::in_place_type<basic_logger>,
-			static_string_cast<C, T>("ERROR"),
-			static_string_cast<C, T>("E")};
+		static shared_guard<basic_logger> instance{static_string_cast<C, T>("ERROR").data()};
 		return instance;
 	}
 	template<typename C, typename T>
 	shared_guard<basic_logger<C, T>> &basic_logger<C, T>::fatal()
 	{
-		static shared_guard<basic_logger> instance{
-			std::in_place_type<basic_logger>,
-			static_string_cast<C, T>("FATAL"),
-			static_string_cast<C, T>("F")};
+		static shared_guard<basic_logger> instance{static_string_cast<C, T>("FATAL").data()};
 		return instance;
 	}
-	// clang-format on
 
 	/** @brief Alias of `basic_logger` for `char` type. By default, global logger categories print to `stdout`. */
 	typedef basic_logger<char> logger;
