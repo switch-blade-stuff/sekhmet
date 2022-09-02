@@ -236,12 +236,12 @@ namespace sek
 		}
 
 		/** Acquires a unique lock and returns an accessor handle. */
-		[[nodiscard]] constexpr typename typedef_base::unique_handle access_unique()
+		[[nodiscard]] constexpr typename typedef_base::unique_handle access()
 		{
 			return {m_value, typename typedef_base::unique_lock{m_mtx}};
 		}
 		/** Attempts to acquire a unique lock and returns an optional accessor handle. */
-		[[nodiscard]] constexpr auto try_access_unique() requires allow_try
+		[[nodiscard]] constexpr auto try_access() requires allow_try
 		{
 			using handle_t = typename typedef_base::unique_handle;
 			using lock_t = typename typedef_base::unique_lock;

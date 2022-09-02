@@ -129,7 +129,7 @@ TEST(runtime_tests, type_info_test)
 	EXPECT_EQ(sek::engine::type_info::get<const test_child *>().value_type(), sek::engine::type_info::get<test_child>());
 
 	{
-		const auto db = sek::engine::type_database::instance()->access_unique();
+		const auto db = sek::engine::type_database::instance()->access();
 		auto query = db->query().with_attribute<test_attribute>();
 
 		EXPECT_EQ(query.size(), 1);
@@ -385,7 +385,7 @@ TEST(runtime_tests, config_test)
 		const auto data = R"({ "__nodes": { "test_entry": { "test_config": { "some_int": 1, "flag": true }}}})"sv;
 
 		sek::serialization::json::input_archive archive(data.data(), data.size());
-		EXPECT_NO_THROW(reg_guard.access_unique()->load("test_category", std::move(*archive.tree)));
+		EXPECT_NO_THROW(reg_guard.access()->load("test_category", std::move(*archive.tree)));
 	}
 	{
 		auto ptr = reg_guard.access_shared()->find("test_category");
@@ -396,7 +396,7 @@ TEST(runtime_tests, config_test)
 	sek::engine::type_info::reflect<test_config>().attribute(make_config_type<test_config>()).submit();
 	{
 		constexpr auto silent_i = 10;
-		EXPECT_NO_THROW(reg_guard.access_unique()->insert("test_category/test_entry", test_config{silent_i}));
+		EXPECT_NO_THROW(reg_guard.access()->insert("test_category/test_entry", test_config{silent_i}));
 
 		auto ptr = reg_guard.access_shared()->find("test_category/test_entry");
 		EXPECT_TRUE(ptr);
@@ -413,10 +413,10 @@ TEST(runtime_tests, config_test)
 	{
 		EXPECT_NO_THROW(reg_guard.access_shared()->save("test_category/test_entry", data_tree));
 		sek::serialization::json::input_archive archive(data_tree);
-		EXPECT_NO_THROW(reg_guard.access_unique()->load("test_category/test_entry_2", std::move(data_tree)));
+		EXPECT_NO_THROW(reg_guard.access()->load("test_category/test_entry_2", std::move(data_tree)));
 	}
 	{
-		EXPECT_NO_THROW(reg_guard.access_unique()->try_insert<test_config>("test_category/test_entry_2"));
+		EXPECT_NO_THROW(reg_guard.access()->try_insert<test_config>("test_category/test_entry_2"));
 
 		auto e1 = reg_guard.access_shared()->find("test_category/test_entry");
 		auto e2 = reg_guard.access_shared()->find("test_category/test_entry_2");
@@ -458,7 +458,7 @@ TEST(runtime_tests, asset_test)
 	EXPECT_EQ(loose_pkg.path(), loose_path);
 
 	{
-		auto db = db_guard.access_unique();
+		auto db = db_guard.access();
 		db->packages().push_back(archive_pkg);
 		db->packages().push_back(loose_pkg);
 
@@ -527,7 +527,7 @@ TEST(runtime_tests, asset_test)
 		EXPECT_EQ(asset->name(), "test_asset2");
 	}
 	{
-		auto db = db_guard.access_unique();
+		auto db = db_guard.access();
 		auto proxy = db->packages();
 		proxy.erase(proxy.begin() + 1);
 
@@ -542,7 +542,7 @@ TEST(runtime_tests, asset_test)
 		EXPECT_EQ(asset->name(), "test_archive_asset");
 	}
 	{
-		auto db = db_guard.access_unique();
+		auto db = db_guard.access();
 		auto proxy = db->packages();
 		proxy.push_back(loose_pkg);
 
@@ -619,14 +619,14 @@ TEST(runtime_tests, resource_test)
 
 	{
 		auto pkg = asset_package::load(std::filesystem::path(TEST_DIR) / "test_package");
-		db_guard.access_unique()->packages().push_back(pkg);
+		db_guard.access()->packages().push_back(pkg);
 	}
 	type_info::reflect<test_resource>().attribute(make_resource_type<test_resource>()).submit();
 	{
 		std::shared_ptr<test_resource> res;
-		EXPECT_FALSE(res = cache_guard.access_unique()->load<test_resource>("invalid_resource"));
-		EXPECT_THROW(res = cache_guard.access_unique()->load<test_resource>("test_asset"), resource_error);
-		EXPECT_NO_THROW(res = cache_guard.access_unique()->load<test_resource>("test_resource"));
+		EXPECT_FALSE(res = cache_guard.access()->load<test_resource>("invalid_resource"));
+		EXPECT_THROW(res = cache_guard.access()->load<test_resource>("test_asset"), resource_error);
+		EXPECT_NO_THROW(res = cache_guard.access()->load<test_resource>("test_resource"));
 		EXPECT_TRUE(res);
 
 		EXPECT_EQ(res->s, "Hello, World");

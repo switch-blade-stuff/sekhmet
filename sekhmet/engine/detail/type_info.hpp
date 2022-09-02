@@ -923,7 +923,7 @@ namespace sek::engine
 	{
 		if (m_handle.get != nullptr) [[likely]]
 		{
-			type_database::instance()->access_unique()->reflect_impl(m_handle);
+			type_database::instance()->access()->reflect_impl(m_handle);
 			m_handle = {};
 		}
 	}
@@ -931,10 +931,10 @@ namespace sek::engine
 	template<typename T>
 	type_factory<T> type_info::reflect()
 	{
-		return type_database::instance()->access_unique()->template reflect<T>();
+		return type_database::instance()->access()->template reflect<T>();
 	}
 	type_info type_info::get(std::string_view name) { return type_database::instance()->access_shared()->get(name); }
-	void type_info::reset(std::string_view name) { return type_database::instance()->access_unique()->reset(name); }
+	void type_info::reset(std::string_view name) { return type_database::instance()->access()->reset(name); }
 
 	/** @brief Structure used to query type database for a set of types. */
 	class type_query

@@ -715,7 +715,7 @@ namespace sek::engine
 			template<typename T>
 			config_type(type_selector_t<T> s, cfg_path path) : config_type(s)
 			{
-				config_registry::instance()->access_unique()->template insert<T>(std::move(path));
+				config_registry::instance()->access()->template insert<T>(std::move(path));
 			}
 
 		private:

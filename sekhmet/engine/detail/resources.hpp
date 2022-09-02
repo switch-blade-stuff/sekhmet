@@ -251,7 +251,7 @@ namespace sek::engine
 			}
 			constexpr void deserialize(void *ptr, asset_source &src, float &state) const
 			{
-				deserialize(ptr, src, *resource_cache::instance()->access_unique(), state);
+				deserialize(ptr, src, *resource_cache::instance()->access(), state);
 			}
 
 			std::shared_ptr<void> (*m_instantiate)();

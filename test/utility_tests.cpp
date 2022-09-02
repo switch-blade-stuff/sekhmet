@@ -147,9 +147,9 @@ TEST(utility_tests, access_guard_test)
 	constexpr auto thread_func = [](sek::access_guard<int> *i)
 	{
 		std::this_thread::sleep_for(100ms);
-		EXPECT_FALSE(i->try_access_unique().has_value());
+		EXPECT_FALSE(i->try_access().has_value());
 		std::this_thread::sleep_for(100ms);
-		auto handle = i->access_unique();
+		auto handle = i->access();
 		std::this_thread::sleep_for(100ms);
 		EXPECT_EQ((*handle)++, 1);
 	};
@@ -157,13 +157,13 @@ TEST(utility_tests, access_guard_test)
 	sek::access_guard<int> i;
 	auto t1 = std::thread{thread_func, &i};
 	{
-		auto handle = i.access_unique();
+		auto handle = i.access();
 		std::this_thread::sleep_for(200ms);
 		EXPECT_EQ((*handle)++, 0);
 	}
 	{
 		std::this_thread::sleep_for(100ms);
-		auto handle = i.access_unique();
+		auto handle = i.access();
 		EXPECT_EQ(*handle, 2);
 	}
 	t1.join();
@@ -269,14 +269,14 @@ TEST(utility_tests, message_test)
 
 	{
 		auto guard = sek::engine::message_queue<test_message, sek::engine::message_scope::GLOBAL>::on_send();
-		auto proxy = guard.access_unique();
+		auto proxy = guard.access();
 
 		proxy->subscribe(sek::delegate<bool(const test_message &)>{filter, filter_ctr});
 		EXPECT_EQ(proxy->size(), 1);
 	}
 	{
 		auto guard = sek::engine::message_queue<test_message, sek::engine::message_scope::GLOBAL>::on_receive();
-		auto proxy = guard.access_unique();
+		auto proxy = guard.access();
 
 		proxy->subscribe(sek::delegate<bool(const test_message &)>{receiver, receiver_ctr});
 		EXPECT_EQ(proxy->size(), 1);
