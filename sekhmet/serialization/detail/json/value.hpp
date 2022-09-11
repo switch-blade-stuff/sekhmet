@@ -16,11 +16,11 @@
 
 namespace sek::serialization
 {
-	/** @brief Exception thrown by archives on runtime errors. */
+	/** @brief Exception thrown by `basic_json_object` on runtime errors. */
 	class SEK_API json_error : public archive_error
 	{
 	public:
-		json_error() : archive_error("Unknown archive error") {}
+		json_error() : archive_error("Unknown Json error") {}
 		explicit json_error(std::string &&msg) : archive_error(std::move(msg)) {}
 		explicit json_error(const std::string &msg) : archive_error(msg) {}
 		explicit json_error(const char *msg) : archive_error(msg) {}
@@ -303,7 +303,99 @@ namespace sek::serialization
 
 		class write_frame
 		{
-			friend class basic_json_object;
+		public:
+			write_frame(const write_frame &) = delete;
+			write_frame &operator=(const write_frame &) = delete;
+			write_frame(write_frame &&) = delete;
+			write_frame &operator=(write_frame &&) = delete;
+
+			/** Initializes a write frame archive for the specified Json object.
+			 * @note All previous contents of the object will be overwritten. */
+			constexpr write_frame(value_type &target) : m_target(target) { m_target.as_table().clear(); }
+
+			/** Returns reference to the target Json object of this frame. */
+			[[nodiscard]] constexpr value_type &target() noexcept { return m_target; }
+			/** @copydoc target */
+			[[nodiscard]] constexpr const value_type &target() const noexcept { return m_target; }
+
+			/** @brief Inserts a new Json object into the current container.
+			 * @param key Key used if the current container is a table.
+			 * @return Reference to the inserted Json object. */
+			[[nodiscard]] value_type &next(string_type &&key)
+			{
+				return next_impl([&key]() { return std::move(key); });
+			}
+			/** @copydoc next */
+			template<typename S>
+			[[nodiscard]] value_type &next(const S &key)
+			{
+				return next_impl([&key]() { return key; });
+			}
+			/** @copybrief next
+			 * @return Reference to the inserted Json object.
+			 * @note Key will be automatically generated using the current container position. */
+			[[nodiscard]] value_type &next()
+			{
+				return next_impl([&table = m_target.m_table]() { return detail::generate_key<C, T>(table.size()); });
+			}
+
+		private:
+			template<typename F>
+			[[nodiscard]] value_type &next_impl(F &&key_factory)
+			{
+				switch (m_target.type())
+				{
+					default: m_target.to_table();
+					case json_type::TABLE:
+					{
+						// clang-format off
+						return m_target.m_table
+							.emplace(std::piecewise_construct,
+									 std::forward_as_tuple(key_factory()),
+									 std::forward_as_tuple())
+							.first->second;
+						// clang-format on
+					}
+					case json_type::ARRAY: return m_target.m_array.emplace_back();
+				}
+			}
+
+			template<typename U, typename... Args>
+			void write_impl(value_type &target, U &&value, Args &&...args) const
+			{
+			}
+
+			template<typename U, typename... Args>
+			void write_impl(U &&value, Args &&...args)
+			{
+				write_impl(next(), std::forward<U>(value), std::forward<Args>(args)...);
+			}
+			template<typename U, typename... Args>
+			void write_impl(keyed_entry_t<C, U> value, Args &&...args)
+			{
+				write_impl(next(value.key), std::forward<U>(value.value), std::forward<Args>(args)...);
+			}
+			template<typename U>
+			void write_impl(container_size_t<U> size)
+			{
+				switch (m_target.m_type)
+				{
+					default: m_target.to_table();
+					case json_type::TABLE: m_target.m_table.reserve(static_cast<size_type>(size.value)); break;
+					case json_type::ARRAY: m_target.m_array.reserve(static_cast<size_type>(size.value)); break;
+				}
+			}
+			void write_impl(array_mode_t)
+			{
+				switch (m_target.m_type)
+				{
+					case json_type::ARRAY: break;
+					case json_type::TABLE: m_target.assert_empty();
+					default: m_target.to_array(); break;
+				}
+			}
+
+			value_type &m_target;
 		};
 
 	public:
@@ -903,19 +995,34 @@ namespace sek::serialization
 		// clang-format off
 		/** Writes the passed value to the Json object.
 		 * @param value Value to write.
-		 * @return Reference to this Json object. */
+		 * @return Reference to this Json object.
+		 * @note Overwrites all previous contents of the object. */
 		template<typename U>
 		basic_json_object &write(U &&value) requires is_compat_value<U>
 		{
 			write_impl(std::forward<U>(value));
 			return *this;
 		}
+		/** @copydoc write */
+		template<typename U>
+		basic_json_object &operator<<(U &&value) requires is_compat_value<U> { return write(std::forward<U>(value)); }
+
 		/** Serializes the passed value to the Json object.
 		 * @param value Value to serialize.
 		 * @param args Arguments forwarded to the serialization function.
-		 * @return Reference to this Json object. */
+		 * @return Reference to this Json object.
+		 * @throw json_error On serialization errors.
+		 * @note Overwrites all previous contents of the object. */
 		template<typename U, typename... Args>
-		basic_json_object &write(U &&value, Args &&...args) requires is_serializable<U, Args...>;
+		basic_json_object &write(U &&value, Args &&...args) requires(!is_compat_value<U> && is_serializable<U, Args...>)
+		{
+			write_frame frame{*this};
+			detail::do_serialize(std::forward<U>(value), frame, std::forward<Args>(args)...);
+			return *this;
+		}
+		/** @copydoc write */
+		template<typename U>
+		basic_json_object &operator<<(U &&value) requires(!is_compat_value<U> && is_serializable<U>) { return write(std::forward<U>(value)); }
 		// clang-format on
 
 		// clang-format off
@@ -952,6 +1059,11 @@ namespace sek::serialization
 		{
 			if (m_type != type) [[unlikely]]
 				detail::throw_invalid_type(type, m_type);
+		}
+		void assert_empty() const
+		{
+			if (!empty()) [[unlikely]]
+				throw json_error("Expected empty Json object");
 		}
 
 		void destroy_impl()

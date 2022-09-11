@@ -406,7 +406,7 @@ namespace sek
 		/** Returns maximum possible amount of elements in the set. */
 		[[nodiscard]] constexpr size_type max_size() const noexcept { return m_table.max_size(); }
 		/** Checks if the set is empty. */
-		[[nodiscard]] constexpr size_type empty() const noexcept { return size() == 0; }
+		[[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
 
 		/** Returns current amount of buckets in the set. */
 		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return m_table.bucket_count(); }

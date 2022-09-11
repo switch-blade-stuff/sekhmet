@@ -37,26 +37,11 @@ namespace sek::serialization::detail
 		return category;
 	}
 
-	template<std::size_t I, basic_static_string Str, typename C, std::size_t N, typename T>
-	[[nodiscard]] constexpr auto conv_prefix(basic_static_string<C, N, T> to) noexcept
-	{
-		if constexpr (I < Str.size())
-		{
-			to[I] = Str[I];
-			return conv_prefix<I + 1, Str>(to);
-		}
-		else
-			return to;
-	}
-	template<typename C, typename T, basic_static_string Str>
-	[[nodiscard]] constexpr auto conv_prefix() noexcept
-	{
-		return conv_prefix<0, Str>(basic_static_string<C, Str.size(), T>{});
-	}
 	template<typename C, typename T = std::char_traits<C>, basic_static_string Prefix>
-	[[nodiscard]] std::basic_string_view<C, T> generate_key(auto &alloc, std::size_t idx)
+	[[nodiscard]] std::basic_string<C, T> generate_key(std::size_t idx)
 	{
-		constexpr auto prefix = conv_prefix<C, T, Prefix>();
+		constexpr auto prefix = static_string_cast<C, T>(Prefix);
+		std::basic_string<C, T> result;
 
 		/* Format the current index into the buffer. */
 		C buffer[20];
@@ -67,16 +52,14 @@ namespace sek::serialization::detail
 			if (!(idx = idx / 10)) break;
 		}
 
-		auto key_size = SEK_ARRAY_SIZE(buffer) - i + prefix.size();
-		auto key_str = static_cast<C *>(alloc.allocate((key_size + 1) * sizeof(C)));
-		if (!key_str) [[unlikely]]
-			throw std::bad_cast();
+		const auto buffer_size = SEK_ARRAY_SIZE(buffer) - i;
+		const auto key_size = buffer_size + prefix.size();
+		result.reserve(key_size);
 
-		std::copy_n(prefix.data(), prefix.size(), key_str);								 /* Copy prefix. */
-		std::copy(buffer + i, buffer + SEK_ARRAY_SIZE(buffer), key_str + prefix.size()); /* Copy digits. */
-		key_str[key_size] = '\0';
+		result.append(prefix.data(), prefix.size()); /* Copy prefix. */
+		result.append(buffer + i, buffer_size);		 /* Copy digits. */
 
-		return {key_str, key_size};
+		return result;
 	}
 
 	// clang-format off
