@@ -228,26 +228,35 @@ namespace sek
 		/** Locates an element within the set.
 		 * @param key Key to search for.
 		 * @return Iterator to the element setped to key. */
-		constexpr const_iterator find(const key_type &key) const noexcept { return m_table.find(key); }
+		[[nodiscard]] constexpr const_iterator find(const key_type &key) const noexcept { return m_table.find(key); }
 		/** @copydoc find
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
-		constexpr const_iterator find(const auto &key) const noexcept
+		[[nodiscard]] constexpr const_iterator find(const auto &key) const noexcept
 			requires transparent_key
 		{
 			return m_table.find(key);
 		}
 		/** Checks if the set contains a specific element.
 		 * @param key Key to search for. */
-		constexpr bool contains(const key_type &key) const noexcept { return find(key) != end(); }
+		[[nodiscard]] constexpr bool contains(const key_type &key) const noexcept { return find(key) != end(); }
 		/** @copydoc contains
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
-		constexpr bool contains(const auto &key) const noexcept
+		[[nodiscard]] constexpr bool contains(const auto &key) const noexcept
 			requires transparent_key
 		{
 			return find(key) != end();
 		}
+
+		/** Returns reference to the first element of the set. */
+		[[nodiscard]] constexpr reference front() noexcept { return *begin(); }
+		/** @copydoc front */
+		[[nodiscard]] constexpr const_reference front() const noexcept { return *begin(); }
+		/** Returns reference to the last element of the set. */
+		[[nodiscard]] constexpr reference back() noexcept { return *rbegin(); }
+		/** @copydoc front */
+		[[nodiscard]] constexpr const_reference back() const noexcept { return *rbegin(); }
 
 		/** Empties the set's contents. */
 		constexpr void clear() { m_table.clear(); }

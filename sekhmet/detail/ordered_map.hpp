@@ -279,19 +279,19 @@ namespace sek
 		/** Locates an element for the specific key.
 		 * @param key Key to search for.
 		 * @return Iterator to the element mapped to key. */
-		constexpr auto find(const key_type &key) noexcept { return m_table.find(key); }
+		[[nodiscard]] constexpr auto find(const key_type &key) noexcept { return m_table.find(key); }
 		/** @copydoc find */
-		constexpr auto find(const key_type &key) const noexcept { return m_table.find(key); }
+		[[nodiscard]] constexpr auto find(const key_type &key) const noexcept { return m_table.find(key); }
 		/** @copydoc find
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
-		constexpr auto find(const auto &key) noexcept
+		[[nodiscard]] constexpr auto find(const auto &key) noexcept
 			requires transparent_key
 		{
 			return m_table.find(key);
 		}
 		/** @copydoc find */
-		constexpr auto find(const auto &key) const noexcept
+		[[nodiscard]] constexpr auto find(const auto &key) const noexcept
 			requires transparent_key
 		{
 			return m_table.find(key);
@@ -299,21 +299,30 @@ namespace sek
 
 		/** Checks if the map contains an element with specific key.
 		 * @param key Key to search for. */
-		constexpr bool contains(const key_type &key) const noexcept { return find(key) != end(); }
+		[[nodiscard]] constexpr bool contains(const key_type &key) const noexcept { return find(key) != end(); }
 		/** @copydoc contains
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
-		constexpr bool contains(const auto &key) noexcept
+		[[nodiscard]] constexpr bool contains(const auto &key) noexcept
 			requires transparent_key
 		{
 			return find(key) != end();
 		}
 
+		/** Returns reference to the first element of the map. */
+		[[nodiscard]] constexpr reference front() noexcept { return *begin(); }
+		/** @copydoc front */
+		[[nodiscard]] constexpr const_reference front() const noexcept { return *begin(); }
+		/** Returns reference to the last element of the map. */
+		[[nodiscard]] constexpr reference back() noexcept { return *rbegin(); }
+		/** @copydoc front */
+		[[nodiscard]] constexpr const_reference back() const noexcept { return *rbegin(); }
+
 		/** Returns reference to object mapped to the specific key.
 		 * @param key Key to search for.
 		 * @return Reference to the object mapped to key.
 		 * @throw std::out_of_range If the specified key is not present in the map. */
-		constexpr mapped_type &at(const key_type &key)
+		[[nodiscard]] constexpr mapped_type &at(const key_type &key)
 		{
 			if (auto iter = find(key); iter != end()) [[likely]]
 				return iter->second;
@@ -324,7 +333,7 @@ namespace sek
 		 * @param key Key to search for.
 		 * @return Reference to the object mapped to key.
 		 * @throw std::out_of_range If the specified key is not present in the map. */
-		constexpr const mapped_type &at(const key_type &key) const
+		[[nodiscard]] constexpr const mapped_type &at(const key_type &key) const
 		{
 			if (auto iter = find(key); iter != end()) [[likely]]
 				return iter->second;
@@ -334,7 +343,7 @@ namespace sek
 		/** @copydoc at
 		 * @note This overload participates in overload resolution only
 		 * if both key hasher and key comparator are transparent. */
-		constexpr mapped_type &at(const auto &key)
+		[[nodiscard]] constexpr mapped_type &at(const auto &key)
 			requires transparent_key
 		{
 			if (auto iter = find(key); iter != end()) [[likely]]
@@ -343,7 +352,7 @@ namespace sek
 				throw std::out_of_range("Specified key is not present within the map");
 		}
 		/** @copydoc at */
-		constexpr const mapped_type &at(const auto &key) const
+		[[nodiscard]] constexpr const mapped_type &at(const auto &key) const
 			requires transparent_key
 		{
 			if (auto iter = find(key); iter != end()) [[likely]]

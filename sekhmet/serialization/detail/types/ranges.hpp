@@ -29,15 +29,15 @@ namespace sek::serialization
 			}
 		}
 
+		// clang-format off
 		template<typename R>
-		concept map_like =
-			requires(R &r) {
+		concept map_like = requires(R &r)
+		{
 				requires std::ranges::forward_range<R>;
 				typename R::key_type;
 				typename R::mapped_type;
 				typename R::value_type;
 
-				// clang-format off
 				requires requires(typename R::value_type &v)
 				{
 					v.first;
@@ -49,15 +49,14 @@ namespace sek::serialization
 				{
 					r.emplace(std::forward<typename R::key_type>(k), std::forward<typename R::mapped_type>(m));
 				};
-				// clang-format on
-			};
+		};
 		template<typename R>
-		concept object_like = requires {
-								  // clang-format off
-								  requires map_like<R>;
-								  requires requires(const typename R::value_type &v) { sek::serialization::keyed_entry(v.first, v.second); };
-								  // clang-format on
-							  };
+		concept object_like = requires
+		{
+			requires map_like<R>;
+			requires requires(const typename R::value_type &v) { sek::serialization::keyed_entry(v.first, v.second); };
+		};
+		// clang-format on
 
 		template<typename K, typename M>
 		struct map_entry
@@ -70,11 +69,12 @@ namespace sek::serialization
 		};
 	}	 // namespace detail
 
+	// clang-format off
 	template<typename T, std::size_t N, typename A, typename... Args>
 	void deserialize(T (&data)[N], A &archive, Args &&...args)
 	{
 		auto data_item = std::ranges::begin(data), data_end = std::ranges::end(data);
-		if constexpr (structured_data_archive<A>)
+		if constexpr (std::ranges::forward_range<A>)
 		{
 			auto archive_entry = archive.begin(), archive_end = archive.end();
 			for (; data_item != data_end && archive_entry != archive_end; ++data_item, ++archive_entry)
@@ -88,11 +88,10 @@ namespace sek::serialization
 			}
 	}
 	template<std::ranges::forward_range T, typename A, typename... Args>
-	void deserialize(T &array, A &archive, Args &&...args)
-		requires(requires { typename std::tuple_size<T>::type; })
+	void deserialize(T &array, A &archive, Args &&...args) requires(requires { typename std::tuple_size<T>::type; })
 	{
 		auto data_item = std::ranges::begin(array), data_end = std::ranges::end(array);
-		if constexpr (structured_data_archive<A>)
+		if constexpr (std::ranges::forward_range<A>)
 		{
 			auto archive_entry = archive.begin(), archive_end = archive.end();
 			for (; data_item != data_end && archive_entry != archive_end; ++data_item, ++archive_entry)
@@ -107,8 +106,7 @@ namespace sek::serialization
 	}
 
 	template<std::ranges::forward_range M, typename A, typename... Args>
-	void deserialize(M &m, A &a, Args &&...args)
-		requires detail::map_like<M>
+	void deserialize(M &m, A &a, Args &&...args) requires detail::map_like<M>
 	{
 		/* Dummy used to read value pairs, since maps usually have const keys. */
 		using value_t = detail::map_entry<typename M::key_type, typename M::mapped_type>;
@@ -130,14 +128,13 @@ namespace sek::serialization
 
 		detail::reserve_range(m, a);
 
-		if constexpr (structured_data_archive<A>)
+		if constexpr (std::ranges::forward_range<A>)
 		{
 			std::size_t idx = 0;
 			auto entry_iter = a.begin();
 			auto archive_end = a.end();
 			for (; entry_iter != archive_end; ++entry_iter)
 			{
-				// clang-format off
 				constexpr auto keyed_entry = requires{ { entry_iter.has_key() } -> std::convertible_to<bool>; entry_iter.key(); };
 
 				if constexpr (keyed_entry && requires { m[entry_iter.key()] = entry_iter->read(std::in_place_type<typename M::mapped_type>, std::forward<Args>(args)...); })
@@ -159,7 +156,6 @@ namespace sek::serialization
 					auto value = archive_end->read(std::in_place_type<value_t>, std::forward<Args>(args)...);
 					m.emplace(forward_key(value.key), forward_mapped(value.mapped));
 				}
-				// clang-format on
 			}
 		}
 		else
@@ -172,26 +168,22 @@ namespace sek::serialization
 			}
 	}
 	template<std::ranges::forward_range M, typename A, typename... Args>
-	void serialize(const M &m, A &a, Args &&...args)
-		requires detail::object_like<M>
+	void serialize(const M &m, A &a, Args &&...args) requires detail::object_like<M>
 	{
-		// clang-format off
 		if constexpr (std::ranges::sized_range<M>)
 			a.write(container_size(std::ranges::size(m)), std::forward<Args>(args)...);
 		for (decltype(auto) pair : m)
 			a.write(keyed_entry(pair.first, pair.second), std::forward<Args>(args)...);
-		// clang-format on
 	}
 
 	template<std::ranges::forward_range R, typename A, typename... Args>
-	void deserialize(R &r, A &a, Args &&...args)
-		requires(!detail::map_like<R> && detail::has_push_back<R>)
+	void deserialize(R &r, A &a, Args &&...args) requires(!detail::map_like<R> && detail::has_push_back<R>)
 	{
 		detail::reserve_range(r, a);
 
 		using V = std::ranges::range_value_t<R>;
 		auto inserter = std::back_inserter(r);
-		if constexpr (structured_data_archive<A>)
+		if constexpr (std::ranges::forward_range<A>)
 			for (decltype(auto) entry : a) *inserter = entry.read(std::in_place_type<V>, std::forward<Args>(args)...);
 		else
 			for (;;)
@@ -207,19 +199,13 @@ namespace sek::serialization
 			}
 	}
 	template<std::ranges::forward_range R, typename A, typename... Args>
-	void deserialize(R &r, A &a, Args &&...args)
-		requires(!detail::map_like<R> && !detail::has_push_back<R> && detail::has_end_insert<R>)
+	void deserialize(R &r, A &a, Args &&...args) requires(!detail::map_like<R> && !detail::has_push_back<R> && detail::has_end_insert<R>)
 	{
 		detail::reserve_range(r, a);
 
 		using V = std::ranges::range_value_t<R>;
-		if constexpr (structured_data_archive<A>)
-		{
-			// clang-format off
-			for (decltype(auto) entry : a)
-				r.insert(r.end(), entry.read(std::in_place_type<V>, std::forward<Args>(args)...));
-			// clang-format on
-		}
+		if constexpr (std::ranges::forward_range<A>)
+			for (decltype(auto) entry : a) r.insert(r.end(), entry.read(std::in_place_type<V>, std::forward<Args>(args)...));
 		else
 			for (;;)
 			{
@@ -233,6 +219,7 @@ namespace sek::serialization
 					r.insert(r.end(), value);
 			}
 	}
+	// clang-format on
 
 	template<std::ranges::forward_range R, typename A, typename... Args>
 	void serialize(const R &range, A &archive, Args &&...args)

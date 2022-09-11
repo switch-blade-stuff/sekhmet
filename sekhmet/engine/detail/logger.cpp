@@ -14,9 +14,10 @@ namespace sek::engine
 		static void log_message(const typename L::string_type &msg) { fmt::print("{}\n", msg); }
 
 	public:
-		constexpr logger_init(const auto &level) : m_logger(level)
+		constexpr logger_init(const auto &level, bool enable = true) : m_logger(level)
 		{
 			m_logger.value().on_log() += delegate_func<log_message>;
+			if (!enable) m_logger.value().disable();
 		}
 
 		constexpr operator shared_guard<L> &() noexcept { return m_logger; }
@@ -40,7 +41,11 @@ namespace sek::engine
 	template<>
 	shared_guard<logger> &logger::debug()
 	{
+#ifndef SEK_DEBUG
+		static auto instance = logger_init<logger>{"DEBUG", false};
+#else
 		static auto instance = logger_init<logger>{"DEBUG"};
+#endif
 		return instance;
 	}
 	template<>

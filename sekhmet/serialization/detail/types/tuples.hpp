@@ -47,9 +47,9 @@ namespace sek::serialization
 		}
 	}	 // namespace detail
 
+	// clang-format off
 	template<typename T, typename A, typename... Args>
-	void serialize(const T &tuple, A &archive, Args &&...args)
-		requires(!std::ranges::forward_range<T> && detail::tuple_like<T>)
+	void serialize(const T &tuple, A &archive, Args &&...args) requires(!std::ranges::forward_range<T> && detail::tuple_like<T>)
 	{
 		if constexpr (std::tuple_size_v<T> != 0)
 		{
@@ -59,17 +59,14 @@ namespace sek::serialization
 		}
 	}
 	template<typename T, typename A, typename... Args>
-	void deserialize(T &tuple, A &archive, Args &&...args)
-		requires(!std::ranges::forward_range<T> && detail::tuple_like<T>)
+	void deserialize(T &tuple, A &archive, Args &&...args) requires(!std::ranges::forward_range<T> && detail::tuple_like<T>)
 	{
 		if constexpr (std::tuple_size_v<T> != 0)
-			detail::tuple_deserialize_unwrap(
-				std::make_index_sequence<std::tuple_size_v<T>>{}, tuple, archive, std::forward<Args>(args)...);
+			detail::tuple_deserialize_unwrap(std::make_index_sequence<std::tuple_size_v<T>>{}, tuple, archive, std::forward<Args>(args)...);
 	}
 
 	template<detail::pair_like T, typename A, typename... Args>
-	void serialize(const T &pair, A &archive, Args &&...args)
-		requires(!detail::tuple_like<T>)
+	void serialize(const T &pair, A &archive, Args &&...args) requires(!detail::tuple_like<T>)
 	{
 		/* Treat pairs as dynamic-size arrays, since in most cases using a fixed size will have more overhead (need to store a size). */
 		archive << array_mode();
@@ -77,10 +74,10 @@ namespace sek::serialization
 		archive.write(pair.second, std::forward<Args>(args)...);
 	}
 	template<detail::pair_like T, typename A, typename... Args>
-	void deserialize(T &pair, A &archive, Args &&...args)
-		requires(!detail::tuple_like<T>)
+	void deserialize(T &pair, A &archive, Args &&...args) requires(!detail::tuple_like<T>)
 	{
 		archive.read(pair.first, std::forward<Args>(args)...);
 		archive.read(pair.second, std::forward<Args>(args)...);
 	}
+	// clang-format on
 }	 // namespace sek::serialization

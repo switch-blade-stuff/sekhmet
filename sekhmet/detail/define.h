@@ -47,10 +47,11 @@
 #define SEK_IF_EDITOR(...)
 #endif
 
+#if !defined(SEK_DEBUG) && (!defined(NDEBUG) || defined(SEK_EDITOR))
+#define SEK_DEBUG
+#endif
+
 #ifdef __cplusplus
-#define SEK_HAS_OVERLOAD(func, ...)                                                                                    \
-	requires {                                                                                                         \
-		func(__VA_ARGS__);                                                                                             \
-	}
+#define SEK_HAS_OVERLOAD(func, ...) requires { func(__VA_ARGS__); }
 #define SEK_REQUIRES_OVERLOAD(func, ...) requires(SEK_HAS_OVERLOAD(func, __VA_ARGS__))
 #endif

@@ -36,12 +36,13 @@ namespace sek::engine
 		[[nodiscard]] static shared_guard<basic_logger> &info();
 		/** Returns the global warning logger. */
 		[[nodiscard]] static shared_guard<basic_logger> &warn();
-		/** Returns the global debug logger. */
-		[[nodiscard]] static shared_guard<basic_logger> &debug();
 		/** Returns the global error logger. */
 		[[nodiscard]] static shared_guard<basic_logger> &error();
 		/** Returns the global fatal logger. */
 		[[nodiscard]] static shared_guard<basic_logger> &fatal();
+		/** Returns the global debug logger.
+		 * @note This logger is disabled by default in release mode. */
+		[[nodiscard]] static shared_guard<basic_logger> &debug();
 
 	private:
 		constexpr static auto default_format = static_string_cast<value_type>("[{T:%H:%M:%S}][{L}]: {M}\n");
@@ -67,7 +68,7 @@ namespace sek::engine
 		 *
 		 * Format string should follow the `fmt` <a href="https://fmt.dev/latest/syntax.html#syntax">format string
 		 * syntax</a> with the following additional named arguments available by default:
-		 * 	* `M` - Main log message as `const string_type &`.
+		 * 	* `M` - Main log message as `const string_type &`. This is always the first argument.
 		 * 	* `L` - Level string as `const string_type &`.
 		 * 	* `T` - Current time as `std::tm`. */
 		template<typename L, typename F>
@@ -97,7 +98,7 @@ namespace sek::engine
 		 *
 		 * Format string should follow the `fmt` <a href="https://fmt.dev/latest/syntax.html#syntax">format string
 		 * syntax</a> with the following additional named arguments available by default:
-		 * 	* `M` - Main log message as `const string_type &`.
+		 * 	* `M` - Main log message as `const string_type &`. This is always the first argument.
 		 * 	* `L` - Level string as `const string_type &`.
 		 * 	* `T` - Current time as `std::tm`. */
 		template<typename S>
@@ -132,10 +133,9 @@ namespace sek::engine
 		basic_logger &log_explicit(const std::locale &loc, string_view_type msg, Args &&...args)
 		{
 			// clang-format off
-			string_type str = fmt::format(loc, m_format,
+			string_type str = fmt::format(loc, m_format, fmt::arg("M", msg), std::forward<Args>(args)...,
 										  fmt::arg("T", fmt::localtime(std::time(nullptr))),
-										  fmt::arg("L", m_level), fmt::arg("M", msg),
-										  std::forward<Args>(args)...);
+										  fmt::arg("L", m_level));
 			// clang-format on
 			m_log_event(str);
 			return *this;

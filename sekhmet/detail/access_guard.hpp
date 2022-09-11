@@ -17,22 +17,25 @@ namespace sek
 	{
 		// clang-format off
 		template<typename T>
-		concept basic_lockable = requires(T &value) {
-									 value.lock();
-									 value.unlock();
-								 };
+		concept basic_lockable = requires(T &value)
+		{
+			value.lock();
+			value.unlock();
+		};
 		template<typename T>
-		concept lockable = requires(T &value) {
-							   requires basic_lockable<T>;
-							   { value.try_lock() } -> std::same_as<bool>;
-						   };
+		concept lockable = requires(T &value)
+		{
+			requires basic_lockable<T>;
+			{ value.try_lock() } -> std::same_as<bool>;
+		};
 		template<typename T>
-		concept shared_lockable = requires(T &value) {
-									  requires lockable<T>;
-									  value.lock_shared();
-									  value.unlock_shared();
-									  { value.try_lock_shared() } -> std::same_as<bool>;
-								  };
+		concept shared_lockable = requires(T &value)
+		{
+			requires lockable<T>;
+			value.lock_shared();
+			value.unlock_shared();
+			{ value.try_lock_shared() } -> std::same_as<bool>;
+		};
 		// clang-format on
 	}	 // namespace detail
 
@@ -82,7 +85,7 @@ namespace sek
 	template<typename M>
 	mutex_ref(M &) -> mutex_ref<M>;
 
-	template<typename T, detail::basic_lockable Mutex>
+	template<typename T, detail::basic_lockable Mutex, bool>
 	class access_guard;
 
 	/** @brief Pointer-like accessor returned by `access_guard`. */
@@ -133,40 +136,20 @@ namespace sek
 		L m_lock;
 	};
 
-	namespace detail
-	{
-		template<typename T, typename M>
-		struct access_guard_typedef
-		{
-			typedef std::unique_lock<M> unique_lock;
-			typedef access_handle<T, unique_lock> unique_handle;
-		};
-		template<typename T, shared_lockable M>
-		struct access_guard_typedef<T, M>
-		{
-			typedef std::shared_lock<M> shared_lock;
-			typedef std::unique_lock<M> unique_lock;
-			typedef access_handle<std::add_const_t<T>, shared_lock> shared_handle;
-			typedef access_handle<T, unique_lock> unique_handle;
-		};
-	}	 // namespace detail
-
 	/** @brief Structure used to provide synchronized access to an instance of a type.
 	 * @tparam T Value type stored within the access guard.
 	 * @tparam Mutex Type of mutex used to synchronize instance of `T`. */
-	template<typename T, detail::basic_lockable Mutex = std::mutex>
-	class access_guard : public detail::access_guard_typedef<T, Mutex>
+	template<typename T, detail::basic_lockable Mutex = std::mutex, bool = false>
+	class access_guard
 	{
 	public:
 		typedef T value_type;
 		typedef Mutex mutex_type;
 
+		typedef std::unique_lock<Mutex> unique_lock;
+		typedef access_handle<T, unique_lock> unique_handle;
+
 	private:
-		constexpr static bool allow_shared = detail::shared_lockable<Mutex>;
-		constexpr static bool allow_try = detail::lockable<Mutex>;
-
-		using typedef_base = detail::access_guard_typedef<T, Mutex>;
-
 		template<std::size_t... Is, typename U, typename... Args>
 		[[nodiscard]] constexpr static U make_value(std::index_sequence<Is...>, std::tuple<Args...> args)
 		{
@@ -234,54 +217,69 @@ namespace sek
 			: m_value(std::forward<U>(value)), m_mtx(std::forward<V>(mtx))
 		{
 		}
+		// clang-format on
 
 		/** Acquires a unique lock and returns an accessor handle. */
-		[[nodiscard]] constexpr typename typedef_base::unique_handle access()
-		{
-			return {m_value, typename typedef_base::unique_lock{m_mtx}};
-		}
-		/** Attempts to acquire a unique lock and returns an optional accessor handle. */
-		[[nodiscard]] constexpr auto try_access() requires allow_try
-		{
-			using handle_t = typename typedef_base::unique_handle;
-			using lock_t = typename typedef_base::unique_lock;
-			using result_t = std::optional<handle_t>;
-			if (m_mtx.try_lock()) [[likely]]
-				return result_t{handle_t{m_value, lock_t{m_mtx, std::adopt_lock}}};
-			else
-				return result_t{std::nullopt};
-		}
+		[[nodiscard]] constexpr unique_handle access() { return unique_handle{m_value, unique_lock{m_mtx}}; }
+		/** @copydoc access */
+		[[nodiscard]] constexpr unique_handle operator->() { return access(); }
 
-		/** Acquires a shared lock and returns an accessor handle. */
-		[[nodiscard]] constexpr auto access_shared() requires allow_shared
-		{
-			return typename typedef_base::shared_handle{m_value, typename typedef_base::shared_lock{m_mtx}};
-		}
+		// clang-format off
 		/** Attempts to acquire a unique lock and returns an optional accessor handle. */
-		[[nodiscard]] constexpr auto try_access_shared() requires allow_shared
+		[[nodiscard]] constexpr std::optional<unique_handle> try_access() requires detail::lockable<Mutex>
 		{
-			using handle_t = typename typedef_base::shared_handle;
-			using lock_t = typename typedef_base::shared_lock;
-			using result_t = std::optional<handle_t>;
-			if (m_mtx.try_lock_shared()) [[likely]]
-				return result_t{handle_t{m_value, lock_t{m_mtx, std::adopt_lock}}};
+			if (m_mtx.try_lock()) [[likely]]
+				return {unique_handle{m_value, unique_lock{m_mtx, std::adopt_lock}}};
 			else
-				return result_t{std::nullopt};
+				return {std::nullopt};
 		}
 		// clang-format on
 
 		/** Returns reference to the underlying value. */
-		[[nodiscard]] constexpr auto &value() noexcept { return m_value; }
+		[[nodiscard]] constexpr std::remove_reference_t<value_type> &value() noexcept { return m_value; }
 		/** @copydoc value */
-		[[nodiscard]] constexpr const auto &value() const noexcept { return m_value; }
+		[[nodiscard]] constexpr const std::remove_cvref_t<value_type> &value() const noexcept { return m_value; }
+
 		/** Returns reference to the underlying mutex. */
-		[[nodiscard]] constexpr auto &mutex() noexcept { return m_mtx; }
+		[[nodiscard]] constexpr mutex_type &mutex() noexcept { return m_mtx; }
 		/** @copydoc mutex */
-		[[nodiscard]] constexpr const auto &mutex() const noexcept { return m_mtx; }
+		[[nodiscard]] constexpr const mutex_type &mutex() const noexcept { return m_mtx; }
 
 	private:
 		value_type m_value = {};
-		mutex_type m_mtx = {};
+		mutable mutex_type m_mtx = {};
+	};
+
+	/** @brief Overload of `access_guard` for shared mutex types. */
+	template<typename T, detail::basic_lockable Mutex>
+	class access_guard<T, Mutex, detail::shared_lockable<Mutex>> : public access_guard<T, Mutex, false>
+	{
+		using base_t = access_guard<T, Mutex, false>;
+
+	public:
+		typedef std::shared_lock<Mutex> shared_lock;
+		typedef access_handle<std::add_const_t<T>, shared_lock> shared_handle;
+
+	public:
+		using base_t::operator=;
+		using base_t::access_guard;
+
+		/** Acquires a shared lock and returns an accessor handle. */
+		[[nodiscard]] constexpr shared_handle access_shared() const
+		{
+			return shared_handle{base_t::m_value, shared_lock{base_t::m_mtx}};
+		}
+		/** @copydoc access_shared */
+		[[nodiscard]] constexpr shared_handle operator->() const { return access_shared(); }
+
+		/** Attempts to acquire a unique lock and returns an optional accessor handle. */
+		[[nodiscard]] constexpr std::optional<shared_handle> try_access_shared() const
+		{
+			if (base_t::m_mtx.try_lock_shared()) [[likely]]
+				return {shared_handle{base_t::m_value, shared_lock{base_t::m_mtx, std::adopt_lock}}};
+			else
+				return {std::nullopt};
+		}
 	};
 
 	template<typename T, typename M>

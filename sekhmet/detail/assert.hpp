@@ -57,7 +57,7 @@ namespace sek::detail
 #define SEK_NEVER_REACHED std::unreachable();
 #endif
 
-#if !defined(SEK_NO_DEBUG_ASSERT) && !defined(NDEBUG)
+#if !defined(SEK_NO_DEBUG_ASSERT) && defined(SEK_DEBUG)
 /** Assert that supports an optional message, prints the enclosing function name and terminates using exit(1).
  * @note Currently the message can only be a char literal. */
 #define SEK_ASSERT(...) SEK_ASSERT_ALWAYS(__VA_ARGS__)

@@ -4,7 +4,8 @@
 
 #pragma once
 
-#include "archive_traits.hpp"
+#include <type_traits>
+#include <string_view>
 
 namespace sek::serialization
 {
@@ -32,7 +33,7 @@ namespace sek::serialization
 		return keyed_entry_t<C, T>{key, std::forward<T>(value)};
 	}
 	/** @copydoc keyed_entry */
-	template<typename K, typename T, typename C = typename std::decay_t<K>::traits_type::char_type>
+	template<typename K, typename T, typename C = typename std::remove_reference_t<K>::traits_type::char_type>
 	constexpr keyed_entry_t<C, T> keyed_entry(K &&key, T &&value) noexcept(detail::noexcept_fwd<T>)
 		requires std::constructible_from<std::basic_string_view<C>, K>
 	{
@@ -74,7 +75,7 @@ namespace sek::serialization
 	 * @note An archive is allowed to ignore this manipulator. */
 	template<typename T>
 	constexpr container_size_t<T> container_size(T &&size) noexcept
-		requires std::integral<std::decay_t<T>>
+		requires std::integral<std::remove_reference_t<T>>
 	{
 		return container_size_t<T>{std::forward<T>(size)};
 	}
