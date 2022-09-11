@@ -64,29 +64,19 @@ namespace sek::serialization::detail
 
 	// clang-format off
 	template<typename T, typename A, typename... Args>
-	constexpr void do_serialize(const T &value, A &archive, Args &&...args) requires serializable_with<T, A, Args...> || serializable_with<T, A>
+	constexpr void do_serialize(const T &value, A &archive, Args &&...args) requires serializable_with<T, A, Args...>
 	{
-		if constexpr (serializable_with<T, A, Args...>)
-			serializer<T, A>::serialize(value, archive, std::forward<Args>(args)...);
-		else
-			serializer<T, A>::serialize(value, archive);
+		serializer<T, A>::serialize(value, archive, std::forward<Args>(args)...);
 	}
 	template<typename T, typename A, typename... Args>
-	constexpr void do_deserialize(T &value, A &archive, Args &&...args) requires deserializable_with<T, A, Args...> || deserializable_with<T, A>
+	constexpr void do_deserialize(T &value, A &archive, Args &&...args) requires deserializable_with<T, A, Args...>
 	{
-		if constexpr (deserializable_with<T, A, Args...>)
-			serializer<T, A>::deserialize(value, archive, std::forward<Args>(args)...);
-		else
-			serializer<T, A>::deserialize(value, archive);
+		serializer<T, A>::deserialize(value, archive, std::forward<Args>(args)...);
 	}
 	template<typename T, typename A, typename... Args>
-	[[nodiscard]] constexpr T do_deserialize(std::in_place_type_t<T>, A &archive, Args &&...args)
-		requires in_place_deserializable_with<T, A, Args...> || in_place_deserializable_with<T, A>
+	[[nodiscard]] constexpr T do_deserialize(std::in_place_type_t<T>, A &archive, Args &&...args) requires in_place_deserializable_with<T, A, Args...>
 	{
-		if constexpr (in_place_deserializable_with<T, A, Args...>)
-			return serializer<T, A>::deserialize(std::in_place, archive, std::forward<Args>(args)...);
-		else
-			return serializer<T, A>::deserialize(std::in_place, archive);
+		return serializer<T, A>::deserialize(std::in_place, archive, std::forward<Args>(args)...);
 	}
 	// clang-format on
 }	 // namespace sek::serialization::detail
