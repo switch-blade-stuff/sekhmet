@@ -29,6 +29,13 @@ namespace sek::serialization
 		};
 		// clang-format on
 
+		template<pair_like P>
+		struct pair_traits
+		{
+			using first_type = std::remove_cvref_t<decltype(std::declval<P>().first)>;
+			using second_type = std::remove_cvref_t<decltype(std::declval<P>().second)>;
+		};
+
 		template<detail::tuple_like T, typename A, typename... Args, std::size_t I, std::size_t... Is>
 		void tuple_serialize_unwrap(std::index_sequence<I, Is...>, const T &t, A &a, Args &&...args)
 		{

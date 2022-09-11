@@ -83,41 +83,64 @@ namespace sek::serialization
 
 	private:
 		template<typename U>
-		constexpr static bool is_compatible_bool = std::is_convertible_v<U, bool> && !std::integral<U>;
+		constexpr static bool is_compat_bool = std::is_convertible_v<U, bool> && !std::integral<U>;
 		template<typename U>
-		constexpr static bool is_compatible_string = std::is_constructible_v<string_type, U> && !std::integral<U>;
-
-		template<detail::pair_like U, typename... Args>
-		[[nodiscard]] constexpr static bool is_compatible_table_pair() noexcept
-		{
-			using first_t = std::remove_cvref_t<decltype(std::declval<U>().first)>;
-			using second_t = std::remove_cvref_t<decltype(std::declval<U>().second)>;
-			return is_compatible_string<first_t> && std::constructible_from<basic_json_object, second_t, Args...>;
-		}
-		template<typename U, typename... Args>
-		[[nodiscard]] constexpr static bool is_compatible_table_pair() noexcept
-		{
-			return false;
-		}
+		constexpr static bool is_compat_string = std::is_constructible_v<string_type, U> && !std::integral<U>;
 
 		// clang-format off
-		template<typename U, typename... Args>
-		constexpr static bool is_compatible_table = std::ranges::range<U> && is_compatible_table_pair<std::ranges::range_value_t<U>, Args...>();
-		template<typename U, typename... Args>
-		constexpr static bool is_compatible_array = std::ranges::range<U> && std::constructible_from<basic_json_object, U, Args...> &&
-				                                    !is_compatible_table_pair<std::ranges::range_value_t<U>, Args...>();
+		template<typename U>
+		struct is_table_pair_impl : std::false_type
+		{
+		};
+		template<detail::pair_like U>
+		struct is_table_pair_impl<U> : std::bool_constant<
+			std::constructible_from<basic_json_object, typename detail::pair_traits<U>::second_type> &&
+			is_compat_string<typename detail::pair_traits<U>::first_type>>
+		{
+		};
 		// clang-format on
 
-		template<typename U, typename... Args>
-		constexpr static bool is_value = is_compatible_string<U> || std::integral<U> || std::floating_point<U> ||
-										 is_compatible_bool<U> || is_compatible_table<U, Args...> ||
-										 is_compatible_array<U, Args...>;
+		template<typename U>
+		constexpr static bool is_table_pair = is_table_pair_impl<std::remove_reference_t<U>>::value;
+
+		template<typename U>
+		struct is_compat_table_impl : std::false_type
+		{
+		};
+		template<std::ranges::range U>
+		struct is_compat_table_impl<U> : std::bool_constant<is_table_pair<U>>
+		{
+		};
+
+		template<typename U>
+		constexpr static bool is_compat_table = is_compat_table_impl<std::remove_reference_t<U>>::value;
+
+		// clang-format off
+		template<typename U>
+		struct is_compat_array_impl : std::false_type
+		{
+		};
+		template<std::ranges::range U>
+		struct is_compat_array_impl<U> : std::bool_constant<std::constructible_from<basic_json_object, U> && !is_table_pair<U>>
+		{
+		};
+		// clang-format on
+
+		template<typename U>
+		constexpr static bool is_compat_array = is_compat_array_impl<std::remove_reference_t<U>>::value;
+
+		template<typename U>
+		constexpr static bool is_compat_value = is_compat_bool<U> || std::integral<U> || std::floating_point<U> ||
+												is_compat_string<U> || is_compat_table<U> || is_compat_array<U>;
+
 		template<typename U, typename... Args>
 		constexpr static bool is_serializable = serializable_with<U, basic_json_object, Args...>;
 
 		template<bool IsConst>
 		class object_iterator
 		{
+			friend class basic_json_object;
+
 			// clang-format off
 			using table_iter = std::conditional_t<IsConst, typename table_type::const_iterator, typename table_type::iterator>;
 			using array_iter = std::conditional_t<IsConst, typename array_type::const_iterator, typename array_type::iterator>;
@@ -134,6 +157,10 @@ namespace sek::serialization
 			typedef std::ptrdiff_t difference_type;
 
 			typedef std::bidirectional_iterator_tag iterator_category;
+
+		private:
+			constexpr explicit object_iterator(table_iter iter) noexcept : m_table(iter) {}
+			constexpr explicit object_iterator(array_iter iter) noexcept : m_array(iter), m_is_array(true) {}
 
 		public:
 			constexpr object_iterator() noexcept = default;
@@ -269,6 +296,16 @@ namespace sek::serialization
 			std::construct_at(&a, std::move(tmp));
 		}
 
+		class read_frame
+		{
+			friend class basic_json_object;
+		};
+
+		class write_frame
+		{
+			friend class basic_json_object;
+		};
+
 	public:
 		/** Initializes an empty Json table object. */
 		constexpr basic_json_object() noexcept : m_table(), m_type(json_type::TABLE) {}
@@ -301,66 +338,112 @@ namespace sek::serialization
 		// clang-format on
 
 		/** Initializes a null object. */
-		constexpr basic_json_object(std::nullptr_t) noexcept : m_type(json_type::NULL_VALUE) {}
+		constexpr basic_json_object(std::nullptr_t) noexcept : basic_json_object(std::in_place_type<std::nullptr_t>) {}
+		/** @copydoc basic_json_object */
+		constexpr basic_json_object(std::in_place_type_t<std::nullptr_t>) noexcept : m_type(json_type::NULL_VALUE) {}
 
 		// clang-format off
-		/** Initializes a boolean object. */
+		/** Initializes a boolean object.
+		 * @param value Value of the boolean. */
 		template<typename U>
-		constexpr basic_json_object(U &&object) noexcept requires is_compatible_bool<std::remove_reference_t<U>>
-			: m_bool(static_cast<bool>(object)), m_type(json_type::BOOL) {}
-		/** Initializes a floating-point number object. */
+		constexpr basic_json_object(U &&value) noexcept requires is_compat_bool<U>
+			: basic_json_object(std::in_place_type<bool>, std::forward<U>(value)) {}
+		/** Initializes a boolean object in-place.
+		 * @param value Value of the boolean. */
 		template<typename U>
-		constexpr basic_json_object(U &&object) noexcept requires std::floating_point<std::remove_reference_t<U>>
-			: m_float(static_cast<float_type>(object)), m_type(json_type::FLOAT) {}
-		/** Initializes an integer number object. */
+		constexpr basic_json_object(std::in_place_type_t<bool>, U &&value) noexcept requires std::constructible_from<bool, U>
+			: m_bool(std::forward<U>(value)), m_type(json_type::BOOL) {}
+
+		/** Initializes a signed integer object.
+		 * @param value Value of the integer.  */
 		template<typename U>
-		constexpr basic_json_object(U &&object) noexcept requires(std::integral<std::remove_reference_t<U>> && std::is_signed_v<std::remove_reference_t<U>>)
-			: m_int(static_cast<int_type>(object)), m_type(json_type::INT)
-		{
-		}
-		/** @copydoc basic_json_object */
+		constexpr basic_json_object(U &&value) noexcept requires(std::integral<U> && std::is_signed_v<U>)
+			: basic_json_object(std::in_place_type<int_type>, std::forward<U>(value)) {}
+		/** Initializes a signed integer object in-place.
+		 * @param value Value of the integer. */
 		template<typename U>
-		constexpr basic_json_object(U &&object) noexcept requires(std::integral<std::remove_reference_t<U>> && !std::is_signed_v<std::remove_reference_t<U>>)
-			: m_uint(static_cast<uint_type>(object)), m_type(json_type::UINT)
-		{
-		}
+		constexpr basic_json_object(std::in_place_type_t<int_type>, U &&value) noexcept requires std::constructible_from<int_type, U>
+			: m_int(std::forward<U>(value)), m_type(json_type::INT) {}
+
+		/** Initializes an unsigned integer object.
+		 * @param value Value of the integer. */
+		template<typename U>
+		constexpr basic_json_object(U &&value) noexcept requires(std::integral<U> && !std::is_signed_v<U>)
+			: basic_json_object(std::in_place_type<uint_type>, std::forward<U>(value)) {}
+		/** Initializes an unsigned integer object in-place.
+		 * @param value Value of the integer. */
+		template<typename U>
+		constexpr basic_json_object(std::in_place_type_t<uint_type>, U &&value) noexcept requires std::constructible_from<uint_type, U>
+			: m_uint(std::forward<U>(value)), m_type(json_type::UINT) {}
+
+		/** Initializes a floating-point number object.
+		 * @param value Value of the floating-point number. */
+		template<typename U>
+		constexpr basic_json_object(U &&value) noexcept requires std::floating_point<U>
+			: basic_json_object(std::in_place_type<float_type>, std::forward<U>(value)) {}
+		/** Initializes a floating-point number object in-place.
+		 * @param value Value of the floating-point number. */
+		template<typename U>
+		constexpr basic_json_object(std::in_place_type_t<float_type>, U &&value) noexcept requires std::constructible_from<float_type, U>
+			: m_float(std::forward<U>(value)), m_type(json_type::FLOAT) {}
 
 		/** Initializes a string object.
-		 * @param object Value passed to the string's constructor.
+		 * @param value Value passed to string's constructor.
 		 * @param alloc Allocator used for the string. */
 		template<typename U>
-		basic_json_object(U &&object, const string_allocator &alloc = {}) requires is_compatible_string<std::remove_reference_t<U>>
-			: m_string(std::forward<U>(object), alloc), m_type(json_type::STRING)
-		{
-		}
-		/** Initializes a Json table.
-		 * @param object Value passed to the table's constructor.
-		 * @param alloc Allocator used for the table. */
-		template<typename U>
-		basic_json_object(U &&object, const table_allocator &alloc = {}) requires is_compatible_table<std::remove_reference_t<U>>
-			: m_table(std::forward<U>(object), alloc), m_type(json_type::TABLE)
-		{
-		}
-		/** Initializes a Json table from an initializer list of key-object pairs.
-		 * @param il Initializer list containing key-object pairs of the table.
+		basic_json_object(U &&value, const string_allocator &alloc = {}) requires is_compat_string<U>
+			: basic_json_object(std::in_place_type<string_type>, std::forward<U>(value), alloc) {}
+		/** Initializes a string object in-place.
+		 * @param args Arguments passed to string's constructor. */
+		template<typename... Args>
+		basic_json_object(std::in_place_type_t<string_type>, Args &&...args) requires std::constructible_from<string_type, Args...>
+			: m_string(std::forward<Args>(args)...), m_type(json_type::STRING) {}
+
+		/** Initializes a Json table from an initializer list of key-value pairs.
+		 * @param il Initializer list containing key-value pairs of the table.
 		 * @param alloc Allocator used for the table. */
 		basic_json_object(std::initializer_list<typename table_type::object_type> il, const table_allocator &alloc = {})
-			: m_table(il, alloc), m_type(json_type::TABLE)
-		{
-		}
-		/** Initializes a Json array.
-		 * @param object Value passed to the array's constructor.
+			: basic_json_object(std::in_place_type<table_type>, il, alloc) {}
+		/** Initializes a Json table.
+		 * @param value Value passed to table's constructor.
+		 * @param alloc Allocator used for the table. */
+		template<typename U>
+		basic_json_object(U &&value, const table_allocator &alloc = {}) requires std::constructible_from<table_type, U, const array_allocator &>
+			: basic_json_object(std::in_place_type<table_type>, std::forward<U>(value), alloc) {}
+		/** Initializes a Json table from a range of elements.
+		 * @param value Range containing table elements.
 		 * @param alloc Allocator used for the array. */
 		template<typename U>
-		basic_json_object(U &&object, const array_allocator &alloc = {}) requires is_compatible_array<std::remove_reference_t<U>>
-			: m_array(std::forward<U>(object), alloc), m_type(json_type::ARRAY)
-		{
-		}
-		/** Initializes a Json array from an initializer list of objects.
-		 * @param il Initializer list containing objects of the array.
+		basic_json_object(U &&value, const array_allocator &alloc = {}) requires(!std::constructible_from<table_type, U, const array_allocator &> && is_compat_table<U>)
+			: basic_json_object(std::in_place_type<table_type>, std::begin(value), std::end(value), alloc) {}
+		/** Initializes a Json table in-place.
+		 * @param args Arguments passed to table's constructor. */
+		template<typename... Args>
+		basic_json_object(std::in_place_type_t<table_type>, Args &&...args) requires std::constructible_from<table_type, Args...>
+			: m_table(std::forward<Args>(args)...), m_type(json_type::TABLE) {}
+
+		/** Initializes a Json array from an initializer list of value.
+		 * @param il Initializer list containing value of the array.
 		 * @param alloc Allocator used for the array. */
 		basic_json_object(std::initializer_list<typename array_type::object_type> il, const array_allocator &alloc = {})
-			: m_array(il, alloc), m_type(json_type::ARRAY)
+			: basic_json_object(std::in_place_type<array_type>, il, alloc) {}
+		/** Initializes a Json array.
+		 * @param value Value passed to the array's constructor.
+		 * @param alloc Allocator used for the array. */
+		template<typename U>
+		basic_json_object(U &&value, const array_allocator &alloc = {}) requires std::constructible_from<array_type, U, const array_allocator &>
+			: basic_json_object(std::in_place_type<array_type>, std::forward<U>(value), alloc) {}
+		/** Initializes a Json array from a range of elements.
+		 * @param value Range containing array elements.
+		 * @param alloc Allocator used for the array. */
+		template<typename U>
+		basic_json_object(U &&value, const array_allocator &alloc = {}) requires(!std::constructible_from<array_type, U, const array_allocator &> && is_compat_array<U>)
+			: basic_json_object(std::in_place_type<array_type>, std::begin(value), std::end(value), alloc) {}
+		/** Initializes a Json array in-place.
+		 * @param args Arguments passed to array's constructor. */
+		template<typename... Args>
+		basic_json_object(std::in_place_type_t<array_type>, Args &&...args) requires std::constructible_from<array_type, Args...>
+			: m_array(std::forward<Args>(args)...), m_type(json_type::ARRAY)
 		{
 		}
 		// clang-format on
@@ -818,6 +901,24 @@ namespace sek::serialization
 		}
 
 		// clang-format off
+		/** Writes the passed value to the Json object.
+		 * @param value Value to write.
+		 * @return Reference to this Json object. */
+		template<typename U>
+		basic_json_object &write(U &&value) requires is_compat_value<U>
+		{
+			write_impl(std::forward<U>(value));
+			return *this;
+		}
+		/** Serializes the passed value to the Json object.
+		 * @param value Value to serialize.
+		 * @param args Arguments forwarded to the serialization function.
+		 * @return Reference to this Json object. */
+		template<typename U, typename... Args>
+		basic_json_object &write(U &&value, Args &&...args) requires is_serializable<U, Args...>;
+		// clang-format on
+
+		// clang-format off
 		constexpr void swap(basic_json_object &other)
 			noexcept(std::is_nothrow_move_constructible_v<string_type> &&
 					 std::is_nothrow_move_constructible_v<table_type> &&
@@ -836,7 +937,7 @@ namespace sek::serialization
 					case json_type::STRING: swap(m_string, other.m_string); break;
 					case json_type::TABLE: swap(m_table, other.m_table); break;
 					case json_type::ARRAY: swap(m_array, other.m_array); break;
-					default: swap(m_value_pad, other.m_value_pad); break;
+					default: swap(m_literal_pad, other.m_literal_pad); break;
 				}
 			}
 		}
@@ -870,7 +971,7 @@ namespace sek::serialization
 				case json_type::TABLE: std::construct_at(&m_table, std::move(other.m_table)); break;
 				case json_type::ARRAY: std::construct_at(&m_array, std::move(other.m_array)); break;
 				case json_type::STRING: std::construct_at(&m_string, std::move(other.m_string)); break;
-				default: m_value_pad = other.m_value_pad; break;
+				default: m_literal_pad = other.m_literal_pad; break;
 			}
 		}
 		void copy_init(basic_json_object &other)
@@ -880,7 +981,7 @@ namespace sek::serialization
 				case json_type::TABLE: std::construct_at(&m_table, other.m_table); break;
 				case json_type::ARRAY: std::construct_at(&m_array, other.m_array); break;
 				case json_type::STRING: std::construct_at(&m_string, other.m_string); break;
-				default: m_value_pad = other.m_value_pad; break;
+				default: m_literal_pad = other.m_literal_pad; break;
 			}
 		}
 		void move_assign(basic_json_object &other)
@@ -897,7 +998,7 @@ namespace sek::serialization
 					case json_type::TABLE: m_table = std::move(other.m_table); break;
 					case json_type::ARRAY: m_array = std::move(other.m_array); break;
 					case json_type::STRING: m_string = std::move(other.m_string); break;
-					default: m_value_pad = other.m_value_pad; break;
+					default: m_literal_pad = other.m_literal_pad; break;
 				}
 		}
 		void copy_assign(basic_json_object &other)
@@ -914,7 +1015,7 @@ namespace sek::serialization
 					case json_type::TABLE: m_table = other.m_table; break;
 					case json_type::ARRAY: m_array = other.m_array; break;
 					case json_type::STRING: m_string = other.m_string; break;
-					default: m_value_pad = other.m_value_pad; break;
+					default: m_literal_pad = other.m_literal_pad; break;
 				}
 		}
 
@@ -926,66 +1027,66 @@ namespace sek::serialization
 
 		// clang-format off
 		template<typename U>
-		void write_impl(U &&object) noexcept requires is_compatible_bool<std::remove_reference_t<U>>
+		void write_impl(U &&value) noexcept requires is_compat_bool<std::remove_reference_t<U>>
 		{
-			m_bool = static_cast<bool>(object);
+			m_bool = static_cast<bool>(value);
 			m_type = json_type::BOOL;
 		}
 		template<typename U>
-		void write_impl(U &&object) noexcept requires std::integral<std::remove_reference_t<U>>
+		void write_impl(U &&value) noexcept requires std::integral<std::remove_reference_t<U>>
 		{
 			destroy_impl();
 			if constexpr (std::is_signed_v<U>)
 			{
-				m_int = static_cast<int_type>(object);
+				m_int = static_cast<int_type>(value);
 				m_type = json_type::INT;
 			}
 			else
 			{
-				m_uint = static_cast<uint_type>(object);
+				m_uint = static_cast<uint_type>(value);
 				m_type = json_type::UINT;
 			}
 		}
 		template<typename U>
-		void write_impl(U &&object) noexcept requires std::floating_point<std::remove_reference_t<U>>
+		void write_impl(U &&value) noexcept requires std::floating_point<std::remove_reference_t<U>>
 		{
 			destroy_impl();
-			m_float = static_cast<float_type>(object);
+			m_float = static_cast<float_type>(value);
 			m_type = json_type::FLOAT;
 		}
 		template<typename U>
-		void write_impl(U &&object) requires is_compatible_string<std::remove_reference_t<U>>
+		void write_impl(U &&value) requires is_compat_string<std::remove_reference_t<U>>
 		{
 			if (is_string())
-				m_string = string_type{std::forward<U>(object)};
+				m_string = string_type{std::forward<U>(value)};
 			else
 			{
 				destroy_impl();
-				std::construct_at(&m_string, std::forward<U>(object));
+				std::construct_at(&m_string, std::forward<U>(value));
 				m_type = json_type::STRING;
 			}
 		}
 		template<typename U>
-		void write_impl(U &&object) requires is_compatible_array<std::remove_reference_t<U>>
+		void write_impl(U &&value) requires is_compat_array<std::remove_reference_t<U>>
 		{
 			if (is_array())
-				m_array = array_type{std::forward<U>(object)};
+				m_array = array_type{std::forward<U>(value)};
 			else
 			{
 				destroy_impl();
-				std::construct_at(&m_array, std::forward<U>(object));
+				std::construct_at(&m_array, std::forward<U>(value));
 				m_type = json_type::ARRAY;
 			}
 		}
 		template<typename U>
-		void write_impl(U &&object) requires is_compatible_table<std::remove_reference_t<U>>
+		void write_impl(U &&value) requires is_compat_table<std::remove_reference_t<U>>
 		{
 			if (is_table())
-				m_table = table_type{std::forward<U>(object)};
+				m_table = table_type{std::forward<U>(value)};
 			else
 			{
 				destroy_impl();
-				std::construct_at(&m_table, std::forward<U>(object));
+				std::construct_at(&m_table, std::forward<U>(value));
 				m_type = json_type::TABLE;
 			}
 		}
@@ -993,7 +1094,7 @@ namespace sek::serialization
 
 		union
 		{
-			std::byte m_value_pad[std::max(sizeof(int_type), sizeof(float_type))] = {};
+			std::byte m_literal_pad[std::max(sizeof(int_type), sizeof(float_type))] = {};
 
 			bool m_bool;
 			int_type m_int;

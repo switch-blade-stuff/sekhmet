@@ -479,9 +479,22 @@ namespace sek::detail
 		constexpr size_type insert(Iter first, Iter last)
 		{
 			size_type inserted = 0;
+			while (first != last) inserted += emplace(*first++).second;
+			return inserted;
+		}
+		constexpr size_type insert(iterator first, iterator last)
+		{
+			size_type inserted = 0;
 			while (first != last) inserted += insert(*first++).second;
 			return inserted;
 		}
+		constexpr size_type insert(const_iterator first, const_iterator last)
+		{
+			size_type inserted = 0;
+			while (first != last) inserted += insert(*first++).second;
+			return inserted;
+		}
+
 		constexpr std::pair<iterator, bool> insert(const Value &value) { return insert_impl(get_key(value), value); }
 		constexpr std::pair<iterator, bool> insert(Value &&value)
 		{
@@ -492,9 +505,10 @@ namespace sek::detail
 		constexpr size_type try_insert(Iter first, Iter last)
 		{
 			size_type inserted = 0;
-			while (first != last) inserted += try_insert(*first++).second;
+			while (first != last) inserted += try_emplace(*first++).second;
 			return inserted;
 		}
+
 		constexpr std::pair<iterator, bool> try_insert(const Value &value)
 		{
 			return try_insert_impl(get_key(value), value);

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <bit>
 
+#include "../math/detail/util.hpp"
 #include "alloc_util.hpp"
 #include "assert.hpp"
 #include "ebo_base_helper.hpp"
@@ -400,7 +401,7 @@ namespace sek::detail
 			const auto alloc_max = static_cast<size_type>(bucket_alloc_traits::max_size(get_allocator()));
 
 			/* Max size cannot exceed max load factor of max capacity. */
-			return static_cast<size_type>(static_cast<float>(min(absolute_max, alloc_max) / sizeof(value_type)) *
+			return static_cast<size_type>(static_cast<float>(std::min(absolute_max, alloc_max)) / sizeof(value_type) *
 										  max_load_factor);
 		}
 		[[nodiscard]] constexpr size_type bucket_count() const noexcept { return m_buckets_capacity; }
@@ -423,7 +424,8 @@ namespace sek::detail
 		constexpr void rehash(size_type new_cap)
 		{
 			/* Adjust the capacity to be at least large enough to fit the current load count. */
-			new_cap = math::max(static_cast<size_type>(static_cast<float>(size()) / max_load_factor), new_cap, initial_capacity);
+			new_cap = std::max(std::max(static_cast<size_type>(static_cast<float>(size()) / max_load_factor), new_cap),
+							   initial_capacity);
 
 			/* Quadratic search implementation requires power of 2 capacity, since the c1 and c2 constants are 0.5. */
 			new_cap = math::next_pow_2(new_cap);
@@ -500,18 +502,31 @@ namespace sek::detail
 			return {iterator_from_bucket(dest), inserted};
 		}
 
-		template<std::forward_iterator Iterator>
-		constexpr size_type insert(Iterator first, Iterator last)
+		template<std::forward_iterator Iter>
+		constexpr size_type insert(Iter first, Iter last)
 		{
 			size_type amount = 0;
-			for (; first != last; ++first) amount += insert(*first).second ? 1 : 0;
+			for (; first != last; ++first) amount += emplace(*first).second;
 			return amount;
 		}
-		template<std::forward_iterator Iterator>
-		constexpr size_type try_insert(Iterator first, Iterator last)
+		constexpr size_type insert(iterator first, iterator last)
 		{
 			size_type amount = 0;
-			for (; first != last; ++first) amount += try_insert(*first).second ? 1 : 0;
+			for (; first != last; ++first) amount += insert(*first).second;
+			return amount;
+		}
+		constexpr size_type insert(const_iterator first, const_iterator last)
+		{
+			size_type amount = 0;
+			for (; first != last; ++first) amount += insert(*first).second;
+			return amount;
+		}
+
+		template<std::forward_iterator Iter>
+		constexpr size_type try_insert(Iter first, Iter last)
+		{
+			size_type amount = 0;
+			for (; first != last; ++first) amount += try_insert(*first).second;
 			return amount;
 		}
 
