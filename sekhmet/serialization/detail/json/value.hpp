@@ -451,12 +451,7 @@ namespace sek::serialization
 			template<typename U>
 			write_frame &write(container_size_t<U> size)
 			{
-				switch (m_target.m_type)
-				{
-					default: m_target.to_table();
-					case json_type::TABLE: m_target.m_table.reserve(static_cast<size_type>(size.value)); break;
-					case json_type::ARRAY: m_target.m_array.reserve(static_cast<size_type>(size.value)); break;
-				}
+				m_target.write(size);
 				return *this;
 			}
 			/** @copydoc write */
@@ -471,12 +466,7 @@ namespace sek::serialization
 			 * @throw json_error If the target Json object is a non-empty table. */
 			write_frame &write(array_mode_t)
 			{
-				switch (m_target.m_type)
-				{
-					case json_type::ARRAY: break;
-					case json_type::TABLE: m_target.assert_empty();
-					default: m_target.to_array(); break;
-				}
+				m_target.write(array_mode());
 				return *this;
 			}
 			/** @copydoc write */
@@ -488,7 +478,7 @@ namespace sek::serialization
 			{
 				switch (m_target.type())
 				{
-					default: m_target.to_table();
+					default: m_target.as_table();
 					case json_type::TABLE:
 					{
 						// clang-format off
@@ -1485,6 +1475,44 @@ namespace sek::serialization
 		template<typename U>
 		basic_json_object &operator<<(U &&value) requires is_serializable<U> { return write(std::forward<U>(value)); }
 		// clang-format on
+
+		/** Uses the provided size hint to reserve space in the current container (array or table).
+		 * @param size `container_size_t` instance containing the size hint.
+		 * @return Reference to this Json object.
+		 * @note If the Json object is not a container, converts it to a table as if via `as_table`. */
+		template<typename U>
+		basic_json_object &write(container_size_t<U> size)
+		{
+			switch (m_type)
+			{
+				default: as_table();
+				case json_type::TABLE: m_table.reserve(static_cast<size_type>(size.value)); break;
+				case json_type::ARRAY: m_array.reserve(static_cast<size_type>(size.value)); break;
+			}
+			return *this;
+		}
+		/** @copydoc write */
+		template<typename U>
+		basic_json_object &operator<<(container_size_t<U> size)
+		{
+			return write(size);
+		}
+
+		/** If the Json object is not a container or is an empty table, converts it to array as if via `as_array`.
+		 * @return Reference to this Json object.
+		 * @throw json_error If the Json object is a non-empty table. */
+		write_frame &write(array_mode_t)
+		{
+			switch (m_type)
+			{
+				case json_type::ARRAY: break;
+				case json_type::TABLE: assert_empty();
+				default: as_array(); break;
+			}
+			return *this;
+		}
+		/** @copydoc write */
+		write_frame &operator<<(array_mode_t) { return write(array_mode()); }
 
 		// clang-format off
 		constexpr void swap(basic_json_object &other)
