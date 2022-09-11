@@ -296,11 +296,13 @@ namespace sek::serialization
 			std::construct_at(&a, std::move(tmp));
 		}
 
+		/** @brief Archive frame used to read Json objects. */
 		class read_frame
 		{
 			friend class basic_json_object;
 		};
 
+		/** @brief Archive frame used to write Json objects. */
 		class write_frame
 		{
 		public:
@@ -309,7 +311,7 @@ namespace sek::serialization
 			write_frame(write_frame &&) = delete;
 			write_frame &operator=(write_frame &&) = delete;
 
-			/** Initializes a write frame archive for the specified Json object.
+			/** Initializes a write frame for the specified Json object.
 			 * @note All previous contents of the object will be overwritten. */
 			constexpr write_frame(value_type &target) : m_target(target) { m_target.as_table().clear(); }
 
@@ -339,6 +341,79 @@ namespace sek::serialization
 				return next_impl([&table = m_target.m_table]() { return detail::generate_key<C, T>(table.size()); });
 			}
 
+			/** @brief Inserts a new Json object into the current container and writes the passed value to it.
+			 * @param value Value to write.
+			 * @return Reference to this frame.
+			 * @throw json_error On serialization errors. */
+			template<typename U>
+			write_frame &operator<<(U &&value)
+			{
+				return write(std::forward<U>(value));
+			}
+			/** @copydoc operator<<
+			 * @param args Arguments forwarded to the serialization function (if any). */
+			template<typename U, typename... Args>
+			write_frame &write(U &&value, Args &&...args)
+			{
+				next().write(std::forward<U>(value), std::forward<Args>(args)...);
+				return *this;
+			}
+
+			/** @copybrief operator<<
+			 * @param value `keyed_entry_t` instance containing the value to write and it's key.
+			 * @return Reference to this frame.
+			 * @throw json_error On serialization errors. */
+			template<typename U>
+			write_frame &operator<<(keyed_entry_t<C, U> value)
+			{
+				return write(std::forward<U>(value));
+			}
+			/** @copydoc operator<<
+			 * @param args Arguments forwarded to the serialization function (if any). */
+			template<typename U, typename... Args>
+			write_frame &write(keyed_entry_t<C, U> value, Args &&...args)
+			{
+				next(value.key).write(std::forward<U>(value.value), std::forward<Args>(args)...);
+				return *this;
+			}
+
+			/** Uses the provided size hint to reserve space in the current container.
+			 * @param size `container_size_t` instance containing the size hint.
+			 * @return Reference to this frame. */
+			template<typename U>
+			write_frame &write(container_size_t<U> size)
+			{
+				switch (m_target.m_type)
+				{
+					default: m_target.to_table();
+					case json_type::TABLE: m_target.m_table.reserve(static_cast<size_type>(size.value)); break;
+					case json_type::ARRAY: m_target.m_array.reserve(static_cast<size_type>(size.value)); break;
+				}
+				return *this;
+			}
+			/** @copydoc write */
+			template<typename U>
+			write_frame &operator<<(container_size_t<U> size)
+			{
+				return write(size);
+			}
+
+			/** Switches the frame to array mode (converts the target Json object to array).
+			 * @return Reference to this frame.
+			 * @throw json_error If the target Json object is a non-empty table. */
+			write_frame &write(array_mode_t)
+			{
+				switch (m_target.m_type)
+				{
+					case json_type::ARRAY: break;
+					case json_type::TABLE: m_target.assert_empty();
+					default: m_target.to_array(); break;
+				}
+				return *this;
+			}
+			/** @copydoc write */
+			write_frame &operator<<(array_mode_t) { return write(array_mode()); }
+
 		private:
 			template<typename F>
 			[[nodiscard]] value_type &next_impl(F &&key_factory)
@@ -357,41 +432,6 @@ namespace sek::serialization
 						// clang-format on
 					}
 					case json_type::ARRAY: return m_target.m_array.emplace_back();
-				}
-			}
-
-			template<typename U, typename... Args>
-			void write_impl(value_type &target, U &&value, Args &&...args) const
-			{
-			}
-
-			template<typename U, typename... Args>
-			void write_impl(U &&value, Args &&...args)
-			{
-				write_impl(next(), std::forward<U>(value), std::forward<Args>(args)...);
-			}
-			template<typename U, typename... Args>
-			void write_impl(keyed_entry_t<C, U> value, Args &&...args)
-			{
-				write_impl(next(value.key), std::forward<U>(value.value), std::forward<Args>(args)...);
-			}
-			template<typename U>
-			void write_impl(container_size_t<U> size)
-			{
-				switch (m_target.m_type)
-				{
-					default: m_target.to_table();
-					case json_type::TABLE: m_target.m_table.reserve(static_cast<size_type>(size.value)); break;
-					case json_type::ARRAY: m_target.m_array.reserve(static_cast<size_type>(size.value)); break;
-				}
-			}
-			void write_impl(array_mode_t)
-			{
-				switch (m_target.m_type)
-				{
-					case json_type::ARRAY: break;
-					case json_type::TABLE: m_target.assert_empty();
-					default: m_target.to_array(); break;
 				}
 			}
 
