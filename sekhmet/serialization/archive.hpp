@@ -4,6 +4,6 @@
 
 #pragma once
 
-#include "detail/archive_traits.hpp"
 #include "detail/manipulators.hpp"
+#include "detail/traits.hpp"
 #include "detail/util.hpp"

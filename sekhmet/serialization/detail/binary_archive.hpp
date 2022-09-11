@@ -6,6 +6,7 @@
 
 #include "sekhmet/detail/bswap.hpp"
 
+#include "archive_error.hpp"
 #include "archive_reader.hpp"
 #include "archive_writer.hpp"
 #include "manipulators.hpp"
@@ -105,28 +106,28 @@ namespace sek::serialization::binary
 
 		/** Attempts to read a boolean (as an 8-bit integer) from the archive.
 		 * @return `true` on success, `false` on failure. Will fail on premature EOF. */
-		bool try_read(bool &b, auto &&...) noexcept { return read_literal(&b); }
+		bool try_read(bool &b) noexcept { return read_literal(&b); }
 		/** Reads a boolean (as an 8-bit integer) from the archive.
 		 * @throw archive_error On premature EOF. */
-		basic_input_archive &read(bool &b, auto &&...)
+		basic_input_archive &read(bool &b)
 		{
 			if (!try_read(b)) [[unlikely]]
 				throw_eof();
 			return *this;
 		}
 		/** @copydoc read */
-		bool read(std::in_place_type_t<bool>, auto &&...)
+		bool read(std::in_place_type_t<bool>)
 		{
 			bool result;
 			read(result);
 			return result;
 		}
 
+		// clang-format off
 		/** Attempts to read an integer or floating-point number from the archive.
 		 * @return `true` on success, `false` on failure. Will fail on premature EOF. */
 		template<typename I>
-		bool try_read(I &i, auto &&...) noexcept
-			requires(std::integral<I> || std::floating_point<I>)
+		bool try_read(I &i) noexcept requires(std::integral<I> || std::floating_point<I>)
 		{
 			const auto result = read_literal(&i);
 			i = detail::fix_endianness<Config>(i);
@@ -135,8 +136,7 @@ namespace sek::serialization::binary
 		/** Reads an integer or floating-point number from the archive.
 		 * @throw archive_error On premature EOF. */
 		template<typename I>
-		basic_input_archive &read(I &i, auto &&...)
-			requires(std::integral<I> || std::floating_point<I>)
+		basic_input_archive &read(I &i) requires(std::integral<I> || std::floating_point<I>)
 		{
 			if (!try_read(i)) [[unlikely]]
 				throw_eof();
@@ -144,18 +144,18 @@ namespace sek::serialization::binary
 		}
 		/** @copydoc read */
 		template<typename I>
-		I read(std::in_place_type_t<I>, auto &&...)
-			requires(std::integral<I> || std::floating_point<I>)
+		I read(std::in_place_type_t<I>) requires(std::integral<I> || std::floating_point<I>)
 		{
 			I result;
 			read(result);
 			return result;
 		}
+		// clang-format on
 
 		/** Attempts to read a string from the archive by reading characters until null character.
 		 * @return `true` on success, `false` on failure. Will fail on premature EOF. */
 		template<detail::is_char_type C = char, typename T = std::char_traits<C>, typename A = std::allocator<C>>
-		bool try_read(std::basic_string<C, T, A> &str, auto &&...)
+		bool try_read(std::basic_string<C, T, A> &str)
 		{
 			for (;;)
 			{
@@ -171,7 +171,7 @@ namespace sek::serialization::binary
 		/** Attempts to read a string from the archive into an output iterator by reading characters until null character.
 		 * @return `true` on success, `false` on failure. Will fail on premature EOF. */
 		template<detail::is_char_type C = char, std::output_iterator<C> I>
-		bool try_read(I &value, auto &&...)
+		bool try_read(I &value)
 		{
 			for (;; value = std::next(value))
 			{
@@ -188,7 +188,7 @@ namespace sek::serialization::binary
 		 * character or `value == sent`.
 		 * @return `true` on success, `false` on failure. Will fail on premature EOF. */
 		template<detail::is_char_type C = char, std::output_iterator<C> I, std::sentinel_for<I> S>
-		bool try_read(I &value, S &sent, auto &&...)
+		bool try_read(I &value, S &sent)
 		{
 			for (auto pos = value; pos != sent; pos = std::next(pos))
 			{
@@ -204,7 +204,7 @@ namespace sek::serialization::binary
 		/** Reads a string from the archive by reading characters until null character.
 		 * @throw archive_error On premature EOF. */
 		template<detail::is_char_type C = char, typename T = std::char_traits<C>, typename A = std::allocator<C>>
-		basic_input_archive &read(std::basic_string<C, T, A> &str, auto &&...)
+		basic_input_archive &read(std::basic_string<C, T, A> &str)
 		{
 			if (!try_read(str)) [[unlikely]]
 				throw_eof();
@@ -212,7 +212,7 @@ namespace sek::serialization::binary
 		}
 		/** @copydoc read */
 		template<detail::is_char_type C = char, typename T = std::char_traits<C>, typename A = std::allocator<C>>
-		std::basic_string<C, T, A> read(std::in_place_type_t<std::basic_string<C, T, A>>, auto &&...)
+		std::basic_string<C, T, A> read(std::in_place_type_t<std::basic_string<C, T, A>>)
 		{
 			std::basic_string<C, T, A> result;
 			read(result);
@@ -221,7 +221,7 @@ namespace sek::serialization::binary
 		/** Reads a string from the archive by reading characters until null character.
 		 * @throw archive_error On premature EOF. */
 		template<detail::is_char_type C = char, std::output_iterator<C> I>
-		basic_input_archive &read(I &value, auto &&...)
+		basic_input_archive &read(I value)
 		{
 			if (!try_read(value)) [[unlikely]]
 				throw_eof();
@@ -230,7 +230,7 @@ namespace sek::serialization::binary
 		/** Reads a string from the archive into an output iterator by reading characters until null character or `value == sent`.
 		 * @throw archive_error On premature EOF. */
 		template<detail::is_char_type C = char, std::output_iterator<C> I, std::sentinel_for<I> S>
-		basic_input_archive &read(I &value, S &sent, auto &&...)
+		basic_input_archive &read(I value, S sent)
 		{
 			if (!try_read(value, sent)) [[unlikely]]
 				throw_eof();
@@ -240,14 +240,14 @@ namespace sek::serialization::binary
 		/** Attempts to read an array of bytes from the archive.
 		 * @return `true` on success, `false` on failure. Will fail on premature EOF. */
 		template<std::size_t N>
-		bool try_read(std::array<std::byte, N> &array, auto &&...) noexcept
+		bool try_read(std::array<std::byte, N> &array) noexcept
 		{
 			return m_reader.getn(static_cast<const char *>(array.data()), array.size()) == array.size();
 		}
 		/** Reads an array of bytes from the archive.
 		 * @throw archive_error On premature EOF. */
 		template<std::size_t N>
-		basic_input_archive &read(std::array<std::byte, N> &array, auto &&...)
+		basic_input_archive &read(std::array<std::byte, N> &array)
 		{
 			if (!try_read(array)) [[unlikely]]
 				throw_eof();
@@ -255,7 +255,7 @@ namespace sek::serialization::binary
 		}
 		/** @copydoc read */
 		template<std::size_t N>
-		std::array<std::byte, N> read(std::in_place_type_t<std::array<std::byte, N>>, auto &&...)
+		std::array<std::byte, N> read(std::in_place_type_t<std::array<std::byte, N>>)
 		{
 			std::array<std::byte, N> result;
 			read(result);
@@ -387,9 +387,10 @@ namespace sek::serialization::binary
 		 * @note Stream must be a binary stream. */
 		explicit basic_output_archive(std::istream &is) : basic_output_archive(is.rdbuf()) {}
 
+		// clang-format off
 		/** Writes a boolean (as an 8-bit integer) to the archive.
 		 * @throw archive_error On premature EOF. */
-		basic_output_archive &write(bool b, auto &&...)
+		basic_output_archive &write(bool b)
 		{
 			write_literal(&b);
 			return *this;
@@ -397,17 +398,17 @@ namespace sek::serialization::binary
 		/** Writes an integer or floating-point number to the archive.
 		 * @throw archive_error On premature EOF. */
 		template<typename I>
-		basic_output_archive &write(I i, auto &&...)
-			requires(std::integral<I> || std::floating_point<I>)
+		basic_output_archive &write(I i) requires(std::integral<I> || std::floating_point<I>)
 		{
 			i = detail::fix_endianness<Config>(i);
 			write_literal(&i);
 			return *this;
 		}
+
 		/** Writes a string to the archive including the null terminator.
 		 * @throw archive_error On premature EOF. */
 		template<detail::is_char_type C = char, typename T = std::char_traits<C>, typename A = std::allocator<C>>
-		basic_output_archive &write(const std::basic_string<C, T, A> &str, auto &&...)
+		basic_output_archive &write(const std::basic_string<C, T, A> &str)
 		{
 			for (auto c : str) write(c);
 			write(static_cast<C>('\0'));
@@ -415,7 +416,7 @@ namespace sek::serialization::binary
 		}
 		/** @copydoc write */
 		template<detail::is_char_type C = char, typename T = std::char_traits<C>>
-		basic_output_archive &write(std::basic_string_view<C, T> str, auto &&...)
+		basic_output_archive &write(std::basic_string_view<C, T> str)
 		{
 			for (auto c : str) write(c);
 			write(static_cast<C>('\0'));
@@ -423,23 +424,24 @@ namespace sek::serialization::binary
 		}
 		/** @copydoc write */
 		template<std::input_iterator I, std::sentinel_for<I> S>
-		basic_output_archive &write(I value, S sent, auto &&...)
-			requires detail::is_char_type<std::iter_value_t<I>>
+		basic_output_archive &write(I value, S sent) requires detail::is_char_type<std::iter_value_t<I>>
 		{
 			for (; value != sent; value = std::next(value)) write(*value);
 			write(static_cast<std::iter_value_t<I>>('\0'));
 			return *this;
 		}
+
 		/** Writes an array of bytes to the archive.
 		 * @throw archive_error On premature EOF. */
 		template<std::size_t N>
-		basic_output_archive &write(std::array<std::byte, N> array, auto &&...)
+		basic_output_archive &write(std::array<std::byte, N> array)
 		{
 			auto chars = std::bit_cast<const char *>(array.data());
 			if (m_writer.putn(chars, array.size()) != array.size()) [[unlikely]]
 				throw_eof();
 			return *this;
 		}
+		// clang-format on
 
 		/** Serializes an object of type `T`.
 		 * @param value Value to serialize.
