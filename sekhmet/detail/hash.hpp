@@ -358,6 +358,8 @@ namespace sek
 	 * If such function is not available, uses `std::hash`. */
 	struct default_hash
 	{
+		typedef std::true_type is_transparent;
+
 		template<typename T>
 		[[nodiscard]] constexpr hash_t operator()(const T &value) const noexcept
 		{

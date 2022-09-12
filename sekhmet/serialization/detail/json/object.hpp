@@ -8,48 +8,13 @@
 
 #include "sekhmet/ordered_map.hpp"
 
-#include "../archive_error.hpp"
 #include "../manipulators.hpp"
 #include "../types/tuples.hpp"
 #include "../util.hpp"
-#include "type.hpp"
+#include "json_error.hpp"
 
 namespace sek::serialization
 {
-	/** @brief Exception thrown by `basic_json_object` on runtime errors. */
-	class SEK_API json_error : public archive_error
-	{
-	public:
-		json_error() : archive_error("Unknown Json error") {}
-		explicit json_error(std::string &&msg) : archive_error(std::move(msg)) {}
-		explicit json_error(const std::string &msg) : archive_error(msg) {}
-		explicit json_error(const char *msg) : archive_error(msg) {}
-		~json_error() override;
-	};
-
-	namespace detail
-	{
-		[[noreturn]] SEK_API void throw_invalid_type(json_type expected, json_type actual);
-		[[noreturn]] SEK_API void throw_invalid_type(json_type expected);
-
-		[[nodiscard]] constexpr std::string_view type_string(json_type type) noexcept
-		{
-			switch (type)
-			{
-				case json_type::CONTAINER_FLAG: return "container";
-				case json_type::NUMBER_FLAG: return "number";
-				case json_type::NULL_VALUE: return "null";
-				case json_type::INT: return "int";
-				case json_type::UINT: return "uint";
-				case json_type::FLOAT: return "float";
-				case json_type::ARRAY: return "array";
-				case json_type::TABLE: return "table";
-				case json_type::STRING: return "string";
-				default: return "unknown";
-			}
-		}
-	}	 // namespace detail
-
 	/** @brief Structure representing a Json object (table, array or value) and providing serialization archive operations.
 	 *
 	 * Json objects can either be used on their own as a way to store Json data or as a base type to implement
@@ -65,21 +30,18 @@ namespace sek::serialization
 	public:
 		typedef inout_archive_category archive_category;
 
-		typedef Alloc<C> string_allocator;
-
 		typedef std::intmax_t int_type;
 		typedef std::uintmax_t uint_type;
 		typedef double float_type;
 
-		typedef std::basic_string<C, T, string_allocator> string_type;
-		typedef std::basic_string_view<C, T> string_view_type;
-		typedef string_type key_type;
+		typedef std::basic_string<C, T, Alloc<C>> string_type;
+		typedef typename string_type::allocator_type string_allocator;
 
-		typedef Alloc<std::pair<const key_type, basic_json_object>> table_allocator;
-		typedef Alloc<basic_json_object> array_allocator;
+		typedef ordered_map<string_type, basic_json_object, default_hash, std::equal_to<>, Alloc<std::pair<const string_type, basic_json_object>>> table_type;
+		typedef typename table_type::allocator_type table_allocator;
 
-		typedef ordered_map<key_type, basic_json_object, table_allocator> table_type;
-		typedef std::vector<basic_json_object, array_allocator> array_type;
+		typedef std::vector<basic_json_object, Alloc<basic_json_object>> array_type;
+		typedef typename table_type::allocator_type array_allocator;
 
 	private:
 		constexpr static void move_swap(basic_json_object &a, basic_json_object &b)
@@ -261,7 +223,10 @@ namespace sek::serialization
 			/** Checks if the target Json object has a key. */
 			[[nodiscard]] constexpr bool has_key() const noexcept { return !m_is_array; }
 			/** Returns key of the target Json object. If it does not have a key, returns an empty string view. */
-			[[nodiscard]] constexpr key_type key() const noexcept { return has_key() ? m_table->first : key_type{}; }
+			[[nodiscard]] constexpr std::basic_string_view<C, T> key() const noexcept
+			{
+				return has_key() ? m_table->first : std::basic_string_view<C, T>{};
+			}
 			/** Returns reference to the target Json object. */
 			[[nodiscard]] constexpr reference object() const noexcept { return has_key() ? m_table->second : *m_array; }
 
@@ -323,23 +288,324 @@ namespace sek::serialization
 		class write_frame;
 
 	private:
+		// clang-format off
 		template<typename U, typename... Args>
-		constexpr static bool is_serializable = serializable_with<U, write_frame, Args...>;
+		constexpr static bool is_serializable = serializable_with<std::remove_cvref_t<U>, write_frame, Args...>;
 		template<typename U, typename... Args>
-		constexpr static bool is_deserializable = deserializable_with<U, write_frame, Args...>;
+		constexpr static bool is_deserializable = deserializable_with<std::remove_cvref_t<U>, write_frame, Args...>;
+		template<typename U, typename... Args>
+		constexpr static bool is_in_place_deserializable = in_place_deserializable_with<std::remove_cvref_t<U>, write_frame, Args...>;
+		// clang-format on
 
 	public:
 		/** @brief Archive frame used to read Json objects. */
 		class read_frame
 		{
-			friend class basic_json_object;
+		public:
+			typedef input_archive_category archive_category;
+
+		public:
+			read_frame(const read_frame &) = delete;
+			read_frame &operator=(const read_frame &) = delete;
+			read_frame(read_frame &&) = delete;
+			read_frame &operator=(read_frame &&) = delete;
+
+			/** Initializes a read frame for the specified Json object. */
+			constexpr read_frame(const value_type &target) : read_frame(target, target.begin()) {}
+			/** @copydoc read_frame
+			 * @param pos Initial read position within the target Json object. */
+			constexpr read_frame(const value_type &target, const_iterator pos) : m_target(target), m_pos(pos) {}
+
+			/** Returns reference to the target Json object of this frame. */
+			[[nodiscard]] constexpr const value_type &target() const noexcept { return m_target; }
+
+			/** Returns iterator to the current read position of this frame. */
+			[[nodiscard]] constexpr const_iterator pos() const noexcept { return m_pos; }
+			/** Checks if the frame is at the end of the container. */
+			[[nodiscard]] constexpr bool is_end() const noexcept { return pos() == target().end(); }
+
+			/** Attempts to seek the current container to the specified key.
+			 * @param key Key of the target Json object to seek to.
+			 * @return `true` on success, `false` on failure.
+			 * @note Read position is modified only on success. */
+			constexpr bool try_seek(string_type &&key) noexcept
+			{
+				return try_seek_impl([&key]() { return std::move(key); });
+			}
+			template<typename S>
+			constexpr bool try_seek(const S &key) noexcept
+			{
+				return try_seek_impl([&key]() { return key; });
+			}
+
+			/** Seeks the current container to the specified key.
+			 * @param key Key of the target Json object to seek to.
+			 * @return Reference to this frame.
+			 * @throw json_error If the target Json object of the frame is not a table.
+			 * @note If the key is not present within the container, seeks to the end. */
+			read_frame &seek(string_type &&key)
+			{
+				seek_impl([&key]() { return std::move(key); });
+				return *this;
+			}
+			/** @copydoc seek */
+			template<typename S>
+			read_frame &seek(const S &key)
+			{
+				seek_impl([&key]() { return key; });
+				return *this;
+			}
+
+			/** Seeks the current container to the specified iterator.
+			 * @param pos New read position within the current container.
+			 * @return Reference to this frame. */
+			constexpr read_frame &seek(const_iterator pos) noexcept
+			{
+				m_pos = pos;
+				return *this;
+			}
+
+			/** Returns the next Json object of the current container and advances read position.
+			 * @return Reference to the next Json object.
+			 * @throw json_error If the frame is at the end of the container. */
+			[[nodiscard]] const value_type &next()
+			{
+				assert_not_end();
+				return *(m_pos++);
+			}
+
+			/** Attempts to read a value from the next Json object in the current container and advance the read position.
+			 * @param value Value to read.
+			 * @return `true` if read successfully, `false` otherwise.
+			 * @note Read position is advanced only on successful read. */
+			template<typename U>
+			bool try_read(U &value)
+			{
+				if (!is_end() && m_pos->try_read(value)) [[likely]]
+				{
+					++m_pos;
+					return true;
+				}
+				return false;
+			}
+			/** Reads the a value from the next Json object in the current container.
+			 * @param value Value to read.
+			 * @return Reference to this frame.
+			 * @throw json_error On serialization errors.
+			 * @note Read position is advanced only on success. */
+			template<typename U>
+			read_frame &read(U &value)
+			{
+				assert_not_end();
+				m_pos->read(value);
+				m_pos++; /* Exception guarantee. */
+				return *this;
+			}
+			/** @copydoc read */
+			template<typename U>
+			read_frame &operator>>(U &value)
+			{
+				return read(value);
+			}
+			/** Reads a value of type `U` from the Json object.
+			 * @return Value of type `U`.
+			 * @throw json_error On serialization errors. */
+			template<typename U, typename... Args>
+			[[nodiscard]] U read(std::in_place_type_t<U>)
+			{
+				assert_not_end();
+				U result = m_pos->read(std::in_place_type<U>);
+				m_pos++; /* Exception guarantee. */
+				return result;
+			}
+
+			/** @copybrief try_read
+			 * @param value `keyed_entry_t` instance containing the value to read and it's key.
+			 * @return `true` if read successfully, `false` otherwise.
+			 * @note Read position is advanced only on success. */
+			template<typename U>
+			bool try_read(keyed_entry_t<C, U> value)
+			{
+				if (try_seek(value.key) && m_pos->try_read(std::forward<U>(value.value))) [[likely]]
+				{
+					++m_pos;
+					return true;
+				}
+				return false;
+			}
+			/** @copybrief operator>>
+			 * @param value `keyed_entry_t` instance containing the value to read and it's key.
+			 * @return Reference to this frame.
+			 * @throw json_error On serialization errors.
+			 * @note Read position is advanced only on success. */
+			template<typename U>
+			read_frame &read(keyed_entry_t<C, U> value)
+			{
+				seek(value.key);
+				m_pos->read(std::forward<U>(value.value));
+				m_pos++; /* Exception guarantee. */
+				return *this;
+			}
+			/** @copydoc read */
+			template<typename U>
+			read_frame &operator>>(keyed_entry_t<C, U> value)
+			{
+				return read(value);
+			}
+
+			// clang-format off
+			/** @brief Attempts to deserialize the passed object from the next Json object in the current container
+			 * and advance the read position.
+			 * @param value Object to deserialize.
+			 * @param args Arguments forwarded to the serialization function.
+			 * @return `true` if read successfully, `false` otherwise.
+			 * @note Read position is advanced only on success. */
+			template<typename U, typename... Args>
+			bool try_read(U &value, Args &&...args) requires is_deserializable<U, Args...>
+			{
+				if (!is_end() && m_pos->try_read(value, std::forward<Args>(args)...)) [[likely]]
+				{
+					++m_pos;
+					return true;
+				}
+				return false;
+			}
+			/** Deserializes the passed object from the next Json object in the current container.
+			 * @param value Object to deserialize.
+			 * @return Reference to this frame.
+			 * @throw json_error On serialization errors.
+			 * @note Read position is advanced only on success. */
+			template<typename U>
+			read_frame &operator>>(U &value) requires is_deserializable<U> { return read(value); }
+			/** @copydoc operator>>
+			 * @param args Arguments forwarded to the serialization function. */
+			template<typename U, typename... Args>
+			read_frame &read(U &value, Args &&...args) requires is_deserializable<U, Args...>
+			{
+				assert_not_end();
+				m_pos->read(value, std::forward<Args>(args)...);
+				m_pos++; /* Exception guarantee. */
+				return *this;
+			}
+			/** Deserializes an object of type `U` from the Json object.
+			 * @param args Arguments forwarded to the serialization function.
+			 * @return Deserialized instance of `U`.
+			 * @throw json_error On serialization errors. */
+			template<typename U, typename... Args>
+			[[nodiscard]] U read(std::in_place_type_t<U>, Args &&...args) requires is_in_place_deserializable<U, Args...>
+			{
+				assert_not_end();
+				U result = m_pos->read(std::in_place_type<U>, std::forward<Args>(args)...);
+				m_pos++; /* Exception guarantee. */
+				return result;
+			}
+
+			/** @copybrief try_read
+			 * @param value `keyed_entry_t` instance containing the object to deserialize and it's key.
+			 * @param args Arguments forwarded to the serialization function.
+			 * @return `true` if read successfully, `false` otherwise.
+			 * @note Read position is advanced only on success. */
+			template<typename U, typename... Args>
+			bool try_read(keyed_entry_t<C, U> value, Args &&...args) requires is_deserializable<U, Args...>
+			{
+				if (try_seek(value.key) && m_pos->try_read(std::forward<U>(value.value), std::forward<Args>(args)...)) [[likely]]
+				{
+					++m_pos;
+					return true;
+				}
+				return false;
+			}
+			/** @copybrief operator>>
+			 * @param value `keyed_entry_t` instance containing the object to deserialize and it's key.
+			 * @return Reference to this frame.
+			 * @throw json_error On serialization errors.
+			 * @note Read position is advanced only on success. */
+			template<typename U>
+			read_frame &operator>>(keyed_entry_t<C, U> value) requires is_deserializable<U> { return read(value); }
+			/** @copydoc operator>>
+			 * @param args Arguments forwarded to the serialization function. */
+			template<typename U, typename... Args>
+			read_frame &read(keyed_entry_t<C, U> value, Args &&...args) requires is_deserializable<U, Args...>
+			{
+				seek(value.key);
+				m_pos->read(std::forward<U>(value.value), std::forward<Args>(args)...);
+				m_pos++; /* Exception guarantee. */
+				return *this;
+			}
+			// clang-format on
+
+			/** Attempts to read the size of the current container.
+			 * @param size `container_size_t` instance receiving the container size.
+			 * @return `true` if read successfully, `false` otherwise. */
+			template<typename U>
+			constexpr bool try_read(container_size_t<U> size) const noexcept
+			{
+				return m_target.try_read(size);
+			}
+			/** Reads the size of the current container.
+			 * @param size `container_size_t` instance receiving the container size.
+			 * @return Reference to this frame. */
+			template<typename U>
+			read_frame &read(container_size_t<U> size)
+			{
+				m_target.read(size);
+				return *this;
+			}
+			/** @copydoc read */
+			template<typename U>
+			const read_frame &read(container_size_t<U> size) const
+			{
+				m_target.read(size);
+				return *this;
+			}
+			/** @copydoc read */
+			template<typename U>
+			read_frame &operator>>(container_size_t<U> size)
+			{
+				return read(size);
+			}
+			/** @copydoc read */
+			template<typename U>
+			const read_frame &operator>>(container_size_t<U> size) const
+			{
+				return read(size);
+			}
+
+		private:
+			void assert_not_end() const
+			{
+				if (is_end()) [[unlikely]]
+					throw json_error("Unexpected end of frame");
+			}
+
+			template<typename F>
+			[[nodiscard]] constexpr bool try_seek_impl(F &&key_factory) noexcept
+			{
+				const auto result = m_target.is_table();
+				if (result) [[likely]]
+				{
+					const auto pos = m_target.m_table.find(key_factory());
+					if (pos == m_target.m_table.end()) [[unlikely]]
+						return false;
+					m_pos = const_iterator{pos};
+				}
+				return result;
+			}
+			template<typename F>
+			constexpr const_iterator seek_impl(F &&key_factory)
+			{
+				return m_pos = const_iterator{m_target.get_table().find(key_factory())};
+			}
+
+			const value_type &m_target;
+			const_iterator m_pos;
 		};
 
 		/** @brief Archive frame used to write Json objects. */
 		class write_frame
 		{
 		public:
-			typedef input_archive_category archive_category;
+			typedef output_archive_category archive_category;
 
 		public:
 			write_frame(const write_frame &) = delete;
@@ -749,7 +1015,7 @@ namespace sek::serialization
 			{
 				case json_type::ARRAY: return m_array.front();
 				case json_type::TABLE: return m_table.front().second;
-				default: detail::throw_invalid_type(json_type::CONTAINER_FLAG, m_type);
+				default: detail::invalid_json_type(json_type::CONTAINER_FLAG, m_type);
 			}
 		}
 		/** @copydoc front */
@@ -759,7 +1025,7 @@ namespace sek::serialization
 			{
 				case json_type::ARRAY: return m_array.front();
 				case json_type::TABLE: return m_table.front().second;
-				default: detail::throw_invalid_type(json_type::CONTAINER_FLAG, m_type);
+				default: detail::invalid_json_type(json_type::CONTAINER_FLAG, m_type);
 			}
 		}
 		/** Returns reference to last element of the underlying container (array or table).
@@ -771,7 +1037,7 @@ namespace sek::serialization
 			{
 				case json_type::ARRAY: return m_array.front();
 				case json_type::TABLE: return m_table.front().second;
-				default: detail::throw_invalid_type(json_type::CONTAINER_FLAG, m_type);
+				default: detail::invalid_json_type(json_type::CONTAINER_FLAG, m_type);
 			}
 		}
 		/** @copydoc back */
@@ -781,7 +1047,7 @@ namespace sek::serialization
 			{
 				case json_type::ARRAY: return m_array.back();
 				case json_type::TABLE: return m_table.back().second;
-				default: detail::throw_invalid_type(json_type::CONTAINER_FLAG, m_type);
+				default: detail::invalid_json_type(json_type::CONTAINER_FLAG, m_type);
 			}
 		}
 
@@ -809,16 +1075,16 @@ namespace sek::serialization
 		/** Reads a null value from the Json object.
 		 * @return Reference to this Json object.
 		 * @throw json_error If the Json object is not a null value. */
-		basic_json_object &read(std::nullptr_t) const
+		const basic_json_object &read(std::nullptr_t) const
 		{
-			assert_exact(json_type::NULL_VALUE);
+			assert_type(json_type::NULL_VALUE);
 			return *this;
 		}
 		/** @copydoc read */
 		basic_json_object &operator>>(std::nullptr_t) const { return read(nullptr); }
 		/** Reads a null value from the Json object.
 		 * @throw json_error If the Json object is not a null value. */
-		void read(std::in_place_type_t<std::nullptr_t>) const { assert_exact(json_type::NULL_VALUE); }
+		void read(std::in_place_type_t<std::nullptr_t>) const { assert_type(json_type::NULL_VALUE); }
 
 		/** Converts the Json object to a boolean.
 		 * @param value Initial value of the boolean.
@@ -857,13 +1123,13 @@ namespace sek::serialization
 		 * @throw json_error If the Json object is not a boolean. */
 		[[nodiscard]] bool &get_bool()
 		{
-			assert_exact(json_type::BOOL);
+			assert_type(json_type::BOOL);
 			return m_bool;
 		}
 		/** @copydoc get_bool */
 		[[nodiscard]] const bool &get_bool() const
 		{
-			assert_exact(json_type::BOOL);
+			assert_type(json_type::BOOL);
 			return m_bool;
 		}
 		/** Returns a pointer to the underlying boolean or `nullptr`, if the Json object is not a boolean. */
@@ -885,7 +1151,7 @@ namespace sek::serialization
 		 * @param value Boolean to read.
 		 * @return Reference to this Json object.
 		 * @throw json_error If the Json object is not a boolean. */
-		basic_json_object &read(bool &value) const
+		const basic_json_object &read(bool &value) const
 		{
 			value = get_bool();
 			return *this;
@@ -935,13 +1201,13 @@ namespace sek::serialization
 		 * @throw json_error If the Json object is not a signed integer. */
 		[[nodiscard]] int_type &get_int()
 		{
-			assert_exact(json_type::INT);
+			assert_type(json_type::INT);
 			return m_int;
 		}
 		/** @copydoc get_int */
 		[[nodiscard]] const int_type &get_int() const
 		{
-			assert_exact(json_type::INT);
+			assert_type(json_type::INT);
 			return m_int;
 		}
 		/** Returns a pointer to the underlying signed integer or `nullptr`, if the Json object is not a signed integer. */
@@ -990,13 +1256,13 @@ namespace sek::serialization
 		 * @throw json_error If the Json object is not an unsigned integer. */
 		[[nodiscard]] uint_type &get_uint()
 		{
-			assert_exact(json_type::UINT);
+			assert_type(json_type::UINT);
 			return m_uint;
 		}
 		/** @copydoc get_uint */
 		[[nodiscard]] const uint_type &get_uint() const
 		{
-			assert_exact(json_type::UINT);
+			assert_type(json_type::UINT);
 			return m_uint;
 		}
 		/** Returns a pointer to the underlying unsigned integer or `nullptr`, if the Json object is not an unsigned integer. */
@@ -1048,13 +1314,13 @@ namespace sek::serialization
 		 * @throw json_error If the Json object is not a floating-point number. */
 		[[nodiscard]] float_type &get_float()
 		{
-			assert_exact(json_type::FLOAT);
+			assert_type(json_type::FLOAT);
 			return m_float;
 		}
 		/** @copydoc get_float */
 		[[nodiscard]] const float_type &get_float() const
 		{
-			assert_exact(json_type::FLOAT);
+			assert_type(json_type::FLOAT);
 			return m_float;
 		}
 		/** Returns a pointer to the underlying floating-point number or `nullptr`, if the Json object is not a floating-point number. */
@@ -1081,7 +1347,7 @@ namespace sek::serialization
 				case json_type::INT: return static_cast<I>(m_int);
 				case json_type::UINT: return static_cast<I>(m_uint);
 				case json_type::FLOAT: return static_cast<I>(m_float);
-				default: detail::throw_invalid_type(json_type::NUMBER_FLAG, m_type);
+				default: detail::invalid_json_type(json_type::NUMBER_FLAG, m_type);
 			}
 		}
 		/** Converts the underlying integer or floating-point number to the specified type.
@@ -1130,14 +1396,14 @@ namespace sek::serialization
 		 * @return Reference to this Json object.
 		 * @throw json_error If the Json object is not an integer or floating-point number. */
 		template<typename I>
-		basic_json_object &read(I &value) const requires std::is_arithmetic_v<I>
+		const basic_json_object &read(I &value) const requires std::is_arithmetic_v<I>
 		{
 			value = get_number<I>();
 			return *this;
 		}
 		/** @copydoc read */
 		template<typename I>
-		basic_json_object &operator>>(I &value) const requires std::is_arithmetic_v<I> { return read(value); }
+		const basic_json_object &operator>>(I &value) const requires std::is_arithmetic_v<I> { return read(value); }
 		/** Reads an integer or floating-point number from the Json object.
 		 * @return Number value.
 		 * @throw json_error If the Json object is not an integer or floating-point number. */
@@ -1189,13 +1455,13 @@ namespace sek::serialization
 		 * @throw json_error If the Json object is not a string. */
 		[[nodiscard]] string_type &get_string()
 		{
-			assert_exact(json_type::STRING);
+			assert_type(json_type::STRING);
 			return m_string;
 		}
 		/** @copydoc get_string */
 		[[nodiscard]] const string_type &get_string() const
 		{
-			assert_exact(json_type::STRING);
+			assert_type(json_type::STRING);
 			return m_string;
 		}
 		/** Returns a pointer to the underlying string or `nullptr`, if the Json object is not a string. */
@@ -1258,7 +1524,7 @@ namespace sek::serialization
 		 * @return Reference to this Json object.
 		 * @throw json_error If the Json object is not a string. */
 		template<typename U = std::char_traits<C>, typename A = std::allocator<C>>
-		basic_json_object &read(std::basic_string<C, U, A> &value) const
+		const basic_json_object &read(std::basic_string<C, U, A> &value) const
 		{
 			const auto &string = as_string();
 			value.assign(string.begin(), string.end());
@@ -1266,14 +1532,14 @@ namespace sek::serialization
 		}
 		/** @copydoc read */
 		template<typename U = std::char_traits<C>, typename A = std::allocator<C>>
-		basic_json_object &operator>>(std::basic_string<C, U, A> &value) const
+		const basic_json_object &operator>>(std::basic_string<C, U, A> &value) const
 		{
 			return read(value);
 		}
 		/** @copydoc read
 		 * @note The string view is valid for as long as the underlying string value of the Json object exists. */
 		template<typename U = std::char_traits<C>>
-		basic_json_object &read(std::basic_string_view<C, U> &value) const
+		const basic_json_object &read(std::basic_string_view<C, U> &value) const
 		{
 			const auto &string = as_string();
 			value = std::basic_string_view<C, U>{string.begin(), string.end()};
@@ -1281,7 +1547,7 @@ namespace sek::serialization
 		}
 		/** @copydoc read */
 		template<typename U = std::char_traits<C>>
-		basic_json_object &operator>>(std::basic_string_view<C, U> &value) const
+		const basic_json_object &operator>>(std::basic_string_view<C, U> &value) const
 		{
 			return read(value);
 		}
@@ -1290,7 +1556,7 @@ namespace sek::serialization
 		 * @return Reference to this Json object.
 		 * @throw json_error If the Json object is not a string. */
 		template<std::output_iterator<C> I>
-		basic_json_object &read(I out) const
+		const basic_json_object &read(I out) const
 		{
 			const auto &string = as_string();
 			std::copy(string.begin(), string.end(), out);
@@ -1298,14 +1564,14 @@ namespace sek::serialization
 		}
 		/** @copydoc read */
 		template<std::output_iterator<C> I>
-		basic_json_object &operator>>(I out) const
+		const basic_json_object &operator>>(I out) const
 		{
 			return read(out);
 		}
 		/** @copydoc read
 		 * @param sent Sentinel for the `out` iterator. */
 		template<std::output_iterator<C> I, std::sentinel_for<I> S>
-		basic_json_object &read(I out, S sent) const
+		const basic_json_object &read(I out, S sent) const
 		{
 			const auto &string = as_string();
 			for (auto iter = string.begin(), last = string.end(); iter != last && out != sent; ++iter, ++out)
@@ -1365,13 +1631,13 @@ namespace sek::serialization
 		 * @throw json_error If the Json object is not an array. */
 		[[nodiscard]] array_type &get_array()
 		{
-			assert_exact(json_type::ARRAY);
+			assert_type(json_type::ARRAY);
 			return m_array;
 		}
 		/** @copydoc get_array */
 		[[nodiscard]] const array_type &get_array() const
 		{
-			assert_exact(json_type::ARRAY);
+			assert_type(json_type::ARRAY);
 			return m_array;
 		}
 		/** Returns a pointer to the underlying array or `nullptr`, if the Json object is not an array. */
@@ -1437,13 +1703,13 @@ namespace sek::serialization
 		 * @throw json_error If the Json object is not a table. */
 		[[nodiscard]] table_type &get_table()
 		{
-			assert_exact(json_type::TABLE);
+			assert_type(json_type::TABLE);
 			return m_table;
 		}
 		/** @copydoc get_table */
 		[[nodiscard]] const table_type &get_table() const
 		{
-			assert_exact(json_type::TABLE);
+			assert_type(json_type::TABLE);
 			return m_table;
 		}
 		/** Returns a pointer to the underlying table or `nullptr`, if the Json object is not a table. */
@@ -1458,23 +1724,109 @@ namespace sek::serialization
 		}
 
 		// clang-format off
-		/** Serializes an object to the Json object.
-		 * @param value Object to serialize.
+		/** Attempts to deserialize the passed object from the Json object.
+		 * @param value Object to deserialize.
 		 * @param args Arguments forwarded to the serialization function.
+		 * @return `true` if read successfully, `false` otherwise. */
+		template<typename U, typename... Args>
+		bool try_read(U &value, Args &&...args) const requires is_deserializable<U, Args...>
+		{
+			if (is_container()) [[likely]]
+			{
+				try
+				{
+					read_frame frame{*this};
+					detail::do_deserialize(value, frame, std::forward<Args>(args)...);
+					return true;
+				}
+				catch (archive_error &) { /* return `false` on serialization errors. */ }
+			}
+			return false;
+		}
+		/** Deserializes the passed object from the Json object.
+		 * @param value Object to deserialize.
+		 * @return Reference to this Json object.
+		 * @throw json_error On serialization errors. */
+		template<typename U>
+		const basic_json_object &operator>>(U &value) const requires is_deserializable<U> { return read(value); }
+		/** @copydoc operator>>
+		 * @param args Arguments forwarded to the serialization function. */
+		template<typename U, typename... Args>
+		const basic_json_object &read(U &value, Args &&...args) const requires is_deserializable<U, Args...>
+		{
+			if (!is_container()) [[unlikely]]
+				detail::invalid_json_type(json_type::CONTAINER_FLAG, m_type);
+
+			read_frame frame{*this};
+			detail::do_deserialize(value, frame, std::forward<Args>(args)...);
+			return *this;
+		}
+		/** Deserializes an object of type `U` from the Json object.
+		 * @param args Arguments forwarded to the serialization function.
+		 * @return Deserialized instance of `U`.
+		 * @throw json_error On serialization errors. */
+		template<typename U, typename... Args>
+		[[nodiscard]] U read(std::in_place_type_t<U>, Args &&...args) const requires is_in_place_deserializable<U, Args...>
+		{
+			if (!is_container()) [[unlikely]]
+				detail::invalid_json_type(json_type::CONTAINER_FLAG, m_type);
+
+			read_frame frame{*this};
+			return detail::do_deserialize(std::in_place_type<U>, frame, std::forward<Args>(args)...);
+		}
+
+		/** Serializes the passed object to the Json object.
+		 * @param value Object to serialize.
 		 * @return Reference to this Json object.
 		 * @throw json_error On serialization errors.
 		 * @note Overwrites all previous contents of the object. */
+		template<typename U>
+		basic_json_object &operator<<(const U &value) requires is_serializable<U> { return write(value); }
+		/** @copydoc operator<<
+		 * @param args Arguments forwarded to the serialization function. */
 		template<typename U, typename... Args>
-		basic_json_object &write(U &&value, Args &&...args) requires is_serializable<U, Args...>
+		basic_json_object &write(const U &value, Args &&...args) requires is_serializable<U, Args...>
 		{
 			write_frame frame{*this};
-			detail::do_serialize(std::forward<U>(value), frame, std::forward<Args>(args)...);
+			detail::do_serialize(value, frame, std::forward<Args>(args)...);
 			return *this;
 		}
-		/** @copydoc write */
-		template<typename U>
-		basic_json_object &operator<<(U &&value) requires is_serializable<U> { return write(std::forward<U>(value)); }
 		// clang-format on
+
+		/** Attempts to read the size of the Json container (array or table).
+		 * @param size `container_size_t` instance receiving the container size.
+		 * @return `true` if read successfully, `false` otherwise. */
+		template<typename U>
+		constexpr bool try_read(container_size_t<U> size) const noexcept
+		{
+			switch (m_type)
+			{
+				case json_type::ARRAY: size.value = m_array.size(); return true;
+				case json_type::TABLE: size.value = m_table.size(); return true;
+				default: return false;
+			}
+		}
+		/** Reads the size of the Json container (array or table).
+		 * @param size `container_size_t` instance receiving the container size.
+		 * @return Reference to this Json object.
+		 * @throw json_error If the Json object is not a container (array or table). */
+		template<typename U>
+		const basic_json_object &read(container_size_t<U> size) const
+		{
+			switch (m_type)
+			{
+				case json_type::ARRAY: size.value = m_array.size(); break;
+				case json_type::TABLE: size.value = m_table.size(); break;
+				default: detail::invalid_json_type(json_type::CONTAINER_FLAG, m_type);
+			}
+			return *this;
+		}
+		/** @copydoc read */
+		template<typename U>
+		const basic_json_object &operator>>(container_size_t<U> size) const
+		{
+			return read(size);
+		}
 
 		/** Uses the provided size hint to reserve space in the current container (array or table).
 		 * @param size `container_size_t` instance containing the size hint.
@@ -1544,10 +1896,10 @@ namespace sek::serialization
 		// clang-format on
 
 	private:
-		void assert_exact(json_type type) const
+		void assert_type(json_type type) const
 		{
 			if (m_type != type) [[unlikely]]
-				detail::throw_invalid_type(type, m_type);
+				detail::invalid_json_type(type, m_type);
 		}
 		void assert_empty() const
 		{
@@ -1636,5 +1988,9 @@ namespace sek::serialization
 		json_type m_type;
 	};
 
+	/** @brief `basic_json_object` alias for `char` character type. */
 	using json_object = basic_json_object<char>;
+
+	/* TODO: Implement read & write overloads that accept `std::nothrow` and return an `expected<void, std::error_code>`. */
+	/* TODO: Refactor existing read & write operations to fit with the `std::error_code` overloads. */
 }	 // namespace sek::serialization

@@ -27,7 +27,7 @@ namespace sek
 	 * non-member `hash` function via ADL if available, otherwise invokes `std::hash`.
 	 * @tparam KeyComp Predicate used to compare keys.
 	 * @tparam Alloc Allocator used for the map. */
-	template<typename K, typename M, typename KeyHash = default_hash, typename KeyComp = std::equal_to<K>, typename Alloc = std::allocator<std::pair<const K, M>>>
+	template<typename K, typename M, typename KeyHash = default_hash, typename KeyComp = std::equal_to<>, typename Alloc = std::allocator<std::pair<const K, M>>>
 	class ordered_map
 	{
 	public:

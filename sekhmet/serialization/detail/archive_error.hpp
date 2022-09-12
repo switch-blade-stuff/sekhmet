@@ -20,4 +20,7 @@ namespace sek::serialization
 		explicit archive_error(const char *msg) : std::runtime_error(msg) {}
 		~archive_error() override;
 	};
+
+	/* TODO: Refactor `archive_error` to derive from `std::system_error`. */
+	/* TODO: Implement generic archive error category. */
 }	 // namespace sek::serialization

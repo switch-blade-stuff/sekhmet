@@ -27,27 +27,19 @@ namespace sek::serialization
 	};
 
 	// clang-format off
-	/** @brief Concept satisfied only if archive `A` supports reading instances of `T`. */
-	template<typename A, typename T>
-	concept input_archive = requires(A &archive, T &value)
+	/** @brief Concept satisfied only if archive `A` has the `input_archive_category` category. */
+	template<typename A>
+	concept input_archive = requires
 	{
 		typename A::archive_category;
 		std::is_base_of_v<input_archive_category, typename A::archive_category>;
-
-		{ archive >> value } -> std::convertible_to<A &>;
-		{ archive.read(value) } -> std::convertible_to<A &>;
-		{ archive.try_read(value) } -> std::convertible_to<bool>;
-		{ archive.read(std::in_place_type<T>) } -> std::convertible_to<T>;
 	};
-	/** @brief Concept satisfied only if archive `A` supports writing instances of `T`. */
-	template<typename A, typename T>
-	concept output_archive = requires(A &archive, const T &value)
+	/** @brief Concept satisfied only if archive `A` has the `output_archive_category` category. */
+	template<typename A>
+	concept output_archive = requires
 	{
 		typename A::archive_category;
 		std::is_base_of_v<output_archive_category, typename A::archive_category>;
-
-		{ archive << value } -> std::convertible_to<A &>;
-		{ archive.write(value) } -> std::convertible_to<A &>;
 	};
 	// clang-format on
 

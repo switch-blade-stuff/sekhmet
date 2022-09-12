@@ -288,10 +288,6 @@ namespace sek::detail
 
 	public:
 		constexpr ordered_hash_table() = default;
-		constexpr ordered_hash_table(const ordered_hash_table &) = default;
-		constexpr ordered_hash_table &operator=(const ordered_hash_table &) = default;
-		constexpr ordered_hash_table(ordered_hash_table &&) = default;
-		constexpr ordered_hash_table &operator=(ordered_hash_table &&) = default;
 		constexpr ~ordered_hash_table() = default;
 
 		constexpr explicit ordered_hash_table(const Alloc &alloc) : ordered_hash_table{Cmp{}, Hash{}, alloc} {}
@@ -300,30 +296,52 @@ namespace sek::detail
 		{
 		}
 		constexpr ordered_hash_table(size_type bucket_count, const Cmp &equal, const Hash &hash, const Alloc &alloc)
-			: m_dense_data{dense_alloc{alloc}, equal},
-			  m_sparse_data{std::piecewise_construct,
-							std::forward_as_tuple(bucket_count, npos, sparse_alloc{alloc}),
-							std::forward_as_tuple(hash)}
-		{
-		}
-		constexpr ordered_hash_table(const ordered_hash_table &other, const Alloc &alloc)
-			: m_dense_data{std::piecewise_construct,
-						   std::forward_as_tuple(other.value_vector(), dense_alloc{alloc}),
-						   std::forward_as_tuple(other.m_dense_data.second())},
-			  m_sparse_data{std::piecewise_construct,
-							std::forward_as_tuple(other.bucket_vector(), sparse_alloc{alloc}),
-							std::forward_as_tuple(other.m_sparse_data.second())},
-			  max_load_factor{other.max_load_factor}
+			: m_dense{dense_alloc{alloc}, equal},
+			  m_sparse{std::piecewise_construct,
+					   std::forward_as_tuple(bucket_count, npos, sparse_alloc{alloc}),
+					   std::forward_as_tuple(hash)}
 		{
 		}
 
+		constexpr ordered_hash_table(const ordered_hash_table &other)
+			: m_dense{other.m_dense}, m_sparse{other.m_sparse}, max_load_factor{other.max_load_factor}
+		{
+			rebase_nodes(other);
+		}
+		constexpr ordered_hash_table &operator=(const ordered_hash_table &other)
+		{
+			if (this != &other)
+			{
+				m_dense = other.m_dense;
+				m_sparse = other.m_sparse;
+				max_load_factor = other.max_load_factor;
+				rebase_nodes(other);
+			}
+			return *this;
+		}
+
+		constexpr ordered_hash_table(const ordered_hash_table &other, const Alloc &alloc)
+			: m_dense{std::piecewise_construct,
+					  std::forward_as_tuple(other.value_vector(), dense_alloc{alloc}),
+					  std::forward_as_tuple(other.m_dense.second())},
+			  m_sparse{std::piecewise_construct,
+					   std::forward_as_tuple(other.bucket_vector(), sparse_alloc{alloc}),
+					   std::forward_as_tuple(other.m_sparse.second())},
+			  max_load_factor{other.max_load_factor}
+		{
+			rebase_nodes(other);
+		}
+
+		constexpr ordered_hash_table(ordered_hash_table &&) = default;
+		constexpr ordered_hash_table &operator=(ordered_hash_table &&) = default;
+
 		constexpr ordered_hash_table(ordered_hash_table &&other, const Alloc &alloc)
-			: m_dense_data{std::piecewise_construct,
-						   std::forward_as_tuple(std::move(other.value_vector()), dense_alloc{alloc}),
-						   std::forward_as_tuple(std::move(other.m_dense_data.second()))},
-			  m_sparse_data{std::piecewise_construct,
-							std::forward_as_tuple(std::move(other.bucket_vector()), sparse_alloc{alloc}),
-							std::forward_as_tuple(std::move(other.m_sparse_data.second()))},
+			: m_dense{std::piecewise_construct,
+					  std::forward_as_tuple(std::move(other.value_vector()), dense_alloc{alloc}),
+					  std::forward_as_tuple(std::move(other.m_dense.second()))},
+			  m_sparse{std::piecewise_construct,
+					   std::forward_as_tuple(std::move(other.bucket_vector()), sparse_alloc{alloc}),
+					   std::forward_as_tuple(std::move(other.m_sparse.second()))},
 			  max_load_factor{other.max_load_factor}
 		{
 		}
@@ -526,14 +544,14 @@ namespace sek::detail
 		// clang-format on
 
 		[[nodiscard]] constexpr auto allocator() const noexcept { return value_vector().get_allocator(); }
-		[[nodiscard]] constexpr auto &get_hash() const noexcept { return m_sparse_data.second(); }
-		[[nodiscard]] constexpr auto &get_comp() const noexcept { return m_dense_data.second(); }
+		[[nodiscard]] constexpr auto &get_hash() const noexcept { return m_sparse.second(); }
+		[[nodiscard]] constexpr auto &get_comp() const noexcept { return m_dense.second(); }
 
 		constexpr void swap(ordered_hash_table &other) noexcept
 		{
 			using std::swap;
-			swap(m_sparse_data, other.m_sparse_data);
-			swap(m_dense_data, other.m_dense_data);
+			swap(m_sparse, other.m_sparse);
+			swap(m_dense, other.m_dense);
 			swap(max_load_factor, other.max_load_factor);
 
 			/* Head nodes should be swapped in-place. */
@@ -541,16 +559,37 @@ namespace sek::detail
 		}
 
 	private:
-		[[nodiscard]] constexpr auto &value_vector() noexcept { return m_dense_data.first(); }
-		[[nodiscard]] constexpr const auto &value_vector() const noexcept { return m_dense_data.first(); }
-		[[nodiscard]] constexpr auto &bucket_vector() noexcept { return m_sparse_data.first(); }
-		[[nodiscard]] constexpr const auto &bucket_vector() const noexcept { return m_sparse_data.first(); }
+		[[nodiscard]] constexpr auto &value_vector() noexcept { return m_dense.first(); }
+		[[nodiscard]] constexpr const auto &value_vector() const noexcept { return m_dense.first(); }
+		[[nodiscard]] constexpr auto &bucket_vector() noexcept { return m_sparse.first(); }
+		[[nodiscard]] constexpr const auto &bucket_vector() const noexcept { return m_sparse.first(); }
 
-		[[nodiscard]] constexpr auto key_hash(const auto &k) const { return m_sparse_data.second()(k); }
-		[[nodiscard]] constexpr auto key_comp(const auto &a, const auto &b) const
+		constexpr void rebase_nodes(const ordered_hash_table &other)
 		{
-			return m_dense_data.second()(a, b);
+			for (const auto diff = value_vector().begin() - other.value_vector().begin(); entry_node & node : value_vector())
+			{
+				/* Rebase next pointer. */
+				if (node.next != &other.m_head) [[likely]]
+					node.next += diff;
+				else
+				{
+					node.next = &m_head;
+					m_head.prev = &node;
+				}
+
+				/* Rebase previous pointer. */
+				if (node.prev != &other.m_head) [[likely]]
+					node.prev += diff;
+				else
+				{
+					node.prev = &m_head;
+					m_head.next = &node;
+				}
+			}
 		}
+
+		[[nodiscard]] constexpr auto key_hash(const auto &k) const { return m_sparse.second()(k); }
+		[[nodiscard]] constexpr auto key_comp(const auto &a, const auto &b) const { return m_dense.second()(a, b); }
 		[[nodiscard]] constexpr auto *get_chain(hash_t h) noexcept
 		{
 			auto idx = h % bucket_vector().size();
@@ -698,8 +737,8 @@ namespace sek::detail
 			return end();
 		}
 
-		packed_pair<dense_data, Cmp> m_dense_data;
-		packed_pair<sparse_data, Hash> m_sparse_data = {sparse_data(initial_capacity, npos), Hash{}};
+		packed_pair<dense_data, Cmp> m_dense;
+		packed_pair<sparse_data, Hash> m_sparse = {sparse_data(initial_capacity, npos), Hash{}};
 
 		entry_node m_head = {&m_head, &m_head};
 

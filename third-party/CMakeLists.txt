@@ -16,12 +16,6 @@ set(FMT_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/fmt)
 add_subdirectory(${FMT_SOURCE_DIR} ./fmt)
 include_directories(${FMT_SOURCE_DIR}/include)
 
-# Add & include RapidJSON
-set(RAPIDJSON_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/rapidjson)
-set(RAPIDJSON_BUILD_CXX17 ON CACHE BOOL "Enable RapidJSON C++17 support")
-add_subdirectory(${RAPIDJSON_SOURCE_DIR} ./rapidjson)
-include_directories(${RAPIDJSON_SOURCE_DIR}/include)
-
 # Add & include ASIO
 set(ASIO_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/asio)
 set(ASIO_COMPILE_SRC ON CACHE BOOL "Enable ASIO binary compilation")

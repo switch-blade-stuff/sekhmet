@@ -83,7 +83,7 @@ namespace sek::serialization
 		else
 			for (; data_item != data_end; ++data_item)
 			{
-				if (!archive.try_read(*data_item, std::forward<Args>(args)...)) [[unlikely]]
+				if (!archive.read(std::nothrow, *data_item, std::forward<Args>(args)...)) [[unlikely]]
 					break;
 			}
 	}
@@ -100,7 +100,7 @@ namespace sek::serialization
 		else
 			for (; data_item != data_end; ++data_item)
 			{
-				if (!archive.try_read(*data_item, std::forward<Args>(args)...)) [[unlikely]]
+				if (!archive.read(std::nothrow, *data_item, std::forward<Args>(args)...)) [[unlikely]]
 					break;
 			}
 	}
@@ -161,10 +161,10 @@ namespace sek::serialization
 		else
 			for (;;)
 			{
-				value_t value;
-				if (!a.try_read(value)) [[unlikely]]
+				auto value = a.read(std::nothrow, std::in_place_type<value_t>);
+				if (!value) [[unlikely]]
 					break;
-				m.emplace(forward_key(value.key), forward_mapped(value.mapped));
+				m.emplace(forward_key(value->key), forward_mapped(value->mapped));
 			}
 	}
 	template<std::ranges::forward_range M, typename A, typename... Args>
@@ -189,7 +189,7 @@ namespace sek::serialization
 			for (;;)
 			{
 				V value;
-				if (!a.try_read(value, std::forward<Args>(args)...)) [[unlikely]]
+				if (!a.read(std::nothrow, value, std::forward<Args>(args)...)) [[unlikely]]
 					break;
 
 				if constexpr (std::movable<V>)
@@ -210,7 +210,7 @@ namespace sek::serialization
 			for (;;)
 			{
 				V value;
-				if (!a.try_read(value, std::forward<Args>(args)...)) [[unlikely]]
+				if (!a.read(std::nothrow, value, std::forward<Args>(args)...)) [[unlikely]]
 					break;
 
 				if constexpr (std::movable<V>)

@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "fwd.hpp"
 #include <fmt/format.h>
 
 namespace sek::serialization

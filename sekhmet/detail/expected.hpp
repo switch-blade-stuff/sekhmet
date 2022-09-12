@@ -136,8 +136,8 @@ namespace sek
 	template<typename E>
 	unexpected(E) -> unexpected<E>;
 
-	template<typename T, typename E>
-	class expected
+	template<std::destructible T, typename E>
+	class expected<T, E>
 	{
 		template<typename, typename>
 		friend class expected;

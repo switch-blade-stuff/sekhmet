@@ -5,3 +5,4 @@
 #pragma once
 
 #include "detail/binary_archive.hpp"
+#include "types.hpp"
