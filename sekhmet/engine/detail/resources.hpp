@@ -17,7 +17,7 @@ namespace sek::engine
 
 	namespace attributes
 	{
-		class resource_type;
+		class serializable_resource;
 	}
 
 	/** @brief Exception thrown by the resource system on runtime errors. */
@@ -37,7 +37,7 @@ namespace sek::engine
 		friend class access_guard<resource_cache, std::recursive_mutex>;
 
 	protected:
-		using attribute_t = attributes::resource_type;
+		using attribute_t = attributes::serializable_resource;
 
 		struct metadata_t
 		{
@@ -153,19 +153,23 @@ namespace sek::engine
 
 	namespace attributes
 	{
-		/** @brief Attribute used to designate a type as a serializable resource. */
-		class resource_type
+		/** @brief Attribute used to designate a type as a runtime-serializable resource. */
+		class serializable_resource
 		{
 			friend class engine::resource_cache;
+
+			using default_input = typename serialization::json_object::read_frame;
+			using default_output = typename serialization::json_object::write_frame;
 
 		public:
 			/** @brief Initializes resource attribute for type `T` with input archive `Input` and output archive `Output`.
 			 * @note Output archive type is only relevant in editor. */
-			template<typename T,
-					 serialization::input_archive<T> I = serialization::ubj::input_archive,
-					 serialization::output_archive<T> O = serialization::ubj::output_archive>
-			constexpr resource_type(type_selector_t<T>, type_selector_t<I>, type_selector_t<O>) noexcept
+			template<typename T, serialization::input_archive I = default_input, serialization::output_archive O = default_output>
+			constexpr serializable_resource(type_selector_t<T>, type_selector_t<I>, type_selector_t<O>) noexcept
 			{
+				static_assert(serialization::in_place_deserializable_with<T, I, resource_cache &>);
+				static_assert(serialization::serializable_with<T, O>);
+
 				m_instantiate = +[]() { return std::static_pointer_cast<void>(std::make_shared<T>()); };
 				m_copy = +[](const void *ptr)
 				{
@@ -240,7 +244,7 @@ namespace sek::engine
 			}
 			/** @brief Initializes resource attribute for type `T` with default (UBJson) input & output archives. */
 			template<typename T>
-			constexpr explicit resource_type(type_selector_t<T> s) noexcept : resource_type(s, {}, {})
+			constexpr explicit serializable_resource(type_selector_t<T> s) noexcept : serializable_resource(s, {}, {})
 			{
 			}
 
@@ -266,16 +270,16 @@ namespace sek::engine
 #endif
 		};
 
-		/** Helper function used to create an instance of `resource_type` attribute for type `T`.
+		/** Helper function used to create an instance of `serializable_resource` attribute for type `T`.
 		 * @tparam T Type to designate as a serializable resource.
 		 * @tparam I Input archive type to use for deserialization (UBJson by default).
 		 * @tparam O Output archive type to use for serialization (UBJson by default). */
 		template<typename T,
 				 serialization::input_archive<T> I = serialization::ubj::input_archive,
 				 serialization::output_archive<T> O = serialization::ubj::output_archive>
-		[[nodiscard]] constexpr resource_type make_resource_type() noexcept
+		[[nodiscard]] constexpr serializable_resource make_serializable_resource() noexcept
 		{
-			return resource_type{type_selector<T>, type_selector<I>, type_selector<O>};
+			return serializable_resource{type_selector<T>, type_selector<I>, type_selector<O>};
 		}
 	}	 // namespace attributes
 }	 // namespace sek::engine

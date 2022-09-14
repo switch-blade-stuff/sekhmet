@@ -14,7 +14,7 @@
 
 namespace sek::system
 {
-#ifdef ASIO_HAS_FILE /* If ASIO is available, openmode & seek_basis are defined via asio::file_base for compatibility */
+#ifdef ASIO_HAS_FILE /* If ASIO file is available, openmode & seek_basis are defined via asio::file_base for compatibility */
 	using openmode = asio::file_base::flags;
 	using seek_basis = asio::file_base::seek_basis;
 
@@ -31,21 +31,42 @@ namespace sek::system
 	constexpr seek_basis seek_end = seek_basis::seek_end;
 	constexpr seek_basis seek_set = seek_basis::seek_set;
 #else
-#error "Implement `sek::system::openmode` and `sek::system::seek_basis`"
+
+#ifdef SEK_OS_WIN
+	using openmode = int;
+	constexpr openmode read_only = 1;
+	constexpr openmode write_only = 2;
+	constexpr openmode read_write = 4;
+	constexpr openmode append = 8;
+	constexpr openmode create = 16;
+	constexpr openmode exclusive = 32;
+	constexpr openmode truncate = 64;
+	constexpr openmode sync_all_on_write = 128;
+#else
+	using openmode = int;
+	constexpr openmode read_only = O_RDONLY;
+	constexpr openmode write_only = O_WRONLY;
+	constexpr openmode read_write = O_RDWR;
+	constexpr openmode append = O_APPEND;
+	constexpr openmode create = O_CREAT;
+	constexpr openmode exclusive = O_EXCL;
+	constexpr openmode truncate = O_TRUNC;
+	constexpr openmode sync_all_on_write = O_SYNC;
+#endif
+
+	using seek_basis = int;
+	constexpr seek_basis seek_cur = SEEK_SET;
+	constexpr seek_basis seek_end = SEEK_CUR;
+	constexpr seek_basis seek_set = SEEK_END;
 #endif
 
 	typedef int mapmode;
 	constexpr mapmode map_copy = 1;
 	constexpr mapmode map_populate = 2;
-
-	class native_file;
-	class native_filemap;
 }	 // namespace sek::system
 
 #if defined(SEK_OS_UNIX)
 #include "unix/native_file.hpp"
-#elif defined(SEK_OS_WIN)
-#include "win/native_file.hpp"
 #else
 #error "Native file not implemented"
 #endif
@@ -79,8 +100,17 @@ namespace sek::system
 		constexpr static seek_basis seek_end = system::seek_end;
 		constexpr static seek_basis seek_set = system::seek_set;
 
-	private:
+	protected:
 		using path_char = typename std::filesystem::path::value_type;
+
+		template<typename T>
+		inline static T return_if(expected<T, std::error_code> &&exp)
+		{
+			if (!exp.has_value()) [[unlikely]]
+				throw std::system_error(exp.error());
+
+			if constexpr (!std::is_void_v<T>) return std::move(exp.value());
+		}
 
 	public:
 		native_file(const native_file &) = delete;
@@ -175,7 +205,6 @@ namespace sek::system
 		 * @return Amount of bytes written to the file or an error code. */
 		SEK_API expected<std::size_t, std::error_code> write(std::nothrow_t, const void *src, std::size_t n) noexcept;
 
-		// clang-format off
 		/** @brief Reads file to ASIO data buffers.
 		 * @param buff ASIO mutable buffer sequence receiving data.
 		 * @return Amount of bytes read from the file.
@@ -186,7 +215,6 @@ namespace sek::system
 		 * @return Amount of bytes written to the file.
 		 * @throw std::system_error On implementation-defined system errors. */
 		SEK_API std::size_t write(const asio::const_buffer &buff);
-		// clang-format on
 
 		/** @copybrief read
 		 * @param buff ASIO mutable buffer receiving data.
@@ -271,7 +299,9 @@ namespace sek::system
 		}
 		friend constexpr void swap(native_file &a, native_file &b) noexcept { a.swap(b); }
 
-	private:
+	protected:
+		SEK_API void init_buffer(std::size_t min_size);
+
 		detail::native_file_handle m_handle;
 
 		std::byte *m_buffer = nullptr;	 /* Buffer used fore read & write operations. */
@@ -284,100 +314,5 @@ namespace sek::system
 		openmode m_mode = {};
 		bool m_writing = false;
 		bool m_reading = false;
-	};
-
-	/** @brief Structure used to manage a memory-mapped file. */
-	class native_filemap
-	{
-	public:
-		typedef typename detail::native_filemap_handle::native_handle_type native_handle_type;
-
-		typedef system::mapmode mapmode;
-		/** Enable copy-on-write for mapped pages. Any changes will not be committed to the backing file.
-		 * @note Source file must be open for reading. */
-		constexpr static mapmode map_copy = system::map_copy;
-		/** Pre-populate mapped pages. */
-		constexpr static mapmode map_populate = system::map_populate;
-
-	public:
-		native_filemap(const native_filemap &) = delete;
-		native_filemap &operator=(const native_filemap &) = delete;
-
-		/** Initializes an invalid (not mapped) filemap. */
-		constexpr native_filemap() noexcept = default;
-		inline ~native_filemap() { unmap(); }
-
-		constexpr native_filemap(native_filemap &&other) noexcept { swap(other); }
-		constexpr native_filemap &operator=(native_filemap &&other) noexcept
-		{
-			swap(other);
-			return *this;
-		}
-
-		/** @brief Maps a portion of the file into memory.
-		 * @param file File to create a mapping of.
-		 * @param off Offset into the file at which to create the mapping.
-		 * @param n Amount of bytes to map. Must be less than file size - offset. If set to 0, maps the entire file.
-		 * @param mode Mode of the mapping. If set to 0 will use the default mode.
-		 * @note After a file has been mapped, the source file can be closed.
-		 * @note File should be open with a combination of `in` and `out` modes.
-		 * @throw std::system_error On implementation-defined system errors. */
-		explicit native_filemap(const native_file &file, std::uint64_t off = 0, std::uint64_t n = 0, mapmode mode = 0)
-		{
-			map(file, off, n, mode);
-		}
-
-		// clang-format off
-		/** @copydoc native_filemap */
-		SEK_API void map(const native_file &file, std::uint64_t off = 0, std::uint64_t n = 0, mapmode mode = 0);
-		/** @copybrief map
-		 * @param file File to create a mapping of.
-		 * @param off Offset into the file at which to create the mapping.
-		 * @param n Amount of bytes to map. Must be less than file size - offset. If set to 0, maps the entire file.
-		 * @param mode Mode of the mapping. If set to 0 will use the default mode.
-		 * @return `void` or an error code.
-		 * @note After a file has been mapped, the source file can be closed.
-		 * @note File should be open with a combination of `in` and `out` modes. */
-		expected<void, std::error_code> map(std::nothrow_t, const native_file &file, std::uint64_t off = 0, std::uint64_t n = 0, mapmode mode = 0) noexcept
-		{
-			return m_handle.map(file.m_handle, off, n, file.mode(), mode);
-		}
-		// clang-format on
-
-		/** @brief Unmaps the file mapped file from memory.
-		 * @throw std::system_error On implementation-defined system errors. */
-		SEK_API void unmap();
-		/** @copybrief unmap
-		 * @return `void` or an error code. */
-		inline expected<void, std::error_code> unmap(std::nothrow_t) noexcept { return m_handle.unmap(); }
-
-		/** Returns size of the mapping. */
-		[[nodiscard]] constexpr std::uint64_t size() const noexcept { return m_handle.size(); }
-		/** Returns pointer to the mapped data. */
-		[[nodiscard]] constexpr void *data() const noexcept { return m_handle.data(); }
-		/** Returns span of bytes to the mapped data. */
-		[[nodiscard]] constexpr std::span<std::byte> bytes() const noexcept
-		{
-			return {static_cast<std::byte *>(data()), static_cast<std::size_t>(size())};
-		}
-		/** Returns ASIO buffer of the mapped data. */
-		[[nodiscard]] asio::mutable_buffer buffer() const noexcept
-		{
-			return asio::buffer(data(), size());
-		}
-
-		/** @brief Checks if the mapping is valid. */
-		[[nodiscard]] constexpr bool is_mapped() const noexcept { return m_handle.is_mapped(); }
-
-		/** Releases and returns the underlying OS handle of the file mapping. */
-		[[nodiscard]] constexpr native_handle_type release() noexcept { return m_handle.release(); }
-		/** Returns underlying OS handle of the file mapping. */
-		[[nodiscard]] constexpr native_handle_type native_handle() const noexcept { return m_handle.native_handle(); }
-
-		constexpr void swap(native_filemap &other) noexcept { m_handle.swap(other.m_handle); }
-		friend constexpr void swap(native_filemap &a, native_filemap &b) noexcept { a.swap(b); }
-
-	private:
-		detail::native_filemap_handle m_handle;
 	};
 }	 // namespace sek::system

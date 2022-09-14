@@ -8,20 +8,17 @@
 
 #if defined(SEK_OS_UNIX)
 #include "unix/native_file.cpp"	   // NOLINT
-#elif defined(SEK_OS_WIN)
-#include "win/native_file.cpp"	  // NOLINT
 #endif
 
 namespace sek::system
 {
 	constexpr std::size_t init_buffer_size = SEK_KB(8);
 
-	template<typename T>
-	inline static T return_if(expected<T, std::error_code> &&exp)
+	void native_file::init_buffer(std::size_t min_size)
 	{
-		if (!exp.has_value()) [[unlikely]]
-			throw std::system_error(exp.error());
-		return exp.value();
+		const auto size = std::max(min_size, init_buffer_size);
+		m_buffer = new std::byte[size];
+		m_buffer_size = size;
 	}
 
 	native_file::~native_file()
@@ -159,8 +156,7 @@ namespace sek::system
 				if (m_mode & direct) [[unlikely]]
 					return m_handle.read(dst, n);
 
-				m_buffer = new std::byte[init_buffer_size];
-				m_buffer_size = init_buffer_size;
+				init_buffer(init_buffer_size);
 			}
 
 			/* Fill the internal buffer & copy bytes to destination. */
@@ -215,8 +211,7 @@ namespace sek::system
 				if (m_mode & direct) [[unlikely]]
 					return m_handle.write(src, n);
 
-				m_buffer = new std::byte[init_buffer_size];
-				m_buffer_size = init_buffer_size;
+				init_buffer(init_buffer_size);
 			}
 
 			std::size_t total = 0, write_n;
@@ -246,10 +241,4 @@ namespace sek::system
 	{
 		return write(std::nothrow, buff.data(), buff.size());
 	}
-
-	void native_filemap::map(const sek::system::native_file &file, std::uint64_t off, std::uint64_t n, mapmode mode)
-	{
-		return_if(map(std::nothrow, file, off, n, mode));
-	}
-	void native_filemap::unmap() { return_if(unmap(std::nothrow)); }
 }	 // namespace sek::system
