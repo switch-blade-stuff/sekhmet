@@ -575,7 +575,7 @@ namespace sek::serialization
 			void assert_not_end() const
 			{
 				if (is_end()) [[unlikely]]
-					throw json_error("Unexpected end of frame");
+					throw json_error{make_error_code(archive_errc::UNEXPECTED_END)};
 			}
 
 			template<typename F>
@@ -1855,11 +1855,10 @@ namespace sek::serialization
 		 * @throw json_error If the Json object is a non-empty table. */
 		write_frame &write(array_mode_t)
 		{
-			switch (m_type)
+			if (!is_array()) [[likely]]
 			{
-				case json_type::ARRAY: break;
-				case json_type::TABLE: assert_empty();
-				default: as_array(); break;
+				assert_empty();
+				as_array();
 			}
 			return *this;
 		}
@@ -1904,7 +1903,7 @@ namespace sek::serialization
 		void assert_empty() const
 		{
 			if (!empty()) [[unlikely]]
-				throw json_error("Expected empty Json object");
+				throw json_error(make_error_code(archive_errc::INVALID_TYPE), "Expected empty Json object");
 		}
 
 		void destroy_impl()
