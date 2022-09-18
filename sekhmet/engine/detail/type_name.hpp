@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "sekhmet/static_string.hpp"
+#include "../../static_string.hpp"
 
 namespace sek::engine
 {

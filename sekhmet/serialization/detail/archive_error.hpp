@@ -30,10 +30,17 @@ namespace sek::serialization
 	/** @brief Error code used to specify general serialization archive errors. */
 	enum class archive_errc : int
 	{
-		/** Invalid/unexpected data type. */
-		INVALID_TYPE = 1,
+		/** Generic read error. Used as a flag for other read errors. */
+		READ_ERROR = 0x100,
+		/** Generic write error. Used as a flag for other write errors. */
+		WRITE_ERROR = 0x200,
+
+		/** Failed to read or write the archive due to the requested type being invalid. */
+		INVALID_TYPE = READ_ERROR | WRITE_ERROR | 1,
+		/** Failed to read or write the archive due to the requested data being invalid. */
+		INVALID_DATA = READ_ERROR | WRITE_ERROR | 2,
 		/** Failed to read the archive due to a premature end of input. */
-		UNEXPECTED_END = 2,
+		UNEXPECTED_END = READ_ERROR | 3,
 	};
 
 	/** Returns a reference to `std::error_category` used for generic serialization errors. */

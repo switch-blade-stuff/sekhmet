@@ -6,8 +6,7 @@
 
 #include <memory>
 
-#include "sekhmet/serialization/ubjson.hpp"
-
+#include "../../serialization/ubjson.hpp"
 #include "assets.hpp"
 #include "type_info.hpp"
 

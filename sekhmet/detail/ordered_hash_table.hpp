@@ -31,10 +31,10 @@ namespace sek::detail
 
 		struct entry_node
 		{
-			entry_node(const entry_node &) = delete;
-			entry_node &operator=(const entry_node &) = delete;
-
 			constexpr entry_node() noexcept = default;
+			constexpr entry_node(const entry_node &) noexcept = default;
+			constexpr entry_node &operator=(const entry_node &) noexcept = default;
+
 			constexpr entry_node(entry_node &&other) noexcept : prev(other.prev), next(other.next) { relink(); }
 			constexpr entry_node &operator=(entry_node &&other) noexcept
 			{
@@ -42,6 +42,8 @@ namespace sek::detail
 				next = other.next;
 				return relink();
 			}
+
+			constexpr entry_node(entry_node *prev, entry_node *next) noexcept : prev(prev), next(next) {}
 
 			constexpr entry_node &link_before(entry_node *next_ptr) noexcept { return link(next_ptr->prev, next_ptr); }
 			constexpr entry_node &link(entry_node *prev_ptr, entry_node *next_ptr) noexcept
@@ -106,6 +108,14 @@ namespace sek::detail
 			constexpr entry_type &operator=(entry_type &&) noexcept(std::is_nothrow_move_assignable_v<entry_base>) = default;
 			constexpr ~entry_type() = default;
 
+			// clang-format off
+			template<typename... Args>
+			constexpr explicit entry_type(Args &&...args) requires std::constructible_from<Value, Args...>
+				: entry_base(std::forward<Args>(args)...)
+			{
+			}
+			// clang-format on
+
 			template<typename... Args>
 			constexpr explicit entry_type(Args &&...args) : entry_base(std::forward<Args>(args)...)
 			{
@@ -117,6 +127,8 @@ namespace sek::detail
 				entry_base::hash = h;
 			}
 
+			using entry_base::bucket_next;
+			using entry_base::hash;
 			using entry_base::key;
 			using entry_base::value;
 
@@ -190,7 +202,7 @@ namespace sek::detail
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{entry()}; }
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{std::addressof(entry()->value)}; }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 			/** Returns reference to the target element. */
@@ -203,7 +215,11 @@ namespace sek::detail
 			friend constexpr void swap(ordered_table_iterator &a, ordered_table_iterator &b) noexcept { a.swap(b); }
 
 		private:
-			[[nodiscard]] constexpr auto *entry() const noexcept { return static_cast<entry_type *>(m_ptr); }
+			[[nodiscard]] constexpr auto *entry() const noexcept
+			{
+				using entry_ptr = std::conditional_t<IsConst, const entry_type, entry_type> *;
+				return static_cast<entry_ptr>(m_ptr);
+			}
 
 			ptr_t m_ptr = {};
 		};
@@ -254,7 +270,7 @@ namespace sek::detail
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{std::addressof(m_ptr->value())}; }
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{std::addressof(m_ptr->value)}; }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 			/** Returns reference to the target element. */
@@ -638,12 +654,12 @@ namespace sek::detail
 				if (auto &candidate = value_vector()[*chain_idx]; candidate.hash == h && key_comp(key, candidate.key()))
 				{
 					/* Found a candidate for replacing, replace the value & hash. */
-					if constexpr (requires { candidate.value() = std::forward<T>(value); })
-						candidate.value() = std::forward<T>(value);
+					if constexpr (requires { candidate.value = std::forward<T>(value); })
+						candidate.value = std::forward<T>(value);
 					else
 					{
-						std::destroy_at(&candidate.value());
-						std::construct_at(&candidate.value(), std::forward<T>(value));
+						std::destroy_at(&candidate.value);
+						std::construct_at(&candidate.value, std::forward<T>(value));
 					}
 					candidate.hash = h;
 					return {to_iterator(*chain_idx), false};

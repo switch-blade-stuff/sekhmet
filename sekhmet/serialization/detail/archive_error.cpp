@@ -19,8 +19,11 @@ namespace sek::serialization
 		{
 			switch (static_cast<archive_errc>(err))
 			{
+				case archive_errc::READ_ERROR: return "Read error";
+				case archive_errc::WRITE_ERROR: return "Write error";
 				case archive_errc::INVALID_TYPE: return "Invalid type";
-				case archive_errc::UNEXPECTED_END: return "Unexpected EOF";
+				case archive_errc::INVALID_DATA: return "Invalid data";
+				case archive_errc::UNEXPECTED_END: return "Unexpected end of input";
 				default: return "Unknown error";
 			}
 		}

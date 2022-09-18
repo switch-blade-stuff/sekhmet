@@ -37,15 +37,6 @@ namespace sek
 		typedef Alloc allocator_type;
 
 	private:
-		constexpr static auto enable_three_way = requires(value_type a, value_type b) {
-													 std::compare_three_way{}(a.first, b.first);
-													 std::compare_three_way{}(a.second, b.second);
-												 };
-		constexpr static auto enable_equal = requires(value_type a, value_type b) {
-												 std::equal_to<>{}(a.first, b.first);
-												 std::equal_to<>{}(a.second, b.second);
-											 };
-
 		using table_value = std::pair<key_type, mapped_type>;
 
 		template<bool IsConst>

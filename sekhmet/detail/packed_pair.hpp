@@ -195,21 +195,7 @@ namespace sek
 		friend constexpr void swap(packed_pair &a, packed_pair &b)
 			noexcept(std::is_nothrow_swappable_v<base_first> && std::is_nothrow_swappable_v<base_second>) { a.swap(b); }
 		// clang-format on
-
-		[[nodiscard]] constexpr hash_t hash() const
-			requires has_hash<T0> && has_hash<T1>
-		{
-			auto s = hash(first());
-			return hash_combine(s, second());
-		}
 	};
-
-	template<typename T0, typename T1>
-	[[nodiscard]] constexpr hash_t hash(const packed_pair<T0, T1> &p)
-		requires has_hash<T0> && has_hash<T1>
-	{
-		return p.hash();
-	}
 
 	template<std::size_t I, typename T0, typename T1>
 	[[nodiscard]] constexpr decltype(auto) get(packed_pair<T0, T1> &p)
@@ -229,11 +215,6 @@ namespace sek
 	}
 }	 // namespace sek
 
-template<typename T0, typename T1>
-struct std::hash<sek::packed_pair<T0, T1>>
-{
-	constexpr std::size_t operator()(const sek::packed_pair<T0, T1> &p) noexcept { return p.hash(); }
-};
 template<typename T0, typename T1>
 struct std::tuple_size<sek::packed_pair<T0, T1>> : std::integral_constant<std::size_t, 2>
 {

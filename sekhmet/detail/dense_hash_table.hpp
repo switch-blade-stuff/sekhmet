@@ -15,10 +15,8 @@
 namespace sek::detail
 {
 	template<typename Value, typename KeyGet>
-	class dense_table_entry : ebo_base_helper<Value>
+	class dense_table_entry
 	{
-		using ebo_base = ebo_base_helper<Value>;
-
 	public:
 		typedef std::size_t size_type;
 		typedef std::ptrdiff_t difference_type;
@@ -33,27 +31,30 @@ namespace sek::detail
 		constexpr dense_table_entry &operator=(dense_table_entry &&) noexcept(std::is_nothrow_move_assignable_v<Value>) = default;
 		constexpr ~dense_table_entry() = default;
 
+		// clang-format off
 		template<typename... Args>
-		constexpr explicit dense_table_entry(Args &&...args) : ebo_base(std::forward<Args>(args)...)
+		constexpr explicit dense_table_entry(Args &&...args) requires std::constructible_from<Value, Args...>
+			: value(std::forward<Args>(args)...)
 		{
 		}
+		// clang-format on
 
-		[[nodiscard]] constexpr auto &value() noexcept { return *ebo_base::get(); }
-		[[nodiscard]] constexpr auto &value() const noexcept { return *ebo_base::get(); }
-
-		[[nodiscard]] constexpr decltype(auto) key() const noexcept { return KeyGet{}(value()); }
+		[[nodiscard]] constexpr decltype(auto) key() const noexcept { return KeyGet{}(value); }
 
 		constexpr void swap(dense_table_entry &other) noexcept(std::is_nothrow_swappable_v<Value>)
 		{
-			ebo_base::swap(other);
-			std::swap(bucket_next, other.bucket_next);
-			std::swap(hash, other.hash);
+			using std::swap;
+
+			swap(value, other.value);
+			swap(bucket_next, other.bucket_next);
+			swap(hash, other.hash);
 		}
 		friend constexpr void swap(dense_table_entry &a, dense_table_entry &b) noexcept(std::is_nothrow_swappable_v<Value>)
 		{
 			a.swap(b);
 		}
 
+		Value value;
 		size_type bucket_next = npos;
 		hash_t hash = {};
 	};
@@ -65,12 +66,14 @@ namespace sek::detail
 		typedef Hash hash_type;
 
 		typedef dense_table_entry<Value, KeyGet> entry_type;
-		typedef typename entry_type::size_type size_type;
-		typedef typename entry_type::difference_type difference_type;
+		typedef std::size_t size_type;
+		typedef std::ptrdiff_t difference_type;
 
 		[[nodiscard]] constexpr static decltype(auto) get_key(const auto &v) { return KeyGet{}(v); }
 
 		constexpr static float initial_load_factor = .875f;
+
+		constexpr static size_type npos = std::numeric_limits<size_type>::max();
 		constexpr static size_type initial_capacity = 8;
 	};
 
@@ -197,12 +200,12 @@ namespace sek::detail
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{std::addressof(m_ptr->value())}; }
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{std::addressof(m_ptr->value)}; }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 
 			/** Returns reference to the element at an offset. */
-			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return m_ptr[n].value(); }
+			[[nodiscard]] constexpr reference operator[](difference_type n) const noexcept { return m_ptr[n].value; }
 			/** Returns reference to the target element. */
 			[[nodiscard]] constexpr reference operator*() const noexcept { return *get(); }
 
@@ -262,7 +265,7 @@ namespace sek::detail
 			}
 
 			/** Returns pointer to the target element. */
-			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{std::addressof(m_ptr->value())}; }
+			[[nodiscard]] constexpr pointer get() const noexcept { return pointer{std::addressof(m_ptr->value)}; }
 			/** @copydoc value */
 			[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 			/** Returns reference to the target element. */
@@ -437,14 +440,8 @@ namespace sek::detail
 				if (auto &candidate = value_vector()[*chain_idx];
 					candidate.hash == h && key_comp(entry.key(), candidate.key()))
 				{
-					/* Found a candidate for replacing. Move-assign or swap it from the temporary back entry. */
-					if constexpr (std::is_move_assignable_v<entry_type>)
-						candidate = std::move(value_vector().back());
-					else
-					{
-						using std::swap;
-						swap(candidate, value_vector().back());
-					}
+					/* Found a candidate for replacing. */
+					candidate = std::move(value_vector().back());
 					value_vector().pop_back(); /* Pop the temporary. */
 					return {begin() + static_cast<difference_type>(*chain_idx), false};
 				}
@@ -505,7 +502,7 @@ namespace sek::detail
 		constexpr size_type try_insert(Iter first, Iter last)
 		{
 			size_type inserted = 0;
-			while (first != last) inserted += try_emplace(*first++).second;
+			while (first != last) inserted += try_insert(*first++).second;
 			return inserted;
 		}
 
@@ -599,12 +596,12 @@ namespace sek::detail
 				if (auto &candidate = value_vector()[*chain_idx]; candidate.hash == h && key_comp(key, candidate.key()))
 				{
 					/* Found a candidate for replacing, replace the value & hash. */
-					if constexpr (requires { candidate.value() = std::forward<T>(value); })
-						candidate.value() = std::forward<T>(value);
+					if constexpr (requires { candidate.value = std::forward<T>(value); })
+						candidate.value = std::forward<T>(value);
 					else
 					{
-						std::destroy_at(&candidate.value());
-						std::construct_at(&candidate.value(), std::forward<T>(value));
+						std::destroy_at(&candidate.value);
+						std::construct_at(&candidate.value, std::forward<T>(value));
 					}
 					candidate.hash = h;
 					return {begin() + static_cast<difference_type>(*chain_idx), false};

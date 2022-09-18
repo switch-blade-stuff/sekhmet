@@ -905,7 +905,7 @@ namespace sek
 			E m_error;
 		};
 	};
-}	 // namespace sek
+};	  // namespace sek
 #else
 
 #include <expected>

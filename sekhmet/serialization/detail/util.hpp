@@ -37,7 +37,7 @@ namespace sek::serialization::detail
 		return category;
 	}
 
-	template<typename C, typename T = std::char_traits<C>, basic_static_string Prefix>
+	template<typename C, typename T = std::char_traits<C>, basic_static_string Prefix = "__">
 	[[nodiscard]] std::basic_string<C, T> generate_key(std::size_t idx)
 	{
 		constexpr auto prefix = static_string_cast<C, T>(Prefix);

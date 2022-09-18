@@ -148,7 +148,8 @@ TEST(container_tests, dense_map_test)
 
 	auto item = m1.find("2");
 	EXPECT_NE(item, m1.end());
-	EXPECT_EQ((*item <=> std::pair<const std::string, float>{"2", std::numbers::pi_v<float>}), std::weak_ordering::equivalent);
+	EXPECT_EQ(item->first, "2");
+	EXPECT_EQ(item->second, std::numbers::pi_v<float>);
 	EXPECT_EQ(m1.find("1"), m1.end());
 
 	sek::dense_map<std::string, int> m2;

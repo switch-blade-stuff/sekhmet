@@ -169,8 +169,9 @@ namespace sek::math
 	constexpr basic_quat<T, P> basic_quat<T, P>::from_euler(const basic_vec<U, N, Q> &v) noexcept
 		requires(N >= 3)
 	{
-		const auto c = cos(v * static_cast<T>(0.5));
-		const auto s = sin(v * static_cast<T>(0.5));
+		const auto half_v = v * static_cast<T>(0.5);
+		const auto c = cos(half_v);
+		const auto s = sin(half_v);
 
 		const auto x = s.x() * c.y() * c.z() - c.x() * s.y() * s.z();
 		const auto y = c.x() * s.y() * c.z() + s.x() * c.y() * s.z();
