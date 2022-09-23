@@ -7,4 +7,4 @@
 namespace sek::serialization
 {
 	template class SEK_API_EXPORT basic_json_object<char>;
-}
+}	 // namespace sek::serialization

@@ -166,8 +166,8 @@ namespace sek::engine
 			template<typename T, serialization::input_archive I = default_input, serialization::output_archive O = default_output>
 			constexpr serializable_resource(type_selector_t<T>, type_selector_t<I>, type_selector_t<O>) noexcept
 			{
-				static_assert(serialization::in_place_deserializable_with<T, I, resource_cache &>);
-				static_assert(serialization::serializable_with<T, O>);
+				static_assert(serialization::in_place_deserializable<T, I, resource_cache &>);
+				static_assert(serialization::serializable<T, O>);
 
 				m_instantiate = +[]() { return std::static_pointer_cast<void>(std::make_shared<T>()); };
 				m_copy = +[](const void *ptr)

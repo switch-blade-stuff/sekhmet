@@ -25,7 +25,6 @@ namespace sek::serialization
 	/** Reads or writes an entry with an explicit key.
 	 * @param key Key of the entry.
 	 * @param value Value to be read or written, forwarded by the manipulator.
-	 * @note An archive is allowed to ignore this manipulator.
 	 * @note Names consisting of one or multiple underscores followed by decimal digits (`_+[0-9]+`) are reserved. */
 	template<typename C, typename T>
 	constexpr keyed_entry_t<C, T> keyed_entry(std::basic_string_view<C> key, T &&value) noexcept(detail::noexcept_fwd<T>)
@@ -49,17 +48,14 @@ namespace sek::serialization
 	/** @brief Archive manipulator used read or write size of the current container.
 	 *
 	 * By default, archives should infer container size during serialization. This manipulator is used to specify
-	 * an explicit container size.
-	 *
-	 * @note An archive is allowed to ignore this manipulator. */
+	 * an explicit container size. */
 	template<typename T>
 	struct container_size_t
 	{
 		T value;
 	};
 	/** Reads or writes size of the current container entry.
-	 * @param size Size of the container, forwarded by the manipulator.
-	 * @note An archive is allowed to ignore this manipulator. */
+	 * @param size Size of the container, forwarded by the manipulator. */
 	template<typename T>
 	constexpr container_size_t<T> container_size(T &&size) noexcept
 		requires std::integral<std::remove_reference_t<T>>
@@ -72,10 +68,7 @@ namespace sek::serialization
 	 * By default archives serialize types as table-like "object" entries. This manipulator is used to switch an
 	 * archive to array output mode.
 	 *
-	 * @note An archive is allowed to ignore this manipulator.
-	 * @warning Entries written to an array will not be accessible via a key. Doing so will result in serialization errors.
-	 * @warning Switching an archive to array output mode after multiple entries have already been written or after the
-	 * container size was specified, will result in serialization errors. */
+	 * @warning Entries written to an array will not be accessible via a key. Doing so will result in serialization errors. */
 	struct array_mode_t
 	{
 	};

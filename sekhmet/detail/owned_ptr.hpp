@@ -39,21 +39,14 @@ namespace sek
 
 		/** Initializes a local owned instance from an initializer list.
 		 * @param il Initializer list passed to object's constructor. */
-		constexpr owned_ptr(std::initializer_list<T> il) requires std::constructible_from<T, std::initializer_list<T>>
-		{
-			init(il);
-		}
-		/** @copydoc owned_ptr */
 		constexpr owned_ptr(std::initializer_list<owned_ptr> il) requires std::constructible_from<T, std::initializer_list<owned_ptr>>
 		{
 			init(il);
 		}
 		/** @copydoc owned_ptr
-		 * @note This overload is available only if `std::same_as<T, U> || std::same_as<owned_ptr, U>` evaluates to `false`. */
+		 * @note This overload is available only if `std::same_as<owned_ptr, U>` evaluates to `false`. */
 		template<typename U>
-		constexpr owned_ptr(std::initializer_list<U> il)
-			requires std::constructible_from<T, std::initializer_list<U>> &&
-					 (std::same_as<T, U> || std::same_as<owned_ptr, U>)
+		constexpr owned_ptr(std::initializer_list<U> il) requires(std::constructible_from<T, std::initializer_list<U>> && !std::same_as<owned_ptr, U>)
 		{
 			init(il);
 		}

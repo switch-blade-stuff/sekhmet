@@ -7,8 +7,8 @@
 #include <concepts>
 #include <iosfwd>
 
-#include "sekhmet/detail/define.h"
-
+#include "../../expected.hpp"
+#include "archive_error.hpp"
 #include "types/ranges.hpp"
 #include "types/tuples.hpp"
 #include <string_view>
@@ -49,21 +49,30 @@ namespace sek::serialization
 	{
 		// clang-format off
 		template<typename T, typename A, typename... Args>
-		concept mem_serialize = requires(const T &v, A &a, Args &&...args) { v.serialize(a, std::forward<Args>(args)...); };
+		concept mem_serialize = requires(const T &v, A &a, Args &&...args)
+		{
+			v.serialize(a, std::forward<Args>(args)...);
+		};
 		template<typename T, typename A, typename... Args>
-		concept adl_serialize = requires(const T &v, A &a, Args &&...args) { serialize(v, a, std::forward<Args>(args)...); };
+		concept adl_serialize = requires(const T &v, A &a, Args &&...args)
+		{
+			serialize(v, a, std::forward<Args>(args)...);
+		};
 		template<typename T, typename A, typename... Args>
 		concept enable_serialize = mem_serialize<T, A, Args...> || adl_serialize<T, A, Args...>;
 
 		template<typename T, typename A, typename... Args>
-		concept mem_deserialize = requires(T &v, A &a, Args &&...args) { v.deserialize(a, std::forward<Args>(args)...); };
+		concept mem_deserialize = requires(T &v, A &a, Args &&...args)
+		{
+			v.deserialize(a, std::forward<Args>(args)...);
+		};
 		template<typename T, typename A, typename... Args>
-		concept adl_deserialize = requires(T &v, A &a, Args &&...args) { deserialize(v, a, std::forward<Args>(args)...); };
+		concept adl_deserialize = requires(T &v, A &a, Args &&...args)
+		{
+			deserialize(v, a, std::forward<Args>(args)...);
+		};
 		template<typename T, typename A, typename... Args>
 		concept enable_deserialize = mem_deserialize<T, A, Args...> || adl_deserialize<T, A, Args...>;
-
-		template<typename T, typename A, typename... Args>
-		concept in_place_deserialize = requires(A &a, Args &&...args) { deserialize(std::in_place_type<T>, a, std::forward<Args>(args)...); };
 		// clang-format on
 	}	 // namespace detail
 
@@ -88,7 +97,10 @@ namespace sek::serialization
 
 	public:
 		// clang-format off
-		/** Serializes an instance of type `T` using the passed archive and forwarded arguments. */
+		/** Serializes an instance of type `T` to the specified archive and forwarded arguments.
+		 * @param value Object to serialize.
+		 * @param ar Archive to serialize to.
+		 * @param args Additional arguments forwarded to the serialization function. */
 		template<typename... Args>
 		constexpr static void serialize(const T &value, Archive &ar, Args &&...args) requires detail::enable_serialize<T, Archive, Args...>
 		{
@@ -97,7 +109,10 @@ namespace sek::serialization
 			else
 				serialize(value, ar, std::forward<Args>(args)...);
 		}
-		/** Deserializes an instance of type `T` using the passed archive and forwarded arguments. */
+		/** Deserializes an instance of type `T` from the specified archive and forwarded arguments.
+		 * @param value Object to deserialize.
+		 * @param ar Archive to deserialize from.
+		 * @param args Additional arguments forwarded to the deserialization function. */
 		template<typename... Args>
 		constexpr static void deserialize(T &value, Archive &ar, Args &&...args) requires detail::enable_deserialize<T, Archive, Args...>
 		{
@@ -107,22 +122,22 @@ namespace sek::serialization
 				deserialize(value, ar, std::forward<Args>(args)...);
 		}
 
-		/** Deserializes an instance of type `T` in-place using the passed archive and forwarded arguments. */
+		/** Deserializes an instance of type `T` in-place from the specified archive and forwarded arguments.
+		 * @param ar Archive to deserialize from.
+		 * @param args Additional arguments forwarded to the deserialization function or constructor.
+		 * @return Deserialized instance of `T`. */
 		template<typename... Args>
 		[[nodiscard]] constexpr static T deserialize(std::in_place_t, Archive &ar, Args &&...args)
-			requires detail::in_place_deserializable<T, Archive, Args...> ||
-					 detail::enable_deserialize<T, Archive, Args...> ||
-					 std::constructible_from<T, Archive &, Args...>
+			requires detail::enable_deserialize<T, Archive, Args...> ||
+					 std::constructible_from<T, Archive, Args...>
 		{
-			if constexpr (std::constructible_from<T, Archive &, Args...>)
+			if constexpr (std::constructible_from<T, Archive, Args...>)
 				return T{ar, std::forward<Args>(args)...};
-			else if constexpr (detail::in_place_deserializable<T, Archive, Args...>)
-				return deserialize(std::in_place_type<T>, ar, std::forward<Args>(args)...);
 			else
 			{
-				T result;
-				serializer::deserialize(result, ar, std::forward<Args>(args)...);
-				return result;
+				T value;
+				deserialize(value, ar, std::forward<Args>(args)...);
+				return value;
 			}
 		}
 		// clang-format on
@@ -130,19 +145,19 @@ namespace sek::serialization
 
 	// clang-format off
 	template<typename T, typename A, typename... Args>
-	concept serializable_with = requires(const T &value, A &archive, Args &&...args)
+	concept serializable = requires(const T &value, A &archive, Args &&...args)
 	{			   
 		typename serializer<T, A>;
 		serializer<T, A>::serialize(value, archive, std::forward<Args>(args)...);
 	};
 	template<typename T, typename A, typename... Args>
-	concept deserializable_with = requires(T &value, A &archive, Args &&...args)
+	concept deserializable = requires(T &value, A &archive, Args &&...args)
 	{
 		typename serializer<T, A>;
 		serializer<T, A>::deserialize(value, archive, std::forward<Args>(args)...);
 	};
 	template<typename T, typename A, typename... Args>
-	concept in_place_deserializable_with = requires(A &archive, Args &&...args)
+	concept in_place_deserializable = requires(A &archive, Args &&...args)
 	{
 		typename serializer<T, A>;
 		serializer<T, A>::deserialize(std::in_place, archive, std::forward<Args>(args)...);

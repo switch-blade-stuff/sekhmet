@@ -476,7 +476,7 @@ namespace sek::detail
 
 			/* No suitable entry for replacing was found, add new link. */
 			const auto pos = *chain_idx = old_size;
-			entry.link_before(m_head);
+			entry.link_before(&m_head);
 			maybe_rehash();
 			return {iterator{&entry}, true};
 		}
@@ -548,7 +548,7 @@ namespace sek::detail
 			while (first < last) result = erase(first);
 			return result;
 		}
-		constexpr auto erase(const_iterator where) { return erase_impl(where.m_ptr->hash, get_key(*where.get())); }
+		constexpr auto erase(const_iterator where) { return erase_impl(where.entry()->hash, get_key(*where.get())); }
 
 		// clang-format off
 		template<typename T>

@@ -39,6 +39,7 @@ namespace sek::serialization
 
 		typedef ordered_map<string_type, basic_json_object, default_hash, std::equal_to<>, Alloc<std::pair<const string_type, basic_json_object>>> table_type;
 		typedef typename table_type::allocator_type table_allocator;
+		typedef typename table_type::key_type key_type;
 
 		typedef std::vector<basic_json_object, Alloc<basic_json_object>> array_type;
 		typedef typename array_type::allocator_type array_allocator;
@@ -46,6 +47,58 @@ namespace sek::serialization
 		typedef std::initializer_list<owned_ptr<basic_json_object>> initializer_list;
 
 	private:
+		[[nodiscard]] constexpr static bool is_table_list(const initializer_list &il) noexcept
+		{
+			constexpr auto pred = [](const owned_ptr<basic_json_object> &ptr)
+			{
+				if (ptr->is_array()) [[likely]]
+					return ptr->m_array.size() == 2 && ptr->m_array[0].is_string();
+				return false;
+			};
+			return std::all_of(il.begin(), il.end(), pred);
+		}
+
+		template<std::same_as<std::nullptr_t> U>
+		[[nodiscard]] static constexpr json_type select_type() noexcept
+		{
+			return json_type::NULL_VALUE;
+		}
+		template<std::same_as<bool> U>
+		[[nodiscard]] static constexpr json_type select_type() noexcept
+		{
+			return json_type::BOOL;
+		}
+		template<std::signed_integral U>
+		[[nodiscard]] static constexpr json_type select_type() noexcept
+		{
+			return json_type::INT;
+		}
+		template<std::unsigned_integral U>
+		[[nodiscard]] static constexpr json_type select_type() noexcept
+		{
+			return json_type::UINT;
+		}
+		template<std::floating_point U>
+		[[nodiscard]] static constexpr json_type select_type() noexcept
+		{
+			return json_type::FLOAT;
+		}
+		template<std::same_as<string_type> U>
+		[[nodiscard]] static constexpr json_type select_type() noexcept
+		{
+			return json_type::STRING;
+		}
+		template<std::same_as<table_type> U>
+		[[nodiscard]] static constexpr json_type select_type() noexcept
+		{
+			return json_type::TABLE;
+		}
+		template<std::same_as<array_type> U>
+		[[nodiscard]] static constexpr json_type select_type() noexcept
+		{
+			return json_type::ARRAY;
+		}
+
 		constexpr static void move_swap(basic_json_object &a, basic_json_object &b)
 		{
 			auto tmp = basic_json_object{std::move(b)};
@@ -67,6 +120,9 @@ namespace sek::serialization
 		constexpr static bool is_compatible_uint = std::unsigned_integral<U> && !std::same_as<U, uint_type>;
 		template<typename U>
 		constexpr static bool is_compatible_float = std::floating_point<U> && !std::same_as<U, float_type>;
+
+		template<typename U, typename V = std::remove_cvref_t<U>>
+		constexpr static bool is_compatible_type = is_value_type<V> || std::is_arithmetic_v<V>;
 
 		template<bool IsConst>
 		class object_iterator
@@ -227,11 +283,14 @@ namespace sek::serialization
 	private:
 		// clang-format off
 		template<typename U, typename... Args>
-		constexpr static bool is_serializable = serializable_with<std::remove_cvref_t<U>, write_frame, Args...>;
+		constexpr static bool is_serializable = serializable<std::remove_cvref_t<U>, write_frame, Args...>;
 		template<typename U, typename... Args>
-		constexpr static bool is_deserializable = deserializable_with<std::remove_cvref_t<U>, write_frame, Args...>;
+		constexpr static bool is_deserializable = deserializable<std::remove_cvref_t<U>, write_frame, Args...>;
 		template<typename U, typename... Args>
-		constexpr static bool is_in_place_deserializable = in_place_deserializable_with<std::remove_cvref_t<U>, write_frame, Args...>;
+		constexpr static bool is_in_place_deserializable = in_place_deserializable<std::remove_cvref_t<U>, write_frame, Args...>;
+
+		template<typename K>
+		constexpr static bool compatible_key = requires(table_type t, K &&k) { t.at(std::forward<K>(k)); };
 		// clang-format on
 
 	public:
@@ -533,7 +592,7 @@ namespace sek::serialization
 			template<typename F>
 			constexpr const_iterator seek_impl(F &&key_factory)
 			{
-				return m_pos = const_iterator{m_target.get_table().find(key_factory())};
+				return m_pos = const_iterator{m_target.get<table_type &>().find(key_factory())};
 			}
 
 			const value_type &m_target;
@@ -554,14 +613,20 @@ namespace sek::serialization
 
 			/** Initializes a write frame for the specified Json object.
 			 * @note All previous contents of the object will be overwritten. */
-			constexpr write_frame(value_type &target) : m_target(target) { m_target.as_table().clear(); }
+			constexpr write_frame(value_type &target) : m_target(target)
+			{
+				if (!m_target.is_table()) [[unlikely]]
+					m_target.as<table_type>();
+				else
+					m_target.m_table.clear();
+			}
 
 			/** Returns reference to the target Json object of this frame. */
 			[[nodiscard]] constexpr value_type &target() noexcept { return m_target; }
 			/** @copydoc target */
 			[[nodiscard]] constexpr const value_type &target() const noexcept { return m_target; }
 
-			/** @brief Inserts a new Json object into the current container.
+			/** @brief Inserts a new Json object into the underlying container.
 			 * @param key Key used if the current container is a table.
 			 * @return Reference to the inserted Json object. */
 			[[nodiscard]] value_type &next(string_type &&key)
@@ -582,138 +647,112 @@ namespace sek::serialization
 				return next_impl([&table = m_target.m_table]() { return detail::generate_key<C, T>(table.size()); });
 			}
 
-			/** @brief Inserts a new Json object into the current container and writes the passed value to it.
-			 * @param value Value to write. */
-			template<typename U>
-			void write(U &&value)
+			/** Inserts a new Json object into the underlying container and serializes an instance of type `U` to it.
+			 * @param value Object to serialize.
+			 * @param args Arguments passed to the serialization function.
+			 * @note If an error occurs during serialization, the underlying Json object is left in a defined state. */
+			template<typename U, typename... Args>
+			void write(U &&value, Args &&...args)
 			{
-				next().write(std::forward<U>(value));
+				next().write(std::forward<U>(value), std::forward<Args>(args)...);
 			}
-			/** @copydoc write(U &&) */
-			template<typename U>
-			expected<void, std::error_code> write(std::nothrow_t, U &&value)
+			/** @copydoc write
+			 * @return `void`, or an error code on serialization errors. */
+			template<typename U, typename... Args>
+			expected<void, std::error_code> write(std::nothrow_t, U &&value, Args &&...args)
 			{
-				return next().write(std::nothrow, std::forward<U>(value));
+				return next().write(std::nothrow, std::forward<U>(value), std::forward<Args>(args)...);
 			}
-			/** @copydoc write(U &&)
-			 * @return Reference to this frame. */
+			/** Inserts a new Json object into the underlying container and serializes an instance of type `U` to it.
+			 * @param value Object to serialize.
+			 * @return Reference to this Json object.
+			 * @note If an error occurs during serialization, the underlying Json object is left in a defined state. */
 			template<typename U>
 			write_frame &operator<<(U &&value)
-			{
-				return write(std::forward<U>(value));
-			}
-
-			/** @brief Inserts a new Json object into the current container at the specified key and writes the passed value to it.
-			 * @param value `keyed_entry_t` instance containing the value to write and it's key.
-			 * @throw archive_error If the underlying container is not a table. */
-			template<typename U>
-			void write(keyed_entry_t<C, U> value)
-			{
-				next(value.key).write(std::forward<U>(value.value));
-			}
-			/** @copybrief write(keyed_entry_t<C, U>)
-			 * @param value `keyed_entry_t` instance containing the value to write and it's key.
-			 * @return `void`, or `archive_errc::INVALID_TYPE` if the underlying container is not a table. */
-			template<typename U>
-			expected<void, std::error_code> write(std::nothrow_t, keyed_entry_t<C, U> value)
-			{
-				if (m_target.is_table()) [[likely]]
-					return next(value.key).write(std::nothrow, std::forward<U>(value.value));
-				return unexpected{make_error_code(archive_errc::INVALID_TYPE)};
-			}
-			/** @copydoc write(keyed_entry_t<C, U>)
-			 * @return Reference to this frame. */
-			template<typename U>
-			write_frame &operator<<(keyed_entry_t<C, U> value)
-			{
-				return write(std::forward<U>(value));
-			}
-
-			// clang-format off
-			/** @brief Inserts a new Json object into the current container and serializes the passed object to it.
-			 * @param value Object to serialize.
-			 * @param args Arguments forwarded to the serialization function (if any).
-			 * @throw archive_error On serialization errors. */
-			template<typename V, typename... Args>
-			void write(V &&value, Args &&...args) requires is_serializable<V, Args...>
-			{
-				next().write(std::forward<V>(value), std::forward<Args>(args)...);
-			}
-			/** @copybrief write(V &&, Args &&...)
-			 * @param value Object to serialize.
-			 * @param args Arguments forwarded to the serialization function (if any).
-			 * @return `void`, or an error code on deserialization error. */
-			template<typename V, typename... Args>
-			expected<void, std::error_code> write(std::nothrow_t, V &&value, Args &&...args) requires is_serializable<V, Args...>
-			{
-				return next().write(std::nothrow, std::forward<V>(value), std::forward<Args>(args)...);
-			}
-			/** @brief Inserts a new Json object into the current container and serializes the passed object to it.
-			 * @param value Object to serialize.
-			 * @return Reference to this frame.
-			 * @throw archive_error On serialization errors. */
-			template<typename V>
-			write_frame &operator<<(V &&value) requires is_serializable<V>
-			{
-				write(std::forward<V>(value));
-				return *this;
-			}
-
-			/** @copybrief write(V &&, Args &&...)
-			 * @param value `keyed_entry_t` instance containing the object to serialize and it's key.
-			 * @param args Arguments forwarded to the serialization function (if any).
-			 * @throw archive_error On serialization errors. */
-			template<typename V, typename... Args>
-			void write(keyed_entry_t<C, V> value, Args &&...args) requires is_serializable<V, Args...>
-			{
-				next(value.key).write(std::forward<V>(value.value), std::forward<Args>(args)...);
-			}
-			/** @copybrief write(V &&, Args &&...)
-			 * @param value `keyed_entry_t` instance containing the object to serialize and it's key.
-			 * @param args Arguments forwarded to the serialization function (if any).
-			 * @return `void`, or an error code on deserialization error. */
-			template<typename V, typename... Args>
-			expected<void, std::error_code> write(std::nothrow_t, keyed_entry_t<C, V> value, Args &&...args) requires is_serializable<V, Args...>
-			{
-				return next(value.key).write(std::nothrow, std::forward<V>(value), std::forward<Args>(args)...);
-			}
-			/** @copybrief operator<<(V &&)
-			 * @param value `keyed_entry_t` instance containing the object to serialize and it's key.
-			 * @return Reference to this frame.
-			 * @throw archive_error On serialization errors. */
-			template<typename U>
-			write_frame &operator<<(keyed_entry_t<C, U> value) requires is_serializable<U>
 			{
 				write(std::forward<U>(value));
 				return *this;
 			}
-			// clang-format on
 
-			/** Uses the provided size hint to reserve space in the current container.
-			 * @param size `container_size_t` instance containing the size hint. */
-			template<typename U>
-			void write(container_size_t<U> size)
+			/** Inserts a new Json object into the underlying container using the
+			 * provided key hint and serializes an instance of type `U` to it.
+			 * @param value Keyed entry manipulator containing the object to serialize and a key hint.
+			 * @param args Arguments passed to the serialization function.
+			 * @note If an error occurs during serialization, the underlying Json object is left in a defined state. */
+			template<typename U, typename... Args>
+			void write(keyed_entry_t<C, U> value, Args &&...args)
 			{
-				m_target.write(size);
+				next(value.key).write(std::forward<U>(value.value), std::forward<Args>(args)...);
+			}
+			/** @copydoc write
+			 * @return `void`, or an error code on serialization errors. */
+			template<typename U, typename... Args>
+			expected<void, std::error_code> write(std::nothrow_t, keyed_entry_t<C, U> value, Args &&...args)
+			{
+				return next(value.key).write(std::nothrow, std::forward<U>(value.value), std::forward<Args>(args)...);
+			}
+			/** Inserts a new Json object into the underlying container using the
+			 * provided key hint and serializes an instance of type `U` to it.
+			 * @param value Keyed entry manipulator containing the object to serialize and a key hint.
+			 * @return Reference to this Json object.
+			 * @note If an error occurs during serialization, the underlying Json object is left in a defined state. */
+			template<typename U>
+			write_frame &operator<<(keyed_entry_t<C, U> value)
+			{
+				write(value);
 				return *this;
 			}
-			/** @copydoc write */
+
+			/** Switches the archive to array mode. If the underlying container is a non-empty
+			 * table, it's elements are copied to the array as key-value pairs. */
+			write_frame &operator<<(array_mode_t)
+			{
+				write(array_mode());
+				return *this;
+			}
+			/** @copydoc operator<<
+			 * @param alloc Allocator used for the array. */
+			void write(array_mode_t, const array_allocator &alloc = array_allocator{})
+			{
+				switch (m_target.type())
+				{
+					case json_type::TABLE: to_array_impl(alloc);
+					case json_type::ARRAY: break;
+					default: detail::invalid_json_type(json_type::CONTAINER_FLAG, m_target.type());
+				}
+			}
+			/** @copydoc write
+			 * @return `void`, or an error code on serialization errors. */
+			expected<void, std::error_code> write(std::nothrow_t, array_mode_t, const array_allocator &alloc = array_allocator{})
+			{
+				switch (m_target.type())
+				{
+					case json_type::TABLE: to_array_impl(alloc);
+					case json_type::ARRAY: return {};
+					default: return unexpected{make_error_code(archive_errc::INVALID_TYPE)};
+				}
+			}
+
+			/** Uses the provided hint to reserve size of the underlying container. */
 			template<typename U>
 			write_frame &operator<<(container_size_t<U> size)
 			{
-				return write(size);
-			}
-
-			/** Switches the frame to array mode (converts the target Json object to array).
-			 * @return Reference to this frame.
-			 * @throw archive_error If the target Json object is a non-empty table. */
-			write_frame &write(array_mode_t)
-			{
-				m_target.write(array_mode());
+				write(size);
 				return *this;
 			}
-			/** @copydoc write */
-			write_frame &operator<<(array_mode_t) { return write(array_mode()); }
+			/** @copydoc operator<< */
+			template<typename U>
+			void write(container_size_t<U> size)
+			{
+				m_target.reserve(static_cast<size_type>(size.value));
+			}
+			/** @copydoc write
+			 * @return `void`, or an error code on serialization errors. */
+			template<typename U>
+			expected<void, std::error_code> write(std::nothrow_t, container_size_t<U> size)
+			{
+				return m_target.reserve(std::nothrow, static_cast<size_type>(size.value));
+			}
 
 		private:
 			template<typename F>
@@ -733,6 +772,27 @@ namespace sek::serialization
 						// clang-format on
 					}
 					case json_type::ARRAY: return m_target.m_array.emplace_back();
+				}
+			}
+
+			void to_array_impl(const array_allocator &alloc)
+			{
+				if (auto &table = m_target.m_table; table.empty()) [[likely]]
+					m_target.as<array_type>(table.size(), alloc);
+				else
+				{
+					/* Create a new array and copy elements. */
+					array_type array{table.size(), alloc};
+					for (decltype(auto) pair : table)
+					{
+						auto &pair_obj = array.emplace_back(std::in_place_type<array_type>, 2u, alloc);
+						auto *pair_array = pair_obj.template get<array_type *>();
+						pair_array->emplace_back(std::move(pair.first));
+						pair_array->emplace_back(std::move(pair.second));
+					}
+
+					/* Convert to the new array. */
+					m_target.as<array_type>(std::move(array));
 				}
 			}
 
@@ -770,7 +830,7 @@ namespace sek::serialization
 			-> expected<basic_json_object, std::error_code>
 		{
 			expected<basic_json_object, std::error_code> result;
-			if (const auto err = result.init_table(std::nothrow, il, alloc); !err) [[unlikely]]
+			if (const auto err = result->init_table(std::nothrow, il, alloc); !err) [[unlikely]]
 				result = expected<basic_json_object, std::error_code>{err};
 			return result;
 		}
@@ -811,6 +871,100 @@ namespace sek::serialization
 		constexpr basic_json_object(std::nullptr_t) noexcept : basic_json_object(std::in_place_type<std::nullptr_t>) {}
 		/** @copydoc basic_json_object */
 		constexpr basic_json_object(std::in_place_type_t<std::nullptr_t>) noexcept : m_type(json_type::NULL_VALUE) {}
+
+		// clang-format off
+		/** @brief Initializes a boolean Json object.
+		 * @param value Value of the integer. */
+		basic_json_object(bool value) : basic_json_object(std::in_place_type<bool>, value) {}
+		/** @copydoc basic_json_object */
+		template<typename B>
+		basic_json_object(std::in_place_type_t<bool>, B &&value) requires std::constructible_from<bool, B>
+			: m_bool(value), m_type(json_type::BOOL) {}
+
+		/** @brief Initializes a signed integer Json object.
+		 * @param value Value of the integer. */
+		template<typename I>
+		basic_json_object(I &&value) requires std::signed_integral<std::remove_cvref_t<I>>
+			: basic_json_object(std::in_place_type<int_type>, value) {}
+		/** @copydoc basic_json_object */
+		template<typename I>
+		basic_json_object(std::in_place_type_t<int_type>, I &&value) requires std::constructible_from<int_type, I>
+			: m_int(value), m_type(json_type::INT) {}
+
+		/** @brief Initializes an unsigned integer Json object.
+		 * @param value Value of the integer. */
+		template<typename U>
+		basic_json_object(U &&value) requires std::unsigned_integral<std::remove_cvref_t<U>>
+			: basic_json_object(std::in_place_type<uint_type>, std::forward<U>(value)) {}
+		/** @copydoc basic_json_object */
+		template<typename U>
+		basic_json_object(std::in_place_type_t<uint_type>, U &&value) requires std::constructible_from<uint_type, U>
+			: m_uint(value), m_type(json_type::UINT) {}
+
+		/** @brief Initializes a floating-point number Json object.
+		 * @param value Value of the floating-point number. */
+		template<typename F>
+		basic_json_object(F &&value) requires std::floating_point<std::remove_cvref_t<F>>
+			: basic_json_object(std::in_place_type<float_type>, std::forward<F>(value)) {}
+		/** @copydoc basic_json_object */
+		template<typename F>
+		basic_json_object(std::in_place_type_t<float_type>, F &&value) requires std::constructible_from<float_type, F>
+			: m_float(value), m_type(json_type::FLOAT) {}
+
+		/** @brief Initializes a string Json object.
+		 * @param value Value of the string. */
+		basic_json_object(const string_type &value) : basic_json_object(std::in_place_type<string_type>, value) {}
+		/** @copydoc basic_json_object */
+		basic_json_object(string_type &&value) : basic_json_object(std::in_place_type<string_type>, std::move(value)) {}
+		/** @copydoc basic_json_object */
+		template<typename S>
+		basic_json_object(const S &value) requires(std::constructible_from<string_type, S> && !std::same_as<S, string_type>)
+			: basic_json_object(std::in_place_type<string_type>, value) {}
+		/** @copybrief basic_json_object
+		 * @param args Arguments passed to string's constructor. */
+		template<typename... Args>
+		basic_json_object(std::in_place_type_t<string_type>, Args &&...args) requires std::constructible_from<string_type, Args...>
+			: m_string(std::forward<Args>(args)...), m_type(json_type::STRING) {}
+
+		/** @brief Initializes a table Json object.
+		 * @param value Value of the table. */
+		basic_json_object(const table_type &value) : basic_json_object(std::in_place_type<table_type>, value) {}
+		/** @copydoc basic_json_object */
+		basic_json_object(table_type &&value) : basic_json_object(std::in_place_type<table_type>, std::move(value)) {}
+		/** @copybrief basic_json_object
+		 * @param args Arguments passed to table's constructor. */
+		template<typename... Args>
+		basic_json_object(std::in_place_type_t<table_type>, Args &&...args) requires std::constructible_from<table_type, Args...>
+		    : m_table(std::forward<Args>(args)...), m_type(json_type::TABLE) {}
+
+		/** @brief Initializes an array Json object.
+		 * @param value Value of the table. */
+		basic_json_object(const array_type &value) : basic_json_object(std::in_place_type<array_type>, value) {}
+		/** @copydoc basic_json_object */
+		basic_json_object(array_type &&value) : basic_json_object(std::in_place_type<array_type>, std::move(value)) {}
+		/** @copybrief basic_json_object
+		 * @param args Arguments passed to array's constructor. */
+		template<typename... Args>
+		basic_json_object(std::in_place_type_t<array_type>, Args &&...args) requires std::constructible_from<array_type, Args...>
+		    : m_array(std::forward<Args>(args)...), m_type(json_type::ARRAY) {}
+		// clang-format on
+
+		/** Initializes a container (table or array) Json object from an initializer list.
+		 *
+		 * If the initializer list contains key-value pairs, where every json object is an array of at least 2 elements
+		 * with the first one being a string, the Json object is initialized as a table. Otherwise, it is initialized
+		 * as an array.
+		 *
+		 * To initialize create an explicit table or array Json object, use `make_table` and `make_array`.
+		 *
+		 * @param il Initializer list containing elements of the container. */
+		basic_json_object(initializer_list il)
+		{
+			if (is_table_list(il))
+				init_table_impl(il, table_allocator{});
+			else
+				init_array(il, array_allocator{});
+		}
 
 		~basic_json_object() { destroy_impl(); }
 
@@ -955,15 +1109,131 @@ namespace sek::serialization
 			}
 		}
 
+		/** Returns reference to an element at the specified index within the underlying array.
+		 * @return Reference to the element located at the index.
+		 * @throw archive_error If the Json object is not an array. */
+		[[nodiscard]] reference operator[](size_type i) { return get<array_type &>()[i]; }
+		/** @copydoc operator[] */
+		[[nodiscard]] const_reference operator[](size_type i) const { return get<array_type &>()[i]; }
+		/** @copydoc operator[]
+		 * @throw std::out_of_range If index is out of range of the array. */
+		[[nodiscard]] reference at(size_type i) { return get<array_type &>().at(i); }
+		/** @copydoc at */
+		[[nodiscard]] const_reference at(size_type i) const { return get<array_type &>().at(i); }
+
+		/** Returns reference to an element at the specified key within the underlying table.
+		 * @return Reference to the element located at the specified key.
+		 * @throw archive_error If the Json object is not a table.
+		 * @throw std::out_of_range If the key is not present within the table. */
+		[[nodiscard]] reference at(const key_type &key) { return get<table_type &>().at(key); }
+		/** @copydoc at */
+		[[nodiscard]] const_reference at(const key_type &key) const { return get<table_type &>().at(key); }
+		/** @copydoc at */
+		[[nodiscard]] const_reference operator[](const key_type &key) const { return at(key); }
+
+		// clang-format off
+		/** @copydoc at */
+		template<typename K>
+		[[nodiscard]] reference at(K &&key) requires(!std::same_as<key_type, std::decay_t<K>> && compatible_key<K>)
+		{
+			return get<table_type &>().at(std::forward<K>(key));
+		}
+		/** @copydoc at */
+		template<typename K>
+		[[nodiscard]] const_reference at(K &&key) const requires(!std::same_as<key_type, std::decay_t<K>> && compatible_key<K>)
+		{
+			return get<table_type &>().at(std::forward<K>(key));
+		}
+		/** @copydoc at */
+		template<typename K>
+		[[nodiscard]] const_reference operator[](K &&key) const requires(!std::same_as<key_type, std::decay_t<K>> && compatible_key<K>)
+		{
+			return at(std::forward<K>(key));
+		}
+		// clang-format on
+
+		/** Returns reference to an element at the specified key within the underlying table.
+		 * If the key is not present within the table, inserts a new element.
+		 * @return Reference to the element located at the specified key.
+		 * @throw archive_error If the Json object is not a table. */
+		[[nodiscard]] reference operator[](const key_type &key) { return get<table_type &>()[key]; }
+		/** @copydoc operator[] */
+		[[nodiscard]] reference operator[](key_type &&key) { return get<table_type &>()[std::move(key)]; }
+		// clang-format off
+		/** @copydoc operator[] */
+		template<typename K>
+		[[nodiscard]] reference operator[](K &&key) requires(!std::same_as<key_type, std::decay_t<K>> && compatible_key<K>)
+		{
+			return get<table_type &>()[std::forward<K>(key)];
+		}
+		// clang-format on
+
+		/** Reserves storage for at least `n` elements in the container.
+		 * @throw archive_error If the Json object is not a container. */
+		void reserve(size_type size)
+		{
+			switch (m_type)
+			{
+				case json_type::ARRAY: m_array.reserve(size); break;
+				case json_type::TABLE: m_table.reserve(size); break;
+				default: detail::invalid_json_type(json_type::CONTAINER_FLAG, m_type);
+			}
+		}
+		/** Reserves storage for at least `n` elements in the container.
+		 * @return `void`, or `archive_errc::INVALID_TYPE` if the Json object is not a container. */
+		expected<void, std::error_code> reserve(std::nothrow_t, size_type size)
+		{
+			switch (m_type)
+			{
+				case json_type::ARRAY: m_array.reserve(size); break;
+				case json_type::TABLE: m_table.reserve(size); break;
+				default: unexpected{make_error_code(archive_errc::INVALID_TYPE)};
+			}
+			return {};
+		}
+
+		/** Erases an element of the container.
+		 * @param which Iterator to the element to erase.
+		 * @return Iterator to the next element of the container, or an end iterator.
+		 * @throw archive_error If the Json object is not a container. */
+		iterator erase(const_iterator which)
+		{
+			switch (m_type)
+			{
+				case json_type::ARRAY: return iterator{m_array.erase(which.m_array)};
+				case json_type::TABLE: return iterator{m_table.erase(which.m_table)};
+				default: detail::invalid_json_type(json_type::CONTAINER_FLAG, m_type);
+			}
+		}
+		/** Erases an element of the container.
+		 * @param which Iterator to the element to erase.
+		 * @return Iterator to the next element of the container, an end iterator or
+		 * `archive_errc::INVALID_TYPE` if the Json object is not a container. */
+		expected<iterator, std::error_code> erase(std::nothrow_t, const_iterator which)
+		{
+			switch (m_type)
+			{
+				case json_type::ARRAY: return iterator{m_array.erase(which.m_array)};
+				case json_type::TABLE: return iterator{m_table.erase(which.m_table)};
+				default: unexpected{make_error_code(archive_errc::INVALID_TYPE)};
+			}
+		}
+
 		// clang-format off
 		/** Converts the Json object to the specified value type.
-		 * @tparam U Value type to convert the Json object to. Must be one of the value types (`std::nullptr_t`,
-		 * `bool`, `int_type`, `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`).
-		 * @tparam Args Arguments passed to the constructor of the value type.
-		 * @param args Arguments passed to the constructor of the value type.
+		 * @tparam U Value type to convert the Json object to. Must be one of the following value types: `std::nullptr_t`,
+		 * `bool`, `int_type`, `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`.
 		 * @return Reference to this Json object.
 		 * @note Previous value of the Json object will be overwritten.
-		 * @note If any exception is thrown during initialization of the value type, Json object is set to the null value. */
+		 * @note If an error occurs during initialization of the value type, Json object is left in a defined state. */
+		template<typename U>
+		basic_json_object &as(U &&value) requires is_value_type<std::remove_cvref_t<U>>
+		{
+			as_impl<U>(std::forward<U>(value));
+			return *this;
+		}
+		/** @copydoc as
+		 * @param args Arguments passed to the constructor of the value type. */
 		template<typename U, typename... Args>
 		basic_json_object &as(Args &&...args) requires is_value_type<U> && std::constructible_from<U, Args...>
 		{
@@ -971,7 +1241,6 @@ namespace sek::serialization
 			return *this;
 		}
 		/** Converts the Json object to a signed integer via converting to `int_type`.
-		 * @param value Value of the signed integer.
 		 * @return Reference to this Json object.
 		 * @note Previous value of the Json object will be overwritten. */
 		template<typename I>
@@ -980,7 +1249,6 @@ namespace sek::serialization
 			return as<int_type>(static_cast<int_type>(std::forward<I>(value)));
 		}
 		/** Converts the Json object to an unsigned integer via converting to `uint_type`.
-		 * @param value Value of the unsigned integer.
 		 * @return Reference to this Json object.
 		 * @note Previous value of the Json object will be overwritten. */
 		template<typename I>
@@ -989,7 +1257,6 @@ namespace sek::serialization
 			return as<uint_type>(static_cast<uint_type>(std::forward<I>(value)));
 		}
 		/** Converts the Json object to a floating-point number via converting to `uint_type`.
-		 * @param value Value of the unsigned integer.
 		 * @return Reference to this Json object.
 		 * @note Previous value of the Json object will be overwritten. */
 		template<typename F>
@@ -1001,8 +1268,8 @@ namespace sek::serialization
 
 		// clang-format off
 		/** @brief Returns copy of the specified value type.
-		 * @tparam U Value type to retrieve from the Json object. Must either be one of the value types (`bool`, `int_type`,
-		 * `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`), or a compatible arithmetic type.
+		 * @tparam U Value type to retrieve from the Json object. Must either be one of the following value types:
+		 * `bool`, `int_type`, `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`, or a compatible arithmetic type.
 		 * @return Copy of the requested value of the Json object.
 		 * @note If the requested type is a non-`bool` arithmetic (number) type, appropriate conversions will be preformed.
 		 * @throw archive_error If the Json object does not contain the specified type.
@@ -1012,10 +1279,10 @@ namespace sek::serialization
 		 * int16_t int16_value = json.get<int16_t>();
 		 * @endcode */
 		template<typename U>
-		[[nodiscard]] U get() const requires(is_value_type<U> || std::is_arithmetic_v<U>) { return get_impl<U>(); }
+		[[nodiscard]] U get() const requires is_compatible_type<U> { return get_impl<U>(); }
 		/** @copybrief get
-		 * @tparam U Value type to retrieve from the Json object. Must either be one of the value types (`bool`, `int_type`,
-		 * `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`), or a compatible arithmetic type.
+		 * @tparam U Value type to retrieve from the Json object. Must either be one of the following value types:
+		 * `bool`, `int_type`, `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`, or a compatible arithmetic type.
 		 * @return Copy of the requested value of the Json object, or `archive_errc::INVALID_TYPE`
 		 * if the Json object does not contain the specified type.
 		 * @note If the requested type is a non-`bool` arithmetic (number) type, appropriate conversions will be preformed.
@@ -1025,14 +1292,14 @@ namespace sek::serialization
 		 * expected<int16_t, std::error_code> int16_value = json.get<int16_t>(std::nothrow);
 		 * @endcode */
 		template<typename U>
-		[[nodiscard]] expected<U, std::error_code> get(std::nothrow_t) const requires(is_value_type<U> || std::is_arithmetic_v<U>)
+		[[nodiscard]] auto get(std::nothrow_t) const -> expected<U, std::error_code> requires is_compatible_type<U>
 		{
 			return get_impl<U>(std::nothrow);
 		}
 
 		/** Returns reference to the specified value type.
-		 * @tparam R Rvalue reference to the value type to retrieve from the Json object. Must be one of the value
-		 * types (`bool`, `int_type`, `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`).
+		 * @tparam R Rvalue reference to the value type to retrieve from the Json object. Must be one of the following
+		 * value types: `bool`, `int_type`, `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`.
 		 * @return Reference of the value of the Json object.
 		 * @throw archive_error If the Json object does not contain the specified type.
 		 * @example
@@ -1053,24 +1320,236 @@ namespace sek::serialization
 		}
 
 		/** Returns pointer to the specified value type.
-		 * @tparam P Pointer to the value type to retrieve from the Json object. Must be one of the value
-		 * types (`bool`, `int_type`, `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`).
+		 * @tparam P Pointer to the value type to retrieve from the Json object. Must be one of the following value
+		 * types: `bool`, `int_type`, `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`.
 		 * @return Pointer of the value of the Json object, or `nullptr` if the Json object does not contain the specified type.
 		 * @example
 		 * @code{cpp}
 		 * auto *bool_value = json.get<bool *>();
 		 * @endcode */
 		template<typename P>
-		[[nodiscard]] P get() noexcept requires(std::is_pointer_v<P> && is_value_type<std::remove_cv_t<std::remove_pointer_t<P>>>)
+		[[nodiscard]] constexpr P get() noexcept requires(std::is_pointer_v<P> && is_value_type<std::remove_cv_t<std::remove_pointer_t<P>>>)
 		{
 			return get_ptr_impl<std::remove_pointer_t<P>>();
 		}
 		/** @copydoc get */
 		template<typename P>
-		[[nodiscard]] auto get() const noexcept -> std::add_const_t<std::remove_pointer_t<P>> *
+		[[nodiscard]] constexpr auto get() const noexcept -> std::add_const_t<std::remove_pointer_t<P>> *
 			requires(std::is_pointer_v<P> && is_value_type<std::remove_cv_t<std::remove_pointer_t<P>>>)
 		{
 			return get_ptr_impl<std::remove_cv_t<std::remove_pointer_t<P>>>();
+		}
+		// clang-format on
+
+		// clang-format off
+		/** Writes a value to the Json object.
+		 * @param value Value to write. Must be an instance of the following value types: `std::nullptr_t`, `bool`,
+		 * `int_type`, `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`, or a compatible arithmetic type.
+		 * @note Previous value of the Json object will be overwritten.
+		 * @note If an error occurs during the operation, Json object is left in a defined state. */
+		template<typename U>
+		void write(U &&value) requires is_compatible_type<U>
+		{
+			as<std::remove_cvref_t<U>>(std::forward<U>(value));
+		}
+		/** @copydoc write
+		 * @note `void` or an error code on implementation-defined write errors. */
+		template<typename U>
+		expected<void, std::error_code> write(std::nothrow_t, U &&value) requires is_compatible_type<U>
+		{
+			try
+			{
+				write(std::forward<U>(value));
+				return {};
+			}
+			catch (archive_error &e)
+			{
+				return unexpected{e.code()};
+			}
+		}
+		/** @copydoc write(U &&) */
+		template<typename U>
+		basic_json_object &operator<<(U &&value) requires is_compatible_type<U>
+		{
+			write(std::forward<U>(value));
+			return *this;
+		}
+
+		/** Serializes an instance of type `U` to the Json object.
+		 * @param value Object to serialize.
+		 * @param args Arguments passed to the serialization function.
+		 * @note Previous value of the Json object will be overwritten.
+		 * @note If an error occurs during serialization, Json object is left in a defined state. */
+		template<typename U, typename... Args>
+		void write(U &&value, Args &&...args) requires(!is_compatible_type<U> && is_serializable<U, Args...>)
+		{
+			if (!is_container()) [[unlikely]]
+				detail::invalid_json_type(json_type::CONTAINER_FLAG, m_type);
+
+			write_frame frame{*this};
+			detail::do_serialize(value, frame, std::forward<Args>(args)...);
+		}
+		/** @copydoc write
+		 * @return `void`, or an error code on serialization errors. */
+		template<typename U, typename... Args>
+		expected<void, std::error_code> write(std::nothrow_t, U &&value, Args &&...args) requires(!is_compatible_type<U> && is_serializable<U, Args...>)
+		{
+			if (!is_container()) [[unlikely]]
+				return unexpected{make_error_code(archive_errc::INVALID_TYPE)};
+
+			try
+			{
+				write_frame frame{*this};
+				detail::do_serialize(value, frame, std::forward<Args>(args)...);
+				return {};
+			}
+			catch (archive_error &e)
+			{
+				return unexpected{e.code()};
+			}
+		}
+		/** Serializes an instance of type `U` to the Json object.
+		 * @param value Object to serialize.
+		 * @return Reference to this Json object.
+		 * @note Previous value of the Json object will be overwritten.
+		 * @note If an error occurs during serialization, Json object is left in a defined state. */
+		template<typename U>
+		basic_json_object &operator<<(U &&value) requires(!is_compatible_type<U> && is_serializable<U>)
+		{
+			write(std::forward<U>(value));
+			return *this;
+		}
+		// clang-format on
+
+		// clang-format off
+		/** Reads a value from the Json object.
+		 * @param value Value to read. Must be an instance of the following value types: `std::nullptr_t`, `bool`,
+		 * `int_type`, `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`, or a compatible arithmetic type.
+		 * @note If the requested type is a non-`bool` arithmetic (number) type, appropriate conversions will be preformed. */
+		template<typename U>
+		void read(U &value) const requires is_compatible_type<U>
+		{
+			if constexpr (is_value_type<std::remove_cv_t<U>>)
+				value = get<U &>();
+			else
+				value = get<U>();
+		}
+		/** @copydoc read
+		 * @note `void` or an error code on implementation-defined read errors. */
+		template<typename U>
+		expected<void, std::error_code> read(std::nothrow_t, U &value) const requires is_compatible_type<U>
+		{
+			if (m_type != select_type<U>()) [[unlikely]]
+				return unexpected{make_error_code(archive_errc::INVALID_TYPE)};
+
+			if constexpr (!is_value_type<std::remove_cv_t<U>>)
+				value = *get<U>(std::nothrow);
+			else
+				value = *get<U *>();
+			return {};
+		}
+		/** @copydoc read(U &value)
+		 * @return Reference to this Json object. */
+		template<typename U>
+		const basic_json_object &operator>>(U &value) const requires is_compatible_type<U>
+		{
+			read(value);
+			return *this;
+		}
+
+		/** @brief Reads a value from the Json object in-place.
+		 * @param value Value to read. Must be an instance of the following value types: `std::nullptr_t`, `bool`,
+		 * `int_type`, `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`, or a compatible arithmetic type.
+		 * @return Instance of the value read from the Json object.
+		 * @note If the requested type is a non-`bool` arithmetic (number) type, appropriate conversions will be preformed. */
+		template<typename U>
+		[[nodiscard]] U read(std::in_place_type_t<U>) const requires is_compatible_type<U> { return get<U>(); }
+		/** @copybrief read
+		 * @param value Value to read. Must be an instance of the following value types: `std::nullptr_t`, `bool`,
+		 * `int_type`, `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`, or a compatible arithmetic type.
+		 * @return Instance of the value read from the Json object, or an error code on deserialization errors.
+		 * @note If the requested type is a non-`bool` arithmetic (number) type, appropriate conversions will be preformed. */
+		template<typename U>
+		[[nodiscard]] expected<U, std::error_code> read(std::nothrow_t, std::in_place_type_t<U>) const requires is_compatible_type<U>
+		{
+			return get<U>(std::nothrow);
+		}
+
+		/** Deserializes an instance of type `U` from the Json object.
+		 * @param value Object to deserialize.
+		 * @param args Arguments passed to the deserialization function. */
+		template<typename U, typename... Args>
+		void read(U &value, Args &&...args) const requires(!is_compatible_type<U> && is_deserializable<U, Args...>)
+		{
+			if (!is_container()) [[unlikely]]
+				detail::invalid_json_type(json_type::CONTAINER_FLAG, m_type);
+
+			read_frame frame{*this};
+			detail::do_deserialize(value, frame, std::forward<Args>(args)...);
+		}
+		/** @copydoc read
+		 * @return `void`, or an error code on deserialization errors. */
+		template<typename U, typename... Args>
+		expected<void, std::error_code> read(std::nothrow_t, U &value, Args &&...args) const requires(!is_compatible_type<U> && is_deserializable<U, Args...>)
+		{
+			if (!is_container()) [[unlikely]]
+				return unexpected{make_error_code(archive_errc::INVALID_TYPE)};
+
+			try
+			{
+				read_frame frame{*this};
+				detail::do_deserialize(value, frame, std::forward<Args>(args)...);
+				return {};
+			}
+			catch (archive_error &e)
+			{
+				return unexpected{e.code()};
+			}
+		}
+		/** Deserializes an instance of type `U` from the Json object.
+		 * @param value Object to deserialize.
+		 * @return Reference to this Json object. */
+		template<typename U>
+		const basic_json_object &operator>>(U &value) const requires(!is_compatible_type<U> && is_deserializable<U>)
+		{
+			read(value);
+			return *this;
+		}
+
+		/** @brief Deserializes an instance of type `U` from the Json object in-place.
+		 * @param value Object to deserialize.
+		 * @param args Arguments passed to the deserialization function.
+		 * @return Instance of `U` deserialized from the Json object. */
+		template<typename U, typename... Args>
+		[[nodiscard]] U read(std::in_place_type_t<U>, Args &&...args) const requires(!is_compatible_type<U> && is_in_place_deserializable<U, Args...>)
+		{
+			if (!is_container()) [[unlikely]]
+				detail::invalid_json_type(json_type::CONTAINER_FLAG, m_type);
+
+			read_frame frame{*this};
+			return detail::do_deserialize(std::in_place_type<U>, frame, std::forward<Args>(args)...);
+		}
+		/** @copybrief read
+		 * @param value Object to deserialize.
+		 * @param args Arguments passed to the deserialization function.
+		 * @return Instance of `U` deserialized from the Json object, or an error code on deserialization errors.
+		 * @note If the requested type is a non-`bool` arithmetic (number) type, appropriate conversions will be preformed. */
+		template<typename U, typename... Args>
+		[[nodiscard]] expected<U, std::error_code> read(std::nothrow_t, std::in_place_type_t<U>, Args &&...args) const
+			requires(!is_compatible_type<U> && is_in_place_deserializable<U, Args...>)
+		{
+			if (!is_container()) [[unlikely]]
+				return unexpected{make_error_code(archive_errc::INVALID_TYPE)};
+
+			try
+			{
+				read_frame frame{*this};
+				return detail::do_deserialize(std::in_place_type<U>, frame, std::forward<Args>(args)...);
+			}
+			catch (archive_error &e)
+			{
+				return unexpected{e.code()};
+			}
 		}
 		// clang-format on
 
@@ -1169,40 +1648,36 @@ namespace sek::serialization
 				}
 		}
 
-		void init_array(initializer_list il, const array_allocator &alloc)
+		void init_table_impl(const initializer_list &il, const table_allocator &alloc)
 		{
-			/* Reserve & insert elements. */
-			std::construct_at(&m_array, il.size(), alloc);
-			for (auto &ptr : il) m_array.emplace_back(std::move(ptr).extract());
-
-			m_type = json_type::ARRAY;
-		}
-		void init_table(initializer_list il, const table_allocator &alloc)
-		{
-			if (const auto err = init_table(std::nothrow, il, alloc); !err) [[unlikely]]
-				throw archive_error(err.error(), "Expected a sequence of key-value pairs");
-		}
-		expected<void, std::error_code> init_table(std::nothrow_t, initializer_list il, const table_allocator &alloc)
-		{
-			/* Assert that the initializer list consists of key-value pairs */
-			constexpr auto pred = [](const owned_ptr<basic_json_object> &ptr)
-			{
-				if (ptr->is_array()) [[likely]]
-					return ptr->m_array.size() == 2 && ptr->m_array[0].is_string();
-				return false;
-			};
-			if (!std::all_of(il.begin(), il.end(), pred)) [[unlikely]]
-				return unexpected{make_error_code(archive_errc::INVALID_DATA)};
-
-			/* Reserve & insert elements. */
-			std::construct_at(&m_table, il.size(), alloc);
+			std::construct_at(&m_table, il.size(), typename table_type::key_equal{}, typename table_type::hash_type{}, alloc);
 			for (auto &ptr : il)
 			{
 				auto entry = std::move(ptr).extract();
 				m_table.emplace(std::move(entry.m_array[0].m_string), std::move(entry.m_array[1]));
 			}
 			m_type = json_type::TABLE;
+		}
+		expected<void, std::error_code> init_table(std::nothrow_t, const initializer_list &il, const table_allocator &alloc)
+		{
+			/* Assert that the initializer list consists of key-value pairs */
+			if (is_table_list(il)) [[unlikely]]
+				return unexpected{make_error_code(archive_errc::INVALID_DATA)};
+
+			init_table_impl(il, alloc);
 			return {};
+		}
+		void init_table(const initializer_list &il, const table_allocator &alloc)
+		{
+			if (const auto err = init_table(std::nothrow, il, alloc); !err) [[unlikely]]
+				throw archive_error(err.error(), "Expected a sequence of key-value pairs");
+		}
+		void init_array(const initializer_list &il, const array_allocator &alloc)
+		{
+			/* Reserve & insert elements. */
+			std::construct_at(&m_array, il.size(), alloc);
+			for (auto &ptr : il) m_array.emplace_back(std::move(ptr).extract());
+			m_type = json_type::ARRAY;
 		}
 
 		bool as_type_impl(json_type type)
@@ -1235,48 +1710,48 @@ namespace sek::serialization
 		template<std::same_as<std::nullptr_t> U, typename... Args>
 		void as_impl(Args &&...)
 		{
-			as_type_impl(json_type::NULL_VALUE);
+			as_type_impl(select_type<U>());
 		}
 		template<std::same_as<bool> U, typename... Args>
 		void as_impl(Args &&...args)
 		{
-			as_type_impl(json_type::BOOL);
+			as_type_impl(select_type<U>());
 			m_bool = bool{std::forward<Args>(args)...};
 		}
 		template<std::same_as<int_type> U, typename... Args>
 		void as_impl(Args &&...args)
 		{
-			as_type_impl(json_type::INT);
+			as_type_impl(select_type<U>());
 			m_int = int_type{std::forward<Args>(args)...};
 		}
 		template<std::same_as<uint_type> U, typename... Args>
 		void as_impl(Args &&...args)
 		{
-			as_type_impl(json_type::UINT);
+			as_type_impl(select_type<U>());
 			m_uint = uint_type{std::forward<Args>(args)...};
 		}
 		template<std::same_as<float_type> U, typename... Args>
 		void as_impl(Args &&...args)
 		{
-			as_type_impl(json_type::FLOAT);
+			as_type_impl(select_type<U>());
 			m_float = float_type{std::forward<Args>(args)...};
 		}
 		template<std::same_as<string_type> U, typename... Args>
 		void as_impl(Args &&...args)
 		{
-			if (!as_type_impl(json_type::STRING, [&]() { std::construct_at(&m_string, std::forward<Args>(args)...); }))
+			if (!as_type_impl(select_type<U>(), [&]() { std::construct_at(&m_string, std::forward<Args>(args)...); }))
 				m_string = string_type{std::forward<Args>(args)...};
 		}
 		template<std::same_as<table_type> U, typename... Args>
 		void as_impl(Args &&...args)
 		{
-			if (!as_type_impl(json_type::TABLE, [&]() { std::construct_at(&m_table, std::forward<Args>(args)...); }))
+			if (!as_type_impl(select_type<U>(), [&]() { std::construct_at(&m_table, std::forward<Args>(args)...); }))
 				m_table = table_type{std::forward<Args>(args)...};
 		}
 		template<std::same_as<array_type> U, typename... Args>
 		void as_impl(Args &&...args)
 		{
-			if (!as_type_impl(json_type::ARRAY, [&]() { std::construct_at(&m_array, std::forward<Args>(args)...); }))
+			if (!as_type_impl(select_type<U>(), [&]() { std::construct_at(&m_array, std::forward<Args>(args)...); }))
 				m_array = array_type{std::forward<Args>(args)...};
 		}
 
@@ -1289,52 +1764,52 @@ namespace sek::serialization
 		template<std::same_as<bool> U>
 		[[nodiscard]] auto get_impl() const
 		{
-			assert_type(json_type::BOOL);
+			assert_type(select_type<U>());
 			return m_bool;
 		}
 		template<std::same_as<bool> U>
 		[[nodiscard]] auto get_impl(std::nothrow_t) const -> expected<U, std::error_code>
 		{
-			if (m_type != json_type::BOOL) [[unlikely]]
+			if (m_type != select_type<U>()) [[unlikely]]
 				return unexpected{make_error_code(archive_errc::INVALID_TYPE)};
 			return m_bool;
 		}
 		template<std::same_as<string_type> U>
 		[[nodiscard]] auto get_impl() const
 		{
-			assert_type(json_type::STRING);
+			assert_type(select_type<U>());
 			return m_string;
 		}
 		template<std::same_as<string_type> U>
 		[[nodiscard]] auto get_impl(std::nothrow_t) const -> expected<U, std::error_code>
 		{
-			if (m_type != json_type::STRING) [[unlikely]]
+			if (m_type != select_type<U>()) [[unlikely]]
 				return unexpected{make_error_code(archive_errc::INVALID_TYPE)};
 			return m_string;
 		}
 		template<std::same_as<table_type> U>
 		[[nodiscard]] auto get_impl() const
 		{
-			assert_type(json_type::TABLE);
+			assert_type(select_type<U>());
 			return m_table;
 		}
 		template<std::same_as<table_type> U>
 		[[nodiscard]] auto get_impl(std::nothrow_t) const -> expected<U, std::error_code>
 		{
-			if (m_type != json_type::TABLE) [[unlikely]]
+			if (m_type != select_type<U>()) [[unlikely]]
 				return unexpected{make_error_code(archive_errc::INVALID_TYPE)};
 			return m_table;
 		}
 		template<std::same_as<array_type> U>
 		[[nodiscard]] auto get_impl() const
 		{
-			assert_type(json_type::ARRAY);
+			assert_type(select_type<U>());
 			return m_array;
 		}
 		template<std::same_as<array_type> U>
 		[[nodiscard]] auto get_impl(std::nothrow_t) const -> expected<U, std::error_code>
 		{
-			if (m_type != json_type::ARRAY) [[unlikely]]
+			if (m_type != select_type<U>()) [[unlikely]]
 				return unexpected{make_error_code(archive_errc::INVALID_TYPE)};
 			return m_array;
 		}
@@ -1365,161 +1840,161 @@ namespace sek::serialization
 		// clang-format on
 
 		template<std::same_as<bool> U>
-		[[nodiscard]] auto *get_ptr_impl() noexcept
-		{
-			return is_bool() ? &m_bool : nullptr;
-		}
-		template<std::same_as<int_type> U>
-		[[nodiscard]] auto *get_ptr_impl() noexcept
-		{
-			return is_int() ? &m_int : nullptr;
-		}
-		template<std::same_as<uint_type> U>
-		[[nodiscard]] auto *get_ptr_impl() noexcept
-		{
-			return is_uint() ? &m_uint : nullptr;
-		}
-		template<std::same_as<float_type> U>
-		[[nodiscard]] auto *get_ptr_impl() noexcept
-		{
-			return is_float() ? &m_float : nullptr;
-		}
-		template<std::same_as<string_type> U>
-		[[nodiscard]] auto *get_ptr_impl() noexcept
-		{
-			return is_string() ? &m_string : nullptr;
-		}
-		template<std::same_as<table_type> U>
-		[[nodiscard]] auto *get_ptr_impl() noexcept
-		{
-			return is_table() ? &m_table : nullptr;
-		}
-		template<std::same_as<array_type> U>
-		[[nodiscard]] auto *get_ptr_impl() noexcept
-		{
-			return is_array() ? &m_array : nullptr;
-		}
-
-		template<std::same_as<bool> U>
-		[[nodiscard]] auto *get_ptr_impl() const noexcept
-		{
-			return is_bool() ? &m_bool : nullptr;
-		}
-		template<std::same_as<int_type> U>
-		[[nodiscard]] auto *get_ptr_impl() const noexcept
-		{
-			return is_int() ? &m_int : nullptr;
-		}
-		template<std::same_as<uint_type> U>
-		[[nodiscard]] auto *get_ptr_impl() const noexcept
-		{
-			return is_uint() ? &m_uint : nullptr;
-		}
-		template<std::same_as<float_type> U>
-		[[nodiscard]] auto *get_ptr_impl() const noexcept
-		{
-			return is_float() ? &m_float : nullptr;
-		}
-		template<std::same_as<string_type> U>
-		[[nodiscard]] auto *get_ptr_impl() const noexcept
-		{
-			return is_string() ? &m_string : nullptr;
-		}
-		template<std::same_as<table_type> U>
-		[[nodiscard]] auto *get_ptr_impl() const noexcept
-		{
-			return is_table() ? &m_table : nullptr;
-		}
-		template<std::same_as<array_type> U>
-		[[nodiscard]] auto *get_ptr_impl() const noexcept
-		{
-			return is_array() ? &m_array : nullptr;
-		}
-
-		template<std::same_as<bool> U>
 		[[nodiscard]] auto &get_ref_impl()
 		{
-			assert_type(json_type::BOOL);
+			assert_type(select_type<U>());
 			return m_bool;
 		}
 		template<std::same_as<int_type> U>
 		[[nodiscard]] auto &get_ref_impl()
 		{
-			assert_type(json_type::INT);
+			assert_type(select_type<U>());
 			return m_int;
 		}
 		template<std::same_as<uint_type> U>
 		[[nodiscard]] auto &get_ref_impl()
 		{
-			assert_type(json_type::UINT);
+			assert_type(select_type<U>());
 			return m_uint;
 		}
 		template<std::same_as<float_type> U>
 		[[nodiscard]] auto &get_ref_impl()
 		{
-			assert_type(json_type::FLOAT);
+			assert_type(select_type<U>());
 			return m_float;
 		}
 		template<std::same_as<string_type> U>
 		[[nodiscard]] auto &get_ref_impl()
 		{
-			assert_type(json_type::STRING);
+			assert_type(select_type<U>());
 			return m_string;
 		}
 		template<std::same_as<table_type> U>
 		[[nodiscard]] auto &get_ref_impl()
 		{
-			assert_type(json_type::TABLE);
+			assert_type(select_type<U>());
 			return m_table;
 		}
 		template<std::same_as<array_type> U>
 		[[nodiscard]] auto &get_ref_impl()
 		{
-			assert_type(json_type::ARRAY);
+			assert_type(select_type<U>());
 			return m_array;
 		}
 
 		template<std::same_as<bool> U>
 		[[nodiscard]] auto &get_ref_impl() const
 		{
-			assert_type(json_type::BOOL);
+			assert_type(select_type<U>());
 			return m_bool;
 		}
 		template<std::same_as<int_type> U>
 		[[nodiscard]] auto &get_ref_impl() const
 		{
-			assert_type(json_type::INT);
+			assert_type(select_type<U>());
 			return m_int;
 		}
 		template<std::same_as<uint_type> U>
 		[[nodiscard]] auto &get_ref_impl() const
 		{
-			assert_type(json_type::UINT);
+			assert_type(select_type<U>());
 			return m_uint;
 		}
 		template<std::same_as<float_type> U>
 		[[nodiscard]] auto &get_ref_impl() const
 		{
-			assert_type(json_type::FLOAT);
+			assert_type(select_type<U>());
 			return m_float;
 		}
 		template<std::same_as<string_type> U>
 		[[nodiscard]] auto &get_ref_impl() const
 		{
-			assert_type(json_type::STRING);
+			assert_type(select_type<U>());
 			return m_string;
 		}
 		template<std::same_as<table_type> U>
 		[[nodiscard]] auto &get_ref_impl() const
 		{
-			assert_type(json_type::TABLE);
+			assert_type(select_type<U>());
 			return m_table;
 		}
 		template<std::same_as<array_type> U>
 		[[nodiscard]] auto &get_ref_impl() const
 		{
-			assert_type(json_type::ARRAY);
+			assert_type(select_type<U>());
 			return m_array;
+		}
+
+		template<std::same_as<bool> U>
+		[[nodiscard]] constexpr auto *get_ptr_impl() noexcept
+		{
+			return is_bool() ? &m_bool : nullptr;
+		}
+		template<std::same_as<int_type> U>
+		[[nodiscard]] constexpr auto *get_ptr_impl() noexcept
+		{
+			return is_int() ? &m_int : nullptr;
+		}
+		template<std::same_as<uint_type> U>
+		[[nodiscard]] constexpr auto *get_ptr_impl() noexcept
+		{
+			return is_uint() ? &m_uint : nullptr;
+		}
+		template<std::same_as<float_type> U>
+		[[nodiscard]] constexpr auto *get_ptr_impl() noexcept
+		{
+			return is_float() ? &m_float : nullptr;
+		}
+		template<std::same_as<string_type> U>
+		[[nodiscard]] constexpr auto *get_ptr_impl() noexcept
+		{
+			return is_string() ? &m_string : nullptr;
+		}
+		template<std::same_as<table_type> U>
+		[[nodiscard]] constexpr auto *get_ptr_impl() noexcept
+		{
+			return is_table() ? &m_table : nullptr;
+		}
+		template<std::same_as<array_type> U>
+		[[nodiscard]] constexpr auto *get_ptr_impl() noexcept
+		{
+			return is_array() ? &m_array : nullptr;
+		}
+
+		template<std::same_as<bool> U>
+		[[nodiscard]] constexpr auto *get_ptr_impl() const noexcept
+		{
+			return is_bool() ? &m_bool : nullptr;
+		}
+		template<std::same_as<int_type> U>
+		[[nodiscard]] constexpr auto *get_ptr_impl() const noexcept
+		{
+			return is_int() ? &m_int : nullptr;
+		}
+		template<std::same_as<uint_type> U>
+		[[nodiscard]] constexpr auto *get_ptr_impl() const noexcept
+		{
+			return is_uint() ? &m_uint : nullptr;
+		}
+		template<std::same_as<float_type> U>
+		[[nodiscard]] constexpr auto *get_ptr_impl() const noexcept
+		{
+			return is_float() ? &m_float : nullptr;
+		}
+		template<std::same_as<string_type> U>
+		[[nodiscard]] constexpr auto *get_ptr_impl() const noexcept
+		{
+			return is_string() ? &m_string : nullptr;
+		}
+		template<std::same_as<table_type> U>
+		[[nodiscard]] constexpr auto *get_ptr_impl() const noexcept
+		{
+			return is_table() ? &m_table : nullptr;
+		}
+		template<std::same_as<array_type> U>
+		[[nodiscard]] constexpr auto *get_ptr_impl() const noexcept
+		{
+			return is_array() ? &m_array : nullptr;
 		}
 
 		union

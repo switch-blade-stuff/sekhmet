@@ -4,8 +4,7 @@
 
 #pragma once
 
-#include "sekhmet/detail/define.h"
-
+#include "../../detail/define.h"
 #include <system_error>
 
 namespace sek::serialization

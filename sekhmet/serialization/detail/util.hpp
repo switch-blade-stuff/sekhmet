@@ -64,17 +64,17 @@ namespace sek::serialization::detail
 
 	// clang-format off
 	template<typename T, typename A, typename... Args>
-	constexpr void do_serialize(const T &value, A &archive, Args &&...args) requires serializable_with<T, A, Args...>
+	constexpr void do_serialize(const T &value, A &archive, Args &&...args) requires serializable<T, A, Args...>
 	{
 		serializer<T, A>::serialize(value, archive, std::forward<Args>(args)...);
 	}
 	template<typename T, typename A, typename... Args>
-	constexpr void do_deserialize(T &value, A &archive, Args &&...args) requires deserializable_with<T, A, Args...>
+	constexpr void do_deserialize(T &value, A &archive, Args &&...args) requires deserializable<T, A, Args...>
 	{
 		serializer<T, A>::deserialize(value, archive, std::forward<Args>(args)...);
 	}
 	template<typename T, typename A, typename... Args>
-	[[nodiscard]] constexpr T do_deserialize(std::in_place_type_t<T>, A &archive, Args &&...args) requires in_place_deserializable_with<T, A, Args...>
+	[[nodiscard]] constexpr T do_deserialize(std::in_place_type_t<T>, A &archive, Args &&...args) requires in_place_deserializable<T, A, Args...>
 	{
 		return serializer<T, A>::deserialize(std::in_place, archive, std::forward<Args>(args)...);
 	}
