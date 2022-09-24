@@ -320,59 +320,62 @@ namespace sek::serialization
 			/** Checks if the frame is at the end of the container. */
 			[[nodiscard]] constexpr bool is_end() const noexcept { return pos() == target().end(); }
 
-			/** Attempts to seek the current container to the specified key.
-			 * @param key Key of the target Json object to seek to.
-			 * @return `true` on success, `false` on failure.
-			 * @note Read position is modified only on success. */
-			constexpr bool try_seek(string_type &&key) noexcept
-			{
-				return try_seek_impl([&key]() { return std::move(key); });
-			}
-			template<typename S>
-			constexpr bool try_seek(const S &key) noexcept
-			{
-				return try_seek_impl([&key]() { return key; });
-			}
+			/** Seeks the current container to the specified iterator.
+			 * @param pos New read position within the current container. */
+			void seek(const_iterator pos) noexcept { m_pos = pos; }
 
 			/** Seeks the current container to the specified key.
 			 * @param key Key of the target Json object to seek to.
-			 * @return Reference to this frame.
 			 * @throw archive_error If the target Json object of the frame is not a table.
 			 * @note If the key is not present within the container, seeks to the end. */
-			read_frame &seek(string_type &&key)
+			void seek(string_type &&key)
 			{
-				seek_impl([&key]() { return std::move(key); });
-				return *this;
+				m_pos = seek_impl([&key]() { return std::move(key); });
 			}
 			/** @copydoc seek */
 			template<typename S>
-			read_frame &seek(const S &key)
+			void seek(const S &key)
 			{
-				seek_impl([&key]() { return key; });
-				return *this;
+				m_pos = seek_impl([&key]() { return key; });
 			}
-
-			/** Seeks the current container to the specified iterator.
-			 * @param pos New read position within the current container.
-			 * @return Reference to this frame. */
-			constexpr read_frame &seek(const_iterator pos) noexcept
+			/** Seeks the current container to the specified key.
+			 * @param key Key of the target Json object to seek to.
+			 * @return `void`, or `archive_errc::INVALID_TYPE` if the target Json object is not a table.
+			 * @note If the key is not present within the container, seeks to the end. */
+			expected<void, std::error_code> seek(std::nothrow_t, string_type &&key)
 			{
-				m_pos = pos;
-				return *this;
+				const auto result = seek_impl(std::nothrow, [&key]() { return std::move(key); });
+				if (!result) [[unlikely]]
+					return expected<void, std::error_code>{result};
+				m_pos = *result;
+				return {};
+			}
+			/** @copydoc seek */
+			template<typename S>
+			expected<void, std::error_code> seek(std::nothrow_t, const S &key)
+			{
+				const auto result = seek_impl(std::nothrow, [&key]() { return key; });
+				if (!result) [[unlikely]]
+					return expected<void, std::error_code>{result};
+				m_pos = *result;
+				return {};
 			}
 
 			/** Returns the next Json object of the current container and advances read position.
 			 * @return Reference to the next Json object.
-			 * @throw archive_error If the frame is at the end of the container. */
+			 * @throw archive_error If the frame is at the end of the container.
+			 * @note Read position is advanced only on success. */
 			[[nodiscard]] const value_type &next()
 			{
-				assert_not_end();
+				if (is_end()) [[unlikely]]
+					throw archive_error{make_error_code(archive_errc::UNEXPECTED_END)};
 				return *(m_pos++);
 			}
 
 			/** Deserializes the an instance of type `U` from the next Json object in the current container.
 			 * @param value Object to deserialize.
-			 * @param args Arguments passed to the deserialization function. */
+			 * @param args Arguments passed to the deserialization function.
+			 * @note Read position is advanced only on success. */
 			template<typename U, typename... Args>
 			void read(U &value, Args &&...args)
 			{
@@ -406,7 +409,8 @@ namespace sek::serialization
 
 			/** @brief Deserializes the an instance of type `U` from the next Json object in-place in the current container.
 			 * @param args Arguments passed to the deserialization function.
-			 * @return Instance of `U` deserialized from the Json object. */
+			 * @return Instance of `U` deserialized from the Json object.
+			 * @note Read position is advanced only on success. */
 			template<typename U, typename... Args>
 			[[nodiscard]] U read(std::in_place_type_t<U>, Args &&...args)
 			{
@@ -420,7 +424,8 @@ namespace sek::serialization
 			/** @copybrief read
 			 * @param args Arguments passed to the deserialization function.
 			 * @return Instance of `U` deserialized from the Json object, or an error code on deserialization errors.
-			 * @note If the requested type is a non-`bool` arithmetic (number) type, appropriate conversions will be preformed. */
+			 * @note If the requested type is a non-`bool` arithmetic (number) type, appropriate conversions will be preformed.
+			 * @note Read position is advanced only on success. */
 			template<typename U, typename... Args>
 			[[nodiscard]] expected<U, std::error_code> read(std::nothrow_t, std::in_place_type_t<U>, Args &&...args)
 			{
@@ -432,87 +437,88 @@ namespace sek::serialization
 				return result;
 			}
 
-			/** Deserializes the an instance of type `U` from the next Json object in the current container.
+			/** @brief Deserializes the an instance of type `U` from the next Json object in
+			 * the current container using the provided key.
 			 * @param value `keyed_entry_t` instance containing the object to deserialize and it's key.
+			 * @param args Arguments passed to the deserialization function.
+			 * @throw archive_error If the underlying Json object is not a table or the requested key does not exist.
+			 * @note Read position is advanced only on success. */
+			template<typename U, typename... Args>
+			void read(keyed_entry_t<C, U> value, Args &&...args)
+			{
+				const auto iter = seek_impl([&value]() { return value.key; });
+				if (iter.m_table == m_target.m_table.end()) [[unlikely]]
+					throw archive_error{make_error_code(archive_errc::INVALID_DATA)};
+
+				iter->read(value, std::forward<Args>(args)...);
+				m_pos = iter; /* Exception guarantee. */
+			}
+			/** @copybrief read
+			 * @param value `keyed_entry_t` instance containing the object to deserialize and it's key.
+			 * @param args Arguments passed to the deserialization function.
+			 * @return `void` on success, `archive_errc::INVALID_TYPE` if the underlying Json object is not a table
+			 * or `archive_errc::INVALID_DATA` if the requested key does not exist.
+			 * @note Read position is advanced only on success. */
+			template<typename U, typename... Args>
+			expected<void, std::error_code> read(std::nothrow_t, keyed_entry_t<C, U> value, Args &&...args)
+			{
+				const auto iter = seek_impl(std::nothrow, [&value]() { return value.key; });
+				if (!iter) [[unlikely]]
+					return expected<void, std::error_code>{iter};
+				else if (iter->m_table == m_target.m_table.end()) [[unlikely]]
+					return unexpected{archive_errc::INVALID_DATA};
+
+				iter->read(value, std::forward<Args>(args)...);
+				m_pos = iter; /* Exception guarantee. */
+			}
+			/** @copybrief read
+			 * @param value `keyed_entry_t` instance containing the object to deserialize and it's key.
+			 * @param args Arguments passed to the deserialization function.
 			 * @return Reference to this frame.
-			 * @throw archive_error On serialization errors.
+			 * @throw archive_error If the underlying Json object is not a table or the requested key does not exist.
 			 * @note Read position is advanced only on success. */
 			template<typename U>
 			read_frame &operator>>(keyed_entry_t<C, U> value)
-				requires is_deserializable<U>
 			{
-				return read(value);
-			}
-			/** @copydoc operator>>
-			 * @param args Arguments forwarded to the serialization function. */
-			template<typename U, typename... Args>
-			read_frame &read(keyed_entry_t<C, U> value, Args &&...args)
-				requires is_deserializable<U, Args...>
-			{
-				seek(value.key);
-				m_pos->read(std::forward<U>(value.value), std::forward<Args>(args)...);
-				m_pos++; /* Exception guarantee. */
+				read(value);
 				return *this;
 			}
-			// clang-format on
 
-			/** Attempts to read the size of the current container.
-			 * @param size `container_size_t` instance receiving the container size.
-			 * @return `true` if read successfully, `false` otherwise. */
-			template<typename U>
-			constexpr bool try_read(container_size_t<U> size) const noexcept
-			{
-				return m_target.try_read(size);
-			}
 			/** Reads the size of the current container.
-			 * @param size `container_size_t` instance receiving the container size.
+			 * @param size `container_size_t` instance receiving the container size. */
+			template<typename U>
+			void read(container_size_t<U> size)
+			{
+				size.value = static_cast<std::remove_cvref_t<U>>(m_target.size());
+			}
+			/** @copydoc read
 			 * @return Reference to this frame. */
-			template<typename U>
-			read_frame &read(container_size_t<U> size)
-			{
-				m_target.read(size);
-				return *this;
-			}
-			/** @copydoc read */
-			template<typename U>
-			const read_frame &read(container_size_t<U> size) const
-			{
-				m_target.read(size);
-				return *this;
-			}
-			/** @copydoc read */
 			template<typename U>
 			read_frame &operator>>(container_size_t<U> size)
 			{
-				return read(size);
+				read(size);
+				return *this;
 			}
-			/** @copydoc read */
+			/** @copydoc read
+			 * @return `void`, or an error code on deserialization errors. */
 			template<typename U>
-			const read_frame &operator>>(container_size_t<U> size) const
+			expected<void, std::error_code> read(std::nothrow_t, container_size_t<U> size)
 			{
-				return read(size);
+				read(size);
+				return {};
 			}
-
-			/* TODO: Finish refactoring this. */
 
 		private:
-			template<typename F>
-			[[nodiscard]] constexpr bool try_seek_impl(F &&key_factory) noexcept
+			expected<const_iterator, std::error_code> seek_impl(std::nothrow_t, auto &&key_factory)
 			{
-				const auto result = m_target.is_table();
-				if (result) [[likely]]
-				{
-					const auto pos = m_target.m_table.find(key_factory());
-					if (pos == m_target.m_table.end()) [[unlikely]]
-						return false;
-					m_pos = const_iterator{pos};
-				}
-				return result;
+				if (!m_target.is_table()) [[unlikely]]
+					return unexpected{make_error_code(archive_errc::INVALID_TYPE)};
+
+				return const_iterator{m_target.m_table.find(key_factory())};
 			}
-			template<typename F>
-			constexpr const_iterator seek_impl(F &&key_factory)
+			const_iterator seek_impl(auto &&key_factory)
 			{
-				return m_pos = const_iterator{m_target.get<table_type &>().find(key_factory())};
+				return const_iterator{m_target.get<table_type &>().find(key_factory())};
 			}
 
 			const value_type &m_target;
