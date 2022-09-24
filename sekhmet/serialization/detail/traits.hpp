@@ -9,8 +9,8 @@
 
 #include "../../expected.hpp"
 #include "archive_error.hpp"
-#include "types/ranges.hpp"
-#include "types/tuples.hpp"
+#include "ranges.hpp"
+#include "tuples.hpp"
 #include <string_view>
 
 namespace sek::serialization

@@ -4,5 +4,5 @@
 
 #pragma once
 
-#include "detail/types/ranges.hpp"
-#include "detail/types/tuples.hpp"
+#include "detail/ranges.hpp"
+#include "detail/tuples.hpp"

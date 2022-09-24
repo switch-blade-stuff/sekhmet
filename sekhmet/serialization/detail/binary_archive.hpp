@@ -4,13 +4,11 @@
 
 #pragma once
 
-#include "sekhmet/detail/bswap.hpp"
-
 #include "archive_error.hpp"
 #include "archive_reader.hpp"
 #include "archive_writer.hpp"
 #include "manipulators.hpp"
-#include "util.hpp"
+#include "utility.hpp"
 
 namespace sek::serialization::binary
 {
@@ -38,11 +36,11 @@ namespace sek::serialization::binary
 			requires(C == big_endian)
 		{
 			if constexpr (sizeof(T) == sizeof(std::uint16_t))
-				return std::bit_cast<T>(BSWAP_BE_16(std::bit_cast<std::uint16_t>(value)));
+				return std::bit_cast<T>(SEK_BSWAP_BE_16(std::bit_cast<std::uint16_t>(value)));
 			else if constexpr (sizeof(T) == sizeof(std::uint32_t))
-				return std::bit_cast<T>(BSWAP_BE_32(std::bit_cast<std::uint32_t>(value)));
+				return std::bit_cast<T>(SEK_BSWAP_BE_32(std::bit_cast<std::uint32_t>(value)));
 			else if constexpr (sizeof(T) == sizeof(std::uint64_t))
-				return std::bit_cast<T>(BSWAP_BE_64(std::bit_cast<std::uint64_t>(value)));
+				return std::bit_cast<T>(SEK_BSWAP_BE_64(std::bit_cast<std::uint64_t>(value)));
 			else
 				return value;
 		}
@@ -51,11 +49,11 @@ namespace sek::serialization::binary
 			requires(C == little_endian)
 		{
 			if constexpr (sizeof(T) == sizeof(std::uint16_t))
-				return std::bit_cast<T>(BSWAP_LE_16(std::bit_cast<std::uint16_t>(value)));
+				return std::bit_cast<T>(SEK_BSWAP_LE_16(std::bit_cast<std::uint16_t>(value)));
 			else if constexpr (sizeof(T) == sizeof(std::uint32_t))
-				return std::bit_cast<T>(BSWAP_LE_32(std::bit_cast<std::uint32_t>(value)));
+				return std::bit_cast<T>(SEK_BSWAP_LE_32(std::bit_cast<std::uint32_t>(value)));
 			else if constexpr (sizeof(T) == sizeof(std::uint64_t))
-				return std::bit_cast<T>(BSWAP_LE_64(std::bit_cast<std::uint64_t>(value)));
+				return std::bit_cast<T>(SEK_BSWAP_LE_64(std::bit_cast<std::uint64_t>(value)));
 			else
 				return value;
 		}

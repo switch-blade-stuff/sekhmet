@@ -2,13 +2,12 @@
  * Created by switchblade on 28/05/22
  */
 
-#include "zstd_ctx.hpp"
-
 #include <zstd.h>
 
-#include "sekhmet/expected.hpp"
-
-#include "logger.hpp"
+#include "../../expected.hpp"
+#include "../../math/utility.hpp"
+#include "../logger.hpp"
+#include "../zstd.hpp"
 #include <zstd_errors.h>
 
 namespace sek::engine
@@ -258,12 +257,12 @@ namespace sek::engine
 
 					/* On complete flush, initialize the skip frame. */
 					*static_cast<skip_frame *>(dst_buff.data) = {
-						.magic = BSWAP_LE_32(skip_magic),
-						.size = BSWAP_LE_32(sizeof(frame_header)),
+						.magic = math::bswap32_le(skip_magic),
+						.size = math::bswap32_le(sizeof(frame_header)),
 						.header =
 							{
-								.comp_size = BSWAP_LE_32(out_buff.pos),
-								.src_size = BSWAP_LE_32(in_buff.pos),
+								.comp_size = math::bswap32_le(out_buff.pos),
+								.src_size = math::bswap32_le(in_buff.pos),
 							},
 					};
 

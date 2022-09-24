@@ -1,12 +1,12 @@
 /*
- * Created by switchblade on 23/05/22
+ * Created by switchblade on 23/09/22
  */
 
 #pragma once
 
-#include "../../static_string.hpp"
+#include "static_string.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	namespace detail
 	{
@@ -36,14 +36,17 @@ namespace sek::engine
 			constexpr auto offset_start = Name.find_first('=') + 2;
 			constexpr auto offset_end = Name.find_last(']');
 			constexpr auto trimmed_length = offset_end - offset_start + 1;
+
+			return format_type_name<Name, 0, offset_start, offset_end, trimmed_length>();
 #elif defined(_MSC_VER)
 			constexpr auto offset_start = Name.find_first('<') + 1;
 			constexpr auto offset_end = Name.find_last('>');
 			constexpr auto trimmed_length = offset_end - offset_start + 1;
-#else
-#error "Implement type name generation for this compiler"
-#endif
+
 			return format_type_name<Name, 0, offset_start, offset_end, trimmed_length>();
+#else
+			return Name;
+#endif
 		}
 
 		template<typename T>
@@ -62,4 +65,4 @@ namespace sek::engine
 	{
 		return detail::generate_type_name<T>();
 	}
-}	 // namespace sek::engine
+}	 // namespace sek

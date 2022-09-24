@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-#include "assert.hpp"
+#include "../assert.hpp"
 #include "packed_pair.hpp"
 
 namespace sek::detail

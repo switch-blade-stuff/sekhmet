@@ -8,7 +8,7 @@
 #include <tuple>
 #include <utility>
 
-#include "../manipulators.hpp"
+#include "manipulators.hpp"
 
 namespace sek::serialization
 {

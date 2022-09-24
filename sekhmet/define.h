@@ -1,5 +1,5 @@
 /*
- * Created by switchblade on 2021-10-14
+ * Created by switchblade on 23/09/22
  */
 
 #pragma once
@@ -16,8 +16,8 @@
 
 #endif
 
-#include "arch.h"
-#include "platform.h"
+#include "detail/arch.h"
+#include "detail/platform.h"
 
 #define SEK_ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
 
@@ -41,17 +41,12 @@
 #define SEK_GB(val) (1024 * SEK_MB(val))
 #define SEK_TB(val) (1024 * SEK_GB(val))
 
+#if !defined(SEK_DEBUG) && !defined(NDEBUG)
+#define SEK_DEBUG
+#endif
+
 #ifdef SEK_EDITOR
 #define SEK_IF_EDITOR(x) x
 #else
 #define SEK_IF_EDITOR(...)
-#endif
-
-#if !defined(SEK_DEBUG) && (!defined(NDEBUG) || defined(SEK_EDITOR))
-#define SEK_DEBUG
-#endif
-
-#ifdef __cplusplus
-#define SEK_HAS_OVERLOAD(func, ...) requires { func(__VA_ARGS__); }
-#define SEK_REQUIRES_OVERLOAD(func, ...) requires(SEK_HAS_OVERLOAD(func, __VA_ARGS__))
 #endif

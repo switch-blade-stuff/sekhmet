@@ -9,7 +9,7 @@
 #include "../../../detail/owned_ptr.hpp"
 #include "../../../ordered_map.hpp"
 #include "../manipulators.hpp"
-#include "../types/tuples.hpp"
+#include "../tuples.hpp"
 #include "../util.hpp"
 #include "json_error.hpp"
 
@@ -370,158 +370,84 @@ namespace sek::serialization
 				return *(m_pos++);
 			}
 
-			/** Attempts to read a value from the next Json object in the current container and advance the read position.
-			 * @param value Value to read.
-			 * @return `true` if read successfully, `false` otherwise.
-			 * @note Read position is advanced only on successful read. */
-			template<typename U>
-			bool try_read(U &value)
+			/** Deserializes the an instance of type `U` from the next Json object in the current container.
+			 * @param value Object to deserialize.
+			 * @param args Arguments passed to the deserialization function. */
+			template<typename U, typename... Args>
+			void read(U &value, Args &&...args)
 			{
-				if (!is_end() && m_pos->try_read(value)) [[likely]]
-				{
-					++m_pos;
-					return true;
-				}
-				return false;
-			}
-			/** Reads the a value from the next Json object in the current container.
-			 * @param value Value to read.
-			 * @return Reference to this frame.
-			 * @throw archive_error On serialization errors.
-			 * @note Read position is advanced only on success. */
-			template<typename U>
-			read_frame &read(U &value)
-			{
-				assert_not_end();
-				m_pos->read(value);
+				if (is_end()) [[unlikely]]
+					throw archive_error{make_error_code(archive_errc::UNEXPECTED_END)};
+
+				m_pos->read(value, std::forward<Args>(args)...);
 				m_pos++; /* Exception guarantee. */
-				return *this;
 			}
-			/** @copydoc read */
+			/** @copydoc read
+			 * @return `void`, or an error code on deserialization errors. */
+			template<typename U, typename... Args>
+			expected<void, std::error_code> read(std::nothrow_t, U &value, Args &&...args)
+			{
+				if (is_end()) [[unlikely]]
+					return unexpected{make_error_code(archive_errc::UNEXPECTED_END)};
+
+				auto result = m_pos->read(std::nothrow, value, std::forward<Args>(args)...);
+				m_pos++; /* Exception guarantee. */
+				return result;
+			}
+			/** Deserializes the an instance of type `U` from the next Json object in the current container.
+			 * @param value Object to deserialize.
+			 * @return Reference to this frame. */
 			template<typename U>
 			read_frame &operator>>(U &value)
 			{
-				return read(value);
+				read(value);
+				return *this;
 			}
-			/** Reads a value of type `U` from the Json object.
-			 * @return Value of type `U`.
-			 * @throw archive_error On serialization errors. */
+
+			/** @brief Deserializes the an instance of type `U` from the next Json object in-place in the current container.
+			 * @param args Arguments passed to the deserialization function.
+			 * @return Instance of `U` deserialized from the Json object. */
 			template<typename U, typename... Args>
-			[[nodiscard]] U read(std::in_place_type_t<U>)
+			[[nodiscard]] U read(std::in_place_type_t<U>, Args &&...args)
 			{
-				assert_not_end();
-				U result = m_pos->read(std::in_place_type<U>);
+				if (is_end()) [[unlikely]]
+					throw archive_error{make_error_code(archive_errc::UNEXPECTED_END)};
+
+				auto result = m_pos->read(std::in_place_type<U>, std::forward<Args>(args)...);
+				m_pos++; /* Exception guarantee. */
+				return result;
+			}
+			/** @copybrief read
+			 * @param args Arguments passed to the deserialization function.
+			 * @return Instance of `U` deserialized from the Json object, or an error code on deserialization errors.
+			 * @note If the requested type is a non-`bool` arithmetic (number) type, appropriate conversions will be preformed. */
+			template<typename U, typename... Args>
+			[[nodiscard]] expected<U, std::error_code> read(std::nothrow_t, std::in_place_type_t<U>, Args &&...args)
+			{
+				if (is_end()) [[unlikely]]
+					return unexpected{make_error_code(archive_errc::UNEXPECTED_END)};
+
+				auto result = m_pos->read(std::nothrow, std::in_place_type<U>, std::forward<Args>(args)...);
 				m_pos++; /* Exception guarantee. */
 				return result;
 			}
 
-			/** @copybrief try_read
-			 * @param value `keyed_entry_t` instance containing the value to read and it's key.
-			 * @return `true` if read successfully, `false` otherwise.
-			 * @note Read position is advanced only on success. */
-			template<typename U>
-			bool try_read(keyed_entry_t<C, U> value)
-			{
-				if (try_seek(value.key) && m_pos->try_read(std::forward<U>(value.value))) [[likely]]
-				{
-					++m_pos;
-					return true;
-				}
-				return false;
-			}
-			/** @copybrief operator>>
-			 * @param value `keyed_entry_t` instance containing the value to read and it's key.
+			/** Deserializes the an instance of type `U` from the next Json object in the current container.
+			 * @param value `keyed_entry_t` instance containing the object to deserialize and it's key.
 			 * @return Reference to this frame.
 			 * @throw archive_error On serialization errors.
 			 * @note Read position is advanced only on success. */
-			template<typename U>
-			read_frame &read(keyed_entry_t<C, U> value)
-			{
-				seek(value.key);
-				m_pos->read(std::forward<U>(value.value));
-				m_pos++; /* Exception guarantee. */
-				return *this;
-			}
-			/** @copydoc read */
 			template<typename U>
 			read_frame &operator>>(keyed_entry_t<C, U> value)
+				requires is_deserializable<U>
 			{
 				return read(value);
 			}
-
-			// clang-format off
-			/** @brief Attempts to deserialize the passed object from the next Json object in the current container
-			 * and advance the read position.
-			 * @param value Object to deserialize.
-			 * @param args Arguments forwarded to the serialization function.
-			 * @return `true` if read successfully, `false` otherwise.
-			 * @note Read position is advanced only on success. */
-			template<typename U, typename... Args>
-			bool try_read(U &value, Args &&...args) requires is_deserializable<U, Args...>
-			{
-				if (!is_end() && m_pos->try_read(value, std::forward<Args>(args)...)) [[likely]]
-				{
-					++m_pos;
-					return true;
-				}
-				return false;
-			}
-			/** Deserializes the passed object from the next Json object in the current container.
-			 * @param value Object to deserialize.
-			 * @return Reference to this frame.
-			 * @throw archive_error On serialization errors.
-			 * @note Read position is advanced only on success. */
-			template<typename U>
-			read_frame &operator>>(U &value) requires is_deserializable<U> { return read(value); }
 			/** @copydoc operator>>
 			 * @param args Arguments forwarded to the serialization function. */
 			template<typename U, typename... Args>
-			read_frame &read(U &value, Args &&...args) requires is_deserializable<U, Args...>
-			{
-				assert_not_end();
-				m_pos->read(value, std::forward<Args>(args)...);
-				m_pos++; /* Exception guarantee. */
-				return *this;
-			}
-			/** Deserializes an object of type `U` from the Json object.
-			 * @param args Arguments forwarded to the serialization function.
-			 * @return Deserialized instance of `U`.
-			 * @throw archive_error On serialization errors. */
-			template<typename U, typename... Args>
-			[[nodiscard]] U read(std::in_place_type_t<U>, Args &&...args) requires is_in_place_deserializable<U, Args...>
-			{
-				assert_not_end();
-				U result = m_pos->read(std::in_place_type<U>, std::forward<Args>(args)...);
-				m_pos++; /* Exception guarantee. */
-				return result;
-			}
-
-			/** @copybrief try_read
-			 * @param value `keyed_entry_t` instance containing the object to deserialize and it's key.
-			 * @param args Arguments forwarded to the serialization function.
-			 * @return `true` if read successfully, `false` otherwise.
-			 * @note Read position is advanced only on success. */
-			template<typename U, typename... Args>
-			bool try_read(keyed_entry_t<C, U> value, Args &&...args) requires is_deserializable<U, Args...>
-			{
-				if (try_seek(value.key) && m_pos->try_read(std::forward<U>(value.value), std::forward<Args>(args)...)) [[likely]]
-				{
-					++m_pos;
-					return true;
-				}
-				return false;
-			}
-			/** @copybrief operator>>
-			 * @param value `keyed_entry_t` instance containing the object to deserialize and it's key.
-			 * @return Reference to this frame.
-			 * @throw archive_error On serialization errors.
-			 * @note Read position is advanced only on success. */
-			template<typename U>
-			read_frame &operator>>(keyed_entry_t<C, U> value) requires is_deserializable<U> { return read(value); }
-			/** @copydoc operator>>
-			 * @param args Arguments forwarded to the serialization function. */
-			template<typename U, typename... Args>
-			read_frame &read(keyed_entry_t<C, U> value, Args &&...args) requires is_deserializable<U, Args...>
+			read_frame &read(keyed_entry_t<C, U> value, Args &&...args)
+				requires is_deserializable<U, Args...>
 			{
 				seek(value.key);
 				m_pos->read(std::forward<U>(value.value), std::forward<Args>(args)...);
@@ -570,12 +496,6 @@ namespace sek::serialization
 			/* TODO: Finish refactoring this. */
 
 		private:
-			void assert_not_end() const
-			{
-				if (is_end()) [[unlikely]]
-					throw archive_error{make_error_code(archive_errc::UNEXPECTED_END)};
-			}
-
 			template<typename F>
 			[[nodiscard]] constexpr bool try_seek_impl(F &&key_factory) noexcept
 			{
@@ -665,7 +585,7 @@ namespace sek::serialization
 			}
 			/** Inserts a new Json object into the underlying container and serializes an instance of type `U` to it.
 			 * @param value Object to serialize.
-			 * @return Reference to this Json object.
+			 * @return Reference to this frame.
 			 * @note If an error occurs during serialization, the underlying Json object is left in a defined state. */
 			template<typename U>
 			write_frame &operator<<(U &&value)
@@ -694,7 +614,7 @@ namespace sek::serialization
 			/** Inserts a new Json object into the underlying container using the
 			 * provided key hint and serializes an instance of type `U` to it.
 			 * @param value Keyed entry manipulator containing the object to serialize and a key hint.
-			 * @return Reference to this Json object.
+			 * @return Reference to this frame.
 			 * @note If an error occurs during serialization, the underlying Json object is left in a defined state. */
 			template<typename U>
 			write_frame &operator<<(keyed_entry_t<C, U> value)

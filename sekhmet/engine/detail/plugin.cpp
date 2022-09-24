@@ -2,11 +2,10 @@
  * Created by switchblade on 28/04/22
  */
 
-#include "plugin.hpp"
+#include "../plugin.hpp"
 
-#include "sekhmet/dense_map.hpp"
-
-#include "logger.hpp"
+#include "../../dense_map.hpp"
+#include "../logger.hpp"
 #include <shared_mutex>
 
 #define ENABLE_FAIL_MSG "Failed to enable plugin - "

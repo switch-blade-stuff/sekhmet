@@ -2,13 +2,14 @@
  * Created by switchblade on 16/05/22
  */
 
-#include "type_info.hpp"
+#include "../type_info.hpp"
 
 #include <fmt/format.h>
 
-template class SEK_API_EXPORT sek::service<sek::shared_guard<sek::engine::type_database>>;
+template<>
+const sek::service<void>::id sek::service<sek::shared_guard<sek::type_database>>::id;
 
-namespace sek::engine
+namespace sek
 {
 	namespace detail
 	{
@@ -100,9 +101,9 @@ namespace sek::engine
 		if (func == funcs.end()) [[unlikely]]
 		{
 			throw invalid_member(fmt::format("No matching function with name \"{}\" "
-												   "found for type \"{}\"",
-												   name,
-												   m_data->name));
+											 "found for type \"{}\"",
+											 name,
+											 m_data->name));
 		}
 		else
 			return func->invoke(std::move(instance), args);
@@ -200,4 +201,4 @@ namespace sek::engine
 		}
 		return true;
 	}
-}	 // namespace sek::engine
+}	 // namespace sek

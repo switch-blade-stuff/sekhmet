@@ -2,13 +2,13 @@
  * Created by switchblade on 10/07/22
  */
 
-#include "resources.hpp"
+#include "../resources.hpp"
 
-#include "sekhmet/detail/assert.hpp"
+#include "../../assert.hpp"
+#include
 
-#include <fmt/format.h>
-
-template class SEK_API_EXPORT sek::service<sek::access_guard<sek::engine::resource_cache, std::recursive_mutex>>;
+template<>
+const sek::service<void>::id sek::service<sek::access_guard<sek::engine::resource_cache, std::recursive_mutex>>::id;
 
 namespace sek::engine
 {

@@ -2,14 +2,15 @@
  * Created by switchblade on 07/07/22
  */
 
-#include "config.hpp"
+#include "../config.hpp"
 
 #include <fstream>
 #include <utility>
 
 #include <fmt/format.h>
 
-template class SEK_API_EXPORT sek::service<sek::shared_guard<sek::engine::config_registry>>;
+template<>
+const sek::service<void>::id sek::service<sek::shared_guard<sek::engine::config_registry>>::id;
 
 namespace sek::engine
 {

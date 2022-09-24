@@ -4,8 +4,8 @@
 
 #pragma once
 
+#include "../../utility.hpp"
 #include "../policy.hpp"
-#include "../util.hpp"
 
 namespace sek::math
 {

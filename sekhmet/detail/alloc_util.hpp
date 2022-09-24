@@ -6,10 +6,8 @@
 
 #include <concepts>
 #include <memory>
-#include <utility>
 
-#include "assert.hpp"
-#include "define.h"
+#include "../assert.hpp"
 
 namespace sek::detail
 {
@@ -21,7 +19,11 @@ namespace sek::detail
 	{
 		if constexpr (std::allocator_traits<Alloc>::is_always_equal::value)
 			return true;
-		else if constexpr (requires { {a == b}; })
+		else if constexpr (requires {
+							   {
+								   a == b
+							   };
+						   })
 			return a == b;
 		else
 			return false;
@@ -65,7 +67,7 @@ namespace sek::detail
 		std::conjunction_v<std::bool_constant<std::is_nothrow_copy_constructible_v<Allocs> && std::allocator_traits<Allocs>::is_always_equal::value>...>;
 	template<typename Alloc0, typename Alloc1>
 	constexpr bool nothrow_alloc_copy_move_transfer =
-		nothrow_alloc_copy_transfer<Alloc0> &&std::is_nothrow_move_constructible_v<Alloc1>;
+		nothrow_alloc_copy_transfer<Alloc0> && std::is_nothrow_move_constructible_v<Alloc1>;
 	template<typename... Allocs>
 	constexpr bool nothrow_alloc_move_construct = std::conjunction_v<std::is_nothrow_move_constructible<Allocs>...>;
 	template<typename... Allocs>

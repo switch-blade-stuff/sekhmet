@@ -2,7 +2,7 @@
  * Created by switchblade on 18/08/22
  */
 
-#include "message.hpp"
+#include "../message.hpp"
 
 namespace sek::engine::detail
 {

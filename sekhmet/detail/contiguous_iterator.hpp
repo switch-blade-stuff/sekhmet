@@ -6,7 +6,7 @@
 
 #include <iterator>
 
-#include "define.h"
+#include "../define.h"
 #include <type_traits>
 
 namespace sek

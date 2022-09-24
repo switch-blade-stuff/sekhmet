@@ -7,8 +7,8 @@
 #include <tuple>
 #include <utility>
 
+#include "../hash.hpp"
 #include "ebo_base_helper.hpp"
-#include "hash.hpp"
 
 namespace sek
 {

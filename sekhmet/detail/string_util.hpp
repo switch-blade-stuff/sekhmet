@@ -6,7 +6,7 @@
 
 #include <cstring>
 
-#include "define.h"
+#include "../define.h"
 #include "meta_util.hpp"
 
 namespace sek::detail

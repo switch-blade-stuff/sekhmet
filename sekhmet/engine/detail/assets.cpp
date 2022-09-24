@@ -9,17 +9,17 @@
 #define MANIFEST_FILE_NAME ".manifest"
 #endif
 
-#include "assets.hpp"
+#include "../assets.hpp"
 
 #include <fstream>
 
-#include "sekhmet/serialization/binary.hpp"
-#include "sekhmet/serialization/json.hpp"
+#include "../../serialization/binary.hpp"
+#include "../../serialization/json.hpp"
+#include "../logger.hpp"
+#include "../zstd.hpp"
 
-#include "logger.hpp"
-#include "zstd_ctx.hpp"
-
-template class SEK_API_EXPORT sek::service<sek::shared_guard<sek::engine::asset_database>>;
+template<>
+const sek::service<void>::id sek::service<sek::shared_guard<sek::engine::asset_database>>::id;
 
 namespace sek::engine
 {

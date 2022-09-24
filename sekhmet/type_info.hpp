@@ -1,5 +1,5 @@
 /*
- * Created by switchblade on 2022-01-23
+ * Created by switchblade on 23/09/22
  */
 
 #pragma once
@@ -9,18 +9,15 @@
 #include <stdexcept>
 #include <utility>
 
-#include "sekhmet/access_guard.hpp"
-#include "sekhmet/dense_map.hpp"
-#include "sekhmet/dense_set.hpp"
-#include "sekhmet/detail/aligned_storage.hpp"
-#include "sekhmet/detail/assert.hpp"
-#include "sekhmet/detail/meta_util.hpp"
-#include "sekhmet/service.hpp"
-
+#include "access_guard.hpp"
+#include "assert.hpp"
+#include "dense_map.hpp"
+#include "dense_set.hpp"
+#include "service.hpp"
 #include "type_name.hpp"
 #include <shared_mutex>
 
-namespace sek::engine
+namespace sek
 {
 	class any;
 	class any_ref;
@@ -2443,9 +2440,7 @@ namespace sek::engine
 			return type_info::get({str, n});
 		}
 	}	 // namespace literals
-}	 // namespace sek::engine
-
-extern template class SEK_API_IMPORT sek::service<sek::shared_guard<sek::engine::type_database>>;
+}	 // namespace sek
 
 /** Macro used to declare an instance of type info for type `T` as extern.
  *
@@ -2461,7 +2456,7 @@ extern template class SEK_API_IMPORT sek::service<sek::shared_guard<sek::engine:
  * SEK_EXPORT_TYPE(my_type)
  * @endcode*/
 #define SEK_EXTERN_TYPE(T)                                                                                             \
-	extern template SEK_API_IMPORT sek::engine::type_info::data_t *sek::engine::type_info::get_data<T>();
+	extern template SEK_API_IMPORT sek::type_info::data_t *sek::type_info::get_data<T>();
 
 /** Macro used to export instance of type info for type `T`.
  *
@@ -2477,4 +2472,4 @@ extern template class SEK_API_IMPORT sek::service<sek::shared_guard<sek::engine:
  * SEK_EXPORT_TYPE(my_type)
  * @endcode */
 #define SEK_EXPORT_TYPE(T)                                                                                             \
-	template SEK_API_EXPORT sek::engine::type_info::data_t *sek::engine::type_info::get_data<T>();
+	template SEK_API_EXPORT sek::type_info::data_t *sek::type_info::get_data<T>();

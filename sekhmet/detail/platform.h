@@ -6,19 +6,19 @@
 
 /* Platform-dependant definitions. */
 
-#if defined(_WIN32) || defined(_WIN64)
+#if !defined(SEK_OS_WIN) && (defined(_WIN32) || defined(_WIN64))
 #define SEK_OS_WIN
 #endif
 
-#ifdef __unix__
+#if !defined(SEK_OS_UNIX) && defined(__unix__)
 #define SEK_OS_UNIX
 #endif
 
-#if defined(__linux__) || defined(linux) || defined(__linux)
+#if !defined(SEK_OS_LINUX) && (defined(__linux__) || defined(linux) || defined(__linux))
 #define SEK_OS_LINUX
 #endif
 
-#ifdef __APPLE__
+#if !defined(SEK_OS_APPLE) && defined(__APPLE__)
 #define SEK_OS_APPLE
 #ifndef SEK_OS_UNIX
 #define SEK_OS_UNIX
@@ -42,16 +42,11 @@
 #define SEK_NEVER_INLINE __attribute__((noinline))
 #define SEK_VECTORCALL
 
-#else
-
-#define SEK_COUNTER 0
-
 #endif
 
 #define SEK_FUNC __FUNCTION__
 #define SEK_FILE __FILE__
 #define SEK_LINE __LINE__
-#define SEK_COUNTER __COUNTER__
 
 #ifdef SEK_OS_WIN
 
@@ -88,7 +83,7 @@
 #endif
 
 #ifdef SEK_OS_POSIX
-#include <sys/types.h>
+#include <limits.h>
 #endif
 
 #ifndef SSIZE_MAX

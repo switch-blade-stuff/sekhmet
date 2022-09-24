@@ -2,7 +2,7 @@
  * Created by switchblade on 14/08/22
  */
 
-#include "uri.hpp"
+#include "../uri.hpp"
 
 #include <algorithm>
 #include <limits>
