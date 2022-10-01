@@ -8,7 +8,7 @@
 
 #include "sekhmet/detail/define.h"
 
-namespace sek::engine
+namespace sek
 {
 	/** @brief Exception thrown by the asset system on runtime errors. */
 	class SEK_API asset_error : public std::runtime_error
@@ -20,4 +20,4 @@ namespace sek::engine
 		explicit asset_error(const char *msg) : std::runtime_error(msg) {}
 		~asset_error() override;
 	};
-}	 // namespace sek::engine
+}	 // namespace sek

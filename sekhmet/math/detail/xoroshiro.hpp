@@ -12,7 +12,7 @@
 #include "sekhmet/detail/define.h"
 #include "sekhmet/serialization/base64.hpp"
 
-namespace sek::math
+namespace sek
 {
 	template<typename T, typename I>
 	concept seed_generator = requires(const I (&state)[4], T &gen) {
@@ -391,8 +391,8 @@ namespace sek::math
 	{
 		std::basic_string<C, Tr> buffer;
 		auto &state = x.state();
-		buffer.resize(serialization::base64_encode<C>(&state, sizeof(state), nullptr), '\0');
-		serialization::base64_encode<C>(&state, sizeof(state), buffer.data());
+		buffer.resize(base64_encode<C>(&state, sizeof(state), nullptr), '\0');
+		base64_encode<C>(&state, sizeof(state), buffer.data());
 		return os << std::quoted(buffer);
 	}
 	template<typename C, typename Tr, typename T, std::size_t W>
@@ -401,7 +401,7 @@ namespace sek::math
 		std::basic_string<C, Tr> buffer;
 		is >> std::quoted(buffer);
 		auto &state = x.state();
-		serialization::base64_decode<C>(&state, sizeof(state), buffer.data(), buffer.size());
+		base64_decode<C>(&state, sizeof(state), buffer.data(), buffer.size());
 		return is;
 	}
-}	 // namespace sek::math
+}	 // namespace sek

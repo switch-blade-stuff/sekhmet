@@ -6,7 +6,7 @@
 
 #include "fwd.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	/** @brief Helper type used to obtain traits of a component type.
 	 *
@@ -22,4 +22,4 @@ namespace sek::engine
 		typedef std::allocator<T> allocator_type;
 	};
 
-}	 // namespace sek::engine
+}	 // namespace sek

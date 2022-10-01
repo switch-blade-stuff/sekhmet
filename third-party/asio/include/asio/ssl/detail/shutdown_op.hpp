@@ -33,7 +33,7 @@ public:
     return "ssl::stream<>::async_shutdown";
   }
 
-  engine::want operator()(engine& eng,
+  want operator()(engine& eng,
       asio::error_code& ec,
       std::size_t& bytes_transferred) const
   {

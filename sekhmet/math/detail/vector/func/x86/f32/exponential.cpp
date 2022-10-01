@@ -11,7 +11,7 @@
  * Inspired by http://gruntthepeon.free.fr/ssemath */
 
 #ifdef SEK_USE_SSE2
-namespace sek::math::detail
+namespace sek::detail
 {
 	static const float expp_f[6] = {
 		1.9875691500e-4f,
@@ -155,5 +155,5 @@ namespace sek::math::detail
 		c = x86_fmadd_ps(e, _mm_set1_ps(l102a_f), c);				 /* c = (e * l102a_f) + c */
 		return _mm_or_ps(c, nan_mask);
 	}
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif

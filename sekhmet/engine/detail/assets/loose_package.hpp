@@ -8,7 +8,7 @@
 
 #include "info.hpp"
 
-namespace sek::engine::detail
+namespace sek::detail
 {
 	class loose_package final : public package_info
 	{
@@ -83,4 +83,4 @@ namespace sek::engine::detail
 
 		sek::detail::basic_pool<loose_info> m_pool;
 	};
-}	 // namespace sek::engine::detail
+}	 // namespace sek::detail

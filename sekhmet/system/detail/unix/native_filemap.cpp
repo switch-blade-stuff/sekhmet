@@ -7,7 +7,7 @@
 #include "native_file.hpp"
 #include <sys/mman.h>
 
-namespace sek::system::detail
+namespace sek::detail
 {
 	// clang-format off
 	expected<void, std::error_code> native_filemap_handle::map(const native_file_handle &file, std::uint64_t off,
@@ -54,4 +54,4 @@ namespace sek::system::detail
 		return {};
 	}
 	// clang-format on
-}	 // namespace sek::system::detail
+}	 // namespace sek::detail

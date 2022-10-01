@@ -6,9 +6,9 @@
 
 #include "sekhmet/engine/ecs.hpp"
 
-using namespace sek::engine;
+using namespace sek;
 
-template class sek::engine::basic_entity_set<>;
+template class sek::basic_entity_set<>;
 
 TEST(ecs_tests, entity_test)
 {
@@ -62,8 +62,8 @@ namespace
 	};
 }	 // namespace
 
-template class sek::engine::component_set<int>;
-template class sek::engine::component_set<dummy_t>;
+template class sek::component_set<int>;
+template class sek::component_set<dummy_t>;
 
 TEST(ecs_tests, set_test)
 {
@@ -162,7 +162,7 @@ TEST(ecs_tests, set_test)
 	}
 }
 
-template class sek::engine::component_set<float>;
+template class sek::component_set<float>;
 
 TEST(ecs_tests, world_test)
 {
@@ -216,9 +216,9 @@ TEST(ecs_tests, world_test)
 	EXPECT_FALSE(world.empty(e3));
 }
 
-template class sek::engine::component_view<included_t<int>>;
-template class sek::engine::component_view<included_t<int>, excluded_t<dummy_t>>;
-template class sek::engine::component_view<included_t<int>, excluded_t<dummy_t>, optional_t<float>>;
+template class sek::component_view<included_t<int>>;
+template class sek::component_view<included_t<int>, excluded_t<dummy_t>>;
+template class sek::component_view<included_t<int>, excluded_t<dummy_t>, optional_t<float>>;
 
 TEST(ecs_tests, view_test)
 {
@@ -283,11 +283,11 @@ TEST(ecs_tests, view_test)
 	printf("%.2f ns\n", ns.count());
 }
 
-template class sek::engine::component_collection<owned_t<flag_t>>;
-template class sek::engine::component_collection<owned_t<int>, included_t<>, excluded_t<>, optional_t<flag_t>>;
-template class sek::engine::component_collection<owned_t<int>, included_t<>, excluded_t<dummy_t>, optional_t<flag_t>>;
-template class sek::engine::component_collection<owned_t<int, float>, included_t<>, excluded_t<dummy_t>, optional_t<flag_t>>;
-template class sek::engine::component_collection<owned_t<>, included_t<int, flag_t>, excluded_t<>, optional_t<>>;
+template class sek::component_collection<owned_t<flag_t>>;
+template class sek::component_collection<owned_t<int>, included_t<>, excluded_t<>, optional_t<flag_t>>;
+template class sek::component_collection<owned_t<int>, included_t<>, excluded_t<dummy_t>, optional_t<flag_t>>;
+template class sek::component_collection<owned_t<int, float>, included_t<>, excluded_t<dummy_t>, optional_t<flag_t>>;
+template class sek::component_collection<owned_t<>, included_t<int, flag_t>, excluded_t<>, optional_t<>>;
 
 TEST(ecs_tests, collection_test)
 {

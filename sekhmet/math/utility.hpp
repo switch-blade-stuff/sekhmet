@@ -64,7 +64,7 @@
 #endif
 #endif
 
-namespace sek::math
+namespace sek
 {
 	template<typename T>
 	concept arithmetic = std::is_arithmetic_v<T>;
@@ -377,7 +377,7 @@ namespace sek::math
 			return std::bit_cast<T>(SEK_BSWAP_16(std::bit_cast<std::uint16_t>(value)));
 		else
 #endif
-			return math::bswap<2>(value);
+			return bswap<2>(value);
 	}
 	template<typename T>
 	constexpr static T bswap32(T value) noexcept
@@ -387,7 +387,7 @@ namespace sek::math
 			return std::bit_cast<T>(SEK_BSWAP_32(std::bit_cast<std::uint32_t>(value)));
 		else
 #endif
-			return math::bswap<4>(value);
+			return bswap<4>(value);
 	}
 	template<typename T>
 	constexpr static T bswap64(T value) noexcept
@@ -397,7 +397,7 @@ namespace sek::math
 			return std::bit_cast<T>(SEK_BSWAP_64(std::bit_cast<std::uint64_t>(value)));
 		else
 #endif
-			return math::bswap<8>(value);
+			return bswap<8>(value);
 	}
 
 #ifdef SEK_ARCH_LITTLE_ENDIAN
@@ -425,22 +425,22 @@ namespace sek::math
 	template<std::size_t N, typename T>
 	constexpr static T bswap_be(T value) noexcept
 	{
-		return math::bswap<N>(value);
+		return bswap<N>(value);
 	}
 	template<typename T>
 	constexpr static T bswap16_be(T value) noexcept
 	{
-		return math::bswap16(value);
+		return bswap16(value);
 	}
 	template<typename T>
 	constexpr static T bswap32_be(T value) noexcept
 	{
-		return math::bswap16(value);
+		return bswap16(value);
 	}
 	template<typename T>
 	constexpr static T bswap64_be(T value) noexcept
 	{
-		return math::bswap64(value);
+		return bswap64(value);
 	}
 #else
 	template<std::size_t N, typename T>
@@ -467,22 +467,22 @@ namespace sek::math
 	template<std::size_t N, typename T>
 	constexpr static T bswap_le(T value) noexcept
 	{
-		return math::bswap<N>(value);
+		return bswap<N>(value);
 	}
 	template<typename T>
 	constexpr static T bswap16_le(T value) noexcept
 	{
-		return math::bswap16(value);
+		return bswap16(value);
 	}
 	template<typename T>
 	constexpr static T bswap32_le(T value) noexcept
 	{
-		return math::bswap16(value);
+		return bswap16(value);
 	}
 	template<typename T>
 	constexpr static T bswap64_le(T value) noexcept
 	{
-		return math::bswap64(value);
+		return bswap64(value);
 	}
 #endif
-}	 // namespace sek::math
+}	 // namespace sek

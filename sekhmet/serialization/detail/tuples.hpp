@@ -10,7 +10,7 @@
 
 #include "manipulators.hpp"
 
-namespace sek::serialization
+namespace sek
 {
 	namespace detail
 	{
@@ -87,4 +87,4 @@ namespace sek::serialization
 		archive.read(pair.second, std::forward<Args>(args)...);
 	}
 	// clang-format on
-}	 // namespace sek::serialization
+}	 // namespace sek

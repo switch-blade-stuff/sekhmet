@@ -675,7 +675,7 @@ namespace sek
 			constexpr void rehash(size_type new_cap)
 			{
 				/* Adjust the capacity to be at least large enough to fit the current size. */
-				new_cap = math::max(static_cast<size_type>(static_cast<float>(size()) / m_load_factor), new_cap, initial_capacity);
+				new_cap = max(static_cast<size_type>(static_cast<float>(size()) / m_load_factor), new_cap, initial_capacity);
 
 				/* Don't do anything if the capacity did not change after the adjustment. */
 				if (new_cap != m_buckets.capacity()) [[likely]]
@@ -692,7 +692,7 @@ namespace sek
 			{
 				m_buckets.shrink_to_fit();
 				m_entries.shrink_to_fit();
-				m_buckets.resize(math::next_pow_2(static_cast<size_type>(static_cast<float>(size()) / m_load_factor)),
+				m_buckets.resize(next_pow_2(static_cast<size_type>(static_cast<float>(size()) / m_load_factor)),
 								 bucket_type{});
 			}
 			/** @copydoc narrow */

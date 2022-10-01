@@ -4,7 +4,7 @@
 
 #include "asset_source.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	std::size_t asset_source::read(void *dst, std::size_t n) { return return_if(read(std::nothrow, dst, n)); }
 	std::size_t asset_source::read(asio::mutable_buffer &dst) { return return_if(read(std::nothrow, dst)); }

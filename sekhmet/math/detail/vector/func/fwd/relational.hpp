@@ -41,7 +41,7 @@
 	template<typename U, std::size_t M, policy_t Q>                                                                            \
 	friend constexpr basic_vec<U, M, Q> std::min(const basic_vec<U, M, Q> &, const basic_vec<U, M, Q> &) noexcept;
 
-namespace sek::math
+namespace sek
 {
 	template<std::convertible_to<bool> U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr bool all(const vec_mask<basic_vec<U, M, Q>> &m) noexcept;
@@ -163,4 +163,4 @@ namespace sek::math
 													  const basic_vec<U, M, Q> &max_val,
 													  U = std::numeric_limits<U>::epsilon()) noexcept;
 
-}	 // namespace sek::math
+}	 // namespace sek

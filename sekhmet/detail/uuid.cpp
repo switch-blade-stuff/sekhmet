@@ -19,7 +19,7 @@ namespace sek
 		constexpr void generate(Iter out, Iter) noexcept
 		{
 			result_type seeds[4] = {0};
-			if (math::sys_random(&seeds, sizeof(seeds)) != sizeof(seeds)) [[unlikely]]
+			if (sys_random(&seeds, sizeof(seeds)) != sizeof(seeds)) [[unlikely]]
 			{
 				/* If sys_random failed, try to generate using rand. */
 				for (auto i = SEK_ARRAY_SIZE(seeds); i > 0;) seeds[--i] = static_cast<result_type>(rand());
@@ -28,7 +28,7 @@ namespace sek
 		}
 	};
 
-	static auto uuid_rng = math::xoroshiro<std::uint64_t, 256>{sysrandom_seq{}};
+	static auto uuid_rng = xoroshiro<std::uint64_t, 256>{sysrandom_seq{}};
 
 	void uuid::version4_t::operator()(uuid &id) const noexcept
 	{

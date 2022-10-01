@@ -7,7 +7,7 @@
 #include <type_traits>
 #include <string_view>
 
-namespace sek::serialization
+namespace sek
 {
 	namespace detail
 	{
@@ -75,4 +75,4 @@ namespace sek::serialization
 	/** Switches archive to array output mode.
 	 * @copydetails array_mode_t */
 	constexpr array_mode_t array_mode() noexcept { return {}; }
-}	 // namespace sek::serialization
+}	 // namespace sek

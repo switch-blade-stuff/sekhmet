@@ -10,7 +10,7 @@
 #include "manipulators.hpp"
 #include "utility.hpp"
 
-namespace sek::serialization::binary
+namespace sekbinary
 {
 	namespace detail
 	{
@@ -29,7 +29,7 @@ namespace sek::serialization::binary
 
 	namespace detail
 	{
-		using namespace serialization::detail;
+		using namespace detail;
 
 		template<config_flags C, typename T>
 		constexpr T fix_endianness(T value) noexcept
@@ -88,7 +88,7 @@ namespace sek::serialization::binary
 		basic_input_archive(const void *buff, std::size_t len) : basic_input_archive(reader_type{buff, len}) {}
 		/** Initializes binary archive for file reading.
 		 * @param file Native file containing source data. */
-		explicit basic_input_archive(system::native_file &file) : basic_input_archive(reader_type{file}) {}
+		explicit basic_input_archive(native_file &file) : basic_input_archive(reader_type{file}) {}
 		/** Initializes binary archive for file reading.
 		 * @param file Pointer to the C file containing source data.
 		 * @note File must be opened in binary mode. */
@@ -371,7 +371,7 @@ namespace sek::serialization::binary
 		basic_output_archive(void *buff, std::size_t len) : basic_output_archive(writer_type{buff, len}) {}
 		/** Initializes binary archive for file writing.
 		 * @param file Native file receiving serialized data. */
-		explicit basic_output_archive(system::native_file &file) : basic_output_archive(writer_type{file}) {}
+		explicit basic_output_archive(native_file &file) : basic_output_archive(writer_type{file}) {}
 		/** Initializes binary archive for file writing.
 		 * @param file Pointer to the C file receiving serialized data.
 		 * @note File must be opened in binary mode. */
@@ -478,4 +478,4 @@ namespace sek::serialization::binary
 	}
 
 	typedef basic_output_archive<little_endian> output_archive;
-}	 // namespace sek::serialization::binary
+}	 // namespace sekbinary

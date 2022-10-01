@@ -4,7 +4,7 @@
 
 #include "object.hpp"
 
-namespace sek::serialization
+namespace sek
 {
 	template class SEK_API_EXPORT basic_json_object<char>;
-}	 // namespace sek::serialization
+}	 // namespace sek

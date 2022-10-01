@@ -17,6 +17,6 @@ int main(int argc, char **argv)
 
 void init_tests()
 {
-	static std::remove_pointer_t<decltype(sek::engine::type_database::instance())> type_db;
-	sek::engine::type_database::instance(&type_db);
+	static std::remove_pointer_t<decltype(sek::type_database::instance())> type_db;
+	sek::type_database::instance(&type_db);
 }

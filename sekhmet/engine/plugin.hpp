@@ -10,7 +10,7 @@
 #include "../static_string.hpp"
 #include "../version.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	namespace detail
 	{
@@ -126,7 +126,7 @@ namespace sek::engine
 	private:
 		detail::plugin_data *m_data = nullptr;
 	};
-}	 // namespace sek::engine
+}	 // namespace sek
 
 namespace impl
 {
@@ -140,17 +140,17 @@ namespace impl
 	static_exec(F &&) -> static_exec<F>;
 
 	template<sek::basic_static_string Id>
-	class plugin_instance : sek::engine::detail::plugin_base<plugin_instance<Id>>
+	class plugin_instance : sek::detail::plugin_base<plugin_instance<Id>>
 	{
-		friend class sek::engine::detail::plugin_base<plugin_instance>;
+		friend class sek::detail::plugin_base<plugin_instance>;
 
 		static static_exec<void (*)()> bootstrap;
 
 	public:
-		using sek::engine::detail::plugin_base<plugin_instance<Id>>::instance;
-		using sek::engine::detail::plugin_base<plugin_instance<Id>>::on_disable;
-		using sek::engine::detail::plugin_base<plugin_instance<Id>>::on_enable;
-		using sek::engine::detail::plugin_base<plugin_instance<Id>>::info;
+		using sek::detail::plugin_base<plugin_instance<Id>>::instance;
+		using sek::detail::plugin_base<plugin_instance<Id>>::on_disable;
+		using sek::detail::plugin_base<plugin_instance<Id>>::on_enable;
+		using sek::detail::plugin_base<plugin_instance<Id>>::info;
 
 	private:
 		plugin_instance();
@@ -212,7 +212,7 @@ namespace impl
 	/* Static instantiation & bootstrap implementation. 2-stage bootstrap is required in order                         \
 	 * to allow for `SEK_PLUGIN(id)::instance()` to be called on static initialization. */                             \
 	template<>                                                                                                         \
-	impl::plugin_instance<(id)> &sek::engine::detail::plugin_base<impl::plugin_instance<(id)>>::instance()             \
+	impl::plugin_instance<(id)> &sek::detail::plugin_base<impl::plugin_instance<(id)>>::instance()             \
 	{                                                                                                                  \
 		static impl::plugin_instance<(id)> value;                                                                      \
 		return value;                                                                                                  \

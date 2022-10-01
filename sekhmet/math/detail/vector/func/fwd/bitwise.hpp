@@ -22,7 +22,7 @@
 	template<std::integral U, std::size_t M, policy_t Q>                                                        \
 	friend constexpr basic_vec<U, M, Q> operator~(const basic_vec<U, M, Q> &) noexcept;
 
-namespace sek::math
+namespace sek
 {
 	template<std::integral U, std::size_t M, policy_t Q>
 	constexpr basic_vec<U, M, Q> &operator&=(basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r) noexcept;
@@ -38,4 +38,4 @@ namespace sek::math
 	constexpr basic_vec<U, M, Q> &operator^=(basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r) noexcept;
 	template<std::integral U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr basic_vec<U, M, Q> operator~(const basic_vec<U, M, Q> &v) noexcept;
-}	 // namespace sek::math
+}	 // namespace sek

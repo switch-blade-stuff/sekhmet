@@ -10,7 +10,7 @@
 #include "../type_info.hpp"
 #include "assets.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	class resource_cache;
 
@@ -155,19 +155,19 @@ namespace sek::engine
 		/** @brief Attribute used to designate a type as a runtime-serializable resource. */
 		class serializable_resource
 		{
-			friend class engine::resource_cache;
+			friend class resource_cache;
 
-			using default_input = typename serialization::json_object::read_frame;
-			using default_output = typename serialization::json_object::write_frame;
+			using default_input = typename json_object::read_frame;
+			using default_output = typename json_object::write_frame;
 
 		public:
 			/** @brief Initializes resource attribute for type `T` with input archive `Input` and output archive `Output`.
 			 * @note Output archive type is only relevant in editor. */
-			template<typename T, serialization::input_archive I = default_input, serialization::output_archive O = default_output>
+			template<typename T, input_archive I = default_input, output_archive O = default_output>
 			constexpr serializable_resource(type_selector_t<T>, type_selector_t<I>, type_selector_t<O>) noexcept
 			{
-				static_assert(serialization::in_place_deserializable<T, I, resource_cache &>);
-				static_assert(serialization::serializable<T, O>);
+				static_assert(in_place_deserializable<T, I, resource_cache &>);
+				static_assert(serializable<T, O>);
 
 				m_instantiate = +[]() { return std::static_pointer_cast<void>(std::make_shared<T>()); };
 				m_copy = +[](const void *ptr)
@@ -233,7 +233,7 @@ namespace sek::engine
 				};
 
 #ifdef SEK_EDITOR /* Serialization is editor-only. */
-				m_serialize = +[](void *ptr, system::native_file &dst)
+				m_serialize = +[](void *ptr, native_file &dst)
 				{
 					using writer_t = typename O::writer_type;
 					auto archive = O{writer_t{dst}};
@@ -265,7 +265,7 @@ namespace sek::engine
 			void (*m_deserialize)(void *, asset_source &, resource_cache &, float &);
 
 #ifdef SEK_EDITOR
-			void (*m_serialize)(void *, system::native_file &);
+			void (*m_serialize)(void *, native_file &);
 #endif
 		};
 
@@ -274,13 +274,13 @@ namespace sek::engine
 		 * @tparam I Input archive type to use for deserialization (UBJson by default).
 		 * @tparam O Output archive type to use for serialization (UBJson by default). */
 		template<typename T,
-				 serialization::input_archive<T> I = serialization::ubj::input_archive,
-				 serialization::output_archive<T> O = serialization::ubj::output_archive>
+				 input_archive<T> I = ubj::input_archive,
+				 output_archive<T> O = ubj::output_archive>
 		[[nodiscard]] constexpr serializable_resource make_serializable_resource() noexcept
 		{
 			return serializable_resource{type_selector<T>, type_selector<I>, type_selector<O>};
 		}
 	}	 // namespace attributes
-}	 // namespace sek::engine
+}	 // namespace sek
 
-extern template class SEK_API_IMPORT sek::service<sek::access_guard<sek::engine::resource_cache, std::recursive_mutex>>;
+extern template class SEK_API_IMPORT sek::service<sek::access_guard<sek::resource_cache, std::recursive_mutex>>;

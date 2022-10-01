@@ -12,7 +12,7 @@
 
 #define SEK_QUATERNION_GENERATE_SHUFFLE(...) SEK_DETAIL_SHUFFLE_4_FUNCS(__VA_ARGS__)
 
-namespace sek::math
+namespace sek
 {
 	template<std::floating_point T, policy_t Policy>
 	class basic_quat
@@ -187,8 +187,8 @@ namespace sek::math
 		const auto b = -v2.x() - v2.y() + v2.z() + v2.w();
 
 		/* Singularity check */
-		using fast_vec2 = basic_vec<T, 2, policy_t::FAST_SIMD>;
-		if (all(fcmp_eq(fast_vec2{b, a}, fast_vec2{0}, static_cast<T>(0.0001)))) [[unlikely]]
+		using fastvec2_ = basic_vec<T, 2, policy_t::FAST_SIMD>;
+		if (all(fcmp_eq(fastvec2_{b, a}, fastvec2_{0}, static_cast<T>(0.0001)))) [[unlikely]]
 			return static_cast<T>(static_cast<T>(2) * std::atan2(x(), w()));
 		return static_cast<T>(std::atan2(a, b));
 	}
@@ -404,14 +404,14 @@ namespace sek::math
 	{
 		return get<I>(q.vector());
 	}
-}	 // namespace sek::math
+}	 // namespace sek
 
-template<typename T, sek::math::policy_t Q>
-struct std::tuple_size<sek::math::basic_quat<T, Q>> : std::integral_constant<std::size_t, 4>
+template<typename T, sek::policy_t Q>
+struct std::tuple_size<sek::basic_quat<T, Q>> : std::integral_constant<std::size_t, 4>
 {
 };
-template<std::size_t I, typename T, sek::math::policy_t Q>
-struct std::tuple_element<I, sek::math::basic_quat<T, Q>>
+template<std::size_t I, typename T, sek::policy_t Q>
+struct std::tuple_element<I, sek::basic_quat<T, Q>>
 {
 	using type = T;
 };

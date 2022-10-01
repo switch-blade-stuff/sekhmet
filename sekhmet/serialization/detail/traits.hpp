@@ -13,7 +13,7 @@
 #include "tuples.hpp"
 #include <string_view>
 
-namespace sek::serialization
+namespace sek
 {
 	/** @brief Category tag used to indicate that an archive supports input operations. */
 	struct input_archive_category
@@ -163,4 +163,4 @@ namespace sek::serialization
 		serializer<T, A>::deserialize(std::in_place, archive, std::forward<Args>(args)...);
 	};
 	// clang-format on
-}	 // namespace sek::serialization
+}	 // namespace sek

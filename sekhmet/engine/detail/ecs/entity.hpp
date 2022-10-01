@@ -15,7 +15,7 @@
 
 #include "fwd.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	/** @brief An entity is an internal ID used to refer to a group of components.
 	 *
@@ -147,10 +147,10 @@ namespace sek::engine
 	}
 
 	[[nodiscard]] constexpr hash_t hash(entity_t e) noexcept { return e.value(); }
-}	 // namespace sek::engine
+}	 // namespace sek
 
 template<>
-struct std::hash<sek::engine::entity_t>
+struct std::hash<sek::entity_t>
 {
-	[[nodiscard]] constexpr sek::hash_t operator()(sek::engine::entity_t e) noexcept { return sek::engine::hash(e); }
+	[[nodiscard]] constexpr sek::hash_t operator()(sek::entity_t e) noexcept { return sek::hash(e); }
 };

@@ -11,11 +11,11 @@
 #include <rapidjson/reader.h>
 #include <rapidjson/writer.h>
 
-namespace sek::serialization::json
+namespace sekjson
 {
 	namespace detail
 	{
-		using namespace sek::serialization::detail;
+		using namespace sek::detail;
 
 		constexpr static std::size_t rj_allocator_page_size = 512;
 
@@ -184,13 +184,13 @@ namespace sek::serialization::json
 		}
 		/** Reads Json from a file.
 		 * @param file Native file containing Json data. */
-		explicit basic_input_archive(system::native_file &file)
+		explicit basic_input_archive(native_file &file)
 			: basic_input_archive(file, std::pmr::get_default_resource())
 		{
 		}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(system::native_file &file, std::pmr::memory_resource *res)
+		basic_input_archive(native_file &file, std::pmr::memory_resource *res)
 			: basic_input_archive(reader_type{file}, res)
 		{
 		}
@@ -284,17 +284,17 @@ namespace sek::serialization::json
 
 	typedef basic_input_archive<allow_comments> input_archive;
 
-	static_assert(serialization::input_archive<input_archive::archive_frame, bool>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, char>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, std::uint8_t>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, std::int8_t>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, std::int16_t>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, std::int32_t>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, std::int64_t>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, float>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, double>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, std::string>);
-	static_assert(serialization::structured_data_archive<input_archive::archive_frame>);
+	static_assert(input_archive<input_archive::archive_frame, bool>);
+	static_assert(input_archive<input_archive::archive_frame, char>);
+	static_assert(input_archive<input_archive::archive_frame, std::uint8_t>);
+	static_assert(input_archive<input_archive::archive_frame, std::int8_t>);
+	static_assert(input_archive<input_archive::archive_frame, std::int16_t>);
+	static_assert(input_archive<input_archive::archive_frame, std::int32_t>);
+	static_assert(input_archive<input_archive::archive_frame, std::int64_t>);
+	static_assert(input_archive<input_archive::archive_frame, float>);
+	static_assert(input_archive<input_archive::archive_frame, double>);
+	static_assert(input_archive<input_archive::archive_frame, std::string>);
+	static_assert(structured_data_archive<input_archive::archive_frame>);
 
 	/** Enables pretty-printing of Json output. Enabled by default. */
 	constexpr config_flags pretty_print = 4;
@@ -480,13 +480,13 @@ namespace sek::serialization::json
 		}
 		/** Initializes output archive for file writing.
 		 * @param file Native file to write Json data to. */
-		explicit basic_output_archive(system::native_file &file)
+		explicit basic_output_archive(native_file &file)
 			: basic_output_archive(file, std::pmr::get_default_resource())
 		{
 		}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_output_archive(system::native_file &file, std::pmr::memory_resource *res)
+		basic_output_archive(native_file &file, std::pmr::memory_resource *res)
 			: basic_output_archive(writer_type{file}, res)
 		{
 		}
@@ -584,15 +584,15 @@ namespace sek::serialization::json
 
 	typedef basic_output_archive<pretty_print | inline_arrays> output_archive;
 
-	static_assert(serialization::output_archive<output_archive, std::nullptr_t>);
-	static_assert(serialization::output_archive<output_archive, bool>);
-	static_assert(serialization::output_archive<output_archive, char>);
-	static_assert(serialization::output_archive<output_archive, std::uint8_t>);
-	static_assert(serialization::output_archive<output_archive, std::int8_t>);
-	static_assert(serialization::output_archive<output_archive, std::int16_t>);
-	static_assert(serialization::output_archive<output_archive, std::int32_t>);
-	static_assert(serialization::output_archive<output_archive, std::int64_t>);
-	static_assert(serialization::output_archive<output_archive, float>);
-	static_assert(serialization::output_archive<output_archive, double>);
-	static_assert(serialization::output_archive<output_archive, std::string>);
-}	 // namespace sek::serialization::json
+	static_assert(output_archive<output_archive, std::nullptr_t>);
+	static_assert(output_archive<output_archive, bool>);
+	static_assert(output_archive<output_archive, char>);
+	static_assert(output_archive<output_archive, std::uint8_t>);
+	static_assert(output_archive<output_archive, std::int8_t>);
+	static_assert(output_archive<output_archive, std::int16_t>);
+	static_assert(output_archive<output_archive, std::int32_t>);
+	static_assert(output_archive<output_archive, std::int64_t>);
+	static_assert(output_archive<output_archive, float>);
+	static_assert(output_archive<output_archive, double>);
+	static_assert(output_archive<output_archive, std::string>);
+}	 // namespace sekjson

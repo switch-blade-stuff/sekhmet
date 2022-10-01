@@ -8,7 +8,7 @@
 #include "../zstd_ctx.hpp"
 #include "asset_source.hpp"
 
-namespace sek::engine::detail
+namespace sek::detail
 {
 	expected<asset_source, std::error_code> archive_package::open_asset(const asset_info *info) const noexcept
 	{
@@ -74,7 +74,7 @@ namespace sek::engine::detail
 					return file.read(dst, n);
 				}
 
-				system::native_file &file;
+				native_file &file;
 				std::size_t size;
 				std::size_t pos = 0;
 			} reader = {file, static_cast<std::size_t>(size)};
@@ -113,4 +113,4 @@ namespace sek::engine::detail
 		}
 		return unexpected{result.error()};
 	}
-}	 // namespace sek::engine::detail
+}	 // namespace sek::detail

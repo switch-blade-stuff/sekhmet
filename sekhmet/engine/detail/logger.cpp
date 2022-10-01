@@ -6,7 +6,7 @@
 
 #include <cstdio>
 
-namespace sek::engine
+namespace sek
 {
 	template<typename L>
 	class logger_init
@@ -62,4 +62,4 @@ namespace sek::engine
 	}
 
 	template class SEK_API_EXPORT basic_logger<char>;
-}	 // namespace sek::engine
+}	 // namespace sek

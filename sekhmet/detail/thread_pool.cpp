@@ -103,7 +103,7 @@ namespace sek
 			}
 			catch (std::system_error &e) /* Mutex error. */
 			{
-				engine::logger::error() << "Mutex error in worker thread: " << e.what();
+				logger::error() << "Mutex error in worker thread: " << e.what();
 			}
 
 			/* Execute & delete the task. */

@@ -7,7 +7,7 @@
 #include "collection.hpp"
 #include "view.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	/** @brief Query structure used to build a component collection or a view.
 	 *
@@ -152,4 +152,4 @@ namespace sek::engine
 		return query().template own<O...>().template include<I...>().template exclude<E...>().template optional<P...>().collection();
 	}
 
-}	 // namespace sek::engine
+}	 // namespace sek

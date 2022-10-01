@@ -10,7 +10,7 @@
 #include "../type_info.hpp"
 #include "entity_set.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	/** @brief Structure used to store a set of entities and provide a type-erased access to their components. */
 	class generic_component_set : basic_entity_set<std::allocator<entity_t>>
@@ -1487,4 +1487,4 @@ namespace sek::engine
 	component_ptr(entity_t, component_set<T> &) -> component_ptr<T>;
 	template<typename T>
 	component_ptr(entity_t, const component_set<T> &) -> component_ptr<const T>;
-}	 // namespace sek::engine
+}	 // namespace sek

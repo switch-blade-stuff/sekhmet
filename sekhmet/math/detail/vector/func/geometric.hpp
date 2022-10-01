@@ -12,7 +12,7 @@
 #endif
 #endif
 
-namespace sek::math
+namespace sek
 {
 	namespace detail
 	{
@@ -107,7 +107,7 @@ namespace sek::math
 	 *
 	 * Result is calculated as
 	 * @code{cpp}
-	 * i - dot(n, i) * n * U{2}
+	 * return i - dot(n, i) * n * U{2}
 	 * @endcode
 	 *
 	 * @param i Incident vector.
@@ -124,9 +124,9 @@ namespace sek::math
 	 * @code{cpp}
 	 * k = 1.0 - eta * eta * (1.0 - dot(N, I) * dot(N, I));
 	 * if (k < 0.0)
-	 * 	R = 0.0;
+	 * 	return 0.0;
 	 * else
-	 * 	R = eta * I - (eta * dot(N, I) + sqrt(k)) * N;
+	 * 	return eta * I - (eta * dot(N, I) + sqrt(k)) * N;
 	 * @endcode
 	 *
 	 * @param i Incident vector.
@@ -151,4 +151,4 @@ namespace sek::math
 		else
 			return basic_vec<U, M, Q>{};
 	}
-}	 // namespace sek::math
+}	 // namespace sek

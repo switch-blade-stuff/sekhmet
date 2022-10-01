@@ -11,7 +11,7 @@
 
 #include "util.hpp"
 
-namespace sek::serialization
+namespace sek
 {
 	/** @brief Proxy type used to bind archive write operations. */
 	template<typename C, typename Traits = std::char_traits<C>>
@@ -61,7 +61,7 @@ namespace sek::serialization
 			{
 			}
 			constexpr data_t(char_type *data, std::size_t size) noexcept : buffer(data, size) {}
-			constexpr data_t(system::native_file *file) noexcept : file(file) {}
+			constexpr data_t(native_file *file) noexcept : file(file) {}
 			constexpr data_t(sbuf_type *stream_buf) noexcept : stream_buf(stream_buf) {}
 			constexpr data_t(FILE *file) noexcept : c_file(file) {}
 			template<typename A>
@@ -73,7 +73,7 @@ namespace sek::serialization
 
 			std::byte padding[sizeof(void *) * 3];
 
-			system::native_file *file;
+			native_file *file;
 			callback_data_t callback;
 			sbuf_type *stream_buf;
 			buffer_data_t buffer;
@@ -237,7 +237,7 @@ namespace sek::serialization
 		{
 		}
 		/** Initializes a writer from a native file. */
-		constexpr archive_writer(system::native_file &file) noexcept : archive_writer(&native_file_vtable, {&file}) {}
+		constexpr archive_writer(native_file &file) noexcept : archive_writer(&native_file_vtable, {&file}) {}
 		/** Initializes a writer from a string. */
 		template<typename A = std::allocator<char_type>>
 		constexpr archive_writer(string_type<A> &str) noexcept : archive_writer(&string_vtable<A>, {&str})
@@ -267,4 +267,4 @@ namespace sek::serialization
 		const vtable_t *m_vtable = nullptr;
 		data_t m_data;
 	};
-}	 // namespace sek::serialization
+}	 // namespace sek

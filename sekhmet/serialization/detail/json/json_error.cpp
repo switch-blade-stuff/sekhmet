@@ -6,7 +6,7 @@
 
 #include <fmt/format.h>
 
-namespace sek::serialization
+namespace sek
 {
 	void detail::invalid_json_type(json_type expected, json_type actual)
 	{
@@ -54,4 +54,4 @@ namespace sek::serialization
 		constinit static const json_category_t instance;
 		return instance;
 	}
-}	 // namespace sek::serialization
+}	 // namespace sek

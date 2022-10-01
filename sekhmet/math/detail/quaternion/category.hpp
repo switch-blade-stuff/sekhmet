@@ -6,7 +6,7 @@
 
 #include "type.hpp"
 
-namespace sek::math
+namespace sek
 {
 	/** Checks if elements of the quaternion are `NaN`. */
 	template<std::floating_point T, policy_t P>
@@ -38,4 +38,4 @@ namespace sek::math
 	{
 		return is_norm(q.vector());
 	}
-}	 // namespace sek::math
+}	 // namespace sek

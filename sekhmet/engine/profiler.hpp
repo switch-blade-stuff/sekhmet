@@ -8,7 +8,7 @@
 
 #ifndef SEK_NO_PROFILER
 
-namespace sek::engine
+namespace sek
 {
 	/** Profiler spec.
 	 *
@@ -30,6 +30,6 @@ namespace sek::engine
 	 * Thread groups store profiling data and once a profiler snapshot is requested, send all recorded profiling data
 	 * information to the profiler service, which stores it in internal per-client buffer. Maximum size of the internal
 	 * buffer can be configured through the profiler server. */
-}	 // namespace sek::engine
+}	 // namespace sek
 
 #endif

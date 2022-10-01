@@ -6,10 +6,10 @@
 
 #include "detail/quaternion.hpp"
 
-namespace sek::math
+namespace sek
 {
 	using fquat = basic_quat<float>;
 	using fquat_packed = basic_quat<float, policy_t::PACKED>;
 	using dquat = basic_quat<double>;
 	using dquat_packed = basic_quat<double, policy_t::PACKED>;
-}	 // namespace sek::math
+}	 // namespace sek

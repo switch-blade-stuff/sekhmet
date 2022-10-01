@@ -4,7 +4,7 @@
 
 #include "../message.hpp"
 
-namespace sek::engine::detail
+namespace sek::detail
 {
 	template class SEK_API_EXPORT message_table<message_scope::THREAD>;
 	template class SEK_API_EXPORT message_table<message_scope::GLOBAL>;
@@ -61,4 +61,4 @@ namespace sek::engine::detail
 		std::unique_lock<std::shared_mutex> l(m_mtx);
 		for (auto &e : m_table) e.second->dispatch();
 	}
-}	 // namespace sek::engine::detail
+}	 // namespace sek::detail

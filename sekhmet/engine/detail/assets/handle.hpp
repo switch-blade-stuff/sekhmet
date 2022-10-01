@@ -7,7 +7,7 @@
 #include "asset_source.hpp"
 #include "info.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	/** @brief Handle to a unique asset of a package.
 	 * @note Asset packages are kept alive as long as any of their assets are referenced. */
@@ -217,4 +217,4 @@ namespace sek::engine
 			return result;
 		}
 	}	 // namespace detail
-}	 // namespace sek::engine
+}	 // namespace sek

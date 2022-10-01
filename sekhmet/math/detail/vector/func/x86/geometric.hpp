@@ -7,7 +7,7 @@
 #include "common.hpp"
 
 #ifdef SEK_USE_SSE
-namespace sek::math::detail
+namespace sek::detail
 {
 	template<policy_t P>
 	inline void vector_cross(vector_data<float, 3, P> &out,
@@ -173,5 +173,5 @@ namespace sek::math::detail
 	}
 #endif
 #endif
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif

@@ -4,7 +4,7 @@
 
 #include "asset_io.hpp"
 
-SEK_API_EXPORT const sek::engine::detail::asset_io_data::vtable_t sek::engine::detail::asset_io_data::file_vtable = {
+SEK_API_EXPORT const sek::detail::asset_io_data::vtable_t sek::detail::asset_io_data::file_vtable = {
 	.read = asset_io_data::file_read,
 	.seek = asset_io_data::file_seek,
 	.setpos = asset_io_data::file_setpos,
@@ -12,7 +12,7 @@ SEK_API_EXPORT const sek::engine::detail::asset_io_data::vtable_t sek::engine::d
 	.tell = asset_io_data::file_tell,
 	.destroy_data = asset_io_data::destroy_file,
 };
-SEK_API_EXPORT const sek::engine::detail::asset_io_data::vtable_t sek::engine::detail::asset_io_data::buff_vtable = {
+SEK_API_EXPORT const sek::detail::asset_io_data::vtable_t sek::detail::asset_io_data::buff_vtable = {
 	.read = asset_io_data::buff_read,
 	.seek = asset_io_data::buff_seek,
 	.setpos = asset_io_data::buff_setpos,

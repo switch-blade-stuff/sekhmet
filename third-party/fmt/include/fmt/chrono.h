@@ -632,13 +632,13 @@ FMT_CONSTEXPR const Char* parse_chrono_format(const Char* begin,
     }
     // Year:
     case 'Y':
-      handler.on_year(numeric_system::standard);
+      handler.on_year(numeric_standard);
       break;
     case 'y':
-      handler.on_short_year(numeric_system::standard);
+      handler.on_short_year(numeric_standard);
       break;
     case 'C':
-      handler.on_century(numeric_system::standard);
+      handler.on_century(numeric_standard);
       break;
     case 'G':
       handler.on_iso_week_based_year();
@@ -654,10 +654,10 @@ FMT_CONSTEXPR const Char* parse_chrono_format(const Char* begin,
       handler.on_full_weekday();
       break;
     case 'w':
-      handler.on_dec0_weekday(numeric_system::standard);
+      handler.on_dec0_weekday(numeric_standard);
       break;
     case 'u':
-      handler.on_dec1_weekday(numeric_system::standard);
+      handler.on_dec1_weekday(numeric_standard);
       break;
     // Month:
     case 'b':
@@ -668,49 +668,49 @@ FMT_CONSTEXPR const Char* parse_chrono_format(const Char* begin,
       handler.on_full_month();
       break;
     case 'm':
-      handler.on_dec_month(numeric_system::standard);
+      handler.on_dec_month(numeric_standard);
       break;
     // Day of the year/month:
     case 'U':
-      handler.on_dec0_week_of_year(numeric_system::standard);
+      handler.on_dec0_week_of_year(numeric_standard);
       break;
     case 'W':
-      handler.on_dec1_week_of_year(numeric_system::standard);
+      handler.on_dec1_week_of_year(numeric_standard);
       break;
     case 'V':
-      handler.on_iso_week_of_year(numeric_system::standard);
+      handler.on_iso_week_of_year(numeric_standard);
       break;
     case 'j':
       handler.on_day_of_year();
       break;
     case 'd':
-      handler.on_day_of_month(numeric_system::standard);
+      handler.on_day_of_month(numeric_standard);
       break;
     case 'e':
-      handler.on_day_of_month_space(numeric_system::standard);
+      handler.on_day_of_month_space(numeric_standard);
       break;
     // Hour, minute, second:
     case 'H':
-      handler.on_24_hour(numeric_system::standard);
+      handler.on_24_hour(numeric_standard);
       break;
     case 'I':
-      handler.on_12_hour(numeric_system::standard);
+      handler.on_12_hour(numeric_standard);
       break;
     case 'M':
-      handler.on_minute(numeric_system::standard);
+      handler.on_minute(numeric_standard);
       break;
     case 'S':
-      handler.on_second(numeric_system::standard);
+      handler.on_second(numeric_standard);
       break;
     // Other:
     case 'c':
-      handler.on_datetime(numeric_system::standard);
+      handler.on_datetime(numeric_standard);
       break;
     case 'x':
-      handler.on_loc_date(numeric_system::standard);
+      handler.on_loc_date(numeric_standard);
       break;
     case 'X':
-      handler.on_loc_time(numeric_system::standard);
+      handler.on_loc_time(numeric_standard);
       break;
     case 'D':
       handler.on_us_date();
@@ -748,22 +748,22 @@ FMT_CONSTEXPR const Char* parse_chrono_format(const Char* begin,
       c = *ptr++;
       switch (c) {
       case 'Y':
-        handler.on_year(numeric_system::alternative);
+        handler.on_year(numeric_alternative);
         break;
       case 'y':
         handler.on_offset_year();
         break;
       case 'C':
-        handler.on_century(numeric_system::alternative);
+        handler.on_century(numeric_alternative);
         break;
       case 'c':
-        handler.on_datetime(numeric_system::alternative);
+        handler.on_datetime(numeric_alternative);
         break;
       case 'x':
-        handler.on_loc_date(numeric_system::alternative);
+        handler.on_loc_date(numeric_alternative);
         break;
       case 'X':
-        handler.on_loc_time(numeric_system::alternative);
+        handler.on_loc_time(numeric_alternative);
         break;
       default:
         FMT_THROW(format_error("invalid format"));
@@ -775,43 +775,43 @@ FMT_CONSTEXPR const Char* parse_chrono_format(const Char* begin,
       c = *ptr++;
       switch (c) {
       case 'y':
-        handler.on_short_year(numeric_system::alternative);
+        handler.on_short_year(numeric_alternative);
         break;
       case 'm':
-        handler.on_dec_month(numeric_system::alternative);
+        handler.on_dec_month(numeric_alternative);
         break;
       case 'U':
-        handler.on_dec0_week_of_year(numeric_system::alternative);
+        handler.on_dec0_week_of_year(numeric_alternative);
         break;
       case 'W':
-        handler.on_dec1_week_of_year(numeric_system::alternative);
+        handler.on_dec1_week_of_year(numeric_alternative);
         break;
       case 'V':
-        handler.on_iso_week_of_year(numeric_system::alternative);
+        handler.on_iso_week_of_year(numeric_alternative);
         break;
       case 'd':
-        handler.on_day_of_month(numeric_system::alternative);
+        handler.on_day_of_month(numeric_alternative);
         break;
       case 'e':
-        handler.on_day_of_month_space(numeric_system::alternative);
+        handler.on_day_of_month_space(numeric_alternative);
         break;
       case 'w':
-        handler.on_dec0_weekday(numeric_system::alternative);
+        handler.on_dec0_weekday(numeric_alternative);
         break;
       case 'u':
-        handler.on_dec1_weekday(numeric_system::alternative);
+        handler.on_dec1_weekday(numeric_alternative);
         break;
       case 'H':
-        handler.on_24_hour(numeric_system::alternative);
+        handler.on_24_hour(numeric_alternative);
         break;
       case 'I':
-        handler.on_12_hour(numeric_system::alternative);
+        handler.on_12_hour(numeric_alternative);
         break;
       case 'M':
-        handler.on_minute(numeric_system::alternative);
+        handler.on_minute(numeric_alternative);
         break;
       case 'S':
-        handler.on_second(numeric_system::alternative);
+        handler.on_second(numeric_alternative);
         break;
       default:
         FMT_THROW(format_error("invalid format"));
@@ -1151,11 +1151,11 @@ template <typename OutputIt, typename Char> class tm_writer {
       format_localized('A');
   }
   void on_dec0_weekday(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard) return write1(tm_wday());
+    if (is_classic_ || ns == numeric_standard) return write1(tm_wday());
     format_localized('w', 'O');
   }
   void on_dec1_weekday(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard) {
+    if (is_classic_ || ns == numeric_standard) {
       auto wday = tm_wday();
       write1(wday == 0 ? days_per_week : wday);
     } else {
@@ -1182,26 +1182,26 @@ template <typename OutputIt, typename Char> class tm_writer {
       *out_++ = ' ';
       on_abbr_month();
       *out_++ = ' ';
-      on_day_of_month_space(numeric_system::standard);
+      on_day_of_month_space(numeric_standard);
       *out_++ = ' ';
       on_iso_time();
       *out_++ = ' ';
-      on_year(numeric_system::standard);
+      on_year(numeric_standard);
     } else {
-      format_localized('c', ns == numeric_system::standard ? '\0' : 'E');
+      format_localized('c', ns == numeric_standard ? '\0' : 'E');
     }
   }
   void on_loc_date(numeric_system ns) {
     if (is_classic_)
       on_us_date();
     else
-      format_localized('x', ns == numeric_system::standard ? '\0' : 'E');
+      format_localized('x', ns == numeric_standard ? '\0' : 'E');
   }
   void on_loc_time(numeric_system ns) {
     if (is_classic_)
       on_iso_time();
     else
-      format_localized('X', ns == numeric_system::standard ? '\0' : 'E');
+      format_localized('X', ns == numeric_standard ? '\0' : 'E');
   }
   void on_us_date() {
     char buf[8];
@@ -1231,12 +1231,12 @@ template <typename OutputIt, typename Char> class tm_writer {
   void on_tz_name() { format_tz_name_impl(tm_); }
 
   void on_year(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard)
+    if (is_classic_ || ns == numeric_standard)
       return write_year(tm_year());
     format_localized('Y', 'E');
   }
   void on_short_year(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard)
+    if (is_classic_ || ns == numeric_standard)
       return write2(split_year_lower(tm_year()));
     format_localized('y', 'O');
   }
@@ -1246,7 +1246,7 @@ template <typename OutputIt, typename Char> class tm_writer {
   }
 
   void on_century(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard) {
+    if (is_classic_ || ns == numeric_standard) {
       auto year = tm_year();
       auto upper = year / 100;
       if (year >= -99 && year < 0) {
@@ -1264,18 +1264,18 @@ template <typename OutputIt, typename Char> class tm_writer {
   }
 
   void on_dec_month(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard)
+    if (is_classic_ || ns == numeric_standard)
       return write2(tm_mon() + 1);
     format_localized('m', 'O');
   }
 
   void on_dec0_week_of_year(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard)
+    if (is_classic_ || ns == numeric_standard)
       return write2((tm_yday() + days_per_week - tm_wday()) / days_per_week);
     format_localized('U', 'O');
   }
   void on_dec1_week_of_year(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard) {
+    if (is_classic_ || ns == numeric_standard) {
       auto wday = tm_wday();
       write2((tm_yday() + days_per_week -
               (wday == 0 ? (days_per_week - 1) : (wday - 1))) /
@@ -1285,7 +1285,7 @@ template <typename OutputIt, typename Char> class tm_writer {
     }
   }
   void on_iso_week_of_year(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard)
+    if (is_classic_ || ns == numeric_standard)
       return write2(tm_iso_week_of_year());
     format_localized('V', 'O');
   }
@@ -1301,11 +1301,11 @@ template <typename OutputIt, typename Char> class tm_writer {
     write2(yday % 100);
   }
   void on_day_of_month(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard) return write2(tm_mday());
+    if (is_classic_ || ns == numeric_standard) return write2(tm_mday());
     format_localized('d', 'O');
   }
   void on_day_of_month_space(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard) {
+    if (is_classic_ || ns == numeric_standard) {
       auto mday = to_unsigned(tm_mday()) % 100;
       const char* d2 = digits2(mday);
       *out_++ = mday < 10 ? ' ' : d2[0];
@@ -1316,20 +1316,20 @@ template <typename OutputIt, typename Char> class tm_writer {
   }
 
   void on_24_hour(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard) return write2(tm_hour());
+    if (is_classic_ || ns == numeric_standard) return write2(tm_hour());
     format_localized('H', 'O');
   }
   void on_12_hour(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard)
+    if (is_classic_ || ns == numeric_standard)
       return write2(tm_hour12());
     format_localized('I', 'O');
   }
   void on_minute(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard) return write2(tm_min());
+    if (is_classic_ || ns == numeric_standard) return write2(tm_min());
     format_localized('M', 'O');
   }
   void on_second(numeric_system ns) {
-    if (is_classic_ || ns == numeric_system::standard) return write2(tm_sec());
+    if (is_classic_ || ns == numeric_standard) return write2(tm_sec());
     format_localized('S', 'O');
   }
 
@@ -1742,7 +1742,7 @@ struct chrono_formatter {
   void on_24_hour(numeric_system ns) {
     if (handle_nan_inf()) return;
 
-    if (ns == numeric_system::standard) return write(hour(), 2);
+    if (ns == numeric_standard) return write(hour(), 2);
     auto time = tm();
     time.tm_hour = to_nonnegative_int(hour(), 24);
     format_tm(time, &tm_writer_type::on_24_hour, ns);
@@ -1751,7 +1751,7 @@ struct chrono_formatter {
   void on_12_hour(numeric_system ns) {
     if (handle_nan_inf()) return;
 
-    if (ns == numeric_system::standard) return write(hour12(), 2);
+    if (ns == numeric_standard) return write(hour12(), 2);
     auto time = tm();
     time.tm_hour = to_nonnegative_int(hour12(), 12);
     format_tm(time, &tm_writer_type::on_12_hour, ns);
@@ -1760,7 +1760,7 @@ struct chrono_formatter {
   void on_minute(numeric_system ns) {
     if (handle_nan_inf()) return;
 
-    if (ns == numeric_system::standard) return write(minute(), 2);
+    if (ns == numeric_standard) return write(minute(), 2);
     auto time = tm();
     time.tm_min = to_nonnegative_int(minute(), 60);
     format_tm(time, &tm_writer_type::on_minute, ns);
@@ -1769,7 +1769,7 @@ struct chrono_formatter {
   void on_second(numeric_system ns) {
     if (handle_nan_inf()) return;
 
-    if (ns == numeric_system::standard) {
+    if (ns == numeric_standard) {
       if (std::is_floating_point<rep>::value) {
         constexpr auto num_fractional_digits =
             count_fractional_digits<Period::num, Period::den>::value;
@@ -1814,7 +1814,7 @@ struct chrono_formatter {
     on_24_hour_time();
     *out++ = ':';
     if (handle_nan_inf()) return;
-    on_second(numeric_system::standard);
+    on_second(numeric_standard);
   }
 
   void on_am_pm() {

@@ -7,7 +7,7 @@
 #include "../common.hpp"
 
 #ifdef SEK_USE_SSE2
-namespace sek::math::detail
+namespace sek::detail
 {
 	SEK_API __m128 x86_sin_ps(__m128 v) noexcept;
 	SEK_API __m128 x86_cos_ps(__m128 v) noexcept;
@@ -115,5 +115,5 @@ namespace sek::math::detail
 	{
 		x86_vector_apply(out, v, x86_atanh_ps);
 	}
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif

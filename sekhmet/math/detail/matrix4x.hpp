@@ -6,7 +6,7 @@
 
 #include "matrix.hpp"
 
-namespace sek::math
+namespace sek
 {
 	template<arithmetic T, policy_t P>
 	class basic_mat<T, 4, 2, P>
@@ -409,4 +409,4 @@ namespace sek::math
 		const auto r3 = m.row(3);
 		return basic_mat<T, 4, 4, Q>{r0, r1, r2, r3};
 	}
-}	 // namespace sek::math
+}	 // namespace sek

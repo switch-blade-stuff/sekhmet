@@ -4,7 +4,7 @@
 
 #pragma once
 
-namespace sek::system::detail
+namespace sek::detail
 {
 	class native_filemap_handle
 	{
@@ -45,4 +45,4 @@ namespace sek::system::detail
 		std::uint64_t m_data_offset = 0; /* Offset from the handle to start of data. */
 		std::uint64_t m_data_size = 0;
 	};
-}	 // namespace sek::system::detail
+}	 // namespace sek::detail

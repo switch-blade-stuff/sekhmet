@@ -10,7 +10,7 @@
 #include "unix/native_file.cpp"	   // NOLINT
 #endif
 
-namespace sek::system
+namespace sek
 {
 	constexpr std::size_t init_buffer_size = SEK_KB(8);
 
@@ -241,4 +241,4 @@ namespace sek::system
 	{
 		return write(std::nothrow, buff.data(), buff.size());
 	}
-}	 // namespace sek::system
+}	 // namespace sek

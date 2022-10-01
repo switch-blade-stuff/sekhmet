@@ -6,7 +6,7 @@
 
 #include "type.hpp"
 
-namespace sek::math
+namespace sek
 {
 	/** Checks if elements of quaternion a equals quaternion b using an epsilon. */
 	template<std::floating_point T, policy_t P>
@@ -86,4 +86,4 @@ namespace sek::math
 	{
 		return fcmp_gt(a, b, basic_vec<T, 4, P>{epsilon});
 	}
-}	 // namespace sek::math
+}	 // namespace sek

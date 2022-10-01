@@ -4,7 +4,7 @@
 
 #pragma once
 
-namespace sek::system::detail
+namespace sek::detail
 {
 	class native_file_handle
 	{
@@ -46,4 +46,4 @@ namespace sek::system::detail
 	private:
 		int m_descriptor = -1;
 	};
-}	 // namespace sek::system::detail
+}	 // namespace sek::detail

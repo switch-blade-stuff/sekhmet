@@ -137,7 +137,7 @@ private:
   // Perform one operation. Returns >= 0 on success or error, want_read if the
   // operation needs more input, or want_write if it needs to write some output
   // before the operation can complete.
-  ASIO_DECL want perform(int (engine::* op)(void*, std::size_t),
+  ASIO_DECL want perform(int (* op)(void*, std::size_t),
       void* data, std::size_t length, asio::error_code& ec,
       std::size_t* bytes_transferred);
 

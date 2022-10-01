@@ -8,7 +8,7 @@
 #include "../base64.hpp"
 #include "traits.hpp"
 
-namespace sek::serialization::detail
+namespace sek::detail
 {
 	/** Selects integer size category based on it's value.
 	 * @return 0 if the integer can be represented using 8 bits.
@@ -78,4 +78,4 @@ namespace sek::serialization::detail
 		return serializer<T, A>::deserialize(std::in_place, archive, std::forward<Args>(args)...);
 	}
 	// clang-format on
-}	 // namespace sek::serialization::detail
+}	 // namespace sek::detail

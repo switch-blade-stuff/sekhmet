@@ -11,7 +11,7 @@
  * Inspired by http://gruntthepeon.free.fr/ssemath */
 
 #ifdef SEK_USE_SSE2
-namespace sek::math::detail
+namespace sek::detail
 {
 	static const float sincof_f[3] = {-1.9515295891e-4f, 8.3321608736e-3f, -1.6666654611e-1f};
 	static const float coscof_f[3] = {2.443315711809948e-5f, -1.388731625493765e-3f, 4.166664568298827e-2f};
@@ -375,5 +375,5 @@ namespace sek::math::detail
 		const auto select2 = _mm_cmpnlt_ps(a, _mm_set1_ps(0.0001f));	  /* a < 0.0001 */
 		return x86_blendv_ps(v, x86_blendv_ps(a1, a2, select1), select2); /* a = (select2) ? v : (select1) ? a1 : a2 */
 	}
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif

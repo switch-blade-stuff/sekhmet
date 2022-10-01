@@ -9,7 +9,7 @@
 #include "asset_io.hpp"
 #include "fwd.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	/** @brief Structure providing a read-only access to data of an asset.
 	 *
@@ -21,11 +21,11 @@ namespace sek::engine
 		friend class detail::package_info;
 
 	public:
-		typedef typename system::native_file::seek_basis seek_basis;
+		typedef typename native_file::seek_basis seek_basis;
 
-		constexpr static seek_basis seek_set = system::native_file::seek_set;
-		constexpr static seek_basis seek_cur = system::native_file::seek_cur;
-		constexpr static seek_basis seek_end = system::native_file::seek_end;
+		constexpr static seek_basis seek_set = native_file::seek_set;
+		constexpr static seek_basis seek_cur = native_file::seek_cur;
+		constexpr static seek_basis seek_end = native_file::seek_end;
 
 	private:
 		constexpr asset_source(detail::asset_io_data &&data, std::uint64_t offset, std::uint64_t size) noexcept
@@ -47,7 +47,7 @@ namespace sek::engine
 		/** Initializes asset source from a native file.
 		 * @param file File containing the asset.
 		 * @throw std::system_error On implementation-defined file errors. */
-		explicit asset_source(system::native_file &&file) : m_data(detail::asset_io_data(std::move(file)))
+		explicit asset_source(native_file &&file) : m_data(detail::asset_io_data(std::move(file)))
 		{
 			m_offset = m_data.file()->tell();
 			m_size = m_data.file()->size();
@@ -55,7 +55,7 @@ namespace sek::engine
 		/** @copydoc asset_source
 		 * @param offset Offset from the start of the file at which the asset's data starts.
 		 * @note File will be seeked to the specified offset. */
-		asset_source(system::native_file &&file, std::uint64_t offset)
+		asset_source(native_file &&file, std::uint64_t offset)
 			: m_data(detail::asset_io_data(std::move(file))), m_offset(offset)
 		{
 			m_size = m_data.file()->size() - offset;
@@ -63,7 +63,7 @@ namespace sek::engine
 		}
 		/** @copydoc asset_source
 		 * @param size Size of the asset. */
-		asset_source(system::native_file &&file, std::uint64_t offset, std::uint64_t size)
+		asset_source(native_file &&file, std::uint64_t offset, std::uint64_t size)
 			: m_data(detail::asset_io_data(std::move(file))), m_offset(offset), m_size(size)
 		{
 			m_data.file()->setpos(offset);
@@ -166,9 +166,9 @@ namespace sek::engine
 		SEK_API expected<std::uint64_t, std::error_code> setpos(std::nothrow_t, std::uint64_t pos) noexcept;
 
 		/** If the asset source is backed by a file, returns pointer to the file. Otherwise returns `nullptr`. */
-		[[nodiscard]] constexpr system::native_file *file() noexcept { return m_data.file(); }
+		[[nodiscard]] constexpr native_file *file() noexcept { return m_data.file(); }
 		/** @copydoc file */
-		[[nodiscard]] constexpr const system::native_file *file() const noexcept { return m_data.file(); }
+		[[nodiscard]] constexpr const native_file *file() const noexcept { return m_data.file(); }
 
 		constexpr void swap(asset_source &other) noexcept
 		{
@@ -186,4 +186,4 @@ namespace sek::engine
 		std::uint64_t m_size = 0;	  /* Total (accessible) size of the data. */
 		std::uint64_t m_read_pos = 0; /* Current read position with the base offset applied. */
 	};
-}	 // namespace sek::engine
+}	 // namespace sek

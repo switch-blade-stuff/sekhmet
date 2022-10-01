@@ -12,7 +12,7 @@
 #error "Native file not implemented"
 #endif
 
-namespace sek::system
+namespace sek
 {
 	/** @brief Structure used to manage a memory-mapped file. */
 	class native_filemap
@@ -20,12 +20,12 @@ namespace sek::system
 	public:
 		typedef typename detail::native_filemap_handle::native_handle_type native_handle_type;
 
-		typedef system::mapmode mapmode;
+		typedef mapmode mapmode;
 		/** Enable copy-on-write for mapped pages. Any changes will not be committed to the backing file.
 		 * @note Source file must be open for reading. */
-		constexpr static mapmode map_copy = system::map_copy;
+		constexpr static mapmode map_copy = map_copy;
 		/** Pre-populate mapped pages. */
-		constexpr static mapmode map_populate = system::map_populate;
+		constexpr static mapmode map_populate = map_populate;
 
 	public:
 		native_filemap(const native_filemap &) = delete;
@@ -105,4 +105,4 @@ namespace sek::system
 	private:
 		detail::native_filemap_handle m_handle;
 	};
-}	 // namespace sek::system
+}	 // namespace sek

@@ -5,7 +5,7 @@
 #include "utility.hpp"
 
 #ifdef SEK_USE_SSE2
-namespace sek::math::detail
+namespace sek::detail
 {
 #ifndef SEK_USE_SSE4_1
 	__m128d x86_floor_pd(__m128d v) noexcept
@@ -72,5 +72,5 @@ namespace sek::math::detail
 		return _mm_add_pd(_mm_sub_pd(_mm_castsi128_pd(_mm_add_epi64(a, exp67m3)), adjust), _mm_castsi128_pd(b));
 	}
 #endif
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif

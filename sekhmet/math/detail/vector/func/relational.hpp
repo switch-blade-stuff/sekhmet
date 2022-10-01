@@ -12,7 +12,7 @@
 #endif
 #endif
 
-namespace sek::math
+namespace sek
 {
 	namespace detail
 	{
@@ -407,4 +407,4 @@ namespace sek::math
 		return fclamp(value, min_val, max_val, basic_vec<U, M, Q>{epsilon});
 	}
 
-}	 // namespace sek::math
+}	 // namespace sek

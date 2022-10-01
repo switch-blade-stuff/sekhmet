@@ -8,7 +8,7 @@
 
 #include "info.hpp"
 
-namespace sek::engine::detail
+namespace sek::detail
 {
 	class archive_package : public package_info
 	{
@@ -72,4 +72,4 @@ namespace sek::engine::detail
 	private:
 		expected<asset_source, std::error_code> open_at(archive_slice) const noexcept override;
 	};
-}	 // namespace sek::engine::detail
+}	 // namespace sek::detail

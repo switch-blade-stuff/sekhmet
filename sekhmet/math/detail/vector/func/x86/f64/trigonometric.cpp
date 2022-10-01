@@ -11,7 +11,7 @@
  * Inspired by http://gruntthepeon.free.fr/ssemath */
 
 #ifdef SEK_USE_SSE2
-namespace sek::math::detail
+namespace sek::detail
 {
 	static const double sincof_d[6] = {
 		1.58962301576546568060e-10,
@@ -517,5 +517,5 @@ namespace sek::math::detail
 		/* return v_mask ? v : select_mask ? p1 : p2 */
 		return x86_blendv_pd(v, x86_blendv_pd(p1, p1, select_mask), v_mask);
 	}
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif

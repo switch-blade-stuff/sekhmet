@@ -7,7 +7,7 @@
 #include "common.hpp"
 
 #ifdef SEK_USE_SSE
-namespace sek::math::detail
+namespace sek::detail
 {
 	template<std::size_t N, policy_t P>
 	inline void vector_is_nan(mask_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
@@ -139,5 +139,5 @@ namespace sek::math::detail
 	}
 #endif
 #endif
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif

@@ -123,11 +123,11 @@ public:                                                                         
 	SEK_GET_MACRO_3(__VA_ARGS__, SEK_DETAIL_SHUFFLE_4, SEK_DETAIL_SHUFFLE_3, SEK_DETAIL_SHUFFLE_2)                     \
 	(x, __VA_ARGS__)
 
-namespace sek::math
+namespace sek
 {
 	/** @brief Structure representing a mathematical vector.
 	 * @tparam T Type of values stored in the vector.
-	 * @tparam N Amount of values the vector holds.
+	 * @tparam N Dimension of the vector.
 	 * @tparam Policy Policy used for storage & optimization. */
 	template<typename T, std::size_t N, policy_t Policy = policy_t::DEFAULT>
 	class basic_vec;
@@ -260,15 +260,6 @@ namespace sek::math
 		[[nodiscard]] constexpr decltype(auto) z() const noexcept { return m_data[2]; }
 
 		SEK_VECTOR_GENERATE_SHUFFLE(x, y, z)
-
-		[[nodiscard]] constexpr decltype(auto) r() noexcept { return m_data[0]; }
-		[[nodiscard]] constexpr decltype(auto) r() const noexcept { return m_data[0]; }
-		[[nodiscard]] constexpr decltype(auto) g() noexcept { return m_data[1]; }
-		[[nodiscard]] constexpr decltype(auto) g() const noexcept { return m_data[1]; }
-		[[nodiscard]] constexpr decltype(auto) b() noexcept { return m_data[2]; }
-		[[nodiscard]] constexpr decltype(auto) b() const noexcept { return m_data[2]; }
-
-		SEK_VECTOR_GENERATE_SHUFFLE(r, g, b)
 	};
 	template<arithmetic T, policy_t Policy>
 	class basic_vec<T, 4, Policy>
@@ -296,17 +287,6 @@ namespace sek::math
 
 		SEK_VECTOR_GENERATE_SHUFFLE(x, y, z, w)
 
-		[[nodiscard]] constexpr decltype(auto) r() noexcept { return m_data[0]; }
-		[[nodiscard]] constexpr decltype(auto) r() const noexcept { return m_data[0]; }
-		[[nodiscard]] constexpr decltype(auto) g() noexcept { return m_data[1]; }
-		[[nodiscard]] constexpr decltype(auto) g() const noexcept { return m_data[1]; }
-		[[nodiscard]] constexpr decltype(auto) b() noexcept { return m_data[2]; }
-		[[nodiscard]] constexpr decltype(auto) b() const noexcept { return m_data[2]; }
-		[[nodiscard]] constexpr decltype(auto) a() noexcept { return m_data[3]; }
-		[[nodiscard]] constexpr decltype(auto) a() const noexcept { return m_data[3]; }
-
-		SEK_VECTOR_GENERATE_SHUFFLE(r, g, b, a)
-
 		[[nodiscard]] constexpr decltype(auto) s() noexcept { return m_data[0]; }
 		[[nodiscard]] constexpr decltype(auto) s() const noexcept { return m_data[0]; }
 		[[nodiscard]] constexpr decltype(auto) t() noexcept { return m_data[1]; }
@@ -331,24 +311,24 @@ namespace sek::math
 	{
 		a.swap(b);
 	}
-}	 // namespace sek::math
+}	 // namespace sek
 
-template<typename U, std::size_t M, sek::math::policy_t Q>
-struct std::tuple_size<sek::math::vec_mask<sek::math::basic_vec<U, M, Q>>> : std::integral_constant<std::size_t, M>
+template<typename U, std::size_t M, sek::policy_t Q>
+struct std::tuple_size<sek::vec_mask<sek::basic_vec<U, M, Q>>> : std::integral_constant<std::size_t, M>
 {
 };
-template<std::size_t I, typename U, std::size_t M, sek::math::policy_t Q>
-struct std::tuple_element<I, sek::math::vec_mask<sek::math::basic_vec<U, M, Q>>>
+template<std::size_t I, typename U, std::size_t M, sek::policy_t Q>
+struct std::tuple_element<I, sek::vec_mask<sek::basic_vec<U, M, Q>>>
 {
 	using type = bool;
 };
 
-template<typename U, std::size_t M, sek::math::policy_t Q>
-struct std::tuple_size<sek::math::basic_vec<U, M, Q>> : std::integral_constant<std::size_t, M>
+template<typename U, std::size_t M, sek::policy_t Q>
+struct std::tuple_size<sek::basic_vec<U, M, Q>> : std::integral_constant<std::size_t, M>
 {
 };
-template<std::size_t I, typename U, std::size_t M, sek::math::policy_t Q>
-struct std::tuple_element<I, sek::math::basic_vec<U, M, Q>>
+template<std::size_t I, typename U, std::size_t M, sek::policy_t Q>
+struct std::tuple_element<I, sek::basic_vec<U, M, Q>>
 {
 	using type = U;
 };

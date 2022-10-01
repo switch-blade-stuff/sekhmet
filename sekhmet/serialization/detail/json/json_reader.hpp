@@ -9,7 +9,7 @@
 #include "../../../system/char_file.hpp"
 #include "object.hpp"
 
-namespace sek::serialization
+namespace sek
 {
 	template<typename>
 	class basic_json_reader;
@@ -61,7 +61,7 @@ namespace sek::serialization
 		constinit static const callback_t cfile_funcs = {
 			.get = +[](void *data, const std::locale &loc) -> expected<typename traits_type::int_type, std::error_code>
 			{
-				auto &file = *static_cast<system::basic_char_file<Fc, Ft> *>(data);
+				auto &file = *static_cast<basic_char_file<Fc, Ft> *>(data);
 
 				/* Read the character, make sure there is no error or EOF. */
 				const auto result = file.get(std::nothrow);
@@ -72,7 +72,7 @@ namespace sek::serialization
 			},
 			.peek = +[](void *data, const std::locale &loc) -> expected<typename traits_type::int_type, std::error_code>
 			{
-				auto &file = *static_cast<system::basic_char_file<Fc, Ft> *>(data);
+				auto &file = *static_cast<basic_char_file<Fc, Ft> *>(data);
 				file.read();
 			},
 			.tell = +[](void *data, const std::locale &) -> expected<std::size_t, std::error_code> {},
@@ -88,14 +88,14 @@ namespace sek::serialization
 		/** Initializes a Json reader using a character file and a default locale.
 		 * @param file Character file containing Json data. */
 		template<typename Fc, typename Ft>
-		basic_json_reader(system::basic_char_file<Fc, Ft> &file) : basic_json_reader(cfile_funcs<Fc, Ft>, &file)
+		basic_json_reader(basic_char_file<Fc, Ft> &file) : basic_json_reader(cfile_funcs<Fc, Ft>, &file)
 		{
 		}
 		/** Initializes a Json reader using a character file and the specified locale.
 		 * @param file Character file containing Json data.
 		 * @param loc Locale used for parsing Json data. */
 		template<typename Fc, typename Ft>
-		basic_json_reader(system::basic_char_file<Fc, Ft> &file, const std::locale &loc)
+		basic_json_reader(basic_char_file<Fc, Ft> &file, const std::locale &loc)
 			: basic_json_reader(cfile_funcs<Fc, Ft>, &file, loc)
 		{
 		}
@@ -161,8 +161,8 @@ namespace sek::serialization
 		std::locale m_loc;
 		callback_t m_funcs;
 		void *m_data;
-	};	  // namespace sek::serialization
+	};	  // namespace sek
 
 	/** @brief `basic_json_reader` alias that uses the `json_object` object type. */
 	using json_reader = basic_json_reader<json_object>;
-}	 // namespace sek::serialization
+}	 // namespace sek

@@ -25,7 +25,7 @@
 	friend constexpr basic_vec<U, M, Q> interleave(                                                                    \
 		const basic_vec<U, M, Q> &, const basic_vec<U, M, Q> &, const vec_mask<basic_vec<U, M, Q>> &) noexcept;
 
-namespace sek::math
+namespace sek
 {
 	template<std::size_t I, typename U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr decltype(auto) get(vec_mask<basic_vec<U, M, Q>> &m) noexcept;
@@ -63,4 +63,4 @@ namespace sek::math
 	[[nodiscard]] constexpr basic_vec<U, M, Q> interleave(const basic_vec<U, M, Q> &l,
 														  const basic_vec<U, M, Q> &r,
 														  const vec_mask<basic_vec<U, M, Q>> &mask) noexcept;
-}	 // namespace sek::math
+}	 // namespace sek

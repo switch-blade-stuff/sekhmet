@@ -12,7 +12,7 @@
 #endif
 #endif
 
-namespace sek::math
+namespace sek
 {
 	namespace detail
 	{
@@ -115,4 +115,4 @@ namespace sek::math
 			detail::vector_inv(result.m_data, v.m_data);
 		return result;
 	}
-}	 // namespace sek::math
+}	 // namespace sek

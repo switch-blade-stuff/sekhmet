@@ -14,7 +14,7 @@
 #include "../util.hpp"
 #include "json_error.hpp"
 
-namespace sek::serialization
+namespace sek
 {
 	/** @brief Structure representing a Json object (table, array or value) and providing serialization archive operations.
 	 *
@@ -1992,4 +1992,4 @@ namespace sek::serialization
 
 	/** @brief `basic_json_object` alias for `char` character type. */
 	using json_object = basic_json_object<char>;
-}	 // namespace sek::serialization
+}	 // namespace sek

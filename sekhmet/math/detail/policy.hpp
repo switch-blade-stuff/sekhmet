@@ -4,7 +4,7 @@
 
 #pragma once
 
-namespace sek::math
+namespace sek
 {
 	enum policy_t : int
 	{
@@ -32,4 +32,4 @@ namespace sek::math
 		/** Default non-SIMD policy. Equivalent to `FAST_PACKED`. */
 		DEFAULT_PACKED = FAST_PACKED,
 	};
-}	 // namespace sek::math
+}	 // namespace sek

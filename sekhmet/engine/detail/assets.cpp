@@ -19,11 +19,11 @@
 #include "../zstd.hpp"
 
 template<>
-const sek::service<void>::id sek::service<sek::shared_guard<sek::engine::asset_database>>::id;
+const sek::service<void>::id sek::service<sek::shared_guard<sek::asset_database>>::id;
 
-namespace sek::engine
+namespace sek
 {
-	using namespace sek::serialization;
+	using namespace sek;
 	namespace detail
 	{
 		using namespace sek::detail;
@@ -100,14 +100,14 @@ namespace sek::engine
 		using binary_input = binary::input_archive;
 		using flags_t = package_info::flags_t;
 
-		inline auto open_manifest(const std::filesystem::path &path)
+		inline auto open_manifest(const std::filepath &path)
 		{
 			const auto manifest_path = path / MANIFEST_FILE_NAME;
 			if (!exists(manifest_path) && !is_regular_file(manifest_path)) [[unlikely]]
 				goto invalid_manifest;
 
 			{
-				system::native_file file(manifest_path, system::native_file::in);
+				native_file file(manifest_path, native_file::in);
 				if (!file.is_open()) [[unlikely]]
 					goto invalid_manifest;
 				return json::input_archive{file};
@@ -116,18 +116,18 @@ namespace sek::engine
 		invalid_manifest:
 			throw asset_error(fmt::format("Failed to open package manifest at \"{}\"", manifest_path.string()));
 		}
-		inline auto open_header(const std::filesystem::path &path)
+		inline auto open_header(const std::filepath &path)
 		{
 			if (!exists(path) && !is_regular_file(path)) [[unlikely]]
 				goto invalid_header;
 
 			{
-				auto file = new system::native_file(path, system::native_file::in);
+				auto file = new native_file(path, native_file::in);
 				if (!file->is_open()) [[unlikely]]
 					goto invalid_header;
 
-				std::pair<std::unique_ptr<system::native_file>, binary_input> result = {
-					std::unique_ptr<system::native_file>{file},
+				std::pair<std::unique_ptr<native_file>, binary_input> result = {
+					std::unique_ptr<native_file>{file},
 					binary_input{*file},
 				};
 				return result;
@@ -343,7 +343,7 @@ namespace sek::engine
 
 	asset_package::asset_package(detail::package_info *pkg) : m_ptr(pkg) { m_ptr.acquire(); }
 
-	std::vector<asset_package> asset_package::load_all(const std::filesystem::path &path)
+	std::vector<asset_package> asset_package::load_all(const std::filepath &path)
 	{
 		if (!exists(path) && !is_directory(path)) [[unlikely]]
 			throw asset_error(fmt::format("\"{}\" is not a valid directory", path.string()));
@@ -351,7 +351,7 @@ namespace sek::engine
 		std::vector<asset_package> result;
 		{
 			logger::info() << fmt::format("Loading packages in directory \"{}\"", path.string());
-			for (auto &entry : std::filesystem::directory_iterator(path)) try
+			for (auto &entry : std::filedirectory_iterator(path)) try
 				{
 					result.emplace_back(load(entry.path()));
 				}
@@ -366,7 +366,7 @@ namespace sek::engine
 		}
 		return result;
 	}
-	asset_package asset_package::load(const std::filesystem::path &path)
+	asset_package asset_package::load(const std::filepath &path)
 	{
 		if (!exists(path)) [[unlikely]]
 			throw asset_error(fmt::format("\"{}\" is not a valid package path", path.string()));
@@ -555,4 +555,4 @@ namespace sek::engine
 		override_asset(parent, asset.m_id, asset.m_ptr.info);
 	}
 #endif
-}	 // namespace sek::engine
+}	 // namespace sek

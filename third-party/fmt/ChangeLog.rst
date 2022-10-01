@@ -2600,7 +2600,7 @@
 * Fixed ambiguous formatter specialization in ``fmt/ranges.h``
   (`#1123 <https://github.com/fmtlib/fmt/issues/1123>`_).
 
-* Fixed formatting of a non-empty ``std::filesystem::path`` which is an
+* Fixed formatting of a non-empty ``std::filepath`` which is an
   infinitely deep range of its components
   (`#1268 <https://github.com/fmtlib/fmt/issues/1268>`_).
 

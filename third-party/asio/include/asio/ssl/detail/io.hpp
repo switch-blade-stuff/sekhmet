@@ -37,7 +37,7 @@ std::size_t io(Stream& next_layer, stream_core& core,
   std::size_t bytes_transferred = 0;
   do switch (op(core.engine_, ec, bytes_transferred))
   {
-  case engine::want_input_and_retry:
+  case want_input_and_retry:
 
     // If the input buffer is empty then we need to read some more data from
     // the underlying transport.
@@ -55,7 +55,7 @@ std::size_t io(Stream& next_layer, stream_core& core,
     // Try the operation again.
     continue;
 
-  case engine::want_output_and_retry:
+  case want_output_and_retry:
 
     // Get output data from the engine and write it to the underlying
     // transport.
@@ -67,7 +67,7 @@ std::size_t io(Stream& next_layer, stream_core& core,
     // Try the operation again.
     continue;
 
-  case engine::want_output:
+  case want_output:
 
     // Get output data from the engine and write it to the underlying
     // transport.
@@ -105,7 +105,7 @@ public:
       core_(core),
       op_(op),
       start_(0),
-      want_(engine::want_nothing),
+      want_(want_nothing),
       bytes_transferred_(0),
       handler_(ASIO_MOVE_CAST(Handler)(handler))
   {
@@ -152,7 +152,7 @@ public:
       {
         switch (want_ = op_(core_.engine_, ec_, bytes_transferred_))
         {
-        case engine::want_input_and_retry:
+        case want_input_and_retry:
 
           // If the input buffer already has data in it we can pass it to the
           // engine and then retry the operation immediately.
@@ -192,8 +192,8 @@ public:
           // resumes at the "default:" label below.
           return;
 
-        case engine::want_output_and_retry:
-        case engine::want_output:
+        case want_output_and_retry:
+        case want_output:
 
           // The engine wants some data to be written to the output. However, we
           // cannot allow more than one write operation at a time on the
@@ -260,7 +260,7 @@ public:
 
         switch (want_)
         {
-        case engine::want_input_and_retry:
+        case want_input_and_retry:
 
           // Add received data to the engine's input.
           core_.input_ = asio::buffer(
@@ -280,7 +280,7 @@ public:
           // Try the operation again.
           continue;
 
-        case engine::want_output_and_retry:
+        case want_output_and_retry:
 
           // Release any waiting write operations.
           core_.pending_write_.expires_at(core_.neg_infin());
@@ -295,7 +295,7 @@ public:
           // Try the operation again.
           continue;
 
-        case engine::want_output:
+        case want_output:
 
           // Release any waiting write operations.
           core_.pending_write_.expires_at(core_.neg_infin());
@@ -324,7 +324,7 @@ public:
   stream_core& core_;
   Operation op_;
   int start_;
-  engine::want want_;
+  want want_;
   asio::error_code ec_;
   std::size_t bytes_transferred_;
   Handler handler_;

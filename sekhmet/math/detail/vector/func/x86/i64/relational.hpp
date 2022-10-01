@@ -7,7 +7,7 @@
 #include "../common.hpp"
 
 #ifdef SEK_USE_SSE2
-namespace sek::math::detail
+namespace sek::detail
 {
 	template<integral_of_size<8> T, policy_t P>
 	inline void mask_and(mask_data<T, 2, P> &out, const mask_data<T, 2, P> &l, const mask_data<T, 2, P> &r) noexcept
@@ -111,5 +111,5 @@ namespace sek::math::detail
 	}
 #endif
 #endif
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif

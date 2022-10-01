@@ -6,7 +6,7 @@
 
 #include <fmt/format.h>
 
-namespace sek::serialization
+namespace sek
 {
 	/** @brief Enumeration used to identify types of a Json-like format. */
 	enum class json_type : std::uint16_t
@@ -66,4 +66,4 @@ namespace sek::serialization
 		lhs = lhs ^ rhs;
 		return lhs;
 	}
-}	 // namespace sek::serialization
+}	 // namespace sek

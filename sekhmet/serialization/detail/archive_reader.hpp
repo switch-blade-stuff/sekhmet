@@ -11,7 +11,7 @@
 
 #include "util.hpp"
 
-namespace sek::serialization
+namespace sek
 {
 	/** @brief Proxy type used to bind archive read operations. */
 	template<typename C, typename Traits = std::char_traits<C>>
@@ -60,7 +60,7 @@ namespace sek::serialization
 			{
 			}
 			constexpr data_t(const char_type *data, std::size_t size) noexcept : buffer(data, size) {}
-			constexpr data_t(system::native_file *file) noexcept : file(file) {}
+			constexpr data_t(native_file *file) noexcept : file(file) {}
 			constexpr data_t(sbuf_type *stream_buf) noexcept : stream_buf(stream_buf) {}
 			constexpr data_t(FILE *file) noexcept : c_file(file) {}
 
@@ -68,7 +68,7 @@ namespace sek::serialization
 
 			std::byte padding[sizeof(void *) * 3];
 
-			system::native_file *file;
+			native_file *file;
 			callback_data_t callback;
 			sbuf_type *stream_buf;
 			buffer_data_t buffer;
@@ -181,7 +181,7 @@ namespace sek::serialization
 			.bump = +[](data_t &data, std::size_t n) -> std::size_t
 			{
 				const auto pos = data.file->tell() + static_cast<std::int64_t>(n);
-				if (data.file->seek(pos, system::native_file::seek_set) == pos) [[likely]]
+				if (data.file->seek(pos, native_file::seek_set) == pos) [[likely]]
 					return n;
 				else
 					return 0;
@@ -192,7 +192,7 @@ namespace sek::serialization
 				char_type c;
 				if (data.file->read(&c, sizeof(char_type)) == sizeof(char_type)) [[likely]]
 				{
-					data.file->seek(-static_cast<std::int64_t>(sizeof(char_type)), system::native_file::seek_set);
+					data.file->seek(-static_cast<std::int64_t>(sizeof(char_type)), native_file::seek_set);
 					return traits_type::to_int_type(c);
 				}
 				else
@@ -294,7 +294,7 @@ namespace sek::serialization
 		{
 		}
 		/** Initializes a reader from a native file. */
-		constexpr archive_reader(system::native_file &file) noexcept : archive_reader(&native_file_vtable, {&file}) {}
+		constexpr archive_reader(native_file &file) noexcept : archive_reader(&native_file_vtable, {&file}) {}
 		/** Initializes a reader from a stream buffer. */
 		constexpr archive_reader(sbuf_type *sbuf) noexcept : archive_reader(&sbuf_vtable, {sbuf}) {}
 		/** Initializes a reader from a C file. */
@@ -320,4 +320,4 @@ namespace sek::serialization
 		const vtable_t *m_vtable = nullptr;
 		data_t m_data;
 	};
-}	 // namespace sek::serialization
+}	 // namespace sek

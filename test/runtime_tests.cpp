@@ -23,12 +23,12 @@ namespace
 }	 // namespace
 
 template<>
-constexpr std::string_view sek::engine::type_name<test_parent_top>() noexcept
+constexpr std::string_view sek::type_name<test_parent_top>() noexcept
 {
 	return "top_parent";
 }
 template<>
-constexpr std::string_view sek::engine::type_name<test_child>() noexcept
+constexpr std::string_view sek::type_name<test_child>() noexcept
 {
 	return "test_child";
 }
@@ -43,24 +43,24 @@ static bool plugin_enabled = false;
 
 SEK_PLUGIN("test_plugin", "0.0.0")
 {
-	sek::engine::logger::info() << fmt::format("Initializing plugin \"{}\"", info.id);
+	sek::logger::info() << fmt::format("Initializing plugin \"{}\"", info.id);
 
 	on_enable += +[]()
 	{
-		sek::engine::type_info::reflect<test_parent_middle>().parent<test_parent_top>();
+		sek::type_info::reflect<test_parent_middle>().parent<test_parent_top>();
 		plugin_enabled = true;
 		return true;
 	};
 	on_disable += +[]()
 	{
-		sek::engine::type_info::reset<test_parent_middle>();
+		sek::type_info::reset<test_parent_middle>();
 		plugin_enabled = false;
 	};
 }
 
 TEST(runtime_tests, plugin_test)
 {
-	auto p = sek::engine::plugin::get("test_plugin");
+	auto p = sek::plugin::get("test_plugin");
 	EXPECT_FALSE(p.enabled());
 	EXPECT_FALSE(plugin_enabled);
 
@@ -83,20 +83,20 @@ TEST(runtime_tests, plugin_test)
 
 TEST(runtime_tests, type_info_test)
 {
-	using namespace sek::engine::literals;
+	using namespace sek::literals;
 
 	// clang-format off
-	sek::engine::type_info::reflect<test_child>()
+	sek::type_info::reflect<test_child>()
 		.attribute<int>(0xff).attribute<0xfc>().attribute<test_attribute>()
 		.parent<test_parent_middle>().submit();
 	// clang-format on
 
-	auto info = sek::engine::type_info::get<test_child>();
+	auto info = sek::type_info::get<test_child>();
 
 	EXPECT_EQ(info, "test_child"_type);
 	EXPECT_TRUE(info.valid());
 	EXPECT_EQ(info.name(), "test_child");
-	EXPECT_EQ(info.name(), sek::engine::type_name<test_child>());
+	EXPECT_EQ(info.name(), sek::type_name<test_child>());
 	EXPECT_TRUE(info.is_empty());
 	EXPECT_FALSE(info.has_extent());
 	EXPECT_EQ(info.extent(), 0);
@@ -109,27 +109,27 @@ TEST(runtime_tests, type_info_test)
 	EXPECT_TRUE(info.inherits("top_parent"));
 	EXPECT_FALSE(info.parents().empty());
 
-	constexpr auto pred = [](auto p) { return p.type() == sek::engine::type_info::get<test_parent_middle>(); };
+	constexpr auto pred = [](auto p) { return p.type() == sek::type_info::get<test_parent_middle>(); };
 	EXPECT_TRUE(std::ranges::any_of(info.parents(), pred));
 
-	EXPECT_TRUE(sek::engine::type_info::get<test_child[2]>().has_extent());
-	EXPECT_TRUE(sek::engine::type_info::get<test_child[2]>().is_range());
-	EXPECT_EQ(sek::engine::type_info::get<test_child[2]>().extent(), 2);
-	EXPECT_EQ(sek::engine::type_info::get<test_child[2]>().value_type(), info);
+	EXPECT_TRUE(sek::type_info::get<test_child[2]>().has_extent());
+	EXPECT_TRUE(sek::type_info::get<test_child[2]>().is_range());
+	EXPECT_EQ(sek::type_info::get<test_child[2]>().extent(), 2);
+	EXPECT_EQ(sek::type_info::get<test_child[2]>().value_type(), info);
 
-	EXPECT_FALSE(sek::engine::type_info::get<test_child[]>().has_extent());
-	EXPECT_TRUE(sek::engine::type_info::get<test_child[]>().is_array());
-	EXPECT_FALSE(sek::engine::type_info::get<test_child[]>().is_range());
-	EXPECT_FALSE(sek::engine::type_info::get<test_child[]>().is_pointer());
-	EXPECT_EQ(sek::engine::type_info::get<test_child[]>().extent(), 0);
-	EXPECT_NE(sek::engine::type_info::get<test_child[]>().value_type(), info);
+	EXPECT_FALSE(sek::type_info::get<test_child[]>().has_extent());
+	EXPECT_TRUE(sek::type_info::get<test_child[]>().is_array());
+	EXPECT_FALSE(sek::type_info::get<test_child[]>().is_range());
+	EXPECT_FALSE(sek::type_info::get<test_child[]>().is_pointer());
+	EXPECT_EQ(sek::type_info::get<test_child[]>().extent(), 0);
+	EXPECT_NE(sek::type_info::get<test_child[]>().value_type(), info);
 
-	EXPECT_TRUE(sek::engine::type_info::get<test_child *>().is_pointer());
-	EXPECT_EQ(sek::engine::type_info::get<test_child *>().value_type(), info);
-	EXPECT_EQ(sek::engine::type_info::get<const test_child *>().value_type(), sek::engine::type_info::get<test_child>());
+	EXPECT_TRUE(sek::type_info::get<test_child *>().is_pointer());
+	EXPECT_EQ(sek::type_info::get<test_child *>().value_type(), info);
+	EXPECT_EQ(sek::type_info::get<const test_child *>().value_type(), sek::type_info::get<test_child>());
 
 	{
-		const auto db = sek::engine::type_database::instance()->access();
+		const auto db = sek::type_database::instance()->access();
 		auto query = db->query().with_attribute<test_attribute>();
 
 		EXPECT_EQ(query.size(), 1);
@@ -143,8 +143,8 @@ TEST(runtime_tests, type_info_test)
 	// clang-format off
 	EXPECT_TRUE(info.has_attribute<int>());
 	EXPECT_TRUE(info.has_attribute<test_attribute>());
-	EXPECT_TRUE(std::any_of(attribs.begin(), attribs.end(), [](auto n) { return n.value() == sek::engine::make_any<int>(0xff); }));
-	EXPECT_TRUE(std::any_of(attribs.begin(), attribs.end(), [](auto n) { return n.value() == sek::engine::make_any<int>(0xfc); }));
+	EXPECT_TRUE(std::any_of(attribs.begin(), attribs.end(), [](auto n) { return n.value() == sek::make_any<int>(0xff); }));
+	EXPECT_TRUE(std::any_of(attribs.begin(), attribs.end(), [](auto n) { return n.value() == sek::make_any<int>(0xfc); }));
 	// clang-format on
 
 	auto a1 = info.construct();
@@ -193,7 +193,7 @@ TEST(runtime_tests, any_test)
 	{
 		using data_t = std::array<int, 4>;
 		data_t data = {0, 1, 2, 3};
-		auto a1 = sek::engine::make_any<data_t>(data);
+		auto a1 = sek::make_any<data_t>(data);
 
 		EXPECT_FALSE(a1.is_local());
 		EXPECT_FALSE(a1.is_const());
@@ -218,7 +218,7 @@ TEST(runtime_tests, any_test)
 		EXPECT_EQ(*a3.as_ptr<data_t>(), data);
 		EXPECT_NE(a3.data(), a1.data());
 
-		a1 = sek::engine::forward_any(data);
+		a1 = sek::forward_any(data);
 		EXPECT_FALSE(a1.is_local());
 		EXPECT_FALSE(a1.is_const());
 		EXPECT_TRUE(a1.is_ref());
@@ -226,7 +226,7 @@ TEST(runtime_tests, any_test)
 		EXPECT_EQ(*a1.as_cptr<data_t>(), data);
 		EXPECT_EQ(a1.data(), &data);
 
-		a1 = sek::engine::forward_any(std::as_const(data));
+		a1 = sek::forward_any(std::as_const(data));
 		EXPECT_FALSE(a1.is_local());
 		EXPECT_TRUE(a1.is_const());
 		EXPECT_TRUE(a1.is_ref());
@@ -236,11 +236,11 @@ TEST(runtime_tests, any_test)
 		EXPECT_EQ(a1.cdata(), &data);
 	}
 	{
-		sek::engine::type_info::reflect<int>().convertible<float>().submit();
+		sek::type_info::reflect<int>().convertible<float>().submit();
 
-		const auto info = sek::engine::type_info::get<int>();
+		const auto info = sek::type_info::get<int>();
 		const auto data = 10;
-		const auto a1 = sek::engine::make_any<int>(data);
+		const auto a1 = sek::make_any<int>(data);
 
 		const auto convs = info.conversions();
 		EXPECT_FALSE(convs.empty());
@@ -248,25 +248,25 @@ TEST(runtime_tests, any_test)
 
 		auto a2 = convs.front().convert(a1.ref());
 		EXPECT_FALSE(a2.empty());
-		EXPECT_EQ(a2, sek::engine::make_any<float>(static_cast<float>(data)));
+		EXPECT_EQ(a2, sek::make_any<float>(static_cast<float>(data)));
 
-		auto a3 = a1.convert(sek::engine::type_info::get<float>());
+		auto a3 = a1.convert(sek::type_info::get<float>());
 		EXPECT_FALSE(a3.empty());
-		EXPECT_EQ(a3, sek::engine::make_any<float>(static_cast<float>(data)));
+		EXPECT_EQ(a3, sek::make_any<float>(static_cast<float>(data)));
 		EXPECT_EQ(a3, a2);
 	}
 	{
 		// clang-format off
-		sek::engine::type_info::reflect<test_child_if>()
+		sek::type_info::reflect<test_child_if>()
 			.constructor<int, float>().constructor<const test_child_if &>()
 			.parent<test_parent_i>().parent<test_parent_f>()
 			.function<&test_child_if::get_i>("get_i").function<&test_child_if::set_i>("set_i")
 			.function<&test_child_if::get_i_const>("get_i_const")
 			.submit();
 		// clang-format on
-		const auto info = sek::engine::type_info::get<test_child_if>();
+		const auto info = sek::type_info::get<test_child_if>();
 		const auto data = test_child_if{10, std::numbers::pi_v<float>};
-		auto a1 = sek::engine::make_any<test_child_if>(data);
+		auto a1 = sek::make_any<test_child_if>(data);
 
 		EXPECT_FALSE(a1.empty());
 		EXPECT_NE(a1.as_ptr<test_child_if>(), nullptr);
@@ -275,7 +275,7 @@ TEST(runtime_tests, any_test)
 		const auto parents = info.parents();
 		EXPECT_FALSE(parents.empty());
 
-		constexpr auto pred_i = [](auto p) { return p.type() == sek::engine::type_info::get<test_parent_i>(); };
+		constexpr auto pred_i = [](auto p) { return p.type() == sek::type_info::get<test_parent_i>(); };
 		auto parent_i = std::find_if(parents.begin(), parents.end(), pred_i);
 		EXPECT_NE(parent_i, parents.end());
 
@@ -284,7 +284,7 @@ TEST(runtime_tests, any_test)
 		EXPECT_EQ(ar1.as_ptr<test_parent_i>(), a1.as_ptr<test_child_if>());
 		EXPECT_EQ(*ar1.as_ptr<test_parent_i>(), data);
 
-		constexpr auto pred_f = [](auto p) { return p.type() == sek::engine::type_info::get<test_parent_f>(); };
+		constexpr auto pred_f = [](auto p) { return p.type() == sek::type_info::get<test_parent_f>(); };
 		auto parent_f = std::find_if(parents.begin(), parents.end(), pred_f);
 		EXPECT_NE(parent_f, parents.end());
 
@@ -306,25 +306,25 @@ TEST(runtime_tests, any_test)
 		EXPECT_EQ(cpf, pf);
 		EXPECT_EQ(*cpf, data);
 
-		auto a2 = std::as_const(a1).convert(sek::engine::type_info::get<test_parent_f>());
+		auto a2 = std::as_const(a1).convert(sek::type_info::get<test_parent_f>());
 		EXPECT_FALSE(a2.empty());
 		EXPECT_EQ(a2.as_cptr<test_parent_f>(), a1.as_ptr<test_child_if>());
 		EXPECT_EQ(a2.as_cptr<test_parent_f>(), cpf);
 		EXPECT_EQ(a2.as_cptr<test_parent_f>(), pf);
 
-		a1 = sek::engine::forward_any(data);
+		a1 = sek::forward_any(data);
 		a2 = info.construct(a1.ref());
-		auto a3 = info.construct(sek::engine::make_any<int>(data.i), sek::engine::make_any<float>(data.f));
+		auto a3 = info.construct(sek::make_any<int>(data.i), sek::make_any<float>(data.f));
 		EXPECT_EQ(a1, a2);
 		EXPECT_EQ(a2, a3);
-		EXPECT_EQ(info.construct(), sek::engine::make_any<test_child_if>());
+		EXPECT_EQ(info.construct(), sek::make_any<test_child_if>());
 
 		const auto funcs = info.functions();
 		EXPECT_FALSE(funcs.empty());
 
-		EXPECT_THROW(a1.invoke("get_i", sek::engine::make_any<int>()), sek::engine::bad_any_type);
-		EXPECT_THROW(a1.invoke("get_i"), sek::engine::bad_any_const);
-		EXPECT_THROW(a1.invoke(""), sek::engine::invalid_member);
+		EXPECT_THROW(a1.invoke("get_i", sek::make_any<int>()), sek::bad_any_type);
+		EXPECT_THROW(a1.invoke("get_i"), sek::bad_any_const);
+		EXPECT_THROW(a1.invoke(""), sek::invalid_member);
 
 		a1 = a3.invoke("get_i");
 		EXPECT_TRUE(a1.is_ref());
@@ -342,7 +342,7 @@ TEST(runtime_tests, any_test)
 
 namespace
 {
-	using namespace sek::serialization;
+	using namespace sek;
 
 	struct test_config
 	{
@@ -367,24 +367,24 @@ namespace
 }	 // namespace
 
 template<>
-[[nodiscard]] constexpr std::string_view sek::engine::type_name<test_config>() noexcept
+[[nodiscard]] constexpr std::string_view sek::type_name<test_config>() noexcept
 {
 	return "test_config";
 }
 
 TEST(runtime_tests, config_test)
 {
-	using namespace sek::engine::attributes;
-	using namespace sek::serialization;
+	using namespace sekattributes;
+	using namespace sek;
 	using namespace std::literals;
 
-	using reg_guard_t = std::remove_pointer_t<decltype(sek::engine::config_registry::instance())>;
+	using reg_guard_t = std::remove_pointer_t<decltype(sek::config_registry::instance())>;
 	reg_guard_t reg_guard;
 
 	{
 		const auto data = R"({ "__nodes": { "test_entry": { "test_config": { "some_int": 1, "flag": true }}}})"sv;
 
-		sek::serialization::json::input_archive archive(data.data(), data.size());
+		sek::json::input_archive archive(data.data(), data.size());
 		EXPECT_NO_THROW(reg_guard.access()->load("test_category", std::move(*archive.tree)));
 	}
 	{
@@ -393,7 +393,7 @@ TEST(runtime_tests, config_test)
 		EXPECT_TRUE(ptr->value().empty());
 		EXPECT_EQ(ptr->path(), "test_category");
 	}
-	sek::engine::type_info::reflect<test_config>().attribute(make_config_type<test_config>()).submit();
+	sek::type_info::reflect<test_config>().attribute(make_config_type<test_config>()).submit();
 	{
 		constexpr auto silent_i = 10;
 		EXPECT_NO_THROW(reg_guard.access()->insert("test_category/test_entry", test_config{silent_i}));
@@ -409,10 +409,10 @@ TEST(runtime_tests, config_test)
 		EXPECT_EQ(cfg->some_int, 1);
 		EXPECT_TRUE(cfg->flag);
 	}
-	sek::serialization::json_tree data_tree;
+	sek::json_tree data_tree;
 	{
 		EXPECT_NO_THROW(reg_guard.access_shared()->save("test_category/test_entry", data_tree));
-		sek::serialization::json::input_archive archive(data_tree);
+		sek::json::input_archive archive(data_tree);
 		EXPECT_NO_THROW(reg_guard.access()->load("test_category/test_entry_2", std::move(data_tree)));
 	}
 	{
@@ -438,7 +438,7 @@ TEST(runtime_tests, config_test)
 		EXPECT_EQ(cfg2->some_int, cfg1->some_int);
 		EXPECT_EQ(cfg2->flag, cfg1->flag);
 	}
-	sek::engine::type_info::reset<test_config>();
+	sek::type_info::reset<test_config>();
 }
 
 #include "sekhmet/engine/assets.hpp"
@@ -447,14 +447,14 @@ TEST(runtime_tests, asset_test)
 {
 	using namespace sek::literals;
 
-	using db_guard_t = std::remove_pointer_t<decltype(sek::engine::asset_database::instance())>;
+	using db_guard_t = std::remove_pointer_t<decltype(sek::asset_database::instance())>;
 	db_guard_t db_guard;
 
-	auto archive_path = std::filesystem::path(TEST_DIR) / "test_archive.sekpak";
-	auto archive_pkg = sek::engine::asset_package::load(archive_path);
+	auto archive_path = std::filepath(TEST_DIR) / "test_archive.sekpak";
+	auto archive_pkg = sek::asset_package::load(archive_path);
 	EXPECT_EQ(archive_pkg.path(), archive_path);
-	auto loose_path = std::filesystem::path(TEST_DIR) / "test_package";
-	auto loose_pkg = sek::engine::asset_package::load(loose_path);
+	auto loose_path = std::filepath(TEST_DIR) / "test_package";
+	auto loose_pkg = sek::asset_package::load(loose_path);
 	EXPECT_EQ(loose_pkg.path(), loose_path);
 
 	{
@@ -573,7 +573,7 @@ TEST(runtime_tests, asset_test)
 
 #include "sekhmet/engine/resources.hpp"
 
-namespace ser = sek::serialization;
+namespace ser = sek::;
 
 namespace
 {
@@ -600,15 +600,15 @@ namespace
 }	 // namespace
 
 template<>
-constexpr std::string_view sek::engine::type_name<test_resource>() noexcept
+constexpr std::string_view sek::type_name<test_resource>() noexcept
 {
 	return "test_resource";
 }
 
 TEST(runtime_tests, resource_test)
 {
-	using namespace sek::engine::attributes;
-	using namespace sek::engine;
+	using namespace sekattributes;
+	using namespace sek;
 
 	using db_guard_t = std::remove_pointer_t<decltype(asset_database::instance())>;
 	db_guard_t db_guard;
@@ -618,7 +618,7 @@ TEST(runtime_tests, resource_test)
 	cache_guard_t cache_guard;
 
 	{
-		auto pkg = asset_package::load(std::filesystem::path(TEST_DIR) / "test_package");
+		auto pkg = asset_package::load(std::filepath(TEST_DIR) / "test_package");
 		db_guard.access()->packages().push_back(pkg);
 	}
 	type_info::reflect<test_resource>().attribute(make_resource_type<test_resource>()).submit();

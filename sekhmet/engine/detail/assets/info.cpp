@@ -7,7 +7,7 @@
 #include "asset_source.hpp"
 #include "error.hpp"
 
-namespace sek::engine::detail
+namespace sek::detail
 {
 	asset_source package_info::make_source(asset_io_data &&data, std::uint64_t offset, std::uint64_t size) noexcept
 	{
@@ -59,15 +59,15 @@ namespace sek::engine::detail
 		for (auto entry : uuid_table) destroy_info(entry.second);
 	}
 
-	expected<system::native_file, std::error_code> package_info::open_archive(std::uint64_t offset) const
+	expected<native_file, std::error_code> package_info::open_archive(std::uint64_t offset) const
 	{
-		system::native_file file;
+		native_file file;
 		if (!m_location.is_local()) [[unlikely]]
 			throw asset_error("Loading assets from a non-local file is not supported yet");
 
-		auto result = file.open(std::nothrow, m_location.path(), system::native_file::read_only);
+		auto result = file.open(std::nothrow, m_location.path(), native_file::read_only);
 		if (result && (result = file.setpos(std::nothrow, offset))) [[likely]]
 			return file;
 		return unexpected{result.error()};
 	}
-}	 // namespace sek::engine::detail
+}	 // namespace sek::detail

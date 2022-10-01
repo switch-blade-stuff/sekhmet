@@ -12,7 +12,7 @@
 #endif
 #endif
 
-namespace sek::math
+namespace sek
 {
 	namespace detail
 	{
@@ -312,4 +312,4 @@ namespace sek::math
 			detail::vector_fmsub(result.m_data, a.m_data, b.m_data, c.m_data);
 		return result;
 	}
-}	 // namespace sek::math
+}	 // namespace sek

@@ -20,7 +20,7 @@
 	template<typename U, std::size_t M, policy_t Q>                                                                    \
 	friend constexpr U magn(const basic_vec<U, M, Q> &) noexcept;
 
-namespace sek::math
+namespace sek
 {
 	// clang-format off
 	template<typename U, std::size_t M, policy_t Q>
@@ -44,4 +44,4 @@ namespace sek::math
 	[[nodiscard]] constexpr basic_vec<U, M, Q> reflect(const basic_vec<U, M, Q> &i, const basic_vec<U, M, Q> &n) noexcept;
 	template<std::floating_point U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr basic_vec<U, M, Q> refract(const basic_vec<U, M, Q> &i, const basic_vec<U, M, Q> &n, U r) noexcept;
-}	 // namespace sek::math
+}	 // namespace sek

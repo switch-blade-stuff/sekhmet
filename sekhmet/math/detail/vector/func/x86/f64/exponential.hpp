@@ -8,7 +8,7 @@
 #include "../utility.hpp"
 
 #ifdef SEK_USE_SSE2
-namespace sek::math::detail
+namespace sek::detail
 {
 	SEK_FORCE_INLINE __m128d x86_pow2_pd(__m128i v) noexcept
 	{
@@ -104,5 +104,5 @@ namespace sek::math::detail
 		out.simd[1] = _mm_div_pd(one, _mm_sqrt_pd(v.simd[1]));
 	}
 #endif
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif

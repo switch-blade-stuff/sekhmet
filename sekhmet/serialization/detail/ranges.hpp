@@ -9,7 +9,7 @@
 
 #include "manipulators.hpp"
 
-namespace sek::serialization
+namespace sek
 {
 	namespace detail
 	{
@@ -54,7 +54,7 @@ namespace sek::serialization
 		concept object_like = requires
 		{
 			requires map_like<R>;
-			requires requires(const typename R::value_type &v) { sek::serialization::keyed_entry(v.first, v.second); };
+			requires requires(const typename R::value_type &v) { sek::keyed_entry(v.first, v.second); };
 		};
 		// clang-format on
 
@@ -233,4 +233,4 @@ namespace sek::serialization
 			archive.write(item, std::forward<Args>(args)...);
 		// clang-format on
 	}
-}	 // namespace sek::serialization
+}	 // namespace sek

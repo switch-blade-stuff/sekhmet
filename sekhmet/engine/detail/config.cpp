@@ -10,9 +10,9 @@
 #include <fmt/format.h>
 
 template<>
-const sek::service<void>::id sek::service<sek::shared_guard<sek::engine::config_registry>>::id;
+const sek::service<void>::id sek::service<sek::shared_guard<sek::config_registry>>::id;
 
-namespace sek::engine
+namespace sek
 {
 	using namespace serialization;
 
@@ -243,7 +243,7 @@ namespace sek::engine
 		void serialize(output_frame &f, const config_registry &r) const
 		{
 			/* Serialize every child as a keyed entry, where the key is the entry name (last element) of the path. */
-			for (auto *c : *nodes) f.write(serialization::keyed_entry(c->path.entry_name().string(), *c), r);
+			for (auto *c : *nodes) f.write(keyed_entry(c->path.entry_name().string(), *c), r);
 		}
 
 		union
@@ -275,10 +275,10 @@ namespace sek::engine
 	void config_registry::entry_node::serialize(output_frame &f, const config_registry &r) const
 	{
 		/* If there is a value for this entry, serialize it using the attribute. */
-		if (!value.empty()) f.write(serialization::keyed_entry(value.type().name(), any_proxy{value}), r);
+		if (!value.empty()) f.write(keyed_entry(value.type().name(), any_proxy{value}), r);
 
 		/* Serialize children nodes. */
-		f.write(serialization::keyed_entry("__nodes", nodes_proxy{nodes}), r);
+		f.write(keyed_entry("__nodes", nodes_proxy{nodes}), r);
 	}
 	void config_registry::entry_node::deserialize(input_frame &f, const config_registry &r)
 	{
@@ -310,11 +310,11 @@ namespace sek::engine
 			/* Otherwise, the target node is somewhere down the stack, pop the first element off the stack,
 			 * skip the "__nodes" table entry through a proxy and keep on unwinding the stack. */
 			s.pop_back();
-			f.read(serialization::keyed_entry("__nodes", nodes_proxy{s}), r);
+			f.read(keyed_entry("__nodes", nodes_proxy{s}), r);
 		}
 	}
 
-	config_registry::entry_ptr<false> config_registry::load(cfg_path entry, const std::filesystem::path &path, bool cache)
+	config_registry::entry_ptr<false> config_registry::load(cfg_path entry, const std::filepath &path, bool cache)
 	{
 		auto cfg_file = std::ifstream{path};
 		if (!cfg_file.is_open()) [[unlikely]]
@@ -326,7 +326,7 @@ namespace sek::engine
 	config_registry::entry_ptr<false> config_registry::load(cfg_path entry, const uri &location, bool cache)
 	{
 		if (location.is_local()) [[likely]]
-			return load(std::move(entry), std::filesystem::path{location.path(uri_format::DECODE_ALL)}, cache);
+			return load(std::move(entry), std::filepath{location.path(uri_format::DECODE_ALL)}, cache);
 		else /* TODO: Implement non-local config loading. */
 			throw config_error("Loading configuration from a non-local file is not supported yet");
 	}
@@ -357,7 +357,7 @@ namespace sek::engine
 		return entry_ptr<false>{init_branch(node, data)};
 	}
 
-	bool config_registry::save(entry_ptr<true> which, const std::filesystem::path &path) const
+	bool config_registry::save(entry_ptr<true> which, const std::filepath &path) const
 	{
 		auto file = std::ofstream{path, std::ios::trunc | std::ios::out};
 		if (!file.is_open()) [[unlikely]]
@@ -369,7 +369,7 @@ namespace sek::engine
 	bool config_registry::save(entry_ptr<true> which, const uri &location) const
 	{
 		if (location.is_local()) [[likely]]
-			return save(which, std::filesystem::path{location.path(uri_format::DECODE_ALL)});
+			return save(which, std::filepath{location.path(uri_format::DECODE_ALL)});
 		else /* TODO: Implement non-local config saving. */
 			throw config_error("Saving configuration to a non-local file is not supported yet");
 	}
@@ -387,4 +387,4 @@ namespace sek::engine
 		}
 		return false;
 	}
-}	 // namespace sek::engine
+}	 // namespace sek

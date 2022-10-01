@@ -15,7 +15,7 @@
 #include "asset_io.hpp"
 #include "fwd.hpp"
 
-namespace sek::engine::detail
+namespace sek::detail
 {
 	struct asset_info
 	{
@@ -98,7 +98,7 @@ namespace sek::engine::detail
 			dealloc_info(info);
 		}
 
-		expected<system::native_file, std::error_code> open_archive(std::uint64_t offset) const;
+		expected<native_file, std::error_code> open_archive(std::uint64_t offset) const;
 
 		virtual expected<asset_source, std::error_code> open_asset(const asset_info *) const noexcept = 0;
 		virtual expected<asset_source, std::error_code> open_metadata(const asset_info *) const noexcept = 0;
@@ -231,4 +231,4 @@ namespace sek::engine::detail
 
 		package_info *pkg = nullptr;
 	};
-}	 // namespace sek::engine::detail
+}	 // namespace sek::detail

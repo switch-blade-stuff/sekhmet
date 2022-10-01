@@ -11,7 +11,7 @@
 #include "../type_info.hpp"
 #include "component_set.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	template<typename... Cs>
 	struct owned_t
@@ -1509,4 +1509,4 @@ namespace sek::engine
 			return std::addressof(pos->second);
 		}
 	}	 // namespace detail
-}	 // namespace sek::engine
+}	 // namespace sek

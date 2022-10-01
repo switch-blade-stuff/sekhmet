@@ -16,7 +16,7 @@
 #include "../uri.hpp"
 #include <shared_mutex>
 
-namespace sek::engine
+namespace sek
 {
 	class config_registry;
 
@@ -284,11 +284,11 @@ namespace sek::engine
 		using entry_set = dense_set<entry_node *, entry_hash, entry_cmp>;
 
 		// clang-format off
-		using output_archive = serialization::json::basic_output_archive<serialization::json::inline_arrays |
-																		 serialization::json::extended_fp |
-																		 serialization::json::pretty_print>;
-		using input_archive = serialization::json::basic_input_archive<serialization::json::allow_comments |
-																	   serialization::json::extended_fp>;
+		using output_archive = json::basic_output_archive<json::inline_arrays |
+																		 json::extended_fp |
+																		 json::pretty_print>;
+		using input_archive = json::basic_input_archive<json::allow_comments |
+																	   json::extended_fp>;
 		// clang-format on
 		using output_frame = typename output_archive::archive_frame;
 		using input_frame = typename input_archive::archive_frame;
@@ -316,7 +316,7 @@ namespace sek::engine
 			any value = {};
 
 			/* Optional cached Json tree of the entry. */
-			serialization::json_tree *data_cache = nullptr;
+			json_tree *data_cache = nullptr;
 		};
 
 		template<bool IsConst>
@@ -585,14 +585,14 @@ namespace sek::engine
 		 * @param cache If set to true, the data tree will be cached and re-used for de-serialization of new entries.
 		 * @return Entry pointer to the loaded entry.
 		 * @throw config_error If any entry within the resulting branch fails to initialize. */
-		SEK_API entry_ptr<false> load(cfg_path entry, serialization::json_tree &&tree, bool cache = true);
+		SEK_API entry_ptr<false> load(cfg_path entry, json_tree &&tree, bool cache = true);
 		/** Loads an entry and all it's children from a local Json file.
 		 * @param entry Full path of the entry.
 		 * @param path Path to a Json file containing source data.
 		 * @param cache If set to true, the data will be cached and re-used for de-serialization of new entries.
 		 * @return Entry pointer to the loaded entry.
 		 * @throw config_error If the file fails to open or any entry within the resulting branch fails to initialize. */
-		SEK_API entry_ptr<false> load(cfg_path entry, const std::filesystem::path &path, bool cache = true);
+		SEK_API entry_ptr<false> load(cfg_path entry, const std::filepath &path, bool cache = true);
 		/** Loads an entry and all it's children from a Json file pointed to by a URI.
 		 * @param entry Full path of the entry.
 		 * @param location URI pointing to a Json file containing source data.
@@ -605,13 +605,13 @@ namespace sek::engine
 		 * @param which Pointer to the entry to be saved.
 		 * @param tree Json data tree to store the serialized data in.
 		 * @return `true` on success, `false` on failure (entry does not exist). */
-		SEK_API bool save(entry_ptr<true> which, serialization::json_tree &tree) const;
+		SEK_API bool save(entry_ptr<true> which, json_tree &tree) const;
 		/** @brief Saves an entry and all it's children to a Json file.
 		 * @param which Pointer to the entry to be saved.
 		 * @param path Path to a the file to write Json data to.
 		 * @return `true` on success, `false` on failure (entry does not exist).
 		 * @throw config_error If the file fails to open. */
-		SEK_API bool save(entry_ptr<true> which, const std::filesystem::path &path) const;
+		SEK_API bool save(entry_ptr<true> which, const std::filepath &path) const;
 		/** @copybrief save
 		 * @param which Pointer to the entry to be saved.
 		 * @param location URI pointing to the file write Json data to.
@@ -623,7 +623,7 @@ namespace sek::engine
 		 * @param entry Full path of the entry.
 		 * @param tree Json data tree to store the serialized data in.
 		 * @return `true` on success, `false` on failure (entry does not exist). */
-		inline bool save(const cfg_path &entry, serialization::json_tree &tree) const
+		inline bool save(const cfg_path &entry, json_tree &tree) const
 		{
 			return save(find(entry), tree);
 		}
@@ -632,7 +632,7 @@ namespace sek::engine
 		 * @param path Path to a the file to write Json data to.
 		 * @return `true` on success, `false` on failure (entry does not exist).
 		 * @throw config_error If the file fails to open. */
-		inline bool save(const cfg_path &entry, const std::filesystem::path &path) const
+		inline bool save(const cfg_path &entry, const std::filepath &path) const
 		{
 			return save(find(entry), path);
 		}
@@ -652,7 +652,7 @@ namespace sek::engine
 		SEK_API entry_node *insert_impl(cfg_path &&entry, any &&value);
 		entry_node *insert_impl(cfg_path &&entry);
 
-		entry_node *init_branch(entry_node *node, serialization::json_tree *cache);
+		entry_node *init_branch(entry_node *node, json_tree *cache);
 
 		template<typename T>
 		inline T &insert_impl(cfg_path &&entry, T &&value)
@@ -679,7 +679,7 @@ namespace sek::engine
 		/** @brief Attribute used to designate a type as a config entry and optionally auto-initialize the entry. */
 		class config_type
 		{
-			friend class engine::config_registry;
+			friend class config_registry;
 
 			using output_frame = typename config_registry::output_frame;
 			using input_frame = typename config_registry::input_frame;
@@ -695,7 +695,7 @@ namespace sek::engine
 						value.serialize(frame, reg);
 					else
 					{
-						using sek::serialization::serialize;
+						using sek::serialize;
 						serialize(value, frame, reg);
 					}
 				};
@@ -706,7 +706,7 @@ namespace sek::engine
 						value.deserialize(frame, reg);
 					else
 					{
-						using sek::serialization::deserialize;
+						using sek::deserialize;
 						deserialize(value, frame, reg);
 					}
 				};
@@ -736,4 +736,4 @@ namespace sek::engine
 			return config_type{type_selector<T>, path};
 		}
 	}	 // namespace attributes
-}	 // namespace sek::engine
+}	 // namespace sek

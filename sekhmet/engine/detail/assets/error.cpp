@@ -4,4 +4,4 @@
 
 #include "error.hpp"
 
-sek::engine::asset_error::~asset_error() {}
+sek::asset_error::~asset_error() {}

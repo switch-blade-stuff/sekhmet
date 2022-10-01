@@ -8,7 +8,7 @@
 
 #include "fwd.hpp"
 
-namespace sek::math::detail
+namespace sek::detail
 {
 	template<typename T, std::size_t N, policy_t P>
 	union vector_data;
@@ -147,4 +147,4 @@ namespace sek::math::detail
 	private:
 		T *m_ptr;
 	};
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail

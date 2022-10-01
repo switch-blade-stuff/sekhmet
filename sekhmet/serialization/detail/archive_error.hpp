@@ -7,7 +7,7 @@
 #include "../../define.h"
 #include <system_error>
 
-namespace sek::serialization
+namespace sek
 {
 	/** @brief Exception thrown by serialization archives on runtime errors. */
 	class SEK_API archive_error : public std::system_error
@@ -51,4 +51,4 @@ namespace sek::serialization
 	{
 		return std::error_code{static_cast<int>(e), archive_category()};
 	}
-}	 // namespace sek::serialization
+}	 // namespace sek

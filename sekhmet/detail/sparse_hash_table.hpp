@@ -324,7 +324,7 @@ namespace sek::detail
 			  hash_ebo_base(key_hash)
 		{
 			if (capacity) [[likely]]
-				m_buckets_data = allocate_buckets(m_buckets_capacity = math::next_pow_2(capacity));
+				m_buckets_data = allocate_buckets(m_buckets_capacity = next_pow_2(capacity));
 		}
 
 		constexpr sparse_hash_table(const sparse_hash_table &other)
@@ -427,7 +427,7 @@ namespace sek::detail
 							   initial_capacity);
 
 			/* Quadratic search implementation requires power of 2 capacity, since the c1 and c2 constants are 0.5. */
-			new_cap = math::next_pow_2(new_cap);
+			new_cap = next_pow_2(new_cap);
 
 			/* Don't do anything if the capacity did not change after the adjustment. */
 			if (new_cap != m_buckets_capacity) [[likely]]
@@ -756,7 +756,7 @@ namespace sek::detail
 			else if (load_factor() > max_load_factor)
 				rehash_impl(m_buckets_capacity * 2);
 			else if (m_consider_shrink && tombstone_factor() > max_tombstone_factor)
-				rehash_impl(math::next_pow_2(static_cast<size_type>(static_cast<float>(size()) / max_load_factor)));
+				rehash_impl(next_pow_2(static_cast<size_type>(static_cast<float>(size()) / max_load_factor)));
 		}
 
 		template<typename... Args>

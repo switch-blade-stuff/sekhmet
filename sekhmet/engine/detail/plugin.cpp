@@ -11,7 +11,7 @@
 #define ENABLE_FAIL_MSG "Failed to enable plugin - "
 #define DISABLE_FAIL_MSG "Failed to disable plugin - "
 
-namespace sek::engine
+namespace sek
 {
 	namespace detail
 	{
@@ -238,4 +238,4 @@ namespace sek::engine
 		}
 		return false;
 	}
-}	 // namespace sek::engine
+}	 // namespace sek

@@ -8,7 +8,7 @@
 
 #include "component_set.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	template<typename, typename = excluded_t<>, typename = optional_t<>>
 	class component_view;
@@ -578,4 +578,4 @@ namespace sek::engine
 		set_ptr_t<I> m_set;
 		opt_ptr m_optional;
 	};
-}	 // namespace sek::engine
+}	 // namespace sek

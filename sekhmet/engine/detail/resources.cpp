@@ -8,9 +8,9 @@
 #include
 
 template<>
-const sek::service<void>::id sek::service<sek::access_guard<sek::engine::resource_cache, std::recursive_mutex>>::id;
+const sek::service<void>::id sek::service<sek::access_guard<sek::resource_cache, std::recursive_mutex>>::id;
 
-namespace sek::engine
+namespace sek
 {
 	resource_error::~resource_error() = default;
 
@@ -175,4 +175,4 @@ namespace sek::engine
 		m_types.clear();
 		m_cache.clear();
 	}
-}	 // namespace sek::engine
+}	 // namespace sek

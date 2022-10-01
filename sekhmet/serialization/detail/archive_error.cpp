@@ -4,7 +4,7 @@
 
 #include "archive_error.hpp"
 
-namespace sek::serialization
+namespace sek
 {
 	archive_error::~archive_error() = default;
 
@@ -34,4 +34,4 @@ namespace sek::serialization
 		constinit static const archive_category_t instance;
 		return instance;
 	}
-}	 // namespace sek::serialization
+}	 // namespace sek

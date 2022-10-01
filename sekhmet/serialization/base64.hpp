@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <limits>
 
-namespace sek::serialization
+namespace sek
 {
 	namespace detail
 	{
@@ -124,4 +124,4 @@ namespace sek::serialization
 		}
 		return dest_len;
 	}
-}	 // namespace sek::serialization
+}	 // namespace sek

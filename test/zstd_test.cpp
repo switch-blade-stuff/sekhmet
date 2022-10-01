@@ -195,8 +195,8 @@ namespace
 
 TEST(zstd_tests, compression_test_l0)
 {
-	auto &ctx = sek::engine::zstd_thread_ctx::instance();
-	sek::engine::zstd_thread_ctx::buffer_reader c_reader = {src_data.data(), src_data.size()};
+	auto &ctx = sek::zstd_thread_ctx::instance();
+	sek::zstd_thread_ctx::buffer_reader c_reader = {src_data.data(), src_data.size()};
 
 	EXPECT_NO_THROW(ctx.compress(zstd_pool, c_reader, sek::delegate{c_writer, compressed_l0}, 0));
 	EXPECT_LE(compressed_l0.size(), src_data.size());
@@ -204,8 +204,8 @@ TEST(zstd_tests, compression_test_l0)
 }
 TEST(zstd_tests, compression_test_l10)
 {
-	auto &ctx = sek::engine::zstd_thread_ctx::instance();
-	sek::engine::zstd_thread_ctx::buffer_reader c_reader = {src_data.data(), src_data.size()};
+	auto &ctx = sek::zstd_thread_ctx::instance();
+	sek::zstd_thread_ctx::buffer_reader c_reader = {src_data.data(), src_data.size()};
 
 	EXPECT_NO_THROW(ctx.compress(zstd_pool, c_reader, sek::delegate{c_writer, compressed_l10}, 10));
 	EXPECT_LE(compressed_l10.size(), compressed_l0.size());
@@ -214,8 +214,8 @@ TEST(zstd_tests, compression_test_l10)
 }
 TEST(zstd_tests, compression_test_l20)
 {
-	auto &ctx = sek::engine::zstd_thread_ctx::instance();
-	sek::engine::zstd_thread_ctx::buffer_reader c_reader = {src_data.data(), src_data.size()};
+	auto &ctx = sek::zstd_thread_ctx::instance();
+	sek::zstd_thread_ctx::buffer_reader c_reader = {src_data.data(), src_data.size()};
 
 	EXPECT_NO_THROW(ctx.compress(zstd_pool, c_reader, sek::delegate{c_writer, compressed_l20}, 20));
 	EXPECT_LE(compressed_l20.size(), compressed_l0.size());
@@ -226,8 +226,8 @@ TEST(zstd_tests, compression_test_l20)
 
 TEST(zstd_tests, decompression_test_l0)
 {
-	auto &ctx = sek::engine::zstd_thread_ctx::instance();
-	sek::engine::zstd_thread_ctx::buffer_reader d_reader = {compressed_l0.data(), compressed_l0.size()};
+	auto &ctx = sek::zstd_thread_ctx::instance();
+	sek::zstd_thread_ctx::buffer_reader d_reader = {compressed_l0.data(), compressed_l0.size()};
 	std::string decompressed;
 
 	EXPECT_NO_THROW(ctx.decompress(zstd_pool, d_reader, sek::delegate{d_writer, decompressed}));
@@ -235,8 +235,8 @@ TEST(zstd_tests, decompression_test_l0)
 }
 TEST(zstd_tests, decompression_test_l10)
 {
-	auto &ctx = sek::engine::zstd_thread_ctx::instance();
-	sek::engine::zstd_thread_ctx::buffer_reader d_reader = {compressed_l10.data(), compressed_l10.size()};
+	auto &ctx = sek::zstd_thread_ctx::instance();
+	sek::zstd_thread_ctx::buffer_reader d_reader = {compressed_l10.data(), compressed_l10.size()};
 	std::string decompressed;
 
 	EXPECT_NO_THROW(ctx.decompress(zstd_pool, d_reader, sek::delegate{d_writer, decompressed}));
@@ -244,8 +244,8 @@ TEST(zstd_tests, decompression_test_l10)
 }
 TEST(zstd_tests, decompression_test_l20)
 {
-	auto &ctx = sek::engine::zstd_thread_ctx::instance();
-	sek::engine::zstd_thread_ctx::buffer_reader d_reader = {compressed_l20.data(), compressed_l20.size()};
+	auto &ctx = sek::zstd_thread_ctx::instance();
+	sek::zstd_thread_ctx::buffer_reader d_reader = {compressed_l20.data(), compressed_l20.size()};
 	std::string decompressed;
 
 	EXPECT_NO_THROW(ctx.decompress(zstd_pool, d_reader, sek::delegate{d_writer, decompressed}));

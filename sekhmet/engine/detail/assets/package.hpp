@@ -6,7 +6,7 @@
 
 #include "handle.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	/** @brief Reference-counted handle used to reference an asset package. */
 	class asset_package
@@ -32,10 +32,10 @@ namespace sek::engine
 		/** Loads a package at the specified path.
 		 * @throw asset_error If the path does not contain a valid package or
 		 * an implementation-defined error occurred during loading of package metadata. */
-		[[nodiscard]] static SEK_API asset_package load(const std::filesystem::path &path);
+		[[nodiscard]] static SEK_API asset_package load(const std::filepath &path);
 		/** Load all packages in the specified directory.
 		 * @throw asset_error If the path is not a valid directory. */
-		[[nodiscard]] static SEK_API std::vector<asset_package> load_all(const std::filesystem::path &path);
+		[[nodiscard]] static SEK_API std::vector<asset_package> load_all(const std::filepath &path);
 
 	private:
 		constexpr explicit asset_package(detail::package_info_ptr &&ptr) noexcept : m_ptr(std::move(ptr)) {}
@@ -121,4 +121,4 @@ namespace sek::engine
 	};
 
 	inline asset_package asset_handle::package() const { return asset_package{m_ptr->parent}; }
-}	 // namespace sek::engine
+}	 // namespace sek

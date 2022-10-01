@@ -12,7 +12,7 @@
 #endif
 #endif
 
-namespace sek::math
+namespace sek
 {
 	namespace detail
 	{
@@ -324,4 +324,4 @@ namespace sek::math
 	{
 		return v * basic_vec<U, M, Q>{static_cast<U>(180.0) / std::numbers::pi_v<U>};
 	}
-}	 // namespace sek::math
+}	 // namespace sek

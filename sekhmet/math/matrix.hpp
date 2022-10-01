@@ -9,7 +9,7 @@
 #include "detail/matrix3x.hpp"
 #include "detail/matrix4x.hpp"
 
-namespace sek::math
+namespace sek
 {
 	template<typename T = float>
 	using mat4x4 = basic_mat<T, 4, 4>;
@@ -208,4 +208,4 @@ namespace sek::math
 	typedef mat4_packed<std::int32_t> imat4_packed;
 	typedef mat3_packed<std::int32_t> imat3_packed;
 	typedef mat2_packed<std::int32_t> imat2_packed;
-}	 // namespace sek::math
+}	 // namespace sek

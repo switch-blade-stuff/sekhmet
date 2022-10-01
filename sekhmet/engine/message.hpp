@@ -11,7 +11,7 @@
 #include "../event.hpp"
 #include "../type_info.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	enum class message_scope : int
 	{
@@ -493,4 +493,4 @@ namespace sek::engine
 			global_data().send(make_any<T>(std::forward<Args>(args)...));
 		}
 	};
-}	 // namespace sek::engine
+}	 // namespace sek

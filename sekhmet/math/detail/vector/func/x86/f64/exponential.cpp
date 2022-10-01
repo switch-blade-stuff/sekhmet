@@ -10,7 +10,7 @@
  * Inspired by http://gruntthepeon.free.fr/ssemath */
 
 #ifdef SEK_USE_SSE2
-namespace sek::math::detail
+namespace sek::detail
 {
 	static const double expq_d[4] = {
 		3.00198505138664455042e-6,
@@ -215,5 +215,5 @@ namespace sek::math::detail
 		p = x86_fmadd_pd(e, _mm_set1_pd(l102a_d), p);			/* p = (e * l102a_d) + p */
 		return _mm_or_pd(p, nan_mask);
 	}
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif

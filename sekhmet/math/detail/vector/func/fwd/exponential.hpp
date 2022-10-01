@@ -29,7 +29,7 @@
 	template<typename U, std::size_t M, policy_t Q>                                                             \
 	friend constexpr basic_vec<U, M, Q> rsqrt(const basic_vec<U, M, Q> &) noexcept;
 
-namespace sek::math
+namespace sek
 {
 	template<typename U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr basic_vec<U, M, Q> exp(const basic_vec<U, M, Q> &v) noexcept;
@@ -56,4 +56,4 @@ namespace sek::math
 	[[nodiscard]] constexpr basic_vec<U, M, Q> cbrt(const basic_vec<U, M, Q> &v) noexcept;
 	template<typename U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr basic_vec<U, M, Q> rsqrt(const basic_vec<U, M, Q> &v) noexcept;
-}	 // namespace sek::math
+}	 // namespace sek

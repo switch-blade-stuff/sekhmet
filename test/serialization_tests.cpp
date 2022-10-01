@@ -9,7 +9,7 @@
 
 #include "sekhmet/serialization/archive.hpp"
 
-namespace ser = sek::serialization;
+namespace ser = sek::;
 
 TEST(serialization_tests, base64_test)
 {
@@ -254,13 +254,13 @@ TEST(serialization_tests, reuse_test)
 
 TEST(serialization_tests, math_test)
 {
-	namespace math = sek::math;
+	namespace math = sek::;
 	namespace json = ser::json;
 
 	std::string json_string;
 
 	{
-		const auto v = math::fvec4{1, 2, 3, std::numeric_limits<float>::infinity()};
+		const auto v = vec4f{1, 2, 3, std::numeric_limits<float>::infinity()};
 		{
 			std::stringstream ss;
 			json::basic_output_archive<json::pretty_print | json::inline_arrays | json::extended_fp> archive_ex{ss};
@@ -269,7 +269,7 @@ TEST(serialization_tests, math_test)
 			archive_ex.flush();
 			json_string = ss.str();
 		}
-		math::fvec4 deserialized = {};
+		vec4f deserialized = {};
 		{
 			auto f = [&]() -> void { json::input_archive archive{json_string.data(), json_string.size()}; };
 			EXPECT_THROW(f(), ser::archive_error);
@@ -281,7 +281,7 @@ TEST(serialization_tests, math_test)
 	}
 
 	{
-		const auto m = math::fmat4{2};
+		const auto m = fmat4{2};
 		{
 			std::stringstream ss;
 			json::basic_output_archive<json::pretty_print | json::inline_arrays> archive_ex{ss};
@@ -290,7 +290,7 @@ TEST(serialization_tests, math_test)
 			archive_ex.flush();
 			json_string = ss.str();
 		}
-		math::fmat4 deserialized = {};
+		fmat4 deserialized = {};
 		{
 			json::input_archive archive{json_string.data(), json_string.size()};
 			EXPECT_TRUE(archive.try_read(deserialized));

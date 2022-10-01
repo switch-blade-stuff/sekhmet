@@ -6,7 +6,7 @@
 
 #ifndef SEK_NO_PROFILER
 
-namespace sek::engine
+namespace sek
 {
 }	 // namespace sek
 

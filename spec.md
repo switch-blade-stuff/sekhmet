@@ -40,7 +40,7 @@ TODO: Rework config registry specification.
 ## Resources
 
 Resources are runtime types serialized into assets. Every resource asset has a tag with a `resource` key and value
-being the type of the resource. Every resource type must have the `sek::engine::attributes::serializable_resource`
+being the type of the resource. Every resource type must have the `sek::attributes::serializable_resource`
 attribute associated with it. This attribute is used to make the resource (de)serializable at runtime.
 
 ## Editor projects

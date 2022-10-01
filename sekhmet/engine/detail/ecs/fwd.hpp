@@ -6,7 +6,7 @@
 
 #include <memory>
 
-namespace sek::engine
+namespace sek
 {
 	class entity_t;
 
@@ -36,4 +36,4 @@ namespace sek::engine
 	template<typename, typename, typename, typename>
 	class component_collection;
 
-}	 // namespace sek::engine
+}	 // namespace sek

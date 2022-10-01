@@ -7,7 +7,7 @@
 #include "../archive_error.hpp"
 #include "type.hpp"
 
-namespace sek::serialization
+namespace sek
 {
 	namespace detail
 	{
@@ -28,4 +28,4 @@ namespace sek::serialization
 	{
 		return std::error_code{static_cast<int>(e), json_category()};
 	}
-}	 // namespace sek::serialization
+}	 // namespace sek

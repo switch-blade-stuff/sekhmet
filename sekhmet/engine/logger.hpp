@@ -13,7 +13,7 @@
 #include <fmt/format.h>
 #include <fmt/xchar.h>
 
-namespace sek::engine
+namespace sek
 {
 	/** @brief Stream adapter used to preform logging.
 	 *
@@ -207,4 +207,4 @@ namespace sek::engine
 	shared_guard<logger> &logger::fatal();
 
 	extern template class SEK_API_IMPORT basic_logger<char>;
-}	 // namespace sek::engine
+}	 // namespace sek

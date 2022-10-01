@@ -7,7 +7,7 @@
 #include "../common.hpp"
 
 #ifdef SEK_USE_SSE2
-namespace sek::math::detail
+namespace sek::detail
 {
 	template<policy_t P>
 	inline void mask_and(mask_data<double, 2, P> &out, const mask_data<double, 2, P> &l, const mask_data<double, 2, P> &r) noexcept
@@ -193,5 +193,5 @@ namespace sek::math::detail
 		out.simd[1] = _mm_cmpge_pd(l.simd[1], r.simd[1]);
 	}
 #endif
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif

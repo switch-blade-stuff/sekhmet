@@ -105,36 +105,36 @@ TEST(utility_tests, logger_test)
 
 	{
 		constexpr auto log_msg = "Test log info";
-		sek::engine::logger::info().on_log() += listener;
-		sek::engine::logger::info() << log_msg;
+		sek::logger::info().on_log() += listener;
+		sek::logger::info() << log_msg;
 
 		auto output = ss.str();
 		EXPECT_NE(output.find(log_msg), std::string::npos);
 		EXPECT_NE(output.find("Info"), std::string::npos);
 
-		EXPECT_TRUE(sek::engine::logger::info().on_log() -= listener);
+		EXPECT_TRUE(sek::logger::info().on_log() -= listener);
 	}
 	{
 		constexpr auto log_msg = "Test log warning";
-		sek::engine::logger::warn().on_log() += listener;
-		sek::engine::logger::warn() << log_msg;
+		sek::logger::warn().on_log() += listener;
+		sek::logger::warn() << log_msg;
 
 		auto output = ss.str();
 		EXPECT_NE(output.find(log_msg), std::string::npos);
 		EXPECT_NE(output.find("Warn"), std::string::npos);
 
-		EXPECT_TRUE(sek::engine::logger::warn().on_log() -= listener);
+		EXPECT_TRUE(sek::logger::warn().on_log() -= listener);
 	}
 	{
 		constexpr auto log_msg = "Test log error";
-		sek::engine::logger::error().on_log() += listener;
-		sek::engine::logger::error() << log_msg;
+		sek::logger::error().on_log() += listener;
+		sek::logger::error() << log_msg;
 
 		auto output = ss.str();
 		EXPECT_NE(output.find(log_msg), std::string::npos);
 		EXPECT_NE(output.find("Error"), std::string::npos);
 
-		EXPECT_TRUE(sek::engine::logger::error().on_log() -= listener);
+		EXPECT_TRUE(sek::logger::error().on_log() -= listener);
 	}
 }
 
@@ -242,14 +242,14 @@ namespace
 }	 // namespace
 
 template<>
-[[nodiscard]] constexpr std::string_view sek::engine::type_name<test_message>() noexcept
+[[nodiscard]] constexpr std::string_view sek::type_name<test_message>() noexcept
 {
 	return "test_message";
 }
 
 TEST(utility_tests, message_test)
 {
-	using namespace sek::engine::literals;
+	using namespace sek::literals;
 
 	constexpr static auto msg_data = test_message{10};
 	constexpr auto filter = [](std::size_t &ctr, const test_message &msg)
@@ -268,29 +268,29 @@ TEST(utility_tests, message_test)
 	std::size_t filter_ctr = 0, receiver_ctr = 0;
 
 	{
-		auto guard = sek::engine::message_queue<test_message, sek::engine::message_scope::GLOBAL>::on_send();
+		auto guard = sek::message_queue<test_message, sek::message_scope::GLOBAL>::on_send();
 		auto proxy = guard.access();
 
 		proxy->subscribe(sek::delegate<bool(const test_message &)>{filter, filter_ctr});
 		EXPECT_EQ(proxy->size(), 1);
 	}
 	{
-		auto guard = sek::engine::message_queue<test_message, sek::engine::message_scope::GLOBAL>::on_receive();
+		auto guard = sek::message_queue<test_message, sek::message_scope::GLOBAL>::on_receive();
 		auto proxy = guard.access();
 
 		proxy->subscribe(sek::delegate<bool(const test_message &)>{receiver, receiver_ctr});
 		EXPECT_EQ(proxy->size(), 1);
 	}
 
-	sek::engine::message_queue<test_message>::send(msg_data);
+	sek::message_queue<test_message>::send(msg_data);
 	EXPECT_EQ(filter_ctr, 1);
 	EXPECT_EQ(receiver_ctr, 1);
 
-	sek::engine::message_queue<test_message>::queue(msg_data);
+	sek::message_queue<test_message>::queue(msg_data);
 	EXPECT_EQ(filter_ctr, 2);
 	EXPECT_EQ(receiver_ctr, 1);
 
-	sek::engine::message_queue<test_message>::dispatch();
+	sek::message_queue<test_message>::dispatch();
 	EXPECT_EQ(filter_ctr, 2);
 	EXPECT_EQ(receiver_ctr, 2);
 

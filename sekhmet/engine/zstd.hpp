@@ -9,7 +9,7 @@
 #include "../delegate.hpp"
 #include "../thread_pool.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	/** @brief Exception thrown when ZSTD (de)compression worker threads encounter an error. */
 	class SEK_API zstd_error : public std::runtime_error
@@ -356,4 +356,4 @@ namespace sek::engine
 		read_t m_read;	 /* Delegate used to read source data. */
 		write_t m_write; /* Delegate used to write result. */
 	};
-}	 // namespace sek::engine
+}	 // namespace sek

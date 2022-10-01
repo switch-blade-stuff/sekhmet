@@ -8,7 +8,7 @@
 
 #include "fwd.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	/** @brief Utility structure used to represent buffer containing data of an asset. */
 	class asset_buffer
@@ -147,7 +147,7 @@ namespace sek::engine
 			struct vtable_t
 			{
 				expected<std::size_t, std::error_code> (*read)(asset_io_data *, void *, std::size_t) noexcept;
-				expected<std::uint64_t, std::error_code> (*seek)(asset_io_data *, std::int64_t, system::seek_basis) noexcept;
+				expected<std::uint64_t, std::error_code> (*seek)(asset_io_data *, std::int64_t, seek_basis) noexcept;
 				expected<std::uint64_t, std::error_code> (*setpos)(asset_io_data *, std::uint64_t) noexcept;
 				expected<std::uint64_t, std::error_code> (*size)(const asset_io_data *) noexcept;
 				expected<std::uint64_t, std::error_code> (*tell)(const asset_io_data *) noexcept;
@@ -165,17 +165,17 @@ namespace sek::engine
 			}
 
 			// clang-format off
-			static expected<std::uint64_t, std::error_code> file_seek(asset_io_data *data, std::int64_t off, system::seek_basis dir) noexcept
+			static expected<std::uint64_t, std::error_code> file_seek(asset_io_data *data, std::int64_t off, seek_basis dir) noexcept
 			{
 				return data->m_file.seek(std::nothrow, off, dir);
 			}
-			static expected<std::uint64_t, std::error_code> buff_seek(asset_io_data *data, std::int64_t off, system::seek_basis dir) noexcept
+			static expected<std::uint64_t, std::error_code> buff_seek(asset_io_data *data, std::int64_t off, seek_basis dir) noexcept
 			{
 				switch (dir)
 				{
-				case system::seek_set: return data->m_buff.setpos(static_cast<std::uint64_t>(off));
-				case system::seek_cur: return data->m_buff.setpos(data->m_buff.tell() + static_cast<std::uint64_t>(off));
-				case system::seek_end: return data->m_buff.setpos(data->m_buff.size() + static_cast<std::uint64_t>(off));
+				case seek_set: return data->m_buff.setpos(static_cast<std::uint64_t>(off));
+				case seek_cur: return data->m_buff.setpos(data->m_buff.tell() + static_cast<std::uint64_t>(off));
+				case seek_end: return data->m_buff.setpos(data->m_buff.size() + static_cast<std::uint64_t>(off));
 				}
 				return unexpected{std::make_error_code(std::errc::invalid_argument)};
 			}
@@ -225,7 +225,7 @@ namespace sek::engine
 				return *this;
 			}
 
-			explicit asset_io_data(system::native_file &&file) noexcept
+			explicit asset_io_data(native_file &&file) noexcept
 				: m_vtable(&file_vtable), m_file(std::move(file))
 			{
 			}
@@ -236,15 +236,15 @@ namespace sek::engine
 				if (m_vtable) m_vtable->destroy_data(this);
 			}
 
-			constexpr system::native_file &init_file()
+			constexpr native_file &init_file()
 			{
 				m_vtable = &file_vtable;
 				return *std::construct_at(&m_file);
 			}
-			constexpr system::native_file &init_file(system::native_file &&file)
+			constexpr native_file &init_file(native_file &&file)
 			{
 				m_vtable = &file_vtable;
-				return *std::construct_at(&m_file, std::forward<system::native_file>(file));
+				return *std::construct_at(&m_file, std::forward<native_file>(file));
 			}
 			constexpr asset_buffer &init_buff(std::size_t n)
 			{
@@ -268,7 +268,7 @@ namespace sek::engine
 			{
 				return m_vtable->read(this, dst, n);
 			}
-			expected<std::uint64_t, std::error_code> seek(std::int64_t off, system::seek_basis dir) noexcept
+			expected<std::uint64_t, std::error_code> seek(std::int64_t off, seek_basis dir) noexcept
 			{
 				return m_vtable->seek(this, off, dir);
 			}
@@ -279,11 +279,11 @@ namespace sek::engine
 			expected<std::uint64_t, std::error_code> size() const noexcept { return m_vtable->size(this); }
 			expected<std::uint64_t, std::error_code> tell() const noexcept { return m_vtable->tell(this); }
 
-			[[nodiscard]] constexpr system::native_file *file() noexcept
+			[[nodiscard]] constexpr native_file *file() noexcept
 			{
 				return m_vtable == &file_vtable ? &m_file : nullptr;
 			}
-			[[nodiscard]] constexpr const system::native_file *file() const noexcept
+			[[nodiscard]] constexpr const native_file *file() const noexcept
 			{
 				return m_vtable == &file_vtable ? &m_file : nullptr;
 			}
@@ -298,11 +298,11 @@ namespace sek::engine
 			const vtable_t *m_vtable = nullptr;
 			union
 			{
-				std::byte m_padding[std::max(sizeof(system::native_file), sizeof(asset_buffer))] = {};
+				std::byte m_padding[std::max(sizeof(native_file), sizeof(asset_buffer))] = {};
 
-				system::native_file m_file;
+				native_file m_file;
 				asset_buffer m_buff;
 			};
 		};
 	}	 // namespace detail
-}	 // namespace sek::engine
+}	 // namespace sek

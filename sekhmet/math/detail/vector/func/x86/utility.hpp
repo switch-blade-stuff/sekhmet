@@ -5,7 +5,7 @@
 #pragma once
 
 #ifdef SEK_USE_SSE2
-namespace sek::math::detail
+namespace sek::detail
 {
 	SEK_FORCE_INLINE __m128 x86_blendv_ps(__m128 a, __m128 b, __m128 m) noexcept
 	{
@@ -64,7 +64,7 @@ namespace sek::math::detail
 		e = _mm_add_pd(x86_cvtepi64_pd(_mm_sub_epi64(a, _mm_set1_epi64x(0x3ff))), _mm_set1_pd(1.0));
 		return v;
 	}
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif
 
 #include "f32/utility.hpp"

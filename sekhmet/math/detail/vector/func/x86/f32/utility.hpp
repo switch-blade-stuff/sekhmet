@@ -7,7 +7,7 @@
 #include "../common.hpp"
 
 #ifdef SEK_USE_SSE
-namespace sek::math::detail
+namespace sek::detail
 {
 	template<std::size_t N, std::size_t M, policy_t P, std::size_t... Is>
 	inline void mask_shuffle(mask_data<float, N, P> &out, const mask_data<float, N, P> &m, std::index_sequence<Is...> s) noexcept
@@ -75,5 +75,5 @@ namespace sek::math::detail
 		out.simd = x86_floor_ps(v.simd);
 	}
 #endif
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif

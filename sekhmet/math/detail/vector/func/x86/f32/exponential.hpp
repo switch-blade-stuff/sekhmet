@@ -7,7 +7,7 @@
 #include "../common.hpp"
 
 #ifdef SEK_USE_SSE
-namespace sek::math::detail
+namespace sek::detail
 {
 	template<std::size_t N, policy_t P>
 	inline void vector_sqrt(vector_data<float, N, P> &out, const vector_data<float, N, P> &v) noexcept
@@ -90,5 +90,5 @@ namespace sek::math::detail
 		x86_vector_apply(out, v, x86_log10_ps);
 	}
 #endif
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif

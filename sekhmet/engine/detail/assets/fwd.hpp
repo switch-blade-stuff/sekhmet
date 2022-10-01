@@ -4,7 +4,7 @@
 
 #pragma once
 
-namespace sek::engine
+namespace sek
 {
 	class asset_buffer;
 	class asset_source;
@@ -25,4 +25,4 @@ namespace sek::engine
 		class archive_package;
 		class zstd_package;
 	}	 // namespace detail
-}	 // namespace sek::engine
+}	 // namespace sek

@@ -42,7 +42,7 @@ public:
   {
   }
 
-  engine::want operator()(engine& eng,
+  want operator()(engine& eng,
       asio::error_code& ec,
       std::size_t& bytes_transferred) const
   {
@@ -61,7 +61,7 @@ public:
 
 private:
   template <typename Iterator>
-  engine::want process(engine& eng,
+  want process(engine& eng,
       asio::error_code& ec,
       std::size_t& bytes_transferred,
       Iterator begin, Iterator end) const
@@ -71,8 +71,8 @@ private:
 
     for (;;)
     {
-      engine::want want = eng.handshake(type_, ec);
-      if (want != engine::want_input_and_retry
+      want want = eng.handshake(type_, ec);
+      if (want != want_input_and_retry
           || bytes_transferred == total_buffer_size_)
         return want;
 

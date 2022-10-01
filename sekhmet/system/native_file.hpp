@@ -12,7 +12,7 @@
 #include <asio/basic_file.hpp>
 #include <system_error>
 
-namespace sek::system
+namespace sek
 {
 #ifdef ASIO_HAS_FILE /* If ASIO file is available, openmode & seek_basis are defined via asio::file_base for compatibility */
 	using openmode = asio::file_base::flags;
@@ -63,7 +63,7 @@ namespace sek::system
 	typedef int mapmode;
 	constexpr mapmode map_copy = 1;
 	constexpr mapmode map_populate = 2;
-}	 // namespace sek::system
+}	 // namespace sek
 
 #if defined(SEK_OS_UNIX)
 #include "detail/unix/native_file.hpp"
@@ -71,7 +71,7 @@ namespace sek::system
 #error "Native file not implemented"
 #endif
 
-namespace sek::system
+namespace sek
 {
 	/** @brief Structure used to preform buffered IO operations on a native OS file.
 	 * Provides both a C-like read & write API and an ASIO buffer compatible API. */
@@ -83,25 +83,25 @@ namespace sek::system
 
 	public:
 		typedef typename handle_t::native_handle_type native_handle_type;
-		typedef system::seek_basis seek_basis;
-		typedef system::openmode openmode;
+		typedef seek_basis seek_basis;
+		typedef openmode openmode;
 
-		constexpr static openmode read_only = system::read_only;
-		constexpr static openmode write_only = system::write_only;
-		constexpr static openmode read_write = system::read_write;
-		constexpr static openmode append = system::append;
-		constexpr static openmode create = system::create;
-		constexpr static openmode exclusive = system::exclusive;
-		constexpr static openmode truncate = system::truncate;
-		constexpr static openmode sync_all_on_write = system::sync_all_on_write;
-		constexpr static openmode direct = system::sync_all_on_write;
+		constexpr static openmode read_only = read_only;
+		constexpr static openmode write_only = write_only;
+		constexpr static openmode read_write = read_write;
+		constexpr static openmode append = append;
+		constexpr static openmode create = create;
+		constexpr static openmode exclusive = exclusive;
+		constexpr static openmode truncate = truncate;
+		constexpr static openmode sync_all_on_write = sync_all_on_write;
+		constexpr static openmode direct = sync_all_on_write;
 
-		constexpr static seek_basis seek_cur = system::seek_cur;
-		constexpr static seek_basis seek_end = system::seek_end;
-		constexpr static seek_basis seek_set = system::seek_set;
+		constexpr static seek_basis seek_cur = seek_cur;
+		constexpr static seek_basis seek_end = seek_end;
+		constexpr static seek_basis seek_set = seek_set;
 
 	protected:
-		using path_char = typename std::filesystem::path::value_type;
+		using path_char = typename std::filepath::value_type;
 
 		template<typename T>
 		inline static T return_if(expected<T, std::error_code> &&exp)
@@ -135,7 +135,7 @@ namespace sek::system
 		 * @throw std::system_error On implementation-defined system errors. */
 		native_file(const path_char *path, openmode mode) { open(path, mode); }
 		/** @copydoc native_file */
-		native_file(const std::filesystem::path &path, openmode mode) : native_file(path.c_str(), mode) {}
+		native_file(const std::filepath &path, openmode mode) : native_file(path.c_str(), mode) {}
 
 		/** Opens an existing native file handle.
 		 * @param handle Native handle to open. */
@@ -145,7 +145,7 @@ namespace sek::system
 		 * @param path Path to the file.
 		 * @param mode Mode to open the file with.
 		 * @throw std::system_error On implementation-defined system errors. */
-		void open(const std::filesystem::path &path, openmode mode) { open(path.c_str(), mode); }
+		void open(const std::filepath &path, openmode mode) { open(path.c_str(), mode); }
 		/** @copydoc open */
 		SEK_API void open(const path_char *path, openmode mode);
 
@@ -153,7 +153,7 @@ namespace sek::system
 		 * @param path Path to the file.
 		 * @param mode Mode to open the file with.
 		 * @return `void` or an error code. */
-		expected<void, std::error_code> open(std::nothrow_t, const std::filesystem::path &path, openmode mode) noexcept
+		expected<void, std::error_code> open(std::nothrow_t, const std::filepath &path, openmode mode) noexcept
 		{
 			return open(std::nothrow, path.c_str(), mode);
 		}
@@ -315,4 +315,4 @@ namespace sek::system
 		bool m_writing = false;
 		bool m_reading = false;
 	};
-}	 // namespace sek::system
+}	 // namespace sek

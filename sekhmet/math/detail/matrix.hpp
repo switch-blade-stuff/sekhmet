@@ -77,7 +77,7 @@ public:                                                                         
 		std::swap(m_data, other.m_data);                                                                               \
 	}
 
-namespace sek::math
+namespace sek
 {
 	/** @brief Structure representing a mathematical matrix.
 	 * Matrices are stored in column-major form.
@@ -316,14 +316,14 @@ namespace sek::math
 	{
 		return m[I][J];
 	}
-}	 // namespace sek::math
+}	 // namespace sek
 
-template<typename T, std::size_t N, std::size_t M, sek::math::policy_t Q>
-struct std::tuple_size<sek::math::basic_mat<T, N, M, Q>> : std::integral_constant<std::size_t, N>
+template<typename T, std::size_t N, std::size_t M, sek::policy_t Q>
+struct std::tuple_size<sek::basic_mat<T, N, M, Q>> : std::integral_constant<std::size_t, N>
 {
 };
-template<std::size_t I, typename T, std::size_t N, std::size_t M, sek::math::policy_t Q>
-struct std::tuple_element<I, sek::math::basic_mat<T, N, M, Q>>
+template<std::size_t I, typename T, std::size_t N, std::size_t M, sek::policy_t Q>
+struct std::tuple_element<I, sek::basic_mat<T, N, M, Q>>
 {
-	using type = typename sek::math::basic_mat<T, N, M, Q>::col_type;
+	using type = typename sek::basic_mat<T, N, M, Q>::col_type;
 };

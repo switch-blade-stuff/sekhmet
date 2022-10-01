@@ -25,7 +25,7 @@
 #define USE_FSYNC
 #endif
 
-namespace sek::system::detail
+namespace sek::detail
 {
 	constexpr auto access = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
 
@@ -106,4 +106,4 @@ namespace sek::system::detail
 			return unexpected{current_error()};
 		return static_cast<std::uint64_t>(s.st_size);
 	}
-}	 // namespace sek::system::detail
+}	 // namespace sek::detail

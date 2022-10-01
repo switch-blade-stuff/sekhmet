@@ -7,7 +7,7 @@
 #include "entity.hpp"
 #include "traits.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	template<typename = std::allocator<entity_t>>
 	class basic_entity_set;
@@ -718,4 +718,4 @@ namespace sek::engine
 	};
 
 	using entity_set = basic_entity_set<>;
-}	 // namespace sek::engine
+}	 // namespace sek

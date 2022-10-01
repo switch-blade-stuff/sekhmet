@@ -19,7 +19,7 @@
 #include <tmmintrin.h>
 #include <xmmintrin.h>
 
-namespace sek::math::detail
+namespace sek::detail
 {
 	template<std::size_t J, std::size_t I, std::size_t... Is>
 	constexpr std::uint8_t x86_128_shuffle4_unwrap(std::index_sequence<I, Is...>) noexcept
@@ -499,6 +499,6 @@ namespace sek::math::detail
 #endif
 #endif
 #endif
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 
 #endif

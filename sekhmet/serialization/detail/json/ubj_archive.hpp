@@ -10,13 +10,13 @@
 
 #include "common.hpp"
 
-namespace sek::serialization::ubj
+namespace sekubj
 {
 	typedef int config_flags;
 
 	namespace detail
 	{
-		using namespace sek::serialization::detail;
+		using namespace sek::detail;
 
 		using base_archive = json_archive_base<char, std::char_traits<char>, container_types | char_value>;
 
@@ -367,13 +367,13 @@ namespace sek::serialization::ubj
 		}
 		/** Reads UBJson from a file.
 		 * @param file Native file containing UBJson data. */
-		explicit basic_input_archive(system::native_file &file)
+		explicit basic_input_archive(native_file &file)
 			: basic_input_archive(file, std::pmr::get_default_resource())
 		{
 		}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_input_archive(system::native_file &file, std::pmr::memory_resource *res)
+		basic_input_archive(native_file &file, std::pmr::memory_resource *res)
 			: basic_input_archive(reader_type{file}, res)
 		{
 		}
@@ -458,17 +458,17 @@ namespace sek::serialization::ubj
 
 	typedef basic_input_archive<highp_error> input_archive;
 
-	static_assert(serialization::input_archive<input_archive::archive_frame, bool>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, char>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, std::uint8_t>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, std::int8_t>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, std::int16_t>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, std::int32_t>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, std::int64_t>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, float>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, double>);
-	static_assert(serialization::input_archive<input_archive::archive_frame, std::string>);
-	static_assert(serialization::structured_data_archive<input_archive::archive_frame>);
+	static_assert(input_archive<input_archive::archive_frame, bool>);
+	static_assert(input_archive<input_archive::archive_frame, char>);
+	static_assert(input_archive<input_archive::archive_frame, std::uint8_t>);
+	static_assert(input_archive<input_archive::archive_frame, std::int8_t>);
+	static_assert(input_archive<input_archive::archive_frame, std::int16_t>);
+	static_assert(input_archive<input_archive::archive_frame, std::int32_t>);
+	static_assert(input_archive<input_archive::archive_frame, std::int64_t>);
+	static_assert(input_archive<input_archive::archive_frame, float>);
+	static_assert(input_archive<input_archive::archive_frame, double>);
+	static_assert(input_archive<input_archive::archive_frame, std::string>);
+	static_assert(structured_data_archive<input_archive::archive_frame>);
 
 	/** @details Archive used to write UBJson data.
 	 *
@@ -773,13 +773,13 @@ namespace sek::serialization::ubj
 		}
 		/** Initializes output archive for file writing.
 		 * @param file Native file to write UBJson data to. */
-		explicit basic_output_archive(system::native_file &file)
+		explicit basic_output_archive(native_file &file)
 			: basic_output_archive(file, std::pmr::get_default_resource())
 		{
 		}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
-		basic_output_archive(system::native_file &file, std::pmr::memory_resource *res)
+		basic_output_archive(native_file &file, std::pmr::memory_resource *res)
 			: basic_output_archive(writer_type{file}, res)
 		{
 		}
@@ -880,15 +880,15 @@ namespace sek::serialization::ubj
 
 	typedef basic_output_archive<fixed_type> output_archive;
 
-	static_assert(serialization::output_archive<output_archive, std::nullptr_t>);
-	static_assert(serialization::output_archive<output_archive, bool>);
-	static_assert(serialization::output_archive<output_archive, char>);
-	static_assert(serialization::output_archive<output_archive, std::uint8_t>);
-	static_assert(serialization::output_archive<output_archive, std::int8_t>);
-	static_assert(serialization::output_archive<output_archive, std::int16_t>);
-	static_assert(serialization::output_archive<output_archive, std::int32_t>);
-	static_assert(serialization::output_archive<output_archive, std::int64_t>);
-	static_assert(serialization::output_archive<output_archive, float>);
-	static_assert(serialization::output_archive<output_archive, double>);
-	static_assert(serialization::output_archive<output_archive, std::string>);
-}	 // namespace sek::serialization::ubj
+	static_assert(output_archive<output_archive, std::nullptr_t>);
+	static_assert(output_archive<output_archive, bool>);
+	static_assert(output_archive<output_archive, char>);
+	static_assert(output_archive<output_archive, std::uint8_t>);
+	static_assert(output_archive<output_archive, std::int8_t>);
+	static_assert(output_archive<output_archive, std::int16_t>);
+	static_assert(output_archive<output_archive, std::int32_t>);
+	static_assert(output_archive<output_archive, std::int64_t>);
+	static_assert(output_archive<output_archive, float>);
+	static_assert(output_archive<output_archive, double>);
+	static_assert(output_archive<output_archive, std::string>);
+}	 // namespace sekubj

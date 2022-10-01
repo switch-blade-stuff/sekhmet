@@ -29,7 +29,7 @@ namespace asio {
 namespace ssl {
 namespace detail {
 
-engine::engine(SSL_CTX* context)
+engine(SSL_CTX* context)
   : ssl_(::SSL_new(context))
 {
   if (!ssl_)
@@ -55,7 +55,7 @@ engine::engine(SSL_CTX* context)
   ::SSL_set_bio(ssl_, int_bio, int_bio);
 }
 
-engine::engine(SSL* ssl_impl)
+engine(SSL* ssl_impl)
   : ssl_(ssl_impl)
 {
 #if (OPENSSL_VERSION_NUMBER < 0x10000000L)
@@ -74,7 +74,7 @@ engine::engine(SSL* ssl_impl)
 }
 
 #if defined(ASIO_HAS_MOVE)
-engine::engine(engine&& other) ASIO_NOEXCEPT
+engine(engine&& other) ASIO_NOEXCEPT
   : ssl_(other.ssl_),
     ext_bio_(other.ext_bio_)
 {
@@ -83,7 +83,7 @@ engine::engine(engine&& other) ASIO_NOEXCEPT
 }
 #endif // defined(ASIO_HAS_MOVE)
 
-engine::~engine()
+~engine()
 {
   if (ssl_ && SSL_get_app_data(ssl_))
   {
@@ -99,7 +99,7 @@ engine::~engine()
 }
 
 #if defined(ASIO_HAS_MOVE)
-engine& engine::operator=(engine&& other) ASIO_NOEXCEPT
+engine& operator=(engine&& other) ASIO_NOEXCEPT
 {
   if (this != &other)
   {
@@ -112,12 +112,12 @@ engine& engine::operator=(engine&& other) ASIO_NOEXCEPT
 }
 #endif // defined(ASIO_HAS_MOVE)
 
-SSL* engine::native_handle()
+SSL* native_handle()
 {
   return ssl_;
 }
 
-asio::error_code engine::set_verify_mode(
+asio::error_code set_verify_mode(
     verify_mode v, asio::error_code& ec)
 {
   ::SSL_set_verify(ssl_, v, ::SSL_get_verify_callback(ssl_));
@@ -126,7 +126,7 @@ asio::error_code engine::set_verify_mode(
   return ec;
 }
 
-asio::error_code engine::set_verify_depth(
+asio::error_code set_verify_depth(
     int depth, asio::error_code& ec)
 {
   ::SSL_set_verify_depth(ssl_, depth);
@@ -135,7 +135,7 @@ asio::error_code engine::set_verify_depth(
   return ec;
 }
 
-asio::error_code engine::set_verify_callback(
+asio::error_code set_verify_callback(
     verify_callback_base* callback, asio::error_code& ec)
 {
   if (SSL_get_app_data(ssl_))
@@ -144,13 +144,13 @@ asio::error_code engine::set_verify_callback(
   SSL_set_app_data(ssl_, callback);
 
   ::SSL_set_verify(ssl_, ::SSL_get_verify_mode(ssl_),
-      &engine::verify_callback_function);
+      &verify_callback_function);
 
   ec = asio::error_code();
   return ec;
 }
 
-int engine::verify_callback_function(int preverified, X509_STORE_CTX* ctx)
+int verify_callback_function(int preverified, X509_STORE_CTX* ctx)
 {
   if (ctx)
   {
@@ -173,46 +173,46 @@ int engine::verify_callback_function(int preverified, X509_STORE_CTX* ctx)
   return 0;
 }
 
-engine::want engine::handshake(
+want handshake(
     stream_base::handshake_type type, asio::error_code& ec)
 {
   return perform((type == asio::ssl::stream_base::client)
-      ? &engine::do_connect : &engine::do_accept, 0, 0, ec, 0);
+      ? &do_connect : &do_accept, 0, 0, ec, 0);
 }
 
-engine::want engine::shutdown(asio::error_code& ec)
+want shutdown(asio::error_code& ec)
 {
-  return perform(&engine::do_shutdown, 0, 0, ec, 0);
+  return perform(&do_shutdown, 0, 0, ec, 0);
 }
 
-engine::want engine::write(const asio::const_buffer& data,
+want write(const asio::const_buffer& data,
     asio::error_code& ec, std::size_t& bytes_transferred)
 {
   if (data.size() == 0)
   {
     ec = asio::error_code();
-    return engine::want_nothing;
+    return want_nothing;
   }
 
-  return perform(&engine::do_write,
+  return perform(&do_write,
       const_cast<void*>(data.data()),
       data.size(), ec, &bytes_transferred);
 }
 
-engine::want engine::read(const asio::mutable_buffer& data,
+want read(const asio::mutable_buffer& data,
     asio::error_code& ec, std::size_t& bytes_transferred)
 {
   if (data.size() == 0)
   {
     ec = asio::error_code();
-    return engine::want_nothing;
+    return want_nothing;
   }
 
-  return perform(&engine::do_read, data.data(),
+  return perform(&do_read, data.data(),
       data.size(), ec, &bytes_transferred);
 }
 
-asio::mutable_buffer engine::get_output(
+asio::mutable_buffer get_output(
     const asio::mutable_buffer& data)
 {
   int length = ::BIO_read(ext_bio_,
@@ -222,7 +222,7 @@ asio::mutable_buffer engine::get_output(
       length > 0 ? static_cast<std::size_t>(length) : 0);
 }
 
-asio::const_buffer engine::put_input(
+asio::const_buffer put_input(
     const asio::const_buffer& data)
 {
   int length = ::BIO_write(ext_bio_,
@@ -232,7 +232,7 @@ asio::const_buffer engine::put_input(
       (length > 0 ? static_cast<std::size_t>(length) : 0));
 }
 
-const asio::error_code& engine::map_error_code(
+const asio::error_code& map_error_code(
     asio::error_code& ec) const
 {
   // We only want to map the error::eof code.
@@ -263,14 +263,14 @@ const asio::error_code& engine::map_error_code(
 }
 
 #if (OPENSSL_VERSION_NUMBER < 0x10000000L)
-asio::detail::static_mutex& engine::accept_mutex()
+asio::detail::static_mutex& accept_mutex()
 {
   static asio::detail::static_mutex mutex = ASIO_STATIC_MUTEX_INIT;
   return mutex;
 }
 #endif // (OPENSSL_VERSION_NUMBER < 0x10000000L)
 
-engine::want engine::perform(int (engine::* op)(void*, std::size_t),
+want perform(int (* op)(void*, std::size_t),
     void* data, std::size_t length, asio::error_code& ec,
     std::size_t* bytes_transferred)
 {
@@ -339,7 +339,7 @@ engine::want engine::perform(int (engine::* op)(void*, std::size_t),
   }
 }
 
-int engine::do_accept(void*, std::size_t)
+int do_accept(void*, std::size_t)
 {
 #if (OPENSSL_VERSION_NUMBER < 0x10000000L)
   asio::detail::static_mutex::scoped_lock lock(accept_mutex());
@@ -347,12 +347,12 @@ int engine::do_accept(void*, std::size_t)
   return ::SSL_accept(ssl_);
 }
 
-int engine::do_connect(void*, std::size_t)
+int do_connect(void*, std::size_t)
 {
   return ::SSL_connect(ssl_);
 }
 
-int engine::do_shutdown(void*, std::size_t)
+int do_shutdown(void*, std::size_t)
 {
   int result = ::SSL_shutdown(ssl_);
   if (result == 0)
@@ -360,13 +360,13 @@ int engine::do_shutdown(void*, std::size_t)
   return result;
 }
 
-int engine::do_read(void* data, std::size_t length)
+int do_read(void* data, std::size_t length)
 {
   return ::SSL_read(ssl_, data,
       length < INT_MAX ? static_cast<int>(length) : INT_MAX);
 }
 
-int engine::do_write(void* data, std::size_t length)
+int do_write(void* data, std::size_t length)
 {
   return ::SSL_write(ssl_, data,
       length < INT_MAX ? static_cast<int>(length) : INT_MAX);

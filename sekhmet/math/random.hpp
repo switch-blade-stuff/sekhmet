@@ -7,7 +7,7 @@
 #include "detail/sysrandom.hpp"
 #include "detail/xoroshiro.hpp"
 
-namespace sek::math
+namespace sek
 {
 	/** 256-bit version of xoroshiro. */
 	template<typename T>
@@ -15,4 +15,4 @@ namespace sek::math
 	/** 128-bit version of xoroshiro. */
 	template<typename T>
 	using xoroshiro128 = xoroshiro<T, 128>;
-}	 // namespace sek::math
+}	 // namespace sek

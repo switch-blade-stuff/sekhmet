@@ -8,7 +8,7 @@
 
 #include "world.hpp"
 
-namespace sek::engine
+namespace sek
 {
 	template<typename, typename = included_t<>, typename = excluded_t<>, typename = optional_t<>>
 	class component_collection;
@@ -666,4 +666,4 @@ namespace sek::engine
 		inc_ptr m_included = {};
 		opt_ptr m_optional = {};
 	};
-}	 // namespace sek::engine
+}	 // namespace sek

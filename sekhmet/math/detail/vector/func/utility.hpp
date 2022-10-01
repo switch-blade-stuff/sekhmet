@@ -12,7 +12,7 @@
 #endif
 #endif
 
-namespace sek::math
+namespace sek
 {
 	namespace detail
 	{
@@ -234,4 +234,4 @@ namespace sek::math
 			detail::vector_interleave(result.m_data, l.m_data, r.m_data, mask.m_data);
 		return result;
 	}
-}	 // namespace sek::math
+}	 // namespace sek

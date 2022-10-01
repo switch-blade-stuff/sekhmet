@@ -18,7 +18,7 @@
 	template<std::floating_point U, std::size_t M, policy_t Q>                                                  \
 	friend constexpr vec_mask<basic_vec<U, M, Q>> is_norm(const basic_vec<U, M, Q> &) noexcept;
 
-namespace sek::math
+namespace sek
 {
 	template<std::floating_point U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Q>> is_nan(const basic_vec<U, M, Q> &v) noexcept;
@@ -30,4 +30,4 @@ namespace sek::math
 	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Q>> is_neg(const basic_vec<U, M, Q> &v) noexcept;
 	template<std::floating_point U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr vec_mask<basic_vec<U, M, Q>> is_norm(const basic_vec<U, M, Q> &v) noexcept;
-}	 // namespace sek::math
+}	 // namespace sek

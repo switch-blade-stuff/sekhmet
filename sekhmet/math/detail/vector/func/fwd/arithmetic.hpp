@@ -51,7 +51,7 @@
 	friend constexpr basic_vec<U, M, Q> fmsub(                                                                        \
 		const basic_vec<U, M, Q> &a, const basic_vec<U, M, Q> &b, const basic_vec<U, M, Q> &c) noexcept;
 
-namespace sek::math
+namespace sek
 {
 	template<typename U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr basic_vec<U, M, Q> operator+(const basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r) noexcept;
@@ -111,4 +111,4 @@ namespace sek::math
 	template<typename U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr basic_vec<U, M, Q>
 		fmsub(const basic_vec<U, M, Q> &a, const basic_vec<U, M, Q> &b, const basic_vec<U, M, Q> &c) noexcept;
-}	 // namespace sek::math
+}	 // namespace sek

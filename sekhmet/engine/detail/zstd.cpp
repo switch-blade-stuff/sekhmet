@@ -10,7 +10,7 @@
 #include "../zstd.hpp"
 #include <zstd_errors.h>
 
-namespace sek::engine
+namespace sek
 {
 	/* To avoid conflicts with ZSTD errors, custom error codes start after full range of `ZSTD_ErrorCode` values. */
 	enum ctx_error_t : std::uint64_t
@@ -257,12 +257,12 @@ namespace sek::engine
 
 					/* On complete flush, initialize the skip frame. */
 					*static_cast<skip_frame *>(dst_buff.data) = {
-						.magic = math::bswap32_le(skip_magic),
-						.size = math::bswap32_le(sizeof(frame_header)),
+						.magic = bswap32_le(skip_magic),
+						.size = bswap32_le(sizeof(frame_header)),
 						.header =
 							{
-								.comp_size = math::bswap32_le(out_buff.pos),
-								.src_size = math::bswap32_le(in_buff.pos),
+								.comp_size = bswap32_le(out_buff.pos),
+								.src_size = bswap32_le(in_buff.pos),
 							},
 					};
 
@@ -462,4 +462,4 @@ namespace sek::engine
 		assert_error(compress_single(level, frame_size));
 		return m_out_frame;
 	}
-}	 // namespace sek::engine
+}	 // namespace sek

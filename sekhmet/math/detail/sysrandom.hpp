@@ -6,7 +6,7 @@
 
 #include "sekhmet/detail/define.h"
 
-namespace sek::math
+namespace sek
 {
 	/** Fills a buffer with random bytes using OS-specific cryptographic source.
 	 * In case no cryptographic source is available for this system this function will always fail.
@@ -14,4 +14,4 @@ namespace sek::math
 	 * @param len Length of the destination buffer.
 	 * @return Amount of bytes filled, or -1 if a failure occurred. */
 	SEK_API ssize_t sys_random(void *dest, std::size_t len) noexcept;
-}	 // namespace sek::math
+}	 // namespace sek

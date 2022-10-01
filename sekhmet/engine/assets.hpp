@@ -21,7 +21,7 @@
 #include "../uuid.hpp"
 #include <shared_mutex>
 
-namespace sek::engine
+namespace sek
 {
 	/** @brief Reference-counted handle used to reference an asset package. */
 	class asset_package
@@ -47,10 +47,10 @@ namespace sek::engine
 		/** Loads a package at the specified path.
 		 * @throw asset_error If the path does not contain a valid package or
 		 * an implementation-defined error occurred during loading of package metadata. */
-		[[nodiscard]] static SEK_API asset_package load(const std::filesystem::path &path);
+		[[nodiscard]] static SEK_API asset_package load(const std::filepath &path);
 		/** Load all packages in the specified directory.
 		 * @throw asset_error If the path is not a valid directory. */
-		[[nodiscard]] static SEK_API std::vector<asset_package> load_all(const std::filesystem::path &path);
+		[[nodiscard]] static SEK_API std::vector<asset_package> load_all(const std::filepath &path);
 
 	private:
 		constexpr explicit asset_package(detail::package_info_ptr &&ptr) noexcept : m_ptr(std::move(ptr)) {}
@@ -69,7 +69,7 @@ namespace sek::engine
 		asset_package &operator=(const asset_package &) = default;
 
 		/** Returns path of the asset package. */
-		[[nodiscard]] constexpr const std::filesystem::path &path() const noexcept { return m_ptr->path; }
+		[[nodiscard]] constexpr const std::filepath &path() const noexcept { return m_ptr->path; }
 
 		/** Checks if the asset package is empty (does not contain any assets). */
 		[[nodiscard]] constexpr bool empty() const noexcept { return m_ptr->empty(); }
@@ -410,6 +410,6 @@ namespace sek::engine
 	constexpr auto asset_database::packages() const noexcept { return package_proxy<false>{*this}; }
 
 	/* TODO: Refactor implementation to support error_code */
-}	 // namespace sek::engine
+}	 // namespace sek
 
-extern template class SEK_API_IMPORT sek::service<sek::shared_guard<sek::engine::asset_database>>;
+extern template class SEK_API_IMPORT sek::service<sek::shared_guard<sek::asset_database>>;

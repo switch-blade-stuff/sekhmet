@@ -7,7 +7,7 @@
 #include "common.hpp"
 
 #ifdef SEK_USE_SSE2
-namespace sek::math::detail
+namespace sek::detail
 {
 	template<integral_of_size<4> T, std::size_t N, policy_t P>
 	inline void vector_and(vector_data<T, N, P> &out, const vector_data<T, N, P> &l, const vector_data<T, N, P> &r) noexcept
@@ -90,5 +90,5 @@ namespace sek::math::detail
 		out.simd[1] = _mm_xor_si128(v.simd[1], m);
 	}
 #endif
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif

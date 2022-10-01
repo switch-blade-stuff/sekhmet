@@ -7,7 +7,7 @@
 #include "../common.hpp"
 
 #ifdef SEK_USE_SSE2
-namespace sek::math::detail
+namespace sek::detail
 {
 	template<integral_of_size<4> T, std::size_t N, std::size_t M, policy_t P, std::size_t... Is>
 	inline void mask_shuffle(mask_data<T, N, P> &out, const mask_data<T, N, P> &m, std::index_sequence<Is...> s) noexcept
@@ -33,5 +33,5 @@ namespace sek::math::detail
 	{
 		out.simd = x86_blendv_epi8(r.simd, l.simd, m.simd);
 	}
-}	 // namespace sek::math::detail
+}	 // namespace sek::detail
 #endif
