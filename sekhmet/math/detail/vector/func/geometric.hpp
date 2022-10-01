@@ -140,7 +140,7 @@ namespace sek::math
 
 		/* k = 1.0 - eta * eta * (1.0 - dot(N, I) * dot(N, I)); */
 		const auto k = static_cast<U>(1.0) - r * r * (static_cast<U>(1.0) - dp * dp);
-		const auto m = fcmp_lt(k, zero);
+		const auto m = fcmp_lt(k, static_cast<U>(0.0));
 
 		/* if (k < 0.0)
 		 * 	R = 0.0;
