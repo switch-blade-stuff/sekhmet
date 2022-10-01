@@ -102,4 +102,53 @@ namespace sek::math
 	{
 		return magn(l - r);
 	}
+
+	/** @brief Calculates the reflection direction for an incident vector and a surface normal.
+	 *
+	 * Result is calculated as
+	 * @code{cpp}
+	 * i - dot(n, i) * n * U{2}
+	 * @endcode
+	 *
+	 * @param i Incident vector.
+	 * @param n Normal vector.
+	 * @return Reflection direction. */
+	template<std::floating_point U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> reflect(const basic_vec<U, M, Q> &i, const basic_vec<U, M, Q> &n) noexcept
+	{
+		return i - n * dot(n, i) * static_cast<U>(2.0);
+	}
+	/** @brief Calculates the refraction direction for an incident vector and a surface normal.
+	 *
+	 * Result is calculated as
+	 * @code{cpp}
+	 * k = 1.0 - eta * eta * (1.0 - dot(N, I) * dot(N, I));
+	 * if (k < 0.0)
+	 * 	R = 0.0;
+	 * else
+	 * 	R = eta * I - (eta * dot(N, I) + sqrt(k)) * N;
+	 * @endcode
+	 *
+	 * @param i Incident vector.
+	 * @param n Normal vector.
+	 * @param r Ratio of refraction indices.
+	 * @return Reflection direction. */
+	template<std::floating_point U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> refract(const basic_vec<U, M, Q> &i, const basic_vec<U, M, Q> &n, U r) noexcept
+	{
+		const auto dp = dot(n, i);
+
+		/* k = 1.0 - eta * eta * (1.0 - dot(N, I) * dot(N, I)); */
+		const auto k = static_cast<U>(1.0) - r * r * (static_cast<U>(1.0) - dp * dp);
+		const auto m = fcmp_lt(k, zero);
+
+		/* if (k < 0.0)
+		 * 	R = 0.0;
+		 * else
+		 * 	R = eta * I - (eta * dot(N, I) + sqrt(k)) * N; */
+		if (!fcmp_lt(k, static_cast<U>(0.0)))
+			return i * r - n * (sqrt(k) + basic_vec<U, M, Q>{dp * r});
+		else
+			return basic_vec<U, M, Q>{};
+	}
 }	 // namespace sek::math

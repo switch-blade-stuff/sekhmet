@@ -10,7 +10,7 @@
 #include <limits>
 
 #include "sekhmet/detail/define.h"
-#include "sekhmet/serialization/detail/base64.hpp"
+#include "sekhmet/serialization/base64.hpp"
 
 namespace sek::math
 {

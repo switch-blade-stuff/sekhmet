@@ -4,9 +4,8 @@
 
 #pragma once
 
-#include "sekhmet/static_string.hpp"
-
-#include "base64.hpp"
+#include "../../static_string.hpp"
+#include "../base64.hpp"
 #include "traits.hpp"
 
 namespace sek::serialization::detail

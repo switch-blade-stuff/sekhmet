@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "../../../detail/owned_ptr.hpp"
+#include "../../../expected.hpp"
 #include "../../../ordered_map.hpp"
 #include "../manipulators.hpp"
 #include "../tuples.hpp"
@@ -294,7 +295,7 @@ namespace sek::serialization
 		// clang-format on
 
 	public:
-		/** @brief Archive frame used to read Json objects. */
+		/** @brief Archive frame used to deserialize data from Json objects. */
 		class read_frame
 		{
 		public:
@@ -466,7 +467,7 @@ namespace sek::serialization
 				if (!iter) [[unlikely]]
 					return expected<void, std::error_code>{iter};
 				else if (iter->m_table == m_target.m_table.end()) [[unlikely]]
-					return unexpected{archive_errc::INVALID_DATA};
+					return unexpected{make_error_code(archive_errc::INVALID_DATA)};
 
 				iter->read(value, std::forward<Args>(args)...);
 				m_pos = iter; /* Exception guarantee. */
@@ -525,7 +526,7 @@ namespace sek::serialization
 			const_iterator m_pos;
 		};
 
-		/** @brief Archive frame used to write Json objects. */
+		/** @brief Archive frame used to serialize data to Json objects. */
 		class write_frame
 		{
 		public:
@@ -542,7 +543,7 @@ namespace sek::serialization
 			constexpr write_frame(value_type &target) : m_target(target)
 			{
 				if (!m_target.is_table()) [[unlikely]]
-					m_target.as<table_type>();
+					m_target.set<table_type>();
 				else
 					m_target.m_table.clear();
 			}
@@ -686,7 +687,7 @@ namespace sek::serialization
 			{
 				switch (m_target.type())
 				{
-					default: m_target.as_table();
+					default: m_target.set_table();
 					case json_type::TABLE:
 					{
 						// clang-format off
@@ -704,7 +705,7 @@ namespace sek::serialization
 			void to_array_impl(const array_allocator &alloc)
 			{
 				if (auto &table = m_target.m_table; table.empty()) [[likely]]
-					m_target.as<array_type>(table.size(), alloc);
+					m_target.set<array_type>(table.size(), alloc);
 				else
 				{
 					/* Create a new array and copy elements. */
@@ -718,7 +719,7 @@ namespace sek::serialization
 					}
 
 					/* Convert to the new array. */
-					m_target.as<array_type>(std::move(array));
+					m_target.set<array_type>(std::move(array));
 				}
 			}
 
@@ -1153,9 +1154,55 @@ namespace sek::serialization
 		 * @note Previous value of the Json object will be overwritten.
 		 * @note If an error occurs during initialization of the value type, Json object is left in a defined state. */
 		template<typename U>
+		basic_json_object &set(U &&value) requires is_value_type<std::remove_cvref_t<U>>
+		{
+			set_impl<U>(std::forward<U>(value));
+			return *this;
+		}
+		/** @copydoc as
+		 * @param args Arguments passed to the constructor of the value type. */
+		template<typename U, typename... Args>
+		basic_json_object &set(Args &&...args) requires is_value_type<U> && std::constructible_from<U, Args...>
+		{
+			set_impl<U>(std::forward<Args>(args)...);
+			return *this;
+		}
+		/** Converts the Json object to a signed integer via converting to `int_type`.
+		 * @return Reference to this Json object.
+		 * @note Previous value of the Json object will be overwritten. */
+		template<typename I>
+		basic_json_object &set(I &&value) requires is_compatible_int<std::remove_cvref_t<I>>
+		{
+			return set<int_type>(static_cast<int_type>(std::forward<I>(value)));
+		}
+		/** Converts the Json object to an unsigned integer via converting to `uint_type`.
+		 * @return Reference to this Json object.
+		 * @note Previous value of the Json object will be overwritten. */
+		template<typename I>
+		basic_json_object &set(I &&value) requires is_compatible_uint<std::remove_cvref_t<I>>
+		{
+			return set<uint_type>(static_cast<uint_type>(std::forward<I>(value)));
+		}
+		/** Converts the Json object to a floating-point number via converting to `uint_type`.
+		 * @return Reference to this Json object.
+		 * @note Previous value of the Json object will be overwritten. */
+		template<typename F>
+		basic_json_object &set(F &&value) requires is_compatible_float<std::remove_cvref_t<F>>
+		{
+			return set<float_type>(static_cast<float_type>(std::forward<F>(value)));
+		}
+
+		/** Converts the Json object to the specified value type.
+		 * @tparam U Value type to convert the Json object to. Must be one of the following value types: `std::nullptr_t`,
+		 * `bool`, `int_type`, `uint_type`, `float_type`, `string_type`, `table_type`, `array_type`.
+		 * @return Reference to this Json object.
+		 * @note Value is overwritten only if the type of the Json object differs from requested.
+		 * @note If an error occurs during initialization of the value type, Json object is left in a defined state. */
+		template<typename U>
 		basic_json_object &as(U &&value) requires is_value_type<std::remove_cvref_t<U>>
 		{
-			as_impl<U>(std::forward<U>(value));
+			if (type() != select_type<std::remove_cvref_t<U>>())
+				set_impl<U>(std::forward<U>(value));
 			return *this;
 		}
 		/** @copydoc as
@@ -1163,12 +1210,13 @@ namespace sek::serialization
 		template<typename U, typename... Args>
 		basic_json_object &as(Args &&...args) requires is_value_type<U> && std::constructible_from<U, Args...>
 		{
-			as_impl<U>(std::forward<Args>(args)...);
+			if (type() != select_type<std::remove_cvref_t<U>>())
+				set_impl<U>(std::forward<Args>(args)...);
 			return *this;
 		}
 		/** Converts the Json object to a signed integer via converting to `int_type`.
 		 * @return Reference to this Json object.
-		 * @note Previous value of the Json object will be overwritten. */
+		 * @note Value is overwritten only if the type of the Json object differs from requested. */
 		template<typename I>
 		basic_json_object &as(I &&value) requires is_compatible_int<std::remove_cvref_t<I>>
 		{
@@ -1176,7 +1224,7 @@ namespace sek::serialization
 		}
 		/** Converts the Json object to an unsigned integer via converting to `uint_type`.
 		 * @return Reference to this Json object.
-		 * @note Previous value of the Json object will be overwritten. */
+		 * @note Value is overwritten only if the type of the Json object differs from requested. */
 		template<typename I>
 		basic_json_object &as(I &&value) requires is_compatible_uint<std::remove_cvref_t<I>>
 		{
@@ -1184,7 +1232,7 @@ namespace sek::serialization
 		}
 		/** Converts the Json object to a floating-point number via converting to `uint_type`.
 		 * @return Reference to this Json object.
-		 * @note Previous value of the Json object will be overwritten. */
+		 * @note Value is overwritten only if the type of the Json object differs from requested. */
 		template<typename F>
 		basic_json_object &as(F &&value) requires is_compatible_float<std::remove_cvref_t<F>>
 		{
@@ -1634,48 +1682,48 @@ namespace sek::serialization
 		}
 
 		template<std::same_as<std::nullptr_t> U, typename... Args>
-		void as_impl(Args &&...)
+		void set_impl(Args &&...)
 		{
 			as_type_impl(select_type<U>());
 		}
 		template<std::same_as<bool> U, typename... Args>
-		void as_impl(Args &&...args)
+		void set_impl(Args &&...args)
 		{
 			as_type_impl(select_type<U>());
 			m_bool = bool{std::forward<Args>(args)...};
 		}
 		template<std::same_as<int_type> U, typename... Args>
-		void as_impl(Args &&...args)
+		void set_impl(Args &&...args)
 		{
 			as_type_impl(select_type<U>());
 			m_int = int_type{std::forward<Args>(args)...};
 		}
 		template<std::same_as<uint_type> U, typename... Args>
-		void as_impl(Args &&...args)
+		void set_impl(Args &&...args)
 		{
 			as_type_impl(select_type<U>());
 			m_uint = uint_type{std::forward<Args>(args)...};
 		}
 		template<std::same_as<float_type> U, typename... Args>
-		void as_impl(Args &&...args)
+		void set_impl(Args &&...args)
 		{
 			as_type_impl(select_type<U>());
 			m_float = float_type{std::forward<Args>(args)...};
 		}
 		template<std::same_as<string_type> U, typename... Args>
-		void as_impl(Args &&...args)
+		void set_impl(Args &&...args)
 		{
 			if (!as_type_impl(select_type<U>(), [&]() { std::construct_at(&m_string, std::forward<Args>(args)...); }))
 				m_string = string_type{std::forward<Args>(args)...};
 		}
 		template<std::same_as<table_type> U, typename... Args>
-		void as_impl(Args &&...args)
+		void set_impl(Args &&...args)
 		{
 			if (!as_type_impl(select_type<U>(), [&]() { std::construct_at(&m_table, std::forward<Args>(args)...); }))
 				m_table = table_type{std::forward<Args>(args)...};
 		}
 		template<std::same_as<array_type> U, typename... Args>
-		void as_impl(Args &&...args)
+		void set_impl(Args &&...args)
 		{
 			if (!as_type_impl(select_type<U>(), [&]() { std::construct_at(&m_array, std::forward<Args>(args)...); }))
 				m_array = array_type{std::forward<Args>(args)...};

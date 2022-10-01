@@ -220,13 +220,12 @@ namespace sek::math
 	/** Interleaves elements of two vectors according to the provided mask.
 	 * @param l Left-hand vector.
 	 * @param r Right-hand vector.
-	 * @param mask Mask used to select vector elements.
-	 * `true` will select the left-hand element, `false` will select the right-hand element.
+	 * @param mask Mask used to select vector elements. `true` will select the left-hand element,
+	 * `false` will select the right-hand element.
 	 * @return Result of the interleave operation. */
 	template<typename U, std::size_t M, policy_t Q>
-	[[nodiscard]] constexpr basic_vec<U, M, Q> interleave(const basic_vec<U, M, Q> &l,
-														   const basic_vec<U, M, Q> &r,
-														   const vec_mask<basic_vec<U, M, Q>> &mask) noexcept
+	[[nodiscard]] constexpr basic_vec<U, M, Q>
+		interleave(const basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r, const vec_mask<basic_vec<U, M, Q>> &mask) noexcept
 	{
 		basic_vec<U, M, Q> result;
 		if (std::is_constant_evaluated())

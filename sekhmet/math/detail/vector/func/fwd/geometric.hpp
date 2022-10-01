@@ -7,18 +7,17 @@
 #include "../../fwd.hpp"
 
 #define SEK_DETAIL_FRIEND_GEOMETRIC                                                                                    \
-	template<typename U, std::size_t M, policy_t Q>                                                             \
-	friend constexpr basic_vec<U, M, Q> lerp(                                                                         \
-		const basic_vec<U, M, Q> &, const basic_vec<U, M, Q> &, const basic_vec<U, M, Q> &) noexcept;               \
-	template<typename U, policy_t Q>                                                                            \
-	friend constexpr basic_vec<U, 3, Q> cross(const basic_vec<U, 3, Q> &, const basic_vec<U, 3, Q> &) noexcept      \
-		requires std::is_signed_v<U>                                                                                   \
-	;                                                                                                                  \
-	template<typename U, std::size_t M, policy_t Q>                                                             \
-	friend constexpr U dot(const basic_vec<U, M, Q> &, const basic_vec<U, M, Q> &) noexcept;                         \
-	template<typename U, std::size_t M, policy_t Q>                                                             \
-	friend constexpr basic_vec<U, M, Q> norm(const basic_vec<U, M, Q> &) noexcept;                                   \
-	template<typename U, std::size_t M, policy_t Q>                                                             \
+	template<typename U, std::size_t M, policy_t Q>                                                                    \
+	friend constexpr basic_vec<U, M, Q> lerp(                                                                          \
+		const basic_vec<U, M, Q> &, const basic_vec<U, M, Q> &, const basic_vec<U, M, Q> &) noexcept;                  \
+	template<typename U, policy_t Q>                                                                                   \
+	friend constexpr basic_vec<U, 3, Q> cross(const basic_vec<U, 3, Q> &, const basic_vec<U, 3, Q> &) noexcept         \
+		requires std::is_signed_v<U>;                                                                                  \
+	template<typename U, std::size_t M, policy_t Q>                                                                    \
+	friend constexpr U dot(const basic_vec<U, M, Q> &, const basic_vec<U, M, Q> &) noexcept;                           \
+	template<typename U, std::size_t M, policy_t Q>                                                                    \
+	friend constexpr basic_vec<U, M, Q> norm(const basic_vec<U, M, Q> &) noexcept;                                     \
+	template<typename U, std::size_t M, policy_t Q>                                                                    \
 	friend constexpr U magn(const basic_vec<U, M, Q> &) noexcept;
 
 namespace sek::math
@@ -40,4 +39,9 @@ namespace sek::math
 	[[nodiscard]] constexpr basic_vec<U, M, Q> norm(const basic_vec<U, M, Q> &v) noexcept;
 	template<typename U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr U dist(const basic_vec<U, M, Q> &l, const basic_vec<U, M, Q> &r) noexcept;
+
+	template<std::floating_point U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> reflect(const basic_vec<U, M, Q> &i, const basic_vec<U, M, Q> &n) noexcept;
+	template<std::floating_point U, std::size_t M, policy_t Q>
+	[[nodiscard]] constexpr basic_vec<U, M, Q> refract(const basic_vec<U, M, Q> &i, const basic_vec<U, M, Q> &n, U r) noexcept;
 }	 // namespace sek::math
