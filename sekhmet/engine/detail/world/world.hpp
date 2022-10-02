@@ -124,7 +124,13 @@ namespace sek
 		typedef std::ptrdiff_t difference_type;
 
 	private:
-		/* Type-erased component set wrapper. */
+		template<typename T>
+		[[nodiscard]] static component_set<T> make_set(entity_world *world)
+		{
+			return new component_set<U>(*world);
+		}
+		[[nodiscard]] static void delete_set(generic_component_set *set) { delete set; }
+
 		struct storage_ptr
 		{
 			storage_ptr(const storage_ptr &) = delete;
@@ -138,29 +144,8 @@ namespace sek
 				return *this;
 			}
 
-			template<typename T>
-			storage_ptr(type_selector_t<T>, entity_world *world)
-			{
-				init_set<T>(world);
-
-				/* Bind a type-erased copy initializer. */
-				m_copy = +[](const storage_ptr *from, storage_ptr *to, entity_world *world) -> void
-				{
-					const auto &from_set = *static_cast<const component_set<T> *>(from->m_ptr);
-
-					to->init_set<T>(world);
-
-					const auto &to_set = *static_cast<component_set<T> *>(to->m_ptr);
-				};
-			}
-			/* Special copy constructor used to duplicate a storage for a different world. */
-			storage_ptr(const storage_ptr &other, entity_world *world) : m_copy(other.m_copy)
-			{
-				if (other.m_copy != nullptr) [[likely]]
-					other.m_copy(&other, this, world);
-			}
-
-			~storage_ptr() { delete m_ptr; }
+			storage_ptr(generic_component_set *ptr) noexcept : m_ptr(ptr) {}
+			~storage_ptr() { delete_set(m_ptr); }
 
 			[[nodiscard]] constexpr auto *get() const noexcept { return m_ptr; }
 			[[nodiscard]] constexpr auto *operator->() const noexcept { return get(); }
@@ -170,21 +155,8 @@ namespace sek
 			friend constexpr void swap(storage_ptr &a, storage_ptr &b) noexcept { a.swap(b); }
 
 		private:
-			template<typename T>
-			void init_set(entity_world *world)
-			{
-				m_ptr = new component_set<T>(world);
-			}
-
-			void (*m_copy)(const storage_ptr *, storage_ptr *, entity_world *) = nullptr;
 			generic_component_set *m_ptr = nullptr;
 		};
-
-		template<typename T>
-		[[nodiscard]] static storage_ptr make_storage_ptr(entity_world *world)
-		{
-			return storage_ptr{type_selector<T>, world};
-		}
 
 		struct storage_hash
 		{
@@ -1250,7 +1222,7 @@ namespace sek
 				storage = static_cast<component_set<U> *>(target->get());
 			else
 			{
-				m_storage.emplace(storage = new component_set<U>(*this));
+				m_storage.emplace(storage = make_set<U>(this));
 
 				/* Subscribe to type-specific component events to handle generic event dispatching. */
 				storage->on_create() += delegate_func<&entity_world::create_listener<U>>;
