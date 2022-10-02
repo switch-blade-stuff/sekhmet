@@ -78,14 +78,14 @@ namespace sek
 		else
 			return detail::vector_dot(l.m_data, r.m_data);
 	}
-	/** Returns a length of the vector. */
+	/** Returns the magnitude (length) of a vector. */
 	template<typename U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr U magn(const basic_vec<U, M, Q> &v) noexcept
 	{
 		/* Magnitude of a vector A=XYZ is sqrt(X*X + Y*Y + Z*Z) = sqrt(dot(A, A)). */
 		return std::sqrt(dot(v, v));
 	}
-	/** Returns a normalized copy of the vector. */
+	/** Returns a normalized copy of a vector. */
 	template<typename U, std::size_t M, policy_t Q>
 	[[nodiscard]] constexpr basic_vec<U, M, Q> norm(const basic_vec<U, M, Q> &v) noexcept
 	{
@@ -122,11 +122,11 @@ namespace sek
 	 *
 	 * Result is calculated as
 	 * @code{cpp}
-	 * k = 1.0 - eta * eta * (1.0 - dot(N, I) * dot(N, I));
+	 * k = 1.0 - r * r * (1.0 - dot(n, i) * dot(n, i));
 	 * if (k < 0.0)
 	 * 	return 0.0;
 	 * else
-	 * 	return eta * I - (eta * dot(N, I) + sqrt(k)) * N;
+	 * 	return r * i - (r * dot(n, i) + sqrt(k)) * n;
 	 * @endcode
 	 *
 	 * @param i Incident vector.
@@ -138,14 +138,14 @@ namespace sek
 	{
 		const auto dp = dot(n, i);
 
-		/* k = 1.0 - eta * eta * (1.0 - dot(N, I) * dot(N, I)); */
+		/* k = 1.0 - r * r * (1.0 - dot(n, i) * dot(n, i)); */
 		const auto k = static_cast<U>(1.0) - r * r * (static_cast<U>(1.0) - dp * dp);
 		const auto m = fcmp_lt(k, static_cast<U>(0.0));
 
 		/* if (k < 0.0)
 		 * 	R = 0.0;
 		 * else
-		 * 	R = eta * I - (eta * dot(N, I) + sqrt(k)) * N; */
+		 * 	R = r * i - (r * dot(n, i) + sqrt(k)) * n; */
 		if (!fcmp_lt(k, static_cast<U>(0.0)))
 			return i * r - n * (sqrt(k) + basic_vec<U, M, Q>{dp * r});
 		else

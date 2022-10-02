@@ -99,8 +99,11 @@ namespace sek::detail
 			for (std::size_t i = 0; i < min(N, M); ++i) values[i] = data[i];
 		}
 
-		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
-		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
+		[[nodiscard]] constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
+		[[nodiscard]] constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
+
+		[[nodiscard]] constexpr auto *data() noexcept { return values; }
+		[[nodiscard]] constexpr const auto *data() const noexcept { return values; }
 
 		float values[N];
 		__m128 simd;
@@ -187,8 +190,11 @@ namespace sek::detail
 			for (std::size_t i = 0; i < min(N, M); ++i) values[i] = data[i];
 		}
 
-		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
-		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
+		[[nodiscard]] constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
+		[[nodiscard]] constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
+
+		[[nodiscard]] constexpr auto *data() noexcept { return values; }
+		[[nodiscard]] constexpr const auto *data() const noexcept { return values; }
 
 		T values[N];
 		__m128i simd;
@@ -296,8 +302,11 @@ namespace sek::detail
 			for (std::size_t i = 0; i < min<std::size_t>(2, M); ++i) values[i] = data[i];
 		}
 
-		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
-		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
+		[[nodiscard]] constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
+		[[nodiscard]] constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
+
+		[[nodiscard]] constexpr auto *data() noexcept { return values; }
+		[[nodiscard]] constexpr const auto *data() const noexcept { return values; }
 
 		double values[2];
 		__m128d simd;
@@ -355,8 +364,11 @@ namespace sek::detail
 			for (std::size_t i = 0; i < min<std::size_t>(2, M); ++i) values[i] = data[i];
 		}
 
-		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
-		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
+		[[nodiscard]] constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
+		[[nodiscard]] constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
+
+		[[nodiscard]] constexpr auto *data() noexcept { return values; }
+		[[nodiscard]] constexpr const auto *data() const noexcept { return values; }
 
 		T values[2];
 		__m128i simd;
@@ -416,8 +428,11 @@ namespace sek::detail
 			for (std::size_t i = 0; i < min(N, M); ++i) values[i] = data[i];
 		}
 
-		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
-		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
+		[[nodiscard]] constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
+		[[nodiscard]] constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
+
+		[[nodiscard]] constexpr auto *data() noexcept { return values; }
+		[[nodiscard]] constexpr const auto *data() const noexcept { return values; }
 
 		double values[N];
 		__m128d simd[2];
@@ -489,8 +504,11 @@ namespace sek::detail
 			for (std::size_t i = 0; i < min(N, M); ++i) values[i] = data[i];
 		}
 
-		constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
-		constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
+		[[nodiscard]] constexpr auto &operator[](std::size_t i) noexcept { return values[i]; }
+		[[nodiscard]] constexpr auto &operator[](std::size_t i) const noexcept { return values[i]; }
+
+		[[nodiscard]] constexpr auto *data() noexcept { return values; }
+		[[nodiscard]] constexpr const auto *data() const noexcept { return values; }
 
 		T values[N];
 		__m128i simd[2];

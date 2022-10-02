@@ -341,11 +341,14 @@ namespace sek
 		}
 		/** Invokes the getter of this property with no arguments. Equivalent to `get()`. */
 		template<typename U>
-		[[nodiscard]] constexpr decltype(auto) operator*() const noexcept(is_nothrow_settable<>) requires is_settable<> { return get(); }
+		[[nodiscard]] constexpr decltype(auto) operator*() const noexcept(is_nothrow_gettable<>) requires is_gettable<> { return get(); }
 		/** Invokes the getter of this property with no arguments and returns address of the result.
 		 * Equivalent to `std::addressof(get())`. */
 		template<typename U>
-		[[nodiscard]] constexpr auto operator->() const noexcept(is_nothrow_settable<>) requires is_settable<> { return std::addressof(get()); }
+		[[nodiscard]] constexpr auto *operator->() const noexcept(is_nothrow_gettable<>) requires is_gettable<> && std::is_reference_v<decltype(get())>
+		{
+			return std::addressof(get());
+		}
 
 		/** @brief Invokes the setter of this property.
 		 * @param args Arguments passed to the setter.

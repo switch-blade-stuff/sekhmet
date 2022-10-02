@@ -10,7 +10,7 @@ namespace sek
 	{
 		/** Precision of mathematical operations is prioritized over speed. */
 		HIGHP = 0b0,
-		/** Qeed of mathematical operations is prioritized over precision. */
+		/** Speed of mathematical operations is prioritized over precision. */
 		FAST = 0b1,
 
 		PRECISION_MASK = 0b1,

@@ -52,8 +52,8 @@ namespace sek::detail
 	template<policy_t P, policy_t Mask, policy_t Flag>
 	constexpr auto set_policy_v = static_cast<policy_t>((P & ~Mask) | Flag);
 
-	template<typename T, std::size_t N, policy_t P>
-		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::PACKED>
+	// clang-format off
+	template<typename T, std::size_t N, policy_t P> requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::PACKED>
 	union vector_data<T, N, P>
 	{
 		constexpr vector_data() noexcept : values{} {}
@@ -67,13 +67,15 @@ namespace sek::detail
 		{
 		}
 
-		constexpr T &operator[](std::size_t i) noexcept { return values[i]; }
-		constexpr const T &operator[](std::size_t i) const noexcept { return values[i]; }
+		[[nodiscard]] constexpr T &operator[](std::size_t i) noexcept { return values[i]; }
+		[[nodiscard]] constexpr const T &operator[](std::size_t i) const noexcept { return values[i]; }
+
+		[[nodiscard]] constexpr T *data() noexcept { return values; }
+		[[nodiscard]] constexpr const T *data() const noexcept { return values; }
 
 		T values[N];
 	};
-	template<typename T, std::size_t N, policy_t P>
-		requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::PACKED>
+	template<typename T, std::size_t N, policy_t P> requires check_policy_v<P, policy_t::STORAGE_MASK, policy_t::PACKED>
 	union mask_data<T, N, P>
 	{
 		constexpr mask_data() noexcept : values{} {}
@@ -92,6 +94,7 @@ namespace sek::detail
 
 		bool values[N];
 	};
+	// clang-format on
 
 	template<typename T, typename = void>
 	struct is_defined

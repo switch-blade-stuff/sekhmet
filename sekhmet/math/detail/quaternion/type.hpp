@@ -138,6 +138,19 @@ namespace sek
 		constexpr basic_quat &rotate(T angle, const basic_vec<T, N, P> &axis) noexcept requires(N >= 3);
 		// clang-format on
 
+		// clang-format off
+		/** Returns pointer to the underlying data of the quaternion. */
+		[[nodiscard]] constexpr T *data() noexcept requires(requires(vector_type &v) { v.data(); })
+		{
+			return m_data.data();
+		}
+		/** @copydoc data */
+		[[nodiscard]] constexpr const T *data() const noexcept requires(requires(const vector_type &v) { v.data(); })
+		{
+			return m_data.data();
+		}
+		// clang-format on
+
 		[[nodiscard]] constexpr auto operator==(const basic_quat &other) const noexcept
 		{
 			return m_data == other.m_data;
@@ -161,7 +174,7 @@ namespace sek
 		friend constexpr void swap(basic_quat &a, basic_quat &b) noexcept { a.swap(b); }
 
 	private:
-		basic_vec<T, 4, Policy> m_data;
+		vector_type m_data;
 	};
 
 	template<std::floating_point T, policy_t P>

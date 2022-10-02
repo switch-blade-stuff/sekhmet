@@ -7,6 +7,12 @@
 #include "vector.hpp"
 
 #define SEK_DETAIL_MATRIX_COMMON(T, N, M, P)                                                                           \
+private:                                                                                                               \
+	template<typename U, std::size_t X, std::size_t Y, policy_t Q>                                                     \
+	friend constexpr U *data(basic_mat<U, X, Y, Q> &m) noexcept;                                                       \
+	template<typename U, std::size_t X, std::size_t Y, policy_t Q>                                                     \
+	friend constexpr const U *data(const basic_mat<U, X, Y, Q> &) noexcept;                                            \
+                                                                                                                       \
 public:                                                                                                                \
 	typedef T value_type;                                                                                              \
 	typedef basic_vec<T, M, P> col_type;                                                                               \
@@ -72,6 +78,21 @@ public:                                                                         
 		return row(std::make_index_sequence<columns>{}, i);                                                            \
 	}                                                                                                                  \
                                                                                                                        \
+	/** Returns pointer to the underlying data of the matrix.                                                          \
+	 * @note Actual size of the data buffer might exceed `columns * rows` due to alignment requirements.               \
+	 * Use `sizeof(basic_mat<T, N, M, P>)` to obtain the actual size of the matrix or use per-column `data()` function. */                                                                                                                    \
+	[[nodiscard]] constexpr T *data() noexcept                                                                         \
+		requires(requires(col_type & c) { c.data(); })                                                                 \
+	{                                                                                                                  \
+		return m_data[0].data();                                                                                       \
+	}                                                                                                                  \
+	/** @copydoc data */                                                                                               \
+	[[nodiscard]] constexpr const T *data() const noexcept                                                             \
+		requires(requires(const col_type &c) { c.data(); })                                                            \
+	{                                                                                                                  \
+		return m_data[0].data();                                                                                       \
+	}                                                                                                                  \
+                                                                                                                       \
 	constexpr void swap(const basic_mat &other) noexcept                                                               \
 	{                                                                                                                  \
 		std::swap(m_data, other.m_data);                                                                               \
@@ -126,8 +147,7 @@ namespace sek
 
 	/** Returns a matrix which is the result of addition of two matrices. */
 	template<typename T, std::size_t N, std::size_t M, policy_t Q>
-	[[nodiscard]] constexpr basic_mat<T, N, M, Q> operator+(const basic_mat<T, N, M, Q> &l,
-															 const basic_mat<T, N, M, Q> &r) noexcept
+	[[nodiscard]] constexpr basic_mat<T, N, M, Q> operator+(const basic_mat<T, N, M, Q> &l, const basic_mat<T, N, M, Q> &r) noexcept
 	{
 		basic_mat<T, N, M, Q> result;
 		for (std::size_t i = 0; i < N; ++i) result[i] = l[i] + r[i];
@@ -142,8 +162,7 @@ namespace sek
 	}
 	/** Returns a matrix which is the result of subtraction of two matrices. */
 	template<typename T, std::size_t N, std::size_t M, policy_t Q>
-	[[nodiscard]] constexpr basic_mat<T, N, M, Q> operator-(const basic_mat<T, N, M, Q> &l,
-															 const basic_mat<T, N, M, Q> &r) noexcept
+	[[nodiscard]] constexpr basic_mat<T, N, M, Q> operator-(const basic_mat<T, N, M, Q> &l, const basic_mat<T, N, M, Q> &r) noexcept
 	{
 		basic_mat<T, N, M, Q> result;
 		for (std::size_t i = 0; i < N; ++i) result[i] = l[i] - r[i];
@@ -211,8 +230,7 @@ namespace sek
 	}
 	/** Returns a matrix which is the result of bitwise AND of two matrices. */
 	template<typename T, std::size_t N, std::size_t M, policy_t Q>
-	[[nodiscard]] constexpr basic_mat<T, N, M, Q> operator&(const basic_mat<T, N, M, Q> &l,
-															 const basic_mat<T, N, M, Q> &r) noexcept
+	[[nodiscard]] constexpr basic_mat<T, N, M, Q> operator&(const basic_mat<T, N, M, Q> &l, const basic_mat<T, N, M, Q> &r) noexcept
 	{
 		basic_mat<T, N, M, Q> result;
 		for (std::size_t i = 0; i < N; ++i) result[i] = l[i] & r[i];
@@ -227,8 +245,7 @@ namespace sek
 	}
 	/** Returns a matrix which is the result of bitwise OR of two matrices. */
 	template<typename T, std::size_t N, std::size_t M, policy_t Q>
-	[[nodiscard]] constexpr basic_mat<T, N, M, Q> operator|(const basic_mat<T, N, M, Q> &l,
-															 const basic_mat<T, N, M, Q> &r) noexcept
+	[[nodiscard]] constexpr basic_mat<T, N, M, Q> operator|(const basic_mat<T, N, M, Q> &l, const basic_mat<T, N, M, Q> &r) noexcept
 	{
 		basic_mat<T, N, M, Q> result;
 		for (std::size_t i = 0; i < N; ++i) result[i] = l[i] | r[i];
@@ -236,8 +253,7 @@ namespace sek
 	}
 	/** Returns a matrix which is the result of bitwise XOR of two matrices. */
 	template<typename T, std::size_t N, std::size_t M, policy_t Q>
-	[[nodiscard]] constexpr basic_mat<T, N, M, Q> operator^(const basic_mat<T, N, M, Q> &l,
-															 const basic_mat<T, N, M, Q> &r) noexcept
+	[[nodiscard]] constexpr basic_mat<T, N, M, Q> operator^(const basic_mat<T, N, M, Q> &l, const basic_mat<T, N, M, Q> &r) noexcept
 	{
 		basic_mat<T, N, M, Q> result;
 		for (std::size_t i = 0; i < N; ++i) result[i] = l[i] ^ r[i];

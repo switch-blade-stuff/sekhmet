@@ -114,6 +114,20 @@ public:                                                                         
 	{                                                                                                                  \
 		return m_data[i];                                                                                              \
 	}                                                                                                                  \
+                                                                                                                       \
+	/** Returns pointer to the underlying data of the vector. */                                                       \
+	[[nodiscard]] constexpr T *data() noexcept                                                                         \
+		requires(requires(data_t & d) { d.data(); })                                                                   \
+	{                                                                                                                  \
+		return m_data.data();                                                                                          \
+	}                                                                                                                  \
+	/** @copydoc data */                                                                                               \
+	[[nodiscard]] constexpr const T *data() const noexcept                                                             \
+		requires(requires(const data_t &d) { d.data(); })                                                              \
+	{                                                                                                                  \
+		return m_data.data();                                                                                          \
+	}                                                                                                                  \
+                                                                                                                       \
 	constexpr void swap(basic_vec &other) noexcept                                                                     \
 	{                                                                                                                  \
 		m_data.swap(other.m_data);                                                                                     \
@@ -260,6 +274,15 @@ namespace sek
 		[[nodiscard]] constexpr decltype(auto) z() const noexcept { return m_data[2]; }
 
 		SEK_VECTOR_GENERATE_SHUFFLE(x, y, z)
+
+		[[nodiscard]] constexpr decltype(auto) r() noexcept { return m_data[0]; }
+		[[nodiscard]] constexpr decltype(auto) r() const noexcept { return m_data[0]; }
+		[[nodiscard]] constexpr decltype(auto) g() noexcept { return m_data[1]; }
+		[[nodiscard]] constexpr decltype(auto) g() const noexcept { return m_data[1]; }
+		[[nodiscard]] constexpr decltype(auto) b() noexcept { return m_data[2]; }
+		[[nodiscard]] constexpr decltype(auto) b() const noexcept { return m_data[2]; }
+
+		SEK_VECTOR_GENERATE_SHUFFLE(r, g, b)
 	};
 	template<arithmetic T, policy_t Policy>
 	class basic_vec<T, 4, Policy>
@@ -286,6 +309,17 @@ namespace sek
 		[[nodiscard]] constexpr decltype(auto) w() const noexcept { return m_data[3]; }
 
 		SEK_VECTOR_GENERATE_SHUFFLE(x, y, z, w)
+
+		[[nodiscard]] constexpr decltype(auto) r() noexcept { return m_data[0]; }
+		[[nodiscard]] constexpr decltype(auto) r() const noexcept { return m_data[0]; }
+		[[nodiscard]] constexpr decltype(auto) g() noexcept { return m_data[1]; }
+		[[nodiscard]] constexpr decltype(auto) g() const noexcept { return m_data[1]; }
+		[[nodiscard]] constexpr decltype(auto) b() noexcept { return m_data[2]; }
+		[[nodiscard]] constexpr decltype(auto) b() const noexcept { return m_data[2]; }
+		[[nodiscard]] constexpr decltype(auto) a() noexcept { return m_data[3]; }
+		[[nodiscard]] constexpr decltype(auto) a() const noexcept { return m_data[3]; }
+
+		SEK_VECTOR_GENERATE_SHUFFLE(r, g, b, a)
 
 		[[nodiscard]] constexpr decltype(auto) s() noexcept { return m_data[0]; }
 		[[nodiscard]] constexpr decltype(auto) s() const noexcept { return m_data[0]; }
