@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "vector.hpp"
+#include "../vector.hpp"
 
 #define SEK_DETAIL_MATRIX_COMMON(T, N, M, P)                                                                           \
 private:                                                                                                               \

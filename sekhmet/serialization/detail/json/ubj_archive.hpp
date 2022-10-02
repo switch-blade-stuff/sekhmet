@@ -6,8 +6,7 @@
 
 #include <iostream>
 
-#include "sekhmet/detail/bswap.hpp"
-
+#include "../../../bswap.hpp"
 #include "common.hpp"
 
 namespace sekubj
@@ -367,10 +366,7 @@ namespace sekubj
 		}
 		/** Reads UBJson from a file.
 		 * @param file Native file containing UBJson data. */
-		explicit basic_input_archive(native_file &file)
-			: basic_input_archive(file, std::pmr::get_default_resource())
-		{
-		}
+		explicit basic_input_archive(native_file &file) : basic_input_archive(file, std::pmr::get_default_resource()) {}
 		/** @copydoc basic_input_archive
 		 * @param res Memory resource used for internal allocation. */
 		basic_input_archive(native_file &file, std::pmr::memory_resource *res)
@@ -773,8 +769,7 @@ namespace sekubj
 		}
 		/** Initializes output archive for file writing.
 		 * @param file Native file to write UBJson data to. */
-		explicit basic_output_archive(native_file &file)
-			: basic_output_archive(file, std::pmr::get_default_resource())
+		explicit basic_output_archive(native_file &file) : basic_output_archive(file, std::pmr::get_default_resource())
 		{
 		}
 		/** @copydoc basic_input_archive

@@ -4,10 +4,10 @@
 
 #pragma once
 
+#include "../../vector.hpp"
 #include "../matrix.hpp"
 #include "../matrix2x.hpp"
 #include "../matrix3x.hpp"
-#include "../vector.hpp"
 #include "fwd.hpp"
 
 #define SEK_QUATERNION_GENERATE_SHUFFLE(...) SEK_DETAIL_SHUFFLE_4_FUNCS(__VA_ARGS__)

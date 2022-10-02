@@ -4,7 +4,10 @@
 
 #pragma once
 
-#include "detail/quaternion.hpp"
+#include "detail/quaternion/category.hpp"
+#include "detail/quaternion/geometric.hpp"
+#include "detail/quaternion/relational.hpp"
+#include "detail/quaternion/type.hpp"
 
 namespace sek
 {

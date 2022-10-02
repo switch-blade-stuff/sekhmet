@@ -7,8 +7,7 @@
 #include <cwchar>
 #include <ios>
 
-#include "sekhmet/system/native_file.hpp"
-
+#include "../../system/native_file.hpp"
 #include "util.hpp"
 
 namespace sek
@@ -227,10 +226,7 @@ namespace sek
 		{
 		}
 		/** Initializes a writer from a data buffer. */
-		constexpr archive_writer(char_type *data, std::size_t n) noexcept
-			: archive_writer(&buffer_vtable, {data, n})
-		{
-		}
+		constexpr archive_writer(char_type *data, std::size_t n) noexcept : archive_writer(&buffer_vtable, {data, n}) {}
 		/** @copydoc archive_writer */
 		constexpr archive_writer(void *data, std::size_t n) noexcept
 			: archive_writer(static_cast<C *>(data), n / sizeof(C))

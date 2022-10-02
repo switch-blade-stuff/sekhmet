@@ -6,9 +6,7 @@
 
 #include <memory>
 
-#include "sekhmet/dense_map.hpp"
-
-#include "../type_info.hpp"
+#include "../../../dense_map.hpp"
 #include "component_set.hpp"
 
 namespace sek
@@ -458,10 +456,10 @@ namespace sek
 		entity_world(const entity_world &) = delete;
 		entity_world &operator=(const entity_world &) = delete;
 
-		constexpr entity_world() = default;
-		constexpr ~entity_world() { clear_storage(); }
+		entity_world() = default;
+		~entity_world() { clear_storage(); }
 
-		constexpr entity_world(entity_world &&other) noexcept
+		entity_world(entity_world &&other) noexcept
 			: m_storage(std::move(other.m_storage)),
 			  m_create(std::move(other.m_create)),
 			  m_modify(std::move(other.m_modify)),
@@ -473,7 +471,7 @@ namespace sek
 		{
 			rebind_storage();
 		}
-		constexpr entity_world &operator=(entity_world &&other) noexcept
+		entity_world &operator=(entity_world &&other) noexcept
 		{
 			m_storage = std::move(other.m_storage);
 			m_create = std::move(other.m_create);
@@ -1259,8 +1257,8 @@ namespace sek
 			constexpr auto pred = [](const sorter_t &s) -> bool { return (s.is_owned(type_info::get<O>()) || ...); };
 			return std::pair{std::find_if(m_sorters.begin(), m_sorters.end(), pred), m_sorters.end()};
 		}
-		template<typename... O, typename... Inc, typename... E>
-		[[nodiscard]] constexpr bool has_conflicts(owned_t<Coll...>, included_t<Inc...>, excluded_t<E...>) const noexcept
+		template<typename... O, typename... I, typename... E>
+		[[nodiscard]] constexpr bool has_conflicts(owned_t<O...>, included_t<I...>, excluded_t<E...>) const noexcept
 		{
 			constexpr auto pred = [](const sorter_t &s) -> bool
 			{
@@ -1304,8 +1302,8 @@ namespace sek
 				};
 
 				return ((accept_owned(type_selector<O>, o, e) && ...) &&
-					   ((std::is_same_v<T, I> || w.template get_storage<I>()->contains(e)) && ...) &&
-					   ((std::is_same_v<T, E> || !w.template get_storage<E>()->contains(e)) && ...);
+						((std::is_same_v<T, I> || w.template get_storage<I>()->contains(e)) && ...) &&
+						((std::is_same_v<T, E> || !w.template get_storage<E>()->contains(e)) && ...));
 			}
 			[[nodiscard]] constexpr static std::tuple<component_set<O> *...> get_storage(entity_world &world) noexcept
 			{

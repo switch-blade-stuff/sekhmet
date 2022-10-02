@@ -9,8 +9,7 @@
 #include <iomanip>
 #include <limits>
 
-#include "sekhmet/detail/define.h"
-#include "sekhmet/serialization/base64.hpp"
+#include "../../serialization/base64.hpp"
 
 namespace sek
 {

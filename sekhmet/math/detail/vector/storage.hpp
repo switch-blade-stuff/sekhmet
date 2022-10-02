@@ -4,8 +4,7 @@
 
 #pragma once
 
-#include "sekhmet/hash.hpp"
-
+#include "../../../hash.hpp"
 #include "fwd.hpp"
 
 namespace sek::detail

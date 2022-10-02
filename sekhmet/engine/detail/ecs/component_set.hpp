@@ -4,10 +4,10 @@
 
 #pragma once
 
-#include "sekhmet/detail/meta_util.hpp"
-#include "sekhmet/event.hpp"
-
-#include "../type_info.hpp"
+#include "../../../detail/alloc_util.hpp"
+#include "../../../detail/meta_util.hpp"
+#include "../../../event.hpp"
+#include "../../../type_info.hpp"
 #include "entity_set.hpp"
 
 namespace sek
@@ -40,19 +40,15 @@ namespace sek
 		typedef typename base_set::size_type size_type;
 
 	protected:
-		constexpr generic_component_set(type_info type, entity_world &world) : m_world(&world), m_type(type) {}
-		constexpr generic_component_set(type_info type, entity_world &world, size_type n)
+		generic_component_set(type_info type, entity_world &world) : m_world(&world), m_type(type) {}
+		generic_component_set(type_info type, entity_world &world, size_type n)
 			: base_set(n), m_world(&world), m_type(type)
 		{
 		}
 
 		// clang-format off
-		constexpr generic_component_set(generic_component_set &&)
-			noexcept(std::is_nothrow_move_constructible_v<base_set> &&
-					 std::is_nothrow_move_constructible_v<event_type>) = default;
-		constexpr generic_component_set &operator=(generic_component_set &&)
-			noexcept(std::is_nothrow_move_assignable_v<base_set> &&
-			         std::is_nothrow_move_assignable_v<event_type>) = default;
+		generic_component_set(generic_component_set &&) noexcept(std::is_nothrow_move_constructible_v<base_set>) = default;
+		generic_component_set &operator=(generic_component_set &&) noexcept(std::is_nothrow_move_assignable_v<base_set>) = default;
 		// clang-format on
 
 	public:
@@ -60,7 +56,7 @@ namespace sek
 		generic_component_set(const generic_component_set &) = delete;
 		generic_component_set &operator=(const generic_component_set &) = delete;
 
-		constexpr virtual ~generic_component_set() = default;
+		virtual ~generic_component_set() = default;
 
 		/** @copydoc base_set::begin */
 		[[nodiscard]] constexpr iterator begin() noexcept { return base_set::begin(); }
@@ -725,7 +721,7 @@ namespace sek
 			         std::is_nothrow_move_assignable_v<pool_t>) = default;
 		// clang-format on
 
-		constexpr ~component_set() final
+		~component_set() final
 		{
 			/* Destroy all components before releasing pages. */
 			clear();

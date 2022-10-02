@@ -6,12 +6,11 @@
 
 #include <filesystem>
 
-#include "sekhmet/dense_map.hpp"
-#include "sekhmet/dense_set.hpp"
-#include "sekhmet/intern.hpp"
-#include "sekhmet/uri.hpp"
-#include "sekhmet/uuid.hpp"
-
+#include "../../../dense_map.hpp"
+#include "../../../dense_set.hpp"
+#include "../../../intern.hpp"
+#include "../../../uri.hpp"
+#include "../../../uuid.hpp"
 #include "asset_io.hpp"
 #include "fwd.hpp"
 

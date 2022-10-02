@@ -4,8 +4,7 @@
 
 #pragma once
 
-#include "sekhmet/uri.hpp"
-
+#include "../../../uri.hpp"
 #include "asset_io.hpp"
 #include "fwd.hpp"
 
@@ -33,13 +32,14 @@ namespace sek
 		{
 		}
 
-				template<typename T>
-				inline static T return_if(expected<T, std::error_code> &&exp)
-				{
-					if (!exp.has_value()) [[unlikely]]
-						throw std::system_error(exp.error());
-					return std::move(exp.value());
-				}
+		template<typename T>
+		inline static T return_if(expected<T, std::error_code> &&exp)
+		{
+			if (!exp.has_value()) [[unlikely]]
+				throw std::system_error(exp.error());
+			return std::move(exp.value());
+		}
+
 	public:
 		asset_source(const asset_source &) = delete;
 		asset_source &operator=(const asset_source &) = delete;

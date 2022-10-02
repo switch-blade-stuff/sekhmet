@@ -4,8 +4,7 @@
 
 #pragma once
 
-#include "sekhmet/system/native_file.hpp"
-
+#include "../../..//system/native_file.hpp"
 #include "fwd.hpp"
 
 namespace sek
@@ -225,10 +224,7 @@ namespace sek
 				return *this;
 			}
 
-			explicit asset_io_data(native_file &&file) noexcept
-				: m_vtable(&file_vtable), m_file(std::move(file))
-			{
-			}
+			explicit asset_io_data(native_file &&file) noexcept : m_vtable(&file_vtable), m_file(std::move(file)) {}
 			explicit asset_io_data(asset_buffer &&buff) noexcept : m_vtable(&buff_vtable), m_buff(std::move(buff)) {}
 
 			~asset_io_data()

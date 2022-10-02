@@ -7,7 +7,7 @@
 #include <array>
 #include <numbers>
 
-#include "sekhmet/serialization/archive.hpp"
+#include <sekhmet/serialization/archive.hpp>
 
 namespace ser = sek::;
 

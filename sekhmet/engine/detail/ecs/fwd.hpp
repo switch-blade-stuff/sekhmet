@@ -6,6 +6,8 @@
 
 #include <memory>
 
+#include "../../../detail/ebo_base_helper.hpp"
+
 namespace sek
 {
 	class entity_t;

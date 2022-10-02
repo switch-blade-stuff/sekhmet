@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "detail/vector.hpp"
+#include "vector.hpp"
 
 namespace sek
 {

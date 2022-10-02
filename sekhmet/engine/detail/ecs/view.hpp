@@ -24,7 +24,7 @@ namespace sek
 	 * @tparam I Component types captured by the view.
 	 * @tparam E Component types excluded from the view.
 	 * @tparam P Optional components of the view. */
-	template<typename... I, typename... E, typename... O>
+	template<typename... I, typename... E, typename... P>
 	class component_view<included_t<I...>, excluded_t<E...>, optional_t<P...>>
 	{
 		static_assert(sizeof...(I) != 0, "View include at least 1 component type");

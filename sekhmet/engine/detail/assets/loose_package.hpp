@@ -4,8 +4,7 @@
 
 #pragma once
 
-#include "sekhmet/detail/basic_pool.hpp"
-
+#include "../../../detail/basic_pool.hpp"
 #include "info.hpp"
 
 namespace sek::detail

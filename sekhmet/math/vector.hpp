@@ -4,7 +4,15 @@
 
 #pragma once
 
-#include "detail/vector.hpp"
+#include "detail/vector/func/arithmetic.hpp"
+#include "detail/vector/func/bitwise.hpp"
+#include "detail/vector/func/category.hpp"
+#include "detail/vector/func/exponential.hpp"
+#include "detail/vector/func/geometric.hpp"
+#include "detail/vector/func/relational.hpp"
+#include "detail/vector/func/trigonometric.hpp"
+#include "detail/vector/func/utility.hpp"
+#include "detail/vector/type.hpp"
 
 namespace sek
 {

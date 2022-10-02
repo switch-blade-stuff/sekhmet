@@ -8,11 +8,8 @@
 #include <compare>
 #include <vector>
 
-#include "sekhmet/detail/alloc_util.hpp"
-#include "sekhmet/detail/assert.hpp"
-#include "sekhmet/ebo_base_helper.hpp"
-#include "sekhmet/hash.hpp"
-
+#include "../../../assert.hpp"
+#include "../../../hash.hpp"
 #include "fwd.hpp"
 
 namespace sek
@@ -141,7 +138,7 @@ namespace sek
 		value_type m_value = 0;
 	};
 
-	constexpr entity_t entity_t::tombstone() noexcept
+	[[nodiscard]] constexpr entity_t entity_t::tombstone() noexcept
 	{
 		return {generation_type::tombstone(), index_type::tombstone()};
 	}

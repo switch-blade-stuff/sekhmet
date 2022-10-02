@@ -7,8 +7,7 @@
 #include <cwchar>
 #include <ios>
 
-#include "sekhmet/system/native_file.hpp"
-
+#include "../../../system/native_file.hpp"
 #include "util.hpp"
 
 namespace sek

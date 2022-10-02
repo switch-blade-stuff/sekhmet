@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "sekhmet/detail/define.h"
+#include "../../define.h"
 
 namespace sek
 {
