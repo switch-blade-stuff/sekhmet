@@ -376,12 +376,12 @@ namespace sek
 			m_next = entity_t::tombstone();
 		}
 
-		/** Updates generation of an entity contained within the set.
-		 * @param entity Entity to update generation of. */
-		constexpr void update(entity_t entity) { update(entity, entity.generation()); }
+		/** Updates version of an entity contained within the set.
+		 * @param entity Entity to update version of. */
+		constexpr void update(entity_t entity) { update(entity, entity.version()); }
 		/** @copydoc update
-		 * @param gen Generation value to use. */
-		constexpr void update(entity_t entity, entity_t::generation_type gen)
+		 * @param gen Version value to use. */
+		constexpr void update(entity_t entity, entity_t::version_type gen)
 		{
 			const auto idx = entity.index();
 			auto &slot = sparse_ref(idx.value());
@@ -423,8 +423,8 @@ namespace sek
 					auto &e_to = m_dense[to];
 					std::swap(e_from, e_to);
 
-					sparse_ref(e_to.index().value()) = entity_t{e_to.generation(), entity_t::index_type{to}};
-					*ptr = entity_t{entity_t::generation_type::tombstone(), entity_t::index_type{from}};
+					sparse_ref(e_to.index().value()) = entity_t{e_to.version(), entity_t::index_type{to}};
+					*ptr = entity_t{entity_t::version_type::tombstone(), entity_t::index_type{from}};
 					skip_base();
 				}
 			}
@@ -454,7 +454,7 @@ namespace sek
 
 				/* Let any derived type know we are swapping entities & update the sparse index. */
 				swap_(old_pos, new_pos);
-				slot = entity_t{slot.generation(), entity_t::index_type{new_pos}};
+				slot = entity_t{slot.version(), entity_t::index_type{new_pos}};
 			}
 		}
 		/** Sorts entities of the set.
@@ -658,7 +658,7 @@ namespace sek
 
 			auto &slot = insert_sparse(e.index().value());
 			m_dense.push_back(e);
-			slot = entity_t{e.generation(), entity_t::index_type{pos}};
+			slot = entity_t{e.version(), entity_t::index_type{pos}};
 
 			return pos;
 		}
@@ -673,7 +673,7 @@ namespace sek
 				const auto pos = idx.value();
 
 				auto &slot = insert_sparse(e.index().value());
-				slot = entity_t(e.generation(), idx);
+				slot = entity_t(e.version(), idx);
 				m_next = std::exchange(m_dense[pos], e);
 
 				return pos;
@@ -682,7 +682,7 @@ namespace sek
 
 		constexpr virtual size_type fixed_erase_(size_type idx)
 		{
-			const auto new_next = entity_t{entity_t::generation_type::tombstone(), entity_t::index_type{idx}};
+			const auto new_next = entity_t{entity_t::version_type::tombstone(), entity_t::index_type{idx}};
 			auto &dense = m_dense[idx];
 			sparse_ref(dense.index().value()) = entity_t::tombstone();
 			dense = std::exchange(m_next, new_next);
@@ -697,7 +697,7 @@ namespace sek
 				const auto from = m_dense[last].index().value();
 				const auto to = m_dense[idx].index().value();
 
-				sparse_ref(from) = entity_t{m_dense[last].generation(), entity_t::index_type{idx}};
+				sparse_ref(from) = entity_t{m_dense[last].version(), entity_t::index_type{idx}};
 				sparse_ref(to) = entity_t::tombstone();
 				m_dense[idx] = m_dense[last];
 			}

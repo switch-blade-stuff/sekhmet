@@ -119,7 +119,12 @@ namespace sek
 		template<typename...>
 		friend struct detail::collection_handler;
 
-#if !defined(__cpp_lib_constexpr_memory) || __cpp_lib_constexpr_memory < 202202L
+	public:
+		typedef std::size_t size_type;
+		typedef std::ptrdiff_t difference_type;
+
+	private:
+		/* Type-erased component set wrapper. */
 		struct storage_ptr
 		{
 			storage_ptr(const storage_ptr &) = delete;
@@ -133,8 +138,29 @@ namespace sek
 				return *this;
 			}
 
-			constexpr storage_ptr(generic_component_set *ptr) noexcept : m_ptr(ptr) {}
-			constexpr ~storage_ptr() { delete m_ptr; }
+			template<typename T>
+			storage_ptr(type_selector_t<T>, entity_world *world)
+			{
+				init_set<T>(world);
+
+				/* Bind a type-erased copy initializer. */
+				m_copy = +[](const storage_ptr *from, storage_ptr *to, entity_world *world) -> void
+				{
+					const auto &from_set = *static_cast<const component_set<T> *>(from->m_ptr);
+
+					to->init_set<T>(world);
+
+					const auto &to_set = *static_cast<component_set<T> *>(to->m_ptr);
+				};
+			}
+			/* Special copy constructor used to duplicate a storage for a different world. */
+			storage_ptr(const storage_ptr &other, entity_world *world) : m_copy(other.m_copy)
+			{
+				if (other.m_copy != nullptr) [[likely]]
+					other.m_copy(&other, this, world);
+			}
+
+			~storage_ptr() { delete m_ptr; }
 
 			[[nodiscard]] constexpr auto *get() const noexcept { return m_ptr; }
 			[[nodiscard]] constexpr auto *operator->() const noexcept { return get(); }
@@ -144,11 +170,21 @@ namespace sek
 			friend constexpr void swap(storage_ptr &a, storage_ptr &b) noexcept { a.swap(b); }
 
 		private:
+			template<typename T>
+			void init_set(entity_world *world)
+			{
+				m_ptr = new component_set<T>(world);
+			}
+
+			void (*m_copy)(const storage_ptr *, storage_ptr *, entity_world *) = nullptr;
 			generic_component_set *m_ptr = nullptr;
 		};
-#else
-		using storage_ptr = std::unique_ptr<generic_component_set>;
-#endif
+
+		template<typename T>
+		[[nodiscard]] static storage_ptr make_storage_ptr(entity_world *world)
+		{
+			return storage_ptr{type_selector<T>, world};
+		}
 
 		struct storage_hash
 		{
@@ -432,8 +468,6 @@ namespace sek
 		typedef entity_iterator const_iterator;
 		typedef std::reverse_iterator<iterator> reverse_iterator;
 		typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
-		typedef std::size_t size_type;
-		typedef std::ptrdiff_t difference_type;
 
 	private:
 		template<typename T>
@@ -898,9 +932,9 @@ namespace sek
 		}
 
 		/** Generates a new entity.
-		 * @param gen Optional generation to use for the entity.
+		 * @param gen Optional version to use for the entity.
 		 * @return Value of the generated entity. */
-		[[nodiscard]] constexpr entity_t generate(entity_t::generation_type gen = entity_t::generation_type::tombstone())
+		[[nodiscard]] constexpr entity_t generate(entity_t::version_type gen = entity_t::version_type::tombstone())
 		{
 			return m_next.index().is_tombstone() ? generate_new(gen) : generate_existing(gen);
 		}
@@ -909,10 +943,10 @@ namespace sek
 		 * @warning Releasing an entity that contains components will result in stale references. Use `destroy` instead. */
 		constexpr void release(entity_t e)
 		{
-			const auto next_gen = entity_t::generation_type{e.generation().value() + 1};
+			const auto next_gen = entity_t::version_type{e.version().value() + 1};
 			const auto idx = e.index();
 			m_entities[idx.value()] = entity_t{next_gen, m_next.index()};
-			m_next = entity_t{entity_t::generation_type::tombstone(), idx};
+			m_next = entity_t{entity_t::version_type::tombstone(), idx};
 			--m_size;
 		}
 		/** @copydoc release */
@@ -1176,17 +1210,17 @@ namespace sek
 			for (auto &set : m_storage) set->clear();
 		}
 
-		[[nodiscard]] constexpr entity_t generate_new(entity_t::generation_type gen)
+		[[nodiscard]] constexpr entity_t generate_new(entity_t::version_type gen)
 		{
 			const auto idx = entity_t::index_type{m_entities.size()};
 			return (++m_size, !gen.is_tombstone() ? m_entities.emplace_back(gen, idx) : m_entities.emplace_back(idx));
 		}
-		[[nodiscard]] constexpr entity_t generate_existing(entity_t::generation_type gen)
+		[[nodiscard]] constexpr entity_t generate_existing(entity_t::version_type gen)
 		{
 			const auto idx = m_next.index();
 			auto &target = m_entities[idx.value()];
-			m_next = entity_t{entity_t::generation_type::tombstone(), target.index()};
-			return target = entity_t{gen.is_tombstone() ? target.generation() : gen, idx};
+			m_next = entity_t{entity_t::version_type::tombstone(), target.index()};
+			return target = entity_t{gen.is_tombstone() ? target.version() : gen, idx};
 		}
 
 		template<typename T, typename U = std::remove_cv_t<T>>

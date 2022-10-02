@@ -138,7 +138,7 @@ namespace sek
 		/** @copydoc base_set::update */
 		constexpr void update(entity_t entity) { base_set::update(entity); }
 		/** @copydoc base_set::update */
-		constexpr void update(entity_t entity, entity_t::generation_type gen) { base_set::update(entity, gen); }
+		constexpr void update(entity_t entity, entity_t::version_type gen) { base_set::update(entity, gen); }
 
 		/** Swaps entities and components of the set. */
 		constexpr void swap(size_type a, size_type b) { base_set::swap(a, b); }
@@ -711,6 +711,15 @@ namespace sek
 		{
 			reserve_impl(n);
 		}
+
+		// clang-format off
+		/** Duplicates a component storage for the specified world.
+		 * @note Components are copy-constructed. */
+		component_set(const component_set &other, entity_world &world) requires std::is_copy_constructible_v<T>
+			: component_set(world, other.size())
+		{
+		}
+		// clang-format on
 
 		// clang-format off
 		constexpr component_set(component_set &&)
@@ -1411,23 +1420,35 @@ namespace sek
 		 * @param set Reference to the component set containing the target component. */
 		constexpr component_ptr(entity_t e, set_ref set) noexcept : component_ptr(e, &set) {}
 
-		/** Checks if the component pointer has points to a valid component of an entity (both entity and set are valid). */
-		[[nodiscard]] constexpr bool empty() const noexcept { return !m_entity.is_tombstone() && m_set; }
+		/** Checks if the entity and set of the component pointer are valid. */
+		[[nodiscard]] constexpr bool valid() const noexcept { return !m_entity.is_tombstone() && m_set != nullptr; }
+
+		/** Checks if the component pointer is valid and points to an existing component. */
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_set && m_set->contains(m_entity); }
 		/** @copydoc empty */
 		[[nodiscard]] constexpr operator bool() const noexcept { return empty(); }
 
 		/** Returns the associated entity. */
 		[[nodiscard]] constexpr entity_t entity() const noexcept { return m_entity; }
 		/** Returns the bound component set. */
-		[[nodiscard]] constexpr set_type *set() const noexcept { return m_set; }
+		[[nodiscard]] constexpr set_ptr set() const noexcept { return m_set; }
 		/** Checks if the pointed-to component is locked. */
 		[[nodiscard]] constexpr bool is_locked() const noexcept
 		{
 			return m_set != nullptr && m_set->is_locked(m_entity);
 		}
 
-		/** Returns pointer to the associated component. */
-		[[nodiscard]] constexpr pointer get() const noexcept { return std::addressof(m_set->find(m_entity)->second); }
+		/** Returns pointer to the associated component, or `nullptr` if the component pointer does not point to a valid component. */
+		[[nodiscard]] constexpr pointer get() const noexcept
+		{
+			if (m_set != nullptr) [[likely]]
+			{
+				const auto iter = m_set->find(m_entity);
+				if (iter != m_set->end()) [[likely]]
+					return std::addressof(iter->second);
+			}
+			return nullptr;
+		}
 		/** @copydoc get */
 		[[nodiscard]] constexpr pointer operator->() const noexcept { return get(); }
 		/** Returns reference to the associated component. */

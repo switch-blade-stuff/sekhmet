@@ -16,7 +16,7 @@ namespace sek
 {
 	/** @brief An entity is an internal ID used to refer to a group of components.
 	 *
-	 * Entities have an index, used to uniquely identify an entity, and a generation,
+	 * Entities have an index, used to uniquely identify an entity, and a version,
 	 * used to disambiguate entities that have been previously "deleted" from their world.
 	 * Entities that do not represent a valid group of components are "tombstone" entities.
 	 * Tombstone entities always compare equal to each other. */
@@ -25,8 +25,8 @@ namespace sek
 	public:
 		typedef std::size_t value_type;
 
-		/** @brief Structure used to represent an entity generation. */
-		class generation_type
+		/** @brief Structure used to represent an entity version. */
+		class version_type
 		{
 			friend class entity_t;
 
@@ -34,28 +34,28 @@ namespace sek
 			constexpr static value_type offset = sizeof(value_type) >= sizeof(std::uint64_t) ? 40 : 16;
 
 		public:
-			/** Returns tombstone value of entity generation. */
-			[[nodiscard]] constexpr static generation_type tombstone() noexcept { return generation_type{mask}; }
-			/** Returns maximum valid value of entity generation. */
-			[[nodiscard]] constexpr static generation_type max() noexcept { return generation_type{mask - 1}; }
+			/** Returns tombstone value of entity version. */
+			[[nodiscard]] constexpr static version_type tombstone() noexcept { return version_type{mask}; }
+			/** Returns maximum valid value of entity version. */
+			[[nodiscard]] constexpr static version_type max() noexcept { return version_type{mask - 1}; }
 
 		public:
-			constexpr generation_type() noexcept = default;
+			constexpr version_type() noexcept = default;
 
-			/** Initializes an entity generation from an underlying value type.
+			/** Initializes an entity version from an underlying value type.
 			 * @note Value must be 24-bit max. */
-			constexpr explicit generation_type(value_type value) noexcept : m_value(value << offset) {}
+			constexpr explicit version_type(value_type value) noexcept : m_value(value << offset) {}
 
-			/** Checks if the entity generation is a tombstone. */
+			/** Checks if the entity version is a tombstone. */
 			[[nodiscard]] constexpr bool is_tombstone() const noexcept { return *this == tombstone(); }
 
-			/** Checks if the entity generation is valid. */
+			/** Checks if the entity version is valid. */
 			[[nodiscard]] constexpr bool valid() const noexcept { return (m_value & mask) == mask; }
-			/** Returns the underlying integer value of the generation. */
+			/** Returns the underlying integer value of the version. */
 			[[nodiscard]] constexpr value_type value() const noexcept { return m_value >> offset; }
 
-			[[nodiscard]] constexpr auto operator<=>(const generation_type &) const noexcept = default;
-			[[nodiscard]] constexpr bool operator==(const generation_type &) const noexcept = default;
+			[[nodiscard]] constexpr auto operator<=>(const version_type &) const noexcept = default;
+			[[nodiscard]] constexpr bool operator==(const version_type &) const noexcept = default;
 
 		private:
 			value_type m_value = 0;
@@ -93,28 +93,28 @@ namespace sek
 			value_type m_value = 0;
 		};
 
-		/** Returns value of an invalid entity. */
+		/** Returns value of an invalid (tombstone) entity. */
 		[[nodiscard]] constexpr static entity_t tombstone() noexcept;
 
 	public:
 		/** Initializes an invalid entity. */
 		constexpr entity_t() noexcept = default;
-		/** Initializes an entity from an index and the default generation (0). */
+		/** Initializes an entity from an index and the default version (0). */
 		constexpr entity_t(index_type idx) noexcept : m_value(idx.m_value) {}
-		/** Initializes an entity from a generation and an index. */
-		constexpr entity_t(generation_type gen, index_type idx) noexcept : m_value(gen.m_value | idx.m_value) {}
+		/** Initializes an entity from a version and an index. */
+		constexpr entity_t(version_type gen, index_type idx) noexcept : m_value(gen.m_value | idx.m_value) {}
 
-		/** Checks if the entity is a tombstone. */
+		/** Checks if the entity's version or index are a tombstones. */
 		[[nodiscard]] constexpr bool is_tombstone() const noexcept
 		{
-			return generation() == generation_type::tombstone();
+			return version() == version_type::tombstone() || index() == index_type::tombstone();
 		}
 
-		/** Returns generation of the entity. */
-		[[nodiscard]] constexpr generation_type generation() const noexcept
+		/** Returns version of the entity. */
+		[[nodiscard]] constexpr version_type version() const noexcept
 		{
-			generation_type result;
-			result.m_value = m_value & (generation_type::mask << generation_type::offset);
+			version_type result;
+			result.m_value = m_value & (version_type::mask << version_type::offset);
 			return result;
 		}
 		/** Returns index of the entity. */
@@ -124,14 +124,15 @@ namespace sek
 
 		[[nodiscard]] constexpr auto operator<=>(const entity_t &other) const noexcept
 		{
-			if (((m_value & other.m_value) >> generation_type::offset) == generation_type::mask)
+			/* Tombstone entities always compare equal. */
+			if (((m_value & other.m_value) >> version_type::offset) == version_type::mask)
 				return std::strong_ordering::equivalent;
 			else
 				return m_value <=> other.m_value;
 		}
 		[[nodiscard]] constexpr bool operator==(const entity_t &other) const noexcept
 		{
-			return ((m_value & other.m_value) >> generation_type::offset) == generation_type::mask || m_value == other.m_value;
+			return ((m_value & other.m_value) >> version_type::offset) == version_type::mask || m_value == other.m_value;
 		}
 
 	private:
@@ -140,7 +141,7 @@ namespace sek
 
 	[[nodiscard]] constexpr entity_t entity_t::tombstone() noexcept
 	{
-		return {generation_type::tombstone(), index_type::tombstone()};
+		return {version_type::tombstone(), index_type::tombstone()};
 	}
 
 	[[nodiscard]] constexpr hash_t hash(entity_t e) noexcept { return e.value(); }

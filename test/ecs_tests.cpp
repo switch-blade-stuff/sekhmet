@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 
-#include "sekhmet/engine/ecs.hpp"
+#include "sekhmet/engine/world.hpp"
 
 using namespace sek;
 

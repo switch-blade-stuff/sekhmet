@@ -8,6 +8,6 @@ target_sources(${PROJECT_NAME} INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/zstd.hpp
         ${CMAKE_CURRENT_LIST_DIR}/assets.hpp
         ${CMAKE_CURRENT_LIST_DIR}/resources.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/ecs.hpp)
+        ${CMAKE_CURRENT_LIST_DIR}/world.hpp)
 
 include(${CMAKE_CURRENT_LIST_DIR}/detail/CMakeLists.txt)
