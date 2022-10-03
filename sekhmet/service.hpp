@@ -11,62 +11,18 @@
 
 namespace sek
 {
-	template<typename T>
-	class service;
-
-	namespace detail
-	{
-		struct service_db;
-	}
-
-	template<>
-	class service<void>
-	{
-		friend struct detail::service_db;
-
-	public:
-		/** @brief Runtime ID type used to uniquely identify services.
-		 *
-		 * Service uniqueness must ber guaranteed without reliance on runtime reflection, as such a runtime-generated
-		 * unique ID is used. Every instance of `service::id` is guaranteed to be unique within the same process.
-		 * Every user-defined specialization of `service<T>` must define a static instance of service ID. */
-		class SEK_API id
-		{
-			friend class service;
-
-			[[nodiscard]] static SEK_API std::size_t generate() noexcept;
-
-		public:
-			id(const id &) = delete;
-			id &operator=(const id &) = delete;
-
-			id() noexcept : m_id(generate()) {}
-
-			[[nodiscard]] constexpr bool operator==(const id &) const noexcept = default;
-
-		private:
-			std::size_t m_id = 0;
-		};
-
-	protected:
-		static SEK_API std::atomic<void *> &generate_ptr(const id *id) noexcept;
-	};
-
 	/** @brief Structure used to implement global services.
 	 * @tparam T Type of service instance. */
 	template<typename T>
-	class SEK_API service : public service<void>
+	class SEK_API service
 	{
 		[[nodiscard]] static std::atomic<void *> &global_ptr() noexcept
 		{
-			static std::atomic<void *> &ptr = generate_ptr(&id);
+			constinit static std::atomic<void *> ptr;
 			return ptr;
 		}
 
 	public:
-		/** Global unique ID of the service. */
-		static const id id;
-
 		/** Returns pointer to the global instance of the service. */
 		[[nodiscard]] static T *instance() noexcept { return static_cast<T *>(global_ptr().load()); }
 		/** Exchanges the provided instance pointer with the global instance of the service.
@@ -75,3 +31,8 @@ namespace sek
 		static T *instance(T *ptr) noexcept { return static_cast<T *>(global_ptr().exchange(ptr)); }
 	};
 }	 // namespace sek
+
+/** @brief Helper macro used to define a template instance export for a service type. Must be placed in a source file. */
+#define SEK_EXPORT_SERVICE(T) template class SEK_API_EXPORT sek::service<T>;
+/** @brief Helper macro used to declare a template instance export for a service type. Must be placed in a header file. */
+#define SEK_EXTERN_SERVICE(T) extern template class SEK_API_IMPORT sek::service<T>;

@@ -351,7 +351,7 @@ namespace sek
 			/** @copydoc operator& */
 			[[nodiscard]] constexpr const entry_ref *operator&() const noexcept { return this; }
 
-			/** Returns iterator to the first child of the entry. */
+			/** Returns range_type_iterator to the first child of the entry. */
 			[[nodiscard]] constexpr iterator begin() noexcept { return iterator{m_node->nodes.begin()}; }
 			/** @copydoc begin */
 			[[nodiscard]] constexpr const_iterator begin() const noexcept
@@ -360,7 +360,7 @@ namespace sek
 			}
 			/** @copydoc begin */
 			[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
-			/** Returns iterator one past the last child of the entry. */
+			/** Returns range_type_iterator one past the last child of the entry. */
 			[[nodiscard]] constexpr iterator end() noexcept { return iterator{m_node->nodes.end()}; }
 			/** @copydoc end */
 			[[nodiscard]] constexpr const_iterator end() const noexcept { return const_iterator{m_node->nodes.end()}; }
@@ -511,13 +511,13 @@ namespace sek
 		constexpr config_registry() noexcept = default;
 		SEK_API ~config_registry();
 
-		/** Returns entry iterator to the first category of the registry. */
+		/** Returns entry range_type_iterator to the first category of the registry. */
 		[[nodiscard]] constexpr iterator begin() noexcept { return iterator{m_categories.begin()}; }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return const_iterator{m_categories.begin()}; }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
-		/** Returns entry iterator one past the last category of the registry. */
+		/** Returns entry range_type_iterator one past the last category of the registry. */
 		[[nodiscard]] constexpr iterator end() noexcept { return iterator{m_categories.end()}; }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return const_iterator{m_categories.end()}; }

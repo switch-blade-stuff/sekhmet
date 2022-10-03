@@ -82,7 +82,7 @@ namespace sek::detail
 	 * This allows for cache-efficient iteration over the table (iterators point to the dense array elements),
 	 * as well as reduced memory overhead, since there are no empty buckets within the dense array.
 	 *
-	 * However, dense tables cannot provide iterator stability on erasure or insertion.
+	 * However, dense tables cannot provide range_type_iterator stability on erasure or insertion.
 	 * This is due to the buckets being stored in the dense array by-value,
 	 * thus on erasure buckets must be moved (or rather, the erased bucket is swapped with the last one),
 	 * and on insertion the dense array may be re-allocated.

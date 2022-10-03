@@ -14,7 +14,7 @@ namespace sek
 	 *
 	 * Sparse sets are implemented via an open-addressing hash table.
 	 * This allows for efficient insertion & deletion at the expense of greater memory overhead.
-	 * Sparse sets always retain iterator validity on erasure.
+	 * Sparse sets always retain range_type_iterator validity on erasure.
 	 * Iterators are invalidated on insertion if a re-hash is required.
 	 *
 	 * @note Iteration over a sparse set is O(n), where n is the amount of buckets within the set.
@@ -189,13 +189,13 @@ namespace sek
 			return *this;
 		}
 
-		/** Returns iterator to the start of the set. */
+		/** Returns range_type_iterator to the start of the set. */
 		[[nodiscard]] constexpr iterator begin() noexcept { return m_table.begin(); }
-		/** Returns iterator to the end of the set. */
+		/** Returns range_type_iterator to the end of the set. */
 		[[nodiscard]] constexpr iterator end() noexcept { return m_table.end(); }
-		/** Returns const iterator to the start of the set. */
+		/** Returns const range_type_iterator to the start of the set. */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return m_table.begin(); }
-		/** Returns const iterator to the end of the set. */
+		/** Returns const range_type_iterator to the end of the set. */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return m_table.end(); }
 		/** @copydoc cbegin */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return cbegin(); }

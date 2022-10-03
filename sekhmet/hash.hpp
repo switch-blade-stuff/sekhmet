@@ -7,7 +7,7 @@
 #include <array>
 #include <bit>
 
-#include "detail/meta_util.hpp"
+#include "meta.hpp"
 
 namespace sek
 {
@@ -255,28 +255,31 @@ namespace sek
 		return fnv1a(static_cast<const uint8_t *>(data), len, seed);
 	}
 
+	[[nodiscard]] constexpr hash_t hash(std::nullptr_t) noexcept { return 0; }
+
 	template<std::integral I>
 	[[nodiscard]] constexpr hash_t hash(I value) noexcept
 	{
 		return static_cast<hash_t>(value);
-	}
-	template<typename E>
-	[[nodiscard]] constexpr hash_t hash(E value) noexcept
-		requires std::is_enum_v<E>
-	{
-		return hash(static_cast<std::underlying_type_t<E>>(value));
 	}
 	template<typename T>
 	[[nodiscard]] constexpr hash_t hash(T *value) noexcept
 	{
 		return std::bit_cast<hash_t>(value);
 	}
-	template<pointer_like T>
-	[[nodiscard]] constexpr hash_t hash(T value) noexcept
+
+	// clang-format off
+	template<typename E>
+	[[nodiscard]] constexpr hash_t hash(E value) noexcept requires std::is_enum_v<E>
+	{
+		return hash(static_cast<std::underlying_type_t<E>>(value));
+	}
+	template<typename P>
+	[[nodiscard]] constexpr hash_t hash(const P &value) noexcept requires(requires { typename std::pointer_traits<P>::element_type; })
 	{
 		return hash(std::to_address(value));
 	}
-	[[nodiscard]] constexpr hash_t hash(std::nullptr_t) noexcept { return 0; }
+	// clang-format on
 
 	template<typename T>
 	concept has_hash = requires(T t) { hash(t); };

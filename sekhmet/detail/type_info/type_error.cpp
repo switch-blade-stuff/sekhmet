@@ -17,21 +17,14 @@ namespace sek
 		~type_category_t() override = default;
 
 		[[nodiscard]] const char *name() const noexcept override { return "type"; }
-		[[nodiscard]] std::string message(int err) const override
-		{
-			const auto errc = static_cast<type_errc>(err);
-			if ((errc & type_errc::INVALID_PARAM) != type_errc{})
-				return param_message(errc);
-			else if ((errc & type_errc::INVALID_TYPE) != type_errc{})
-				return type_message(errc);
-			return "Unknown error";
-		}
+		[[nodiscard]] std::string message(int err) const override { return message(static_cast<type_errc>(err)); }
 
 		[[nodiscard]] std::string param_message(type_errc errc) const
 		{
+			constexpr auto param_errc_mask = ~(type_errc::PARAM_MASK | type_errc::INVALID_PARAM);
 			const auto arg_idx = static_cast<std::uint8_t>(errc & type_errc::PARAM_MASK);
-			if ((errc & type_errc::INVALID_TYPE) != type_errc{})
-				return fmt::format("Invalid argument ({}): {}", arg_idx, type_message(errc));
+			if ((errc & param_errc_mask) != type_errc{})
+				return fmt::format("Invalid argument ({}): {}", arg_idx, message(errc & param_errc_mask));
 			else
 				return fmt::format("Invalid argument ({})", arg_idx);
 		}
@@ -42,20 +35,30 @@ namespace sek
 			else if ((errc & type_errc::INVALID_ATTRIBUTE) != type_errc{})
 				return "Invalid type attribute";
 			else if ((errc & type_errc::INVALID_MEMBER) != type_errc{})
-				return mem_message(errc);
+			{
+				if ((errc & type_errc::INVALID_PROPERTY) != type_errc{})
+					return "Invalid type member property";
+				else if ((errc & type_errc::INVALID_FUNCTION) != type_errc{})
+					return "Invalid type member function";
+				else if ((errc & type_errc::INVALID_CONSTRUCTOR) != type_errc{})
+					return "Invalid type constructor";
+				else if ((errc & type_errc::INVALID_ENUMERATION) != type_errc{})
+					return "Invalid type enumeration";
+				return "Invalid type member";
+			}
 			return "Invalid type";
 		}
-		[[nodiscard]] std::string mem_message(type_errc errc) const
+		[[nodiscard]] std::string message(type_errc errc) const
 		{
-			if ((errc & type_errc::INVALID_PROPERTY) != type_errc{})
-				return "Invalid type member property";
-			else if ((errc & type_errc::INVALID_FUNCTION) != type_errc{})
-				return "Invalid type member function";
-			else if ((errc & type_errc::INVALID_CONSTRUCTOR) != type_errc{})
-				return "Invalid type constructor";
-			else if ((errc & type_errc::INVALID_ENUMERATION) != type_errc{})
-				return "Invalid type enumeration";
-			return "Invalid type member";
+			if ((errc & type_errc::INVALID_PARAM) != type_errc{})
+				return param_message(errc);
+			else if ((errc & type_errc::INVALID_TYPE) != type_errc{})
+				return type_message(errc);
+			else if ((errc & type_errc::EXPECTED_REF_ANY) != type_errc{})
+				return "Expected a reference `any` instance";
+			else if ((errc & type_errc::UNEXPECTED_EMPTY_ANY) != type_errc{})
+				return "Expected a non-empty `any` instance";
+			return "Unknown error";
 		}
 	};
 

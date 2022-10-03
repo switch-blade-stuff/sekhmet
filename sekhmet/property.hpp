@@ -106,7 +106,7 @@ namespace sek
 			return dispatch<Funcs...>(std::forward<Args>(args)...);
 		}
 	};
-	/** Instance of the `accessor_t` helper type. */
+	/** @brief Instance of the `accessor_t` helper type. */
 	template<auto... Funcs>
 	constexpr auto accessor = accessor_t<Funcs...>{};
 
@@ -141,10 +141,10 @@ namespace sek
 	};
 	// clang-format on
 
-	/** Instance of the `member_get_t` helper type. */
+	/** @brief Instance of the `member_get_t` helper type. */
 	template<auto M>
 	constexpr auto member_get = member_get_t<M>{};
-	/** Instance of the `member_set_t` helper type. */
+	/** @brief Instance of the `member_set_t` helper type. */
 	template<auto M>
 	constexpr auto member_set = member_set_t<M>{};
 

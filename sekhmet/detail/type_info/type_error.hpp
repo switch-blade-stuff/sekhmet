@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "../../define.h"
+#include "fwd.hpp"
 #include <system_error>
 
 namespace sek
@@ -31,27 +31,31 @@ namespace sek
 	{
 		/** Mask used to obtain `INVALID_PARAM` argument index. */
 		PARAM_MASK = 0xff,
-		/** Invalid parameter error, indicating an incorrect argument to a function.
-		 * Index (`std::uint8_t`) of the invalid argument is OR'ed with the error code. */
+		/** Incorrect argument to a function. Index (`std::uint8_t`) of the invalid argument is OR'ed with the error code. */
 		INVALID_PARAM = 0x100,
 
-		/** Generic type error, indicating an unexpected/invalid type. */
+		/** Unexpected/invalid type. */
 		INVALID_TYPE = 0x200,
-		/** Type qualifier error, indicating an unexpected/invalid type qualifier (ex. expected non-const but got const). */
+		/** Unexpected/invalid type qualifier (ex. expected non-const but got const). */
 		INVALID_QUALIFIER = INVALID_TYPE | 0x400,
-		/** Type attribute error, indicating an that the requested attribute does not exist. */
+		/** Requested attribute does not exist. */
 		INVALID_ATTRIBUTE = INVALID_TYPE | 0x800,
 
-		/** Type member error, indicating an that the requested member of a type does not exist. */
+		/** Requested member of a type does not exist. */
 		INVALID_MEMBER = INVALID_TYPE | 0xa00,
-		/** Type member property error, indicating an that the requested member property of a type does not exist. */
+		/** Requested member property of a type does not exist. */
 		INVALID_PROPERTY = INVALID_MEMBER | 0x1000,
-		/** Type member function error, indicating an that the requested member function of a type does not exist. */
+		/** Requested member function of a type does not exist. */
 		INVALID_FUNCTION = INVALID_MEMBER | 0x2000,
-		/** Type constructor error, indicating an that the requested constructor of a type does not exist. */
+		/** Requested constructor of a type does not exist. */
 		INVALID_CONSTRUCTOR = INVALID_MEMBER | 0x4000,
-		/** Type enumeration error, indicating an that the requested enumeration of a type does not exist. */
+		/** Requested enumeration of a type does not exist. */
 		INVALID_ENUMERATION = INVALID_MEMBER | 0x8000,
+
+		/** Provided `any` instance is not a reference. */
+		EXPECTED_REF_ANY = 0xa000,
+		/** Unexpected empty `any` instance. */
+		UNEXPECTED_EMPTY_ANY = 0x1'0000,
 	};
 
 	[[nodiscard]] constexpr type_errc operator&(type_errc a, type_errc b)

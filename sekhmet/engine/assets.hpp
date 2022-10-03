@@ -76,22 +76,22 @@ namespace sek
 		/** Returns the number of assets contained within the package. */
 		[[nodiscard]] constexpr auto size() const noexcept { return m_ptr->size(); }
 
-		/** Returns iterator to the first asset of the package. */
+		/** Returns range_type_iterator to the first asset of the package. */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return m_ptr->begin(); }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
-		/** Returns iterator one past the last asset of the package. */
+		/** Returns range_type_iterator one past the last asset of the package. */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return m_ptr->end(); }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
-		/** Returns reverse iterator to the last asset of the package. */
+		/** Returns reverse range_type_iterator to the last asset of the package. */
 		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return m_ptr->rbegin(); }
-		/** Returns reverse iterator to the first asset of the package. */
+		/** Returns reverse range_type_iterator to the first asset of the package. */
 		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return m_ptr->rend(); }
 
-		/** Returns iterator to the asset with a given id. */
+		/** Returns range_type_iterator to the asset with a given id. */
 		[[nodiscard]] constexpr const_iterator find(uuid id) const { return m_ptr->find(id); }
-		/** Returns iterator to the asset with a given name. */
+		/** Returns range_type_iterator to the asset with a given name. */
 		[[nodiscard]] constexpr const_iterator find(std::string_view name) const { return m_ptr->find(name); }
 		/** Returns a vector of all assets with the specified name. */
 		[[nodiscard]] std::vector<reference> find_all(std::string_view name) const { return m_ptr->find_all(name); }
@@ -100,7 +100,7 @@ namespace sek
 		/** Checks if the package contains an asset with a given name. */
 		[[nodiscard]] constexpr bool constins(std::string_view name) const { return find(name) != end(); }
 
-		/** Returns iterator to the first asset that matches the predicate. */
+		/** Returns range_type_iterator to the first asset that matches the predicate. */
 		template<typename P>
 		[[nodiscard]] constexpr const_iterator match(P &&pred) const
 		{
@@ -179,22 +179,22 @@ namespace sek
 		/** Returns the number of assets contained within the database. */
 		[[nodiscard]] constexpr auto size() const noexcept { return m_assets.size(); }
 
-		/** Returns iterator to the first asset of the database. */
+		/** Returns range_type_iterator to the first asset of the database. */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return m_assets.begin(); }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
-		/** Returns iterator one past the last asset of the database. */
+		/** Returns range_type_iterator one past the last asset of the database. */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return m_assets.end(); }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
-		/** Returns reverse iterator to the last asset of the database. */
+		/** Returns reverse range_type_iterator to the last asset of the database. */
 		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return m_assets.rbegin(); }
-		/** Returns reverse iterator to the first asset of the database. */
+		/** Returns reverse range_type_iterator to the first asset of the database. */
 		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return m_assets.rend(); }
 
-		/** Returns iterator to the asset with a given id. */
+		/** Returns range_type_iterator to the asset with a given id. */
 		[[nodiscard]] constexpr const_iterator find(uuid id) const { return m_assets.find(id); }
-		/** Returns iterator to the asset with a given name. */
+		/** Returns range_type_iterator to the asset with a given name. */
 		[[nodiscard]] constexpr const_iterator find(std::string_view name) const { return m_assets.find(name); }
 		/** Returns a vector of all assets with the specified name. */
 		[[nodiscard]] std::vector<reference> find_all(std::string_view name) const { return m_assets.find_all(name); }
@@ -203,7 +203,7 @@ namespace sek
 		/** Checks if the database contains an asset with a given name. */
 		[[nodiscard]] constexpr bool constins(std::string_view name) const { return find(name) != end(); }
 
-		/** Returns iterator to the first asset that matches the predicate. */
+		/** Returns range_type_iterator to the first asset that matches the predicate. */
 		template<typename P>
 		[[nodiscard]] constexpr const_iterator match(P &&pred) const
 		{
@@ -285,19 +285,19 @@ namespace sek
 		constexpr package_proxy &operator=(const package_proxy<true> &other) noexcept;
 		constexpr package_proxy &operator=(package_proxy<true> &&other) noexcept;
 
-		/** Returns iterator to the first package. */
+		/** Returns range_type_iterator to the first package. */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return packages().cbegin(); }
 		/** @copydoc cbegin */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return cbegin(); }
-		/** Returns iterator one past the last package. */
+		/** Returns range_type_iterator one past the last package. */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return packages().cend(); }
 		/** @copydoc cend */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
-		/** Returns reverse iterator one past the last package. */
+		/** Returns reverse range_type_iterator one past the last package. */
 		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return packages().crbegin(); }
 		/** @copydoc crbegin */
 		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return crbegin(); }
-		/** Returns reverse iterator to the fist package. */
+		/** Returns reverse range_type_iterator to the fist package. */
 		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return packages().crend(); }
 		/** @copydoc crbegin */
 		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return crend(); }

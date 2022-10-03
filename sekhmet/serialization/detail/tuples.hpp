@@ -8,27 +8,13 @@
 #include <tuple>
 #include <utility>
 
+#include "../../meta.hpp"
 #include "manipulators.hpp"
 
 namespace sek
 {
 	namespace detail
 	{
-		// clang-format off
-		template<typename T>
-		concept tuple_like = !std::is_reference_v<T> && requires(T t)
-		{
-			typename std::tuple_size<T>::type;
-			requires std::derived_from<std::tuple_size<T>, std::integral_constant<std::size_t, std::tuple_size_v<T>>>;
-		};
-		template<typename T>
-		concept pair_like = requires(T &p)
-		{
-			p.first;
-			p.second;
-		};
-		// clang-format on
-
 		template<pair_like P>
 		struct pair_traits
 		{

@@ -317,12 +317,12 @@ namespace sek
 			/** Returns reference to the target Json object of this frame. */
 			[[nodiscard]] constexpr const value_type &target() const noexcept { return m_target; }
 
-			/** Returns iterator to the current read position of this frame. */
+			/** Returns range_type_iterator to the current read position of this frame. */
 			[[nodiscard]] constexpr const_iterator pos() const noexcept { return m_pos; }
 			/** Checks if the frame is at the end of the container. */
 			[[nodiscard]] constexpr bool is_end() const noexcept { return pos() == target().end(); }
 
-			/** Seeks the current container to the specified iterator.
+			/** Seeks the current container to the specified range_type_iterator.
 			 * @param pos New read position within the current container. */
 			void seek(const_iterator pos) noexcept { m_pos = pos; }
 
@@ -938,7 +938,7 @@ namespace sek
 			return is_array() ? m_array.size() : is_table() ? m_table.size() : 0;
 		}
 
-		/** Returns iterator to the first element of the container, or end iterator if the Json object is not a container. */
+		/** Returns range_type_iterator to the first element of the container, or end range_type_iterator if the Json object is not a container. */
 		[[nodiscard]] constexpr iterator begin() noexcept
 		{
 			if (is_array())
@@ -958,7 +958,7 @@ namespace sek
 		}
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
-		/** Returns iterator one past the last element of the container, or a placeholder if the Json object is not a container. */
+		/** Returns range_type_iterator one past the last element of the container, or a placeholder if the Json object is not a container. */
 		[[nodiscard]] constexpr iterator end() noexcept
 		{
 			if (is_array())
@@ -979,13 +979,13 @@ namespace sek
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
 
-		/** Returns reverse iterator to the last element of the container, or end iterator if the Json object is not a container. */
+		/** Returns reverse range_type_iterator to the last element of the container, or end range_type_iterator if the Json object is not a container. */
 		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return reverse_iterator{end()}; }
 		/** @copydoc rbegin */
 		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator{end()}; }
 		/** @copydoc rbegin */
 		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return rbegin(); }
-		/** Returns reverse iterator one past the first element of the container, or a placeholder if the Json object is not a container. */
+		/** Returns reverse range_type_iterator one past the first element of the container, or a placeholder if the Json object is not a container. */
 		[[nodiscard]] constexpr reverse_iterator rend() noexcept { return reverse_iterator{begin()}; }
 		/** @copydoc rend */
 		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return const_reverse_iterator{begin()}; }
@@ -1122,7 +1122,7 @@ namespace sek
 
 		/** Erases an element of the container.
 		 * @param which Iterator to the element to erase.
-		 * @return Iterator to the next element of the container, or an end iterator.
+		 * @return Iterator to the next element of the container, or an end range_type_iterator.
 		 * @throw archive_error If the Json object is not a container. */
 		iterator erase(const_iterator which)
 		{
@@ -1135,7 +1135,7 @@ namespace sek
 		}
 		/** Erases an element of the container.
 		 * @param which Iterator to the element to erase.
-		 * @return Iterator to the next element of the container, an end iterator or
+		 * @return Iterator to the next element of the container, an end range_type_iterator or
 		 * `archive_errc::INVALID_TYPE` if the Json object is not a container. */
 		expected<iterator, std::error_code> erase(std::nothrow_t, const_iterator which)
 		{

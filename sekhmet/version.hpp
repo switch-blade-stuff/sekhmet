@@ -150,7 +150,7 @@ namespace sek
 			to_string<C>(std::back_inserter(result));
 			return result;
 		}
-		/** Writes the version as a string to the output iterator.
+		/** Writes the version as a string to the output range_type_iterator.
 		 * @tparam C Character type of the output sequence.
 		 * @param out Iterator to write the characters to.
 		 * @note Output must have enough space for the version string. */
@@ -159,7 +159,7 @@ namespace sek
 		{
 			to_string_impl<C, 0>(out);
 		}
-		/** Writes the version as a string to the output iterator.
+		/** Writes the version as a string to the output range_type_iterator.
 		 * @param out Iterator to write the characters to.
 		 * @note Output must have enough space for the version string. */
 		template<std::forward_iterator Iter>

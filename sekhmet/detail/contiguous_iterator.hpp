@@ -11,7 +11,7 @@
 
 namespace sek
 {
-	/** @brief Generic contiguous iterator. */
+	/** @brief Generic contiguous range_type_iterator. */
 	template<typename T, bool IsConst>
 	class contiguous_iterator
 	{

@@ -171,19 +171,19 @@ namespace sek
 		/** Returns amount of subscribers bound to this event. */
 		[[nodiscard]] constexpr size_type size() const noexcept { return m_sub_data.size(); }
 
-		/** Returns iterator to the fist subscriber of the event. */
+		/** Returns range_type_iterator to the fist subscriber of the event. */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return const_iterator{m_sub_data.begin()}; }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
-		/** Returns iterator one past the last subscriber of the event. */
+		/** Returns range_type_iterator one past the last subscriber of the event. */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return const_iterator{m_sub_data.end()}; }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
-		/** Returns reverse iterator one past the last subscriber of the event. */
+		/** Returns reverse range_type_iterator one past the last subscriber of the event. */
 		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator{end()}; }
 		/** @copydoc rbegin */
 		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return rbegin(); }
-		/** Returns reverse iterator to the first subscriber of the event. */
+		/** Returns reverse range_type_iterator to the first subscriber of the event. */
 		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return const_reverse_iterator{begin()}; }
 		/** @copydoc rend */
 		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return rend(); }
@@ -384,7 +384,7 @@ namespace sek
 				return subscribe(begin(), std::move(subscriber));
 		}
 
-		/** Removes a subscriber delegate pointed to by the specified iterator from the event.
+		/** Removes a subscriber delegate pointed to by the specified range_type_iterator from the event.
 		 * @param where Iterator pointing to the subscriber to be removed from the event.
 		 * @return true if the subscriber was unsubscribed, false otherwise. */
 		constexpr bool unsubscribe(const_iterator where)
@@ -435,20 +435,20 @@ namespace sek
 			m_next_id = event_placeholder;
 		}
 
-		/** Returns iterator to the subscriber delegate using it's id or end iterator if such subscriber is not found. */
+		/** Returns range_type_iterator to the subscriber delegate using it's id or end range_type_iterator if such subscriber is not found. */
 		[[nodiscard]] constexpr iterator find(event_subscriber id) const noexcept
 		{
 			auto iter = std::find_if(m_sub_data.begin(), m_sub_data.end(), [id](auto &s) { return s.id == id; });
 			return begin() + (iter - m_sub_data.begin());
 		}
-		/** Returns iterator to the subscriber delegate that compares equal to the provided delegate or the end
-		 * iterator if such subscriber is not found. */
+		/** Returns range_type_iterator to the subscriber delegate that compares equal to the provided delegate or the end
+		 * range_type_iterator if such subscriber is not found. */
 		[[nodiscard]] constexpr iterator find(const delegate<R(Args...)> &subscriber) const noexcept
 		{
 			return std::find(begin(), end(), subscriber);
 		}
 
-		/** Returns iterator to the subscriber delegate bound to the specified data instance, or an end iterator
+		/** Returns range_type_iterator to the subscriber delegate bound to the specified data instance, or an end range_type_iterator
 		 * if such subscriber is not found. */
 		template<typename T>
 		[[nodiscard]] constexpr iterator find(T *value) const noexcept
@@ -463,7 +463,7 @@ namespace sek
 		}
 
 		// clang-format off
-		/** Returns iterator to the subscriber delegate bound to the specified member or free function or an end iterator
+		/** Returns range_type_iterator to the subscriber delegate bound to the specified member or free function or an end range_type_iterator
 		 * if such subscriber is not found. */
 		template<auto F>
 		[[nodiscard]] constexpr iterator find() const noexcept
@@ -478,8 +478,8 @@ namespace sek
 		{
 			return find<F>();
 		}
-		/** Returns iterator to the subscriber delegate bound to the specified member or free function and the specified
-		 * data instance, or an end iterator if such subscriber is not found. */
+		/** Returns range_type_iterator to the subscriber delegate bound to the specified member or free function and the specified
+		 * data instance, or an end range_type_iterator if such subscriber is not found. */
 		template<auto F, typename T>
 		[[nodiscard]] constexpr iterator find(T *value) const noexcept
 			requires(requires{ delegate{delegate_func_t<F>{}, value}; })

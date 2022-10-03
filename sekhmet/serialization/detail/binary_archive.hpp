@@ -166,7 +166,7 @@ namespace sekbinary
 			}
 			return true;
 		}
-		/** Attempts to read a string from the archive into an output iterator by reading characters until null character.
+		/** Attempts to read a string from the archive into an output range_type_iterator by reading characters until null character.
 		 * @return `true` on success, `false` on failure. Will fail on premature EOF. */
 		template<detail::is_char_type C = char, std::output_iterator<C> I>
 		bool try_read(I &value)
@@ -182,7 +182,7 @@ namespace sekbinary
 			}
 			return true;
 		}
-		/** Attempts to read a string from the archive into an output iterator by reading characters until null
+		/** Attempts to read a string from the archive into an output range_type_iterator by reading characters until null
 		 * character or `value == sent`.
 		 * @return `true` on success, `false` on failure. Will fail on premature EOF. */
 		template<detail::is_char_type C = char, std::output_iterator<C> I, std::sentinel_for<I> S>
@@ -225,7 +225,7 @@ namespace sekbinary
 				throw_eof();
 			return *this;
 		}
-		/** Reads a string from the archive into an output iterator by reading characters until null character or `value == sent`.
+		/** Reads a string from the archive into an output range_type_iterator by reading characters until null character or `value == sent`.
 		 * @throw archive_error On premature EOF. */
 		template<detail::is_char_type C = char, std::output_iterator<C> I, std::sentinel_for<I> S>
 		basic_input_archive &read(I value, S sent)

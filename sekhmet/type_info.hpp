@@ -67,57 +67,7 @@ namespace sek
 			{
 				const T *next = nullptr;
 			};
-			struct ctor_node : basic_node<ctor_node>
-			{
-				template<typename T>
-				struct default_instance
-				{
-					constinit static const ctor_node value;
-				};
 
-				constexpr explicit ctor_node(any (*invoke)(std::span<any>)) noexcept : invoke(invoke) {}
-
-				std::span<type_handle> arg_types;
-				any (*invoke)(std::span<any>);
-			};
-			template<typename T, typename... Args>
-			struct ctor_instance : ctor_node
-			{
-				constinit static ctor_instance value;
-
-				constexpr ctor_instance(std::array<type_handle, sizeof...(Args)> arg_ts, any (*invoke)(std::span<any>)) noexcept
-					: ctor_node(invoke), arg_ts_array(arg_ts)
-				{
-					ctor_node::arg_types = {arg_ts_array};
-				}
-
-				std::array<type_handle, sizeof...(Args)> arg_ts_array;
-			};
-			struct func_node : basic_node<func_node>
-			{
-				constexpr func_node(type_handle ret_type, any (*invoke)(any, std::span<any>)) noexcept
-					: ret_type(ret_type), invoke(invoke)
-				{
-				}
-
-				std::string_view name;
-				type_handle ret_type;
-				std::span<type_handle> arg_types;
-				any (*invoke)(any, std::span<any>);
-			};
-			template<typename T, auto F, typename R, typename... Args>
-			struct func_instance : func_node
-			{
-				constexpr func_instance(type_handle ret_type,
-										std::array<type_handle, sizeof...(Args)> arg_ts,
-										any (*invoke)(any, std::span<any>)) noexcept
-					: func_node(ret_type, invoke), arg_ts_array(arg_ts)
-				{
-					func_node::arg_types = {arg_ts_array};
-				}
-
-				std::array<type_handle, sizeof...(Args)> arg_ts_array;
-			};
 			struct attrib_node : basic_node<attrib_node>
 			{
 				constexpr explicit attrib_node(type_handle type) : type(type) {}
@@ -855,19 +805,19 @@ namespace sek
 		typedef typename data_t::difference_type difference_type;
 
 	public:
-		/** Returns iterator to the first type of the database. */
+		/** Returns range_type_iterator to the first type of the database. */
 		[[nodiscard]] constexpr iterator begin() const noexcept { return iterator{m_types.begin()}; }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return const_iterator{m_types.cbegin()}; }
-		/** Returns iterator one past the last type of the database. */
+		/** Returns range_type_iterator one past the last type of the database. */
 		[[nodiscard]] constexpr iterator end() const noexcept { return iterator{m_types.end()}; }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return const_iterator{m_types.cend()}; }
-		/** Returns reverse iterator to the last type of the database. */
+		/** Returns reverse range_type_iterator to the last type of the database. */
 		[[nodiscard]] constexpr reverse_iterator rbegin() const noexcept { return reverse_iterator{end()}; }
 		/** @copydoc rbegin */
 		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return crbegin(); }
-		/** Returns iterator one past the first type of the database. */
+		/** Returns range_type_iterator one past the first type of the database. */
 		[[nodiscard]] constexpr reverse_iterator rend() const noexcept { return reverse_iterator{begin()}; }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return rend(); }
@@ -881,7 +831,7 @@ namespace sek
 		[[nodiscard]] constexpr type_query query() const noexcept;
 
 		/** Searches for a reflected type in the database.
-		 * @return Iterator to the taraget type, or end iterator if the type was not found. */
+		 * @return Iterator to the taraget type, or end range_type_iterator if the type was not found. */
 		[[nodiscard]] SEK_API iterator find(std::string_view name) const;
 		/** Searches for a reflected type in the database.
 		 * @return Type info of the type, or an invalid type info if such type is not found. */
@@ -959,19 +909,19 @@ namespace sek
 			for (auto type : m_db) m_types.insert(type);
 		}
 
-		/** Returns iterator to the first type captured by the query. */
+		/** Returns range_type_iterator to the first type captured by the query. */
 		[[nodiscard]] constexpr iterator begin() const noexcept { return m_types.begin(); }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return m_types.cbegin(); }
-		/** Returns iterator one past the last type captured by the query. */
+		/** Returns range_type_iterator one past the last type captured by the query. */
 		[[nodiscard]] constexpr iterator end() const noexcept { return m_types.end(); }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return m_types.cend(); }
-		/** Returns reverse iterator to the last type captured by the query. */
+		/** Returns reverse range_type_iterator to the last type captured by the query. */
 		[[nodiscard]] constexpr reverse_iterator rbegin() const noexcept { return m_types.rbegin(); }
 		/** @copydoc rbegin */
 		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return m_types.crbegin(); }
-		/** Returns iterator one past the first type captured by the query. */
+		/** Returns range_type_iterator one past the first type captured by the query. */
 		[[nodiscard]] constexpr reverse_iterator rend() const noexcept { return m_types.rend(); }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return m_types.crend(); }

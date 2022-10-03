@@ -160,17 +160,17 @@ namespace sek
 		/** @copydoc basic_interned_string */
 		basic_interned_string(const C *str, size_type n);
 
-		/** Returns iterator to the start of the string. */
+		/** Returns range_type_iterator to the start of the string. */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return iterator{data()}; }
-		/** Returns iterator to the end of the string. */
+		/** Returns range_type_iterator to the end of the string. */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return iterator{data() + size()}; }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
-		/** Returns reverse iterator to the end of the string. */
+		/** Returns reverse range_type_iterator to the end of the string. */
 		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return reverse_iterator{end()}; }
-		/** Returns reverse iterator to the start of the string. */
+		/** Returns reverse range_type_iterator to the start of the string. */
 		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return reverse_iterator{begin()}; }
 		/** @copydoc rbegin */
 		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return rbegin(); }

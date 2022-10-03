@@ -5,8 +5,8 @@
 #pragma once
 
 #include "../../../detail/alloc_util.hpp"
-#include "../../../detail/meta_util.hpp"
 #include "../../../event.hpp"
+#include "../../../meta.hpp"
 #include "../../../type_info.hpp"
 #include "entity_set.hpp"
 
