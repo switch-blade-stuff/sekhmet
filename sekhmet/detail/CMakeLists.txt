@@ -8,3 +8,5 @@ target_sources(${PROJECT_NAME} PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/uri.cpp
         ${CMAKE_CURRENT_LIST_DIR}/thread_pool.cpp
         ${CMAKE_CURRENT_LIST_DIR}/type_info.cpp)
+
+include(${CMAKE_CURRENT_LIST_DIR}/type_info/CMakeLists.txt)

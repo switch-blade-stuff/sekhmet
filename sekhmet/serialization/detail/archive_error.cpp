@@ -11,7 +11,7 @@ namespace sek
 	class archive_category_t : public std::error_category
 	{
 	public:
-		constexpr archive_category_t() noexcept = default;
+		archive_category_t() noexcept = default;
 		~archive_category_t() override = default;
 
 		[[nodiscard]] const char *name() const noexcept override { return "archive"; }
@@ -31,7 +31,7 @@ namespace sek
 
 	const std::error_category &archive_category() noexcept
 	{
-		constinit static const archive_category_t instance;
+		static const archive_category_t instance;
 		return instance;
 	}
 }	 // namespace sek

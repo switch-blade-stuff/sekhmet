@@ -127,7 +127,7 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] static component_set<T> make_set(entity_world *world)
 		{
-			return new component_set<U>(*world);
+			return new component_set<T>(*world);
 		}
 		[[nodiscard]] static void delete_set(generic_component_set *set) { delete set; }
 

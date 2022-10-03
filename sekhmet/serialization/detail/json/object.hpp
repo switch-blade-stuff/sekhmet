@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <vector>
 
 #include "../../../detail/owned_ptr.hpp"
@@ -50,7 +51,7 @@ namespace sek
 	private:
 		[[nodiscard]] constexpr static bool is_table_list(const initializer_list &il) noexcept
 		{
-			constexpr auto pred = [](const owned_ptr<basic_json_object> &ptr)
+			constexpr auto pred = [](const owned_ptr<basic_json_object> &ptr) -> bool
 			{
 				if (ptr->is_array()) [[likely]]
 					return ptr->m_array.size() == 2 && ptr->m_array[0].is_string();
