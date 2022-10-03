@@ -41,19 +41,19 @@ namespace sek
 		/** Returns amount of subscribers bound to the underlying event. */
 		[[nodiscard]] constexpr size_type size() const noexcept { return m_event->size(); }
 
-		/** Returns range_type_iterator to the fist subscriber of the underlying event. */
+		/** Returns iterator to the fist subscriber of the underlying event. */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return m_event->begin(); }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return m_event->cbegin(); }
-		/** Returns range_type_iterator one past the last subscriber of the underlying event. */
+		/** Returns iterator one past the last subscriber of the underlying event. */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return m_event->end(); }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return m_event->cend(); }
-		/** Returns reverse range_type_iterator one past the last subscriber of the underlying event. */
+		/** Returns reverse iterator one past the last subscriber of the underlying event. */
 		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return m_event->rbegin(); }
 		/** @copydoc rbegin */
 		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return m_event->crbegin(); }
-		/** Returns reverse range_type_iterator to the first subscriber of the underlying event. */
+		/** Returns reverse iterator to the first subscriber of the underlying event. */
 		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return m_event->rend(); }
 		/** @copydoc rend */
 		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return m_event->crend(); }
@@ -208,7 +208,7 @@ namespace sek
 			return m_event->template subscribe_before<T>(value, std::move(subscriber));
 		}
 
-		/** Removes a subscriber delegate pointed to by the specified range_type_iterator from the underlying event.
+		/** Removes a subscriber delegate pointed to by the specified iterator from the underlying event.
 		 * @param where Iterator pointing to the subscriber to be removed from the underlying event.
 		 * @return true if the subscriber was unsubscribed, false otherwise. */
 		constexpr bool unsubscribe(const_iterator where) { return m_event->unsubscribe(where); }
@@ -225,16 +225,16 @@ namespace sek
 		/** @copydoc unsubscribe */
 		constexpr bool operator-=(event_subscriber id) { return (*m_event) -= id; }
 
-		/** Returns range_type_iterator to the subscriber delegate using it's id or if such subscriber is not found. */
+		/** Returns iterator to the subscriber delegate using it's id or if such subscriber is not found. */
 		[[nodiscard]] constexpr iterator find(event_subscriber id) const noexcept { return m_event->find(id); }
-		/** Returns range_type_iterator to the subscriber delegate that compares equal to the provided delegate or the end
-		 * range_type_iterator if such subscriber is not found. */
+		/** Returns iterator to the subscriber delegate that compares equal to the provided delegate or the end
+		 * iterator if such subscriber is not found. */
 		[[nodiscard]] constexpr iterator find(const delegate<R(Args...)> &subscriber) const noexcept
 		{
 			return m_event->find(subscriber);
 		}
 
-		/** Returns range_type_iterator to the subscriber delegate bound to the specified data instance, or an end range_type_iterator
+		/** Returns iterator to the subscriber delegate bound to the specified data instance, or an end range_type_iterator
 		 * if such subscriber is not found. */
 		template<typename T>
 		[[nodiscard]] constexpr iterator find(T *value) const noexcept

@@ -8,6 +8,7 @@
 #include "any_range.hpp"
 #include "any_table.hpp"
 #include "any_tuple.hpp"
+#include "type_factory.hpp"
 
 namespace sek
 {
@@ -59,6 +60,34 @@ namespace sek
 
 		constexpr explicit type_info(const data_t *data) noexcept : m_data(data) {}
 		constexpr explicit type_info(handle_t handle) noexcept : m_data(handle.get()) {}
+
+	public:
+		/** Returns type info for type `T`.
+		 * @note Removes any const & volatile qualifiers and decays references.
+		 * @note The returned type info is generated at compile time and may not be present within the type database. */
+		template<typename T>
+		[[nodiscard]] constexpr static type_info get()
+		{
+			return type_info{get_handle<T>()};
+		}
+		/** Searches for a reflected type in the type database.
+		 * @return Type info of the type, or an invalid type info if such type is not found. */
+		[[nodiscard]] inline static type_info get(std::string_view name);
+
+		/** Reflects type `T`, making it available for runtime lookup by name.
+		 * @return Type factory for type `T`, which can be used to specify additional information about the type.
+		 * @note Removes any const & volatile qualifiers and decays references. */
+		template<typename T>
+		inline static type_factory<T> reflect();
+		/** Resets a reflected type, removing it from the type database.
+		 * @note The type will no longer be available for runtime lookup. */
+		inline static void reset(std::string_view name);
+		/** @copydoc reset */
+		template<typename T>
+		static void reset() noexcept
+		{
+			reset(type_name<std::remove_cvref_t<T>>());
+		}
 
 	public:
 		/** Initializes an invalid type info handle. */
@@ -123,169 +152,5 @@ namespace sek
 	constexpr type_info any_tuple::element(std::size_t i) const noexcept
 	{
 		return i < size() ? type_info{m_data->types[i]} : type_info{};
-	}
-
-	/** If the managed objects of `a` and `b` are of the same type that is equality comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator==(const any &a, const any &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_eq(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If the managed objects of `a` and `b` are of the same type that is less-than comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator<(const any &a, const any &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_lt(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If the managed objects of `a` and `b` are of the same type that is less-than-or-equal comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator<=(const any &a, const any &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_le(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If the managed objects of `a` and `b` are of the same type that is greater-than comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator>(const any &a, const any &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_gt(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If the managed objects of `a` and `b` are of the same type that is greater-than-or-equal comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator>=(const any &a, const any &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_ge(a.m_storage, b.m_storage);
-		return false;
-	}
-
-	/** If the referenced objects of `a` and `b` are of the same type that is equality comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator==(const any_ref &a, const any_ref &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_eq(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If the referenced objects of `a` and `b` are of the same type that is less-than comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator<(const any_ref &a, const any_ref &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_lt(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If the referenced objects of `a` and `b` are of the same type that is less-than-or-equal comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator<=(const any_ref &a, const any_ref &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_le(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If the referenced objects of `a` and `b` are of the same type that is greater-than comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator>(const any_ref &a, const any_ref &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_gt(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If the referenced objects of `a` and `b` are of the same type that is greater-than-or-equal comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator>=(const any_ref &a, const any_ref &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_ge(a.m_storage, b.m_storage);
-		return false;
-	}
-
-	/** If object referenced by `a` and object managed by `b` are of the same type that is equality comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator==(const any_ref &a, const any &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_eq(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If object referenced by `a` and object managed by `b` are of the same type that is less-than comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator<(const any_ref &a, const any &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_lt(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If object referenced by `a` and object managed by `b` are of the same type that is less-than-or-equal
-	 * comparable, returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator<=(const any_ref &a, const any &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_le(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If object referenced by `a` and object managed by `b` are of the same type that is greater-than comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator>(const any_ref &a, const any &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_gt(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If object referenced by `a` and object managed by `b` are of the same type that is greater-than-or-equal
-	 * comparable, returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator>=(const any_ref &a, const any &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_ge(a.m_storage, b.m_storage);
-		return false;
-	}
-
-	/** If object managed by `a` and object referenced by `b` are of the same type that is equality comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator==(const any &a, const any_ref &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_eq(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If object managed by `a` and object referenced by `b` are of the same type that is less-than comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator<(const any &a, const any_ref &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_lt(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If object managed by `a` and object referenced by `b` are of the same type that is less-than-or-equal
-	 * comparable, returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator<=(const any &a, const any_ref &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_le(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If object managed by `a` and object referenced by `b` are of the same type that is greater-than comparable,
-	 * returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator>(const any &a, const any_ref &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_gt(a.m_storage, b.m_storage);
-		return false;
-	}
-	/** If object managed by `a` and object referenced by `b` are of the same type that is greater-than-or-equal
-	 * comparable, returns result of the comparison. Otherwise, returns `false`. */
-	[[nodiscard]] bool operator>=(const any &a, const any_ref &b) noexcept
-	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_ge(a.m_storage, b.m_storage);
-		return false;
 	}
 }	 // namespace sek

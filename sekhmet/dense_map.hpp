@@ -251,26 +251,26 @@ namespace sek
 			return *this;
 		}
 
-		/** Returns range_type_iterator to the start of the map. */
+		/** Returns iterator to the start of the map. */
 		[[nodiscard]] constexpr iterator begin() noexcept { return m_table.begin(); }
-		/** Returns range_type_iterator to the end of the map. */
+		/** Returns iterator to the end of the map. */
 		[[nodiscard]] constexpr iterator end() noexcept { return m_table.end(); }
-		/** Returns const range_type_iterator to the start of the map. */
+		/** Returns const iterator to the start of the map. */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return m_table.begin(); }
-		/** Returns const range_type_iterator to the end of the map. */
+		/** Returns const iterator to the end of the map. */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return m_table.end(); }
 		/** @copydoc cbegin */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return cbegin(); }
 		/** @copydoc cend */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return cend(); }
 
-		/** Returns reverse range_type_iterator to the end of the map. */
+		/** Returns reverse iterator to the end of the map. */
 		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return m_table.rbegin(); }
-		/** Returns reverse range_type_iterator to the start of the map. */
+		/** Returns reverse iterator to the start of the map. */
 		[[nodiscard]] constexpr reverse_iterator rend() noexcept { return m_table.rend(); }
-		/** Returns const reverse range_type_iterator to the end of the map. */
+		/** Returns const reverse iterator to the end of the map. */
 		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return m_table.crbegin(); }
-		/** Returns const reverse range_type_iterator to the start of the map. */
+		/** Returns const reverse iterator to the start of the map. */
 		[[nodiscard]] constexpr const_reverse_iterator crend() const noexcept { return m_table.crend(); }
 		/** @copydoc crbegin */
 		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return crbegin(); }
@@ -552,9 +552,9 @@ namespace sek
 		/** Returns the maximum amount of buckets. */
 		[[nodiscard]] constexpr size_type max_bucket_count() const noexcept { return m_table.max_bucket_count(); }
 
-		/** Returns local range_type_iterator to the start of a bucket. */
+		/** Returns local iterator to the start of a bucket. */
 		[[nodiscard]] constexpr local_iterator begin(size_type bucket) noexcept { return m_table.begin(bucket); }
-		/** Returns const local range_type_iterator to the start of a bucket. */
+		/** Returns const local iterator to the start of a bucket. */
 		[[nodiscard]] constexpr const_local_iterator cbegin(size_type bucket) const noexcept
 		{
 			return m_table.cbegin(bucket);
@@ -564,9 +564,9 @@ namespace sek
 		{
 			return m_table.begin(bucket);
 		}
-		/** Returns local range_type_iterator to the end of a bucket. */
+		/** Returns local iterator to the end of a bucket. */
 		[[nodiscard]] constexpr local_iterator end(size_type bucket) noexcept { return m_table.end(bucket); }
-		/** Returns const local range_type_iterator to the end of a bucket. */
+		/** Returns const local iterator to the end of a bucket. */
 		[[nodiscard]] constexpr const_local_iterator cend(size_type bucket) const noexcept
 		{
 			return m_table.cend(bucket);

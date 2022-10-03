@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <type_traits>
+
 #include "fwd.hpp"
 
 namespace sek::detail
@@ -42,4 +44,10 @@ namespace sek::detail
 		using instance_type = const volatile I;
 		using arg_types = type_seq_t<Args...>;
 	};
+
+	// clang-format off
+	template<typename... Ts>
+	concept any_args = std::conjunction_v<std::disjunction<std::is_same<std::decay_t<Ts>, any_ref>>,
+	                                                       std::is_same<std::decay_t<Ts>, any>...>;
+	// clang-format on
 }	 // namespace sek::detail

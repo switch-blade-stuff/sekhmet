@@ -317,23 +317,23 @@ namespace sek
 		friend class any_range;
 		friend class any_table;
 
-		friend bool operator==(const any &a, const any &b) noexcept;
-		friend bool operator<(const any &a, const any &b) noexcept;
-		friend bool operator<=(const any &a, const any &b) noexcept;
-		friend bool operator>(const any &a, const any &b) noexcept;
-		friend bool operator>=(const any &a, const any &b) noexcept;
+		friend bool SEK_API operator==(const any &a, const any &b) noexcept;
+		friend bool SEK_API operator<(const any &a, const any &b) noexcept;
+		friend bool SEK_API operator<=(const any &a, const any &b) noexcept;
+		friend bool SEK_API operator>(const any &a, const any &b) noexcept;
+		friend bool SEK_API operator>=(const any &a, const any &b) noexcept;
 
-		friend bool operator==(const any &a, const any_ref &b) noexcept;
-		friend bool operator<(const any &a, const any_ref &b) noexcept;
-		friend bool operator<=(const any &a, const any_ref &b) noexcept;
-		friend bool operator>(const any &a, const any_ref &b) noexcept;
-		friend bool operator>=(const any &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator==(const any &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator<(const any &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator<=(const any &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator>(const any &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator>=(const any &a, const any_ref &b) noexcept;
 
-		friend bool operator==(const any_ref &a, const any &b) noexcept;
-		friend bool operator<(const any_ref &a, const any &b) noexcept;
-		friend bool operator<=(const any_ref &a, const any &b) noexcept;
-		friend bool operator>(const any_ref &a, const any &b) noexcept;
-		friend bool operator>=(const any_ref &a, const any &b) noexcept;
+		friend bool SEK_API operator==(const any_ref &a, const any &b) noexcept;
+		friend bool SEK_API operator<(const any_ref &a, const any &b) noexcept;
+		friend bool SEK_API operator<=(const any_ref &a, const any &b) noexcept;
+		friend bool SEK_API operator>(const any_ref &a, const any &b) noexcept;
+		friend bool SEK_API operator>=(const any_ref &a, const any &b) noexcept;
 
 		using base_t = detail::basic_any;
 
@@ -443,23 +443,23 @@ namespace sek
 		friend class any_range;
 		friend class any_table;
 
-		friend bool operator==(const any_ref &a, const any_ref &b) noexcept;
-		friend bool operator<(const any_ref &a, const any_ref &b) noexcept;
-		friend bool operator<=(const any_ref &a, const any_ref &b) noexcept;
-		friend bool operator>(const any_ref &a, const any_ref &b) noexcept;
-		friend bool operator>=(const any_ref &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator==(const any_ref &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator<(const any_ref &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator<=(const any_ref &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator>(const any_ref &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator>=(const any_ref &a, const any_ref &b) noexcept;
 
-		friend bool operator==(const any &a, const any_ref &b) noexcept;
-		friend bool operator<(const any &a, const any_ref &b) noexcept;
-		friend bool operator<=(const any &a, const any_ref &b) noexcept;
-		friend bool operator>(const any &a, const any_ref &b) noexcept;
-		friend bool operator>=(const any &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator==(const any &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator<(const any &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator<=(const any &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator>(const any &a, const any_ref &b) noexcept;
+		friend bool SEK_API operator>=(const any &a, const any_ref &b) noexcept;
 
-		friend bool operator==(const any_ref &a, const any &b) noexcept;
-		friend bool operator<(const any_ref &a, const any &b) noexcept;
-		friend bool operator<=(const any_ref &a, const any &b) noexcept;
-		friend bool operator>(const any_ref &a, const any &b) noexcept;
-		friend bool operator>=(const any_ref &a, const any &b) noexcept;
+		friend bool SEK_API operator==(const any_ref &a, const any &b) noexcept;
+		friend bool SEK_API operator<(const any_ref &a, const any &b) noexcept;
+		friend bool SEK_API operator<=(const any_ref &a, const any &b) noexcept;
+		friend bool SEK_API operator>(const any_ref &a, const any &b) noexcept;
+		friend bool SEK_API operator>=(const any_ref &a, const any &b) noexcept;
 
 		using base_t = detail::basic_any;
 
@@ -561,4 +561,68 @@ namespace sek
 			base_t::move_init(data);
 		}
 	};
+
+	/** If the managed objects of `a` and `b` are of the same type that is equality comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator==(const any &a, const any &b) noexcept;
+	/** If the managed objects of `a` and `b` are of the same type that is less-than comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator<(const any &a, const any &b) noexcept;
+	/** If the managed objects of `a` and `b` are of the same type that is less-than-or-equal comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator<=(const any &a, const any &b) noexcept;
+	/** If the managed objects of `a` and `b` are of the same type that is greater-than comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator>(const any &a, const any &b) noexcept;
+	/** If the managed objects of `a` and `b` are of the same type that is greater-than-or-equal comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator>=(const any &a, const any &b) noexcept;
+
+	/** If the referenced objects of `a` and `b` are of the same type that is equality comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator==(const any_ref &a, const any_ref &b) noexcept;
+	/** If the referenced objects of `a` and `b` are of the same type that is less-than comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator<(const any_ref &a, const any_ref &b) noexcept;
+	/** If the referenced objects of `a` and `b` are of the same type that is less-than-or-equal comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator<=(const any_ref &a, const any_ref &b) noexcept;
+	/** If the referenced objects of `a` and `b` are of the same type that is greater-than comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator>(const any_ref &a, const any_ref &b) noexcept;
+	/** If the referenced objects of `a` and `b` are of the same type that is greater-than-or-equal comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator>=(const any_ref &a, const any_ref &b) noexcept;
+
+	/** If object referenced by `a` and object managed by `b` are of the same type that is equality comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator==(const any_ref &a, const any &b) noexcept;
+	/** If object referenced by `a` and object managed by `b` are of the same type that is less-than comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator<(const any_ref &a, const any &b) noexcept;
+	/** If object referenced by `a` and object managed by `b` are of the same type that is less-than-or-equal
+	 * comparable, returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator<=(const any_ref &a, const any &b) noexcept;
+	/** If object referenced by `a` and object managed by `b` are of the same type that is greater-than comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator>(const any_ref &a, const any &b) noexcept;
+	/** If object referenced by `a` and object managed by `b` are of the same type that is greater-than-or-equal
+	 * comparable, returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator>=(const any_ref &a, const any &b) noexcept;
+
+	/** If object managed by `a` and object referenced by `b` are of the same type that is equality comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator==(const any &a, const any_ref &b) noexcept;
+	/** If object managed by `a` and object referenced by `b` are of the same type that is less-than comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator<(const any &a, const any_ref &b) noexcept;
+	/** If object managed by `a` and object referenced by `b` are of the same type that is less-than-or-equal
+	 * comparable, returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator<=(const any &a, const any_ref &b) noexcept;
+	/** If object managed by `a` and object referenced by `b` are of the same type that is greater-than comparable,
+	 * returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator>(const any &a, const any_ref &b) noexcept;
+	/** If object managed by `a` and object referenced by `b` are of the same type that is greater-than-or-equal
+	 * comparable, returns result of the comparison. Otherwise, returns `false`. */
+	[[nodiscard]] bool SEK_API operator>=(const any &a, const any_ref &b) noexcept;
 }	 // namespace sek

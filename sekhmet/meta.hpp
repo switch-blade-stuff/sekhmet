@@ -364,7 +364,7 @@ namespace sek
 	/** Concept used to check if a range is a forward range with a specific value type. */
 	template<typename R, typename T>
 	concept forward_range_for = std::ranges::forward_range<R> && std::same_as<std::ranges::range_value_t<R>, T>;
-	/** Concept used to check if an range_type_iterator is a forward range_type_iterator with a specific value type. */
+	/** Concept used to check if an iterator is a forward iterator with a specific value type. */
 	template<typename R, typename T>
 	concept forward_iterator_for = std::forward_iterator<R> && std::same_as<std::iter_value_t<R>, T>;
 	// clang-format on

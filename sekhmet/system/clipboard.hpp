@@ -73,7 +73,7 @@ namespace sek
 		// clang-format off
 		/** Creates a group type from a range of clipboard types.
 		 * @param first Iterator to the first element of the group.
-		 * @param last Sentinel for the `first` range_type_iterator. */
+		 * @param last Sentinel for the `first` iterator. */
 		template<std::forward_iterator I, std::sentinel_for<I> S>
 		clipboard_type(I first, S last) : m_data(std::in_place_type<group_data>, first, last) {}
 		/** Creates a group type from a range of clipboard types.

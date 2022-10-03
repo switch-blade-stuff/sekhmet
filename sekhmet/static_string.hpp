@@ -49,25 +49,25 @@ namespace sek
 			std::copy(first, last, value);
 		}
 
-		/** Returns range_type_iterator to the start of the string. */
+		/** Returns iterator to the start of the string. */
 		[[nodiscard]] constexpr iterator begin() noexcept { return iterator{value}; }
-		/** Returns range_type_iterator to the end of the string. */
+		/** Returns iterator to the end of the string. */
 		[[nodiscard]] constexpr iterator end() noexcept { return iterator{value + size()}; }
-		/** Returns const range_type_iterator to the start of the string. */
+		/** Returns const iterator to the start of the string. */
 		[[nodiscard]] constexpr const_iterator begin() const noexcept { return const_iterator{value}; }
-		/** Returns const range_type_iterator to the end of the string. */
+		/** Returns const iterator to the end of the string. */
 		[[nodiscard]] constexpr const_iterator end() const noexcept { return const_iterator{value + size()}; }
 		/** @copydoc begin */
 		[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return begin(); }
 		/** @copydoc end */
 		[[nodiscard]] constexpr const_iterator cend() const noexcept { return end(); }
-		/** Returns reverse range_type_iterator to the end of the string. */
+		/** Returns reverse iterator to the end of the string. */
 		[[nodiscard]] constexpr reverse_iterator rbegin() noexcept { return reverse_iterator{end()}; }
-		/** Returns reverse range_type_iterator to the start of the string. */
+		/** Returns reverse iterator to the start of the string. */
 		[[nodiscard]] constexpr reverse_iterator rend() noexcept { return reverse_iterator{begin()}; }
-		/** Returns const reverse range_type_iterator to the end of the string. */
+		/** Returns const reverse iterator to the end of the string. */
 		[[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator{end()}; }
-		/** Returns const reverse range_type_iterator to the start of the string. */
+		/** Returns const reverse iterator to the start of the string. */
 		[[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return const_reverse_iterator{begin()}; }
 		/** @copydoc rbegin */
 		[[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept { return rbegin(); }

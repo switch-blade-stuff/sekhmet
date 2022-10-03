@@ -4,18 +4,7 @@
 
 #pragma once
 
-#include <new>
-#include <span>
-#include <stdexcept>
-#include <utility>
-
-#include "access_guard.hpp"
-#include "assert.hpp"
-#include "dense_map.hpp"
-#include "dense_set.hpp"
-#include "service.hpp"
-#include "type_name.hpp"
-#include <shared_mutex>
+#include "detail/type_info/type_info.hpp"
 
 namespace sek
 {
@@ -2405,8 +2394,7 @@ namespace sek
  * // my_type.cpp
  * SEK_EXPORT_TYPE(my_type)
  * @endcode*/
-#define SEK_EXTERN_TYPE(T)                                                                                             \
-	extern template SEK_API_IMPORT sek::type_info::data_t *sek::type_info::get_data<T>();
+#define SEK_EXTERN_TYPE(T) extern template SEK_API_IMPORT sek::type_info::data_t *sek::type_info::get_data<T>();
 
 /** Macro used to export instance of type info for type `T`.
  *
@@ -2421,5 +2409,4 @@ namespace sek
  * // my_type.cpp
  * SEK_EXPORT_TYPE(my_type)
  * @endcode */
-#define SEK_EXPORT_TYPE(T)                                                                                             \
-	template SEK_API_EXPORT sek::type_info::data_t *sek::type_info::get_data<T>();
+#define SEK_EXPORT_TYPE(T) template SEK_API_EXPORT sek::type_info::data_t *sek::type_info::get_data<T>();

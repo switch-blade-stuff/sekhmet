@@ -343,4 +343,62 @@ namespace sek::detail
 		type_data_list<type_func> functions = {};
 		type_data_list<type_prop> properties = {};
 	};
+
+	/* Custom view, as CLang has issues with `std::ranges::subrange` at this time. */
+	template<typename Iter>
+	class type_data_view
+	{
+	public:
+		typedef typename Iter::value_type value_type;
+		typedef typename Iter::pointer pointer;
+		typedef typename Iter::const_pointer const_pointer;
+		typedef typename Iter::reference reference;
+		typedef typename Iter::const_reference const_reference;
+		typedef typename Iter::difference_type difference_type;
+		typedef typename Iter::size_type size_type;
+
+		typedef Iter iterator;
+		typedef Iter const_iterator;
+
+	public:
+		constexpr type_data_view() noexcept = default;
+		constexpr type_data_view(iterator first, iterator last) noexcept : m_first(first), m_last(last) {}
+
+		[[nodiscard]] constexpr iterator begin() const noexcept { return m_first; }
+		[[nodiscard]] constexpr iterator cbegin() const noexcept { return begin(); }
+		[[nodiscard]] constexpr iterator end() const noexcept { return m_last; }
+		[[nodiscard]] constexpr iterator cend() const noexcept { return end(); }
+
+		// clang-format off
+		[[nodiscard]] constexpr reference front() const noexcept { return *begin(); }
+		[[nodiscard]] constexpr reference back() const noexcept requires std::bidirectional_iterator<Iter>
+		{
+			return *std::prev(end());
+		}
+		[[nodiscard]] constexpr reference at(size_type i) const noexcept requires std::random_access_iterator<Iter>
+		{
+			return begin()[static_cast<difference_type>(i)];
+		}
+		[[nodiscard]] constexpr reference operator[](size_type i) const noexcept requires std::random_access_iterator<Iter>
+		{
+			return at(i);
+		}
+		// clang-format on
+
+		[[nodiscard]] constexpr bool empty() const noexcept { return begin() == end(); }
+		[[nodiscard]] constexpr size_type size() const noexcept
+		{
+			return static_cast<size_type>(std::distance(begin(), end()));
+		}
+
+		[[nodiscard]] constexpr bool operator==(const type_data_view &other) const noexcept
+		{
+			return std::equal(m_first, m_last, other.m_first, other.m_last);
+		}
+
+	private:
+		Iter m_first = {};
+		Iter m_last = {};
+	};
+
 }	 // namespace sek::detail
