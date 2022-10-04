@@ -239,8 +239,45 @@ namespace sek::detail
 	template<typename>
 	struct table_type_iterator;
 
-	/* TODO: Make a better wrapper for `range_type_iterator<void>`. An alternative to `unique_ptr` is
-	 * needed that would use an in-place storage for iterators that are trivially copyable. */
+	template<typename T>
+	struct type_iterator_ptr
+	{
+		type_iterator_ptr(const type_iterator_ptr &) = delete;
+		type_iterator_ptr &operator=(const type_iterator_ptr &) = delete;
+
+		constexpr type_iterator_ptr() noexcept = default;
+		constexpr type_iterator_ptr(type_iterator_ptr &&other) noexcept { swap(other); }
+		constexpr type_iterator_ptr &operator=(type_iterator_ptr &&other) noexcept
+		{
+			swap(other);
+			return *this;
+		}
+		~type_iterator_ptr() { delete m_ptr; }
+
+		template<typename U>
+		constexpr type_iterator_ptr(U *ptr) noexcept : m_ptr(static_cast<T *>(ptr))
+		{
+		}
+
+		template<typename U>
+		void reset(U *ptr)
+		{
+			delete m_ptr;
+			m_ptr = static_cast<T *>(ptr);
+		}
+
+		[[nodiscard]] constexpr operator bool() const noexcept { return m_ptr != nullptr; }
+
+		[[nodiscard]] constexpr T *get() const noexcept { return m_ptr; }
+		[[nodiscard]] constexpr T *operator->() const noexcept { return get() }
+		[[nodiscard]] constexpr T &operator*() const noexcept { return *get() }
+
+		constexpr void swap(type_iterator_ptr &other) { std::swap(m_ptr, other.m_ptr); }
+		friend constexpr void swap(type_iterator_ptr &a, type_iterator_ptr &b) { a.swap(b); }
+
+	private:
+		T *m_ptr = nullptr;
+	};
 	template<>
 	struct SEK_API range_type_iterator<void>
 	{
@@ -317,15 +354,15 @@ namespace sek::detail
 		bool (*empty)(const void *) = nullptr;
 		std::size_t (*size)(const void *) = nullptr;
 
-		std::unique_ptr<range_type_iterator<void>> (*begin)(any_ref &) = nullptr;
-		std::unique_ptr<range_type_iterator<void>> (*cbegin)(const any_ref &) = nullptr;
-		std::unique_ptr<range_type_iterator<void>> (*end)(any_ref &) = nullptr;
-		std::unique_ptr<range_type_iterator<void>> (*cend)(const any_ref &) = nullptr;
+		type_iterator_ptr<range_type_iterator<void>> (*begin)(any_ref &) = nullptr;
+		type_iterator_ptr<range_type_iterator<void>> (*cbegin)(const any_ref &) = nullptr;
+		type_iterator_ptr<range_type_iterator<void>> (*end)(any_ref &) = nullptr;
+		type_iterator_ptr<range_type_iterator<void>> (*cend)(const any_ref &) = nullptr;
 
-		std::unique_ptr<range_type_iterator<void>> (*rbegin)(any_ref &) = nullptr;
-		std::unique_ptr<range_type_iterator<void>> (*crbegin)(const any_ref &) = nullptr;
-		std::unique_ptr<range_type_iterator<void>> (*rend)(any_ref &) = nullptr;
-		std::unique_ptr<range_type_iterator<void>> (*crend)(const any_ref &) = nullptr;
+		type_iterator_ptr<range_type_iterator<void>> (*rbegin)(any_ref &) = nullptr;
+		type_iterator_ptr<range_type_iterator<void>> (*crbegin)(const any_ref &) = nullptr;
+		type_iterator_ptr<range_type_iterator<void>> (*rend)(any_ref &) = nullptr;
+		type_iterator_ptr<range_type_iterator<void>> (*crend)(const any_ref &) = nullptr;
 
 		any (*front)(any_ref &) = nullptr;
 		any (*cfront)(const any_ref &) = nullptr;
@@ -349,18 +386,18 @@ namespace sek::detail
 		std::size_t (*size)(const void *) = nullptr;
 		bool (*contains)(const void *, const any &) = nullptr;
 
-		std::unique_ptr<table_type_iterator<void>> (*find)(any_ref &, const any &) = nullptr;
-		std::unique_ptr<table_type_iterator<void>> (*cfind)(const any_ref &, const any &) = nullptr;
+		type_iterator_ptr<table_type_iterator<void>> (*find)(any_ref &, const any &) = nullptr;
+		type_iterator_ptr<table_type_iterator<void>> (*cfind)(const any_ref &, const any &) = nullptr;
 
-		std::unique_ptr<table_type_iterator<void>> (*begin)(any_ref &) = nullptr;
-		std::unique_ptr<table_type_iterator<void>> (*cbegin)(const any_ref &) = nullptr;
-		std::unique_ptr<table_type_iterator<void>> (*end)(any_ref &) = nullptr;
-		std::unique_ptr<table_type_iterator<void>> (*cend)(const any_ref &) = nullptr;
+		type_iterator_ptr<table_type_iterator<void>> (*begin)(any_ref &) = nullptr;
+		type_iterator_ptr<table_type_iterator<void>> (*cbegin)(const any_ref &) = nullptr;
+		type_iterator_ptr<table_type_iterator<void>> (*end)(any_ref &) = nullptr;
+		type_iterator_ptr<table_type_iterator<void>> (*cend)(const any_ref &) = nullptr;
 
-		std::unique_ptr<table_type_iterator<void>> (*rbegin)(any_ref &) = nullptr;
-		std::unique_ptr<table_type_iterator<void>> (*crbegin)(const any_ref &) = nullptr;
-		std::unique_ptr<table_type_iterator<void>> (*rend)(any_ref &) = nullptr;
-		std::unique_ptr<table_type_iterator<void>> (*crend)(const any_ref &) = nullptr;
+		type_iterator_ptr<table_type_iterator<void>> (*rbegin)(any_ref &) = nullptr;
+		type_iterator_ptr<table_type_iterator<void>> (*crbegin)(const any_ref &) = nullptr;
+		type_iterator_ptr<table_type_iterator<void>> (*rend)(any_ref &) = nullptr;
+		type_iterator_ptr<table_type_iterator<void>> (*crend)(const any_ref &) = nullptr;
 
 		any (*at)(any_ref &, const any &) = nullptr;
 		any (*cat)(const any_ref &, const any &) = nullptr;

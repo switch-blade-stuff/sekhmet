@@ -35,11 +35,17 @@ namespace sek
 				if (target.is_const()) [[unlikely]]
 					return nullptr;
 
+				/* Views do not allow for non-const access. */
 				auto &str = *static_cast<T *>(target.data());
 				if constexpr (!requires { str.data(); })
-					return std::to_address(std::ranges::begin(str));
-				else
+				{
+					const auto iter = std::ranges::begin(str);
+					if constexpr (std::is_convertible_v<decltype(std::to_address(iter)), void *>)
+						return std::to_address(iter);
+				}
+				else if constexpr (std::is_convertible_v<decltype(str.data()), void *>)
 					return str.data();
+				return nullptr;
 			};
 			result.cdata = +[](const any_ref &target) -> const void *
 			{

@@ -12,7 +12,7 @@ namespace sek
 	namespace detail
 	{
 		template<typename I>
-		class range_type_iterator final : range_type_iterator<void>
+		class range_type_iterator final : public range_type_iterator<void>
 		{
 		public:
 			constexpr range_type_iterator() noexcept = default;
@@ -117,41 +117,41 @@ namespace sek
 				using iter_t = range_type_iterator<std::ranges::iterator_t<T>>;
 				using const_iter_t = range_type_iterator<std::ranges::iterator_t<const T>>;
 
-				result.begin = +[](any_ref &target) -> std::unique_ptr<range_type_iterator<void>>
+				result.begin = +[](any_ref &target) -> type_iterator_ptr<range_type_iterator<void>>
 				{
 					if (target.is_const()) [[unlikely]]
 					{
 						auto &obj = *static_cast<const T *>(target.data());
-						return std::make_unique<const_iter_t>(std::ranges::begin(obj));
+						return new const_iter_t(std::ranges::begin(obj));
 					}
 					else
 					{
 						auto &obj = *static_cast<T *>(target.data());
-						return std::make_unique<iter_t>(std::ranges::begin(obj));
+						return new iter_t(std::ranges::begin(obj));
 					}
 				};
-				result.cbegin = +[](const any_ref &target) -> std::unique_ptr<range_type_iterator<void>>
+				result.cbegin = +[](const any_ref &target) -> type_iterator_ptr<range_type_iterator<void>>
 				{
 					auto &obj = *static_cast<const T *>(target.data());
-					return std::make_unique<const_iter_t>(std::ranges::begin(obj));
+					return new const_iter_t(std::ranges::begin(obj));
 				};
-				result.end = +[](any_ref &target) -> std::unique_ptr<range_type_iterator<void>>
+				result.end = +[](any_ref &target) -> type_iterator_ptr<range_type_iterator<void>>
 				{
 					if (target.is_const()) [[unlikely]]
 					{
 						auto &obj = *static_cast<const T *>(target.data());
-						return std::make_unique<const_iter_t>(std::ranges::end(obj));
+						return new const_iter_t(std::ranges::end(obj));
 					}
 					else
 					{
 						auto &obj = *static_cast<T *>(target.data());
-						return std::make_unique<iter_t>(std::ranges::end(obj));
+						return new iter_t(std::ranges::end(obj));
 					}
 				};
-				result.cend = +[](const any_ref &target) -> std::unique_ptr<range_type_iterator<void>>
+				result.cend = +[](const any_ref &target) -> type_iterator_ptr<range_type_iterator<void>>
 				{
 					auto &obj = *static_cast<const T *>(target.data());
-					return std::make_unique<const_iter_t>(std::ranges::end(obj));
+					return new const_iter_t(std::ranges::end(obj));
 				};
 
 				result.front = +[](any_ref &target) -> any
@@ -178,41 +178,41 @@ namespace sek
 				using iter_t = range_type_iterator<std::ranges::iterator_t<T>>;
 				using const_iter_t = range_type_iterator<std::ranges::iterator_t<const T>>;
 
-				result.rbegin = +[](any_ref &target) -> std::unique_ptr<range_type_iterator<void>>
+				result.rbegin = +[](any_ref &target) -> type_iterator_ptr<range_type_iterator<void>>
 				{
 					if (target.is_const()) [[unlikely]]
 					{
 						auto &obj = *static_cast<const T *>(target.data());
-						return std::make_unique<const_iter_t>(std::prev(std::ranges::end(obj)));
+						return new const_iter_t(std::prev(std::ranges::end(obj)));
 					}
 					else
 					{
 						auto &obj = *static_cast<T *>(target.data());
-						return std::make_unique<iter_t>(std::prev(std::ranges::end(obj)));
+						return new iter_t(std::prev(std::ranges::end(obj)));
 					}
 				};
-				result.crbegin = +[](const any_ref &target) -> std::unique_ptr<range_type_iterator<void>>
+				result.crbegin = +[](const any_ref &target) -> type_iterator_ptr<range_type_iterator<void>>
 				{
 					auto &obj = *static_cast<const T *>(target.data());
-					return std::make_unique<const_iter_t>(std::prev(std::ranges::end(obj)));
+					return new const_iter_t(std::prev(std::ranges::end(obj)));
 				};
-				result.rend = +[](any_ref &target) -> std::unique_ptr<range_type_iterator<void>>
+				result.rend = +[](any_ref &target) -> type_iterator_ptr<range_type_iterator<void>>
 				{
 					if (target.is_const()) [[unlikely]]
 					{
 						auto &obj = *static_cast<const T *>(target.data());
-						return std::make_unique<const_iter_t>(std::next(std::ranges::begin(obj)));
+						return new const_iter_t(std::next(std::ranges::begin(obj)));
 					}
 					else
 					{
 						auto &obj = *static_cast<T *>(target.data());
-						return std::make_unique<iter_t>(std::next(std::ranges::begin(obj)));
+						return new iter_t(std::next(std::ranges::begin(obj)));
 					}
 				};
-				result.crend = +[](const any_ref &target) -> std::unique_ptr<range_type_iterator<void>>
+				result.crend = +[](const any_ref &target) -> type_iterator_ptr<range_type_iterator<void>>
 				{
 					auto &obj = *static_cast<const T *>(target.data());
-					return std::make_unique<const_iter_t>(std::next(std::ranges::begin(obj)));
+					return new const_iter_t(std::next(std::ranges::begin(obj)));
 				};
 
 				result.back = +[](any_ref &target) -> any
@@ -296,7 +296,7 @@ namespace sek
 			typedef std::ptrdiff_t difference_type;
 
 		private:
-			explicit range_iterator(std::unique_ptr<iter_t> &&ptr) noexcept : m_iter(std::move(ptr)) {}
+			explicit range_iterator(detail::type_iterator_ptr<iter_t> &&ptr) noexcept : m_iter(std::move(ptr)) {}
 
 		public:
 			constexpr range_iterator() noexcept = default;
@@ -345,7 +345,7 @@ namespace sek
 			[[nodiscard]] bool operator<=(const range_iterator &) const;
 
 		private:
-			std::unique_ptr<iter_t> m_iter;
+			detail::type_iterator_ptr<iter_t> m_iter;
 		};
 
 	public:
@@ -357,10 +357,10 @@ namespace sek
 		typedef typename range_iterator::reference const_reference;
 
 	private:
+		static const detail::range_type_data *assert_data(const detail::type_data *data);
+
 		any_range(std::in_place_t, const any_ref &ref) : m_data(ref.m_type->range_data), m_target(ref) {}
 		any_range(std::in_place_t, any_ref &&ref) : m_data(ref.m_type->range_data), m_target(std::move(ref)) {}
-
-		static const detail::range_type_data *assert_data(const detail::type_data *data);
 
 	public:
 		any_range() = delete;

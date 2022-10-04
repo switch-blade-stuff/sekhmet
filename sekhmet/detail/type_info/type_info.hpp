@@ -336,11 +336,6 @@ namespace sek
 
 	/* Type names for reflection types. */
 	template<>
-	[[nodiscard]] constexpr std::string_view type_name<type_info>() noexcept
-	{
-		return "sek::type_info";
-	}
-	template<>
 	[[nodiscard]] constexpr std::string_view type_name<any>() noexcept
 	{
 		return "sek::any";
@@ -351,24 +346,9 @@ namespace sek
 		return "sek::any_ref";
 	}
 	template<>
-	[[nodiscard]] constexpr std::string_view type_name<any_range>() noexcept
+	[[nodiscard]] constexpr std::string_view type_name<type_info>() noexcept
 	{
-		return "sek::any_range";
-	}
-	template<>
-	[[nodiscard]] constexpr std::string_view type_name<any_table>() noexcept
-	{
-		return "sek::any_table";
-	}
-	template<>
-	[[nodiscard]] constexpr std::string_view type_name<any_tuple>() noexcept
-	{
-		return "sek::any_table";
-	}
-	template<>
-	[[nodiscard]] constexpr std::string_view type_name<any_string>() noexcept
-	{
-		return "sek::any_string";
+		return "sek::type_info";
 	}
 
 	/** Returns the type info of an object's type. Equivalent to `type_info::get<T>()`. */
@@ -400,7 +380,8 @@ namespace sek
  * // my_type.cpp
  * SEK_EXPORT_TYPE(my_type)
  * @endcode*/
-#define SEK_EXTERN_TYPE(T) extern template SEK_API_IMPORT sek::type_info::data_t *sek::type_info::get_data<T>();
+#define SEK_EXTERN_TYPE(T)                                                                                             \
+	extern template SEK_API_IMPORT sek::detail::type_data *sek::detail::type_data::instance<T>() noexcept;
 
 /** Macro used to export instance of type info for type `T`.
  * @note Type must be declared as `extern` via `SEK_EXTERN_TYPE`.
@@ -414,4 +395,10 @@ namespace sek
  * // my_type.cpp
  * SEK_EXPORT_TYPE(my_type)
  * @endcode */
-#define SEK_EXPORT_TYPE(T) template SEK_API_EXPORT sek::type_info::data_t *sek::type_info::get_data<T>();
+#define SEK_EXPORT_TYPE(T)                                                                                             \
+	template SEK_API_EXPORT sek::detail::type_data *sek::detail::type_data::instance<T>() noexcept;
+
+/* Type exports for reflection types */
+SEK_EXTERN_TYPE(sek::any);
+SEK_EXTERN_TYPE(sek::any_ref);
+SEK_EXTERN_TYPE(sek::type_info);

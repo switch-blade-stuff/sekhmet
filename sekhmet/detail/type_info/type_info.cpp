@@ -4,6 +4,10 @@
 
 #include "type_info.hpp"
 
+SEK_EXPORT_TYPE(sek::any)
+SEK_EXPORT_TYPE(sek::any_ref)
+SEK_EXPORT_TYPE(sek::type_info)
+
 namespace sek
 {
 	bool type_info::has_parent(type_info other) const noexcept
