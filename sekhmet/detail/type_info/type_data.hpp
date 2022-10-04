@@ -269,8 +269,8 @@ namespace sek::detail
 		[[nodiscard]] constexpr operator bool() const noexcept { return m_ptr != nullptr; }
 
 		[[nodiscard]] constexpr T *get() const noexcept { return m_ptr; }
-		[[nodiscard]] constexpr T *operator->() const noexcept { return get() }
-		[[nodiscard]] constexpr T &operator*() const noexcept { return *get() }
+		[[nodiscard]] constexpr T *operator->() const noexcept { return get(); }
+		[[nodiscard]] constexpr T &operator*() const noexcept { return *get(); }
 
 		constexpr void swap(type_iterator_ptr &other) { std::swap(m_ptr, other.m_ptr); }
 		friend constexpr void swap(type_iterator_ptr &a, type_iterator_ptr &b) { a.swap(b); }
