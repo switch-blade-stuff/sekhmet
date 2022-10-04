@@ -1,15 +1,18 @@
 ** Console system:
-Console is a debug service used to process user commands and log output. User plugins can create custom console commands.
-Console command structures contain a delegate for the command, number of arguments, description, usage, and an optional group.
-Arguments of a console command are parsed as Json objects. The delegate is responcible for further de-serialization if it is needed.
+Console is a debug service used to process user commands and log output. User plugins can create custom console
+commands. Console command structures contain a delegate for the command, number of arguments, description, usage, and an
+optional group. Arguments of a console command are parsed as Json objects. The delegate is responcible for further
+de-serialization if it is needed.
 
-If a console command cannot be executed (i.e. due to an invalid argument), the delegate should return an error code indicating
-an argument error (via `expected<void, std::error_code>`). Index of the invalid argument is OR'ed with the error code.
+If a console command cannot be executed (i.e. due to an invalid argument), the delegate should return an error code
+indicating an argument error (via `expected<void, std::error_code>`). Index of the invalid argument is OR'ed with the
+error code.
 
 Example:
+
 ```cpp
 
-auto console = sek::console::instance();
+auto console = sek::console::instance(); // Get the main console
 auto cmd = console->commands();
 
 sek::console::command cmd1 = 
@@ -24,7 +27,7 @@ sek::console::command cmd1 =
 };
 sek::console::command print_num = 
 {
-	[](const sek::serialization::json_object &arg) -> expected<void, std::error_code>
+	[](const sek::json_object &arg) -> expected<void, std::error_code>
 	{
 		if (!arg.is_number()) // Verify argument type
 			return unexpected{make_error_code(sek::console_errc::INVALID_ARG | 0)};
