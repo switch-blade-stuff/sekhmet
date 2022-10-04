@@ -19,7 +19,8 @@ namespace sek
 	/** @brief Base interface used to attach runtime type information to a polymorphic inheritance tree. */
 	class SEK_API object
 	{
-		friend constexpr type_info type_of(const object &) noexcept;
+		template<typename T>
+		friend constexpr type_info type_of(T &&) noexcept;
 
 		// clang-format off
 		template<typename T, typename U>
@@ -46,13 +47,17 @@ namespace sek
 
 	protected:
 		/** Returns the actual `type_info` of the type. Must be specialized by children. */
-		[[nodiscard]] virtual type_info get_type_info() const noexcept = 0;
+		[[nodiscard]] virtual type_info get_object_type() const noexcept = 0;
 	};
 
-	/** Returns the actual type of an `object`. */
-	[[nodiscard]] constexpr type_info type_of(const object &obj) noexcept { return obj.get_type_info(); }
-
 	// clang-format off
+	/** Returns the actual type of an `object`. */
+	template<typename T>
+	[[nodiscard]] constexpr type_info type_of(T &&obj) noexcept requires std::is_base_of_v<object, std::remove_cvref_t<T>>
+	{
+		return static_cast<transfer_cv_t<std::remove_reference_t<T>, object> &>(obj).get_object_type();
+	}
+
 	/** Preforms a safe dynamic cast between references of `object` types.
 	 * @return Reference to `obj` dynamically casted to `T`.
 	 * @note Both types must be part of the same inheritance tree.
@@ -112,7 +117,7 @@ namespace sek
 /** @brief Creates required protected member definitions for a type that derives from `sek::object`. */
 #define SEK_DEFINE_OBJECT()                                                                                            \
 protected:                                                                                                             \
-	[[nodiscard]] virtual type_info get_type_info() const noexcept override                                            \
+	[[nodiscard]] virtual type_info get_object_type() const noexcept override                                          \
 	{                                                                                                                  \
 		return type_info::get<std::remove_cvref_t<decltype(*this)>>();                                                 \
 	}                                                                                                                  \
