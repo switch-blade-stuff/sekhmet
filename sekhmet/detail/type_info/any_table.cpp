@@ -168,14 +168,21 @@ namespace sek
 		return const_reverse_iterator{};
 	}
 
-	typename any_table::iterator any_table::find(const any &key) { return iterator{m_data->find(m_target, key)}; }
+	bool any_table::contains(const any &key) const
+	{
+		return m_data->contains && m_data->contains(m_target.data(), key);
+	}
+	typename any_table::iterator any_table::find(const any &key)
+	{
+		return m_data->find ? iterator{m_data->find(m_target, key)} : iterator{};
+	}
 	typename any_table::const_iterator any_table::find(const any &key) const
 	{
-		return const_iterator{m_data->cfind(m_target, key)};
+		return m_data->find ? const_iterator{m_data->cfind(m_target, key)} : const_iterator{};
 	}
 
-	bool any_table::empty() const { return m_data->empty(m_target); }
-	std::size_t any_table::size() const { return is_sized_range() ? m_data->size(m_target) : 0; }
+	bool any_table::empty() const { return m_data->empty(m_target.data()); }
+	std::size_t any_table::size() const { return is_sized_range() ? m_data->size(m_target.data()) : 0; }
 
 	any any_table::at(const any &key) { return m_data->at(m_target, key); }
 	any any_table::at(const any &key) const { return m_data->cat(m_target, key); }

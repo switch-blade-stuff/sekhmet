@@ -17,4 +17,35 @@ namespace sek
 			}
 		return false;
 	}
+
+	bool type_info::has_constructor(std::span<const any> args) const noexcept
+	{
+		if (args.empty() && m_data->default_ctor) /* Quick check for default ctor. */
+			return true;
+
+		for (auto &ctor : m_data->constructors)
+		{
+			constexpr auto match = [](const any &a, const detail::arg_type_data &b) -> bool
+			{
+				bool result = !b.is_const || a.is_const();
+				return result && a.type() == type_info{b.type};
+			};
+			if (ctor.args.size() == args.size() && std::equal(args.begin(), args.end(), ctor.args.begin(), match))
+				return true;
+		}
+		return false;
+	}
+	bool type_info::has_constructor(std::span<const type_info> args) const noexcept
+	{
+		if (args.empty() && m_data->default_ctor) /* Quick check for default ctor. */
+			return true;
+
+		for (auto &ctor : m_data->constructors)
+		{
+			constexpr auto match = [](type_info a, const detail::arg_type_data &b) { return a == type_info{b.type}; };
+			if (ctor.args.size() == args.size() && std::equal(args.begin(), args.end(), ctor.args.begin(), match))
+				return true;
+		}
+		return false;
+	}
 }	 // namespace sek

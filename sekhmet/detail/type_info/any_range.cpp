@@ -185,8 +185,8 @@ namespace sek
 		return const_reverse_iterator{};
 	}
 
-	bool any_range::empty() const { return m_data->empty(m_target); }
-	std::size_t any_range::size() const { return is_sized_range() ? m_data->size(m_target) : 0; }
+	bool any_range::empty() const { return m_data->empty(m_target.data()); }
+	std::size_t any_range::size() const { return is_sized_range() ? m_data->size(m_target.data()) : 0; }
 
 	any any_range::front() { return is_forward_range() ? m_data->front(m_target) : any{}; }
 	any any_range::front() const { return is_forward_range() ? m_data->cfront(m_target) : any{}; }

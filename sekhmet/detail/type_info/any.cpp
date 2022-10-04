@@ -8,6 +8,38 @@
 
 namespace sek
 {
+	void any::destroy()
+	{
+		if (!empty()) [[likely]]
+			m_type->any_funcs.destroy(*this);
+	}
+	void any::copy_init(const any &other)
+	{
+		if (!other.empty() && other.m_type->any_funcs.construct) [[likely]]
+		{
+			other.m_type->any_funcs.construct(other, *this);
+			m_type = other.m_type;
+		}
+	}
+	void any::copy_assign(const any &other)
+	{
+		if (!empty() && type() == other.type())
+		{
+			if (other.empty() || !other.m_type->any_funcs.assign)
+				reset();
+			else
+			{
+				other.m_type->any_funcs.assign(other, *this);
+				m_type = other.m_type;
+			}
+		}
+		else
+		{
+			reset(); /* Reset since we are re-initializing. */
+			copy_init(other);
+		}
+	}
+
 	expected<any_range, std::error_code> any::range(std::nothrow_t)
 	{
 		if (empty()) [[unlikely]]
@@ -110,125 +142,125 @@ namespace sek
 
 	bool operator==(const any &a, const any &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_eq(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_eq != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_eq(a.data(), b.data());
 		return false;
 	}
 	bool operator<(const any &a, const any &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_lt(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_lt != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_lt(a.data(), b.data());
 		return false;
 	}
 	bool operator<=(const any &a, const any &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_le(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_le != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_le(a.data(), b.data());
 		return false;
 	}
 	bool operator>(const any &a, const any &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_gt(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_gt != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_gt(a.data(), b.data());
 		return false;
 	}
 	bool operator>=(const any &a, const any &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_ge(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_ge != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_ge(a.data(), b.data());
 		return false;
 	}
 
 	bool operator==(const any_ref &a, const any_ref &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_eq(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_eq != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_eq(a.data(), b.data());
 		return false;
 	}
 	bool operator<(const any_ref &a, const any_ref &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_lt(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_lt != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_lt(a.data(), b.data());
 		return false;
 	}
 	bool operator<=(const any_ref &a, const any_ref &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_le(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_le != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_le(a.data(), b.data());
 		return false;
 	}
 	bool operator>(const any_ref &a, const any_ref &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_gt(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_gt != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_gt(a.data(), b.data());
 		return false;
 	}
 	bool operator>=(const any_ref &a, const any_ref &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_ge(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_ge != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_ge(a.data(), b.data());
 		return false;
 	}
 
 	bool operator==(const any_ref &a, const any &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_eq(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_eq != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_eq(a.data(), b.data());
 		return false;
 	}
 	bool operator<(const any_ref &a, const any &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_lt(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_lt != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_lt(a.data(), b.data());
 		return false;
 	}
 	bool operator<=(const any_ref &a, const any &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_le(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_le != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_le(a.data(), b.data());
 		return false;
 	}
 	bool operator>(const any_ref &a, const any &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_gt(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_gt != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_gt(a.data(), b.data());
 		return false;
 	}
 	bool operator>=(const any_ref &a, const any &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_ge(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_ge != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_ge(a.data(), b.data());
 		return false;
 	}
 
 	bool operator==(const any &a, const any_ref &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_eq(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_eq != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_eq(a.data(), b.data());
 		return false;
 	}
 	bool operator<(const any &a, const any_ref &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_lt(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_lt != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_lt(a.data(), b.data());
 		return false;
 	}
 	bool operator<=(const any &a, const any_ref &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_le(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_le != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_le(a.data(), b.data());
 		return false;
 	}
 	bool operator>(const any &a, const any_ref &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_gt(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_gt != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_gt(a.data(), b.data());
 		return false;
 	}
 	bool operator>=(const any &a, const any_ref &b) noexcept
 	{
-		if (a.type().valid() == b.type().valid() && a.m_vtable != nullptr) [[likely]]
-			return a.m_vtable->cmp_ge(a.m_storage, b.m_storage);
+		if (a.type().valid() == b.type().valid() && a.m_type->any_funcs.cmp_ge != nullptr) [[likely]]
+			return a.m_type->any_funcs.cmp_ge(a.data(), b.data());
 		return false;
 	}
 }	 // namespace sek

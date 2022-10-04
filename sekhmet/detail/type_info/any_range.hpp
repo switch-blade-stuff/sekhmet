@@ -104,15 +104,11 @@ namespace sek
 			range_type_data result;
 			result.value_type = type_handle{type_selector<std::ranges::range_value_t<T>>};
 
-			result.empty = +[](const any_ref &target) -> bool
-			{
-				auto &obj = *static_cast<const T *>(target.data());
-				return std::ranges::empty(obj);
-			};
+			result.empty = +[](const void *p) -> bool { return std::ranges::empty(*static_cast<const T *>(p)); };
 			if constexpr (std::ranges::sized_range<T>)
-				result.size = +[](const any_ref &target) -> std::size_t
+				result.size = +[](const void *p) -> std::size_t
 				{
-					auto &obj = *static_cast<const T *>(target.data());
+					const auto &obj = *static_cast<const T *>(p);
 					return static_cast<std::size_t>(std::ranges::size(obj));
 				};
 
@@ -385,6 +381,9 @@ namespace sek
 		explicit any_range(const any_ref &ref) : m_data(assert_data(ref.m_type)), m_target(ref) {}
 		/** @copydoc any_range */
 		explicit any_range(any_ref &&ref) : m_data(assert_data(ref.m_type)), m_target(std::move(ref)) {}
+
+		/** Returns `any_ref` reference ot the target range. */
+		[[nodiscard]] any_ref target() const noexcept { return m_target; }
 
 		/** Checks if the referenced range is a sized range. */
 		[[nodiscard]] constexpr bool is_sized_range() const noexcept { return m_data->size != nullptr; }

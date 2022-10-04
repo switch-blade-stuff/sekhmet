@@ -116,6 +116,9 @@ namespace sek
 		/** @copydoc any_tuple */
 		explicit any_tuple(any_ref &&ref) : m_data(assert_data(ref.m_type)), m_target(std::move(ref)) {}
 
+		/** Returns `any_ref` reference ot the target tuple. */
+		[[nodiscard]] any_ref target() const noexcept { return m_target; }
+
 		/** Returns the size of the tuple type as if via `std::tuple_size_v<T>`. */
 		[[nodiscard]] constexpr size_type size() const noexcept { return m_data->types.size(); }
 		/** Returns the `i`th element type of the tuple, or an invalid type info if `i` is out of range. */

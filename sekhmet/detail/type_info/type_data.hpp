@@ -191,7 +191,6 @@ namespace sek::detail
 	{
 		type_handle type; /* Actual type of the argument. */
 		bool is_const;	  /* Is the argument type const-qualified. */
-		bool is_volatile; /* Is the argument type volatile-qualified. */
 	};
 	using type_func_args = std::span<arg_type_data>;
 
@@ -315,8 +314,8 @@ namespace sek::detail
 
 		type_handle value_type;
 
-		bool (*empty)(const any_ref &) = nullptr;
-		std::size_t (*size)(const any_ref &) = nullptr;
+		bool (*empty)(const void *) = nullptr;
+		std::size_t (*size)(const void *) = nullptr;
 
 		std::unique_ptr<range_type_iterator<void>> (*begin)(any_ref &) = nullptr;
 		std::unique_ptr<range_type_iterator<void>> (*cbegin)(const any_ref &) = nullptr;
@@ -346,9 +345,9 @@ namespace sek::detail
 		type_handle key_type;
 		type_handle mapped_type;
 
-		bool (*empty)(const any_ref &) = nullptr;
-		std::size_t (*size)(const any_ref &) = nullptr;
-		bool (*contains)(const any_ref &, any) = nullptr;
+		bool (*empty)(const void *) = nullptr;
+		std::size_t (*size)(const void *) = nullptr;
+		bool (*contains)(const void *, const any &) = nullptr;
 
 		std::unique_ptr<table_type_iterator<void>> (*find)(any_ref &, const any &) = nullptr;
 		std::unique_ptr<table_type_iterator<void>> (*cfind)(const any_ref &, const any &) = nullptr;
@@ -404,30 +403,26 @@ namespace sek::detail
 		type_handle char_type;
 		type_handle traits_type;
 
-		bool (*empty)(const any_ref &) = nullptr;
-		std::size_t (*size)(const any_ref &) = nullptr;
-
+		bool (*empty)(const void *) = nullptr;
+		std::size_t (*size)(const void *) = nullptr;
 		void *(*data)(any_ref &) = nullptr;
 		const void *(*cdata)(const any_ref &) = nullptr;
-		any (*to_string)(const any_ref &) = nullptr;
-		any (*to_string_view)(const any_ref &) = nullptr;
+	};
 
-		std::unique_ptr<range_type_iterator<void>> (*begin)(any_ref &) = nullptr;
-		std::unique_ptr<range_type_iterator<void>> (*cbegin)(const any_ref &) = nullptr;
-		std::unique_ptr<range_type_iterator<void>> (*end)(any_ref &) = nullptr;
-		std::unique_ptr<range_type_iterator<void>> (*cend)(const any_ref &) = nullptr;
+	struct any_funcs_t
+	{
+		template<typename T>
+		constexpr static any_funcs_t make_instance() noexcept;
 
-		std::unique_ptr<range_type_iterator<void>> (*rbegin)(any_ref &) = nullptr;
-		std::unique_ptr<range_type_iterator<void>> (*crbegin)(const any_ref &) = nullptr;
-		std::unique_ptr<range_type_iterator<void>> (*rend)(any_ref &) = nullptr;
-		std::unique_ptr<range_type_iterator<void>> (*crend)(const any_ref &) = nullptr;
+		void (*destroy)(any &) = nullptr;
+		void (*construct)(const any &, any &) = nullptr;
+		void (*assign)(const any &, any &) = nullptr;
 
-		any (*front)(any_ref &) = nullptr;
-		any (*cfront)(const any_ref &) = nullptr;
-		any (*back)(any_ref &) = nullptr;
-		any (*cback)(const any_ref &) = nullptr;
-		any (*at)(any_ref &, std::size_t) = nullptr;
-		any (*cat)(const any_ref &, std::size_t) = nullptr;
+		bool (*cmp_eq)(const void *, const void *) = nullptr;
+		bool (*cmp_lt)(const void *, const void *) = nullptr;
+		bool (*cmp_le)(const void *, const void *) = nullptr;
+		bool (*cmp_gt)(const void *, const void *) = nullptr;
+		bool (*cmp_ge)(const void *, const void *) = nullptr;
 	};
 
 	struct type_data
@@ -447,6 +442,7 @@ namespace sek::detail
 		const type_conv *unsigned_conv = nullptr; /* Conversion to `std::uintmax_t`. */
 		const type_conv *floating_conv = nullptr; /* Conversion to `long double`. */
 
+		any_funcs_t any_funcs = {};
 		const range_type_data *range_data = nullptr;
 		const table_type_data *table_data = nullptr;
 		const tuple_type_data *tuple_data = nullptr;
@@ -458,6 +454,7 @@ namespace sek::detail
 		type_data_list<type_parent> parents = {};
 		type_data_list<type_conv> conversions = {};
 
+		const type_ctor *default_ctor = nullptr;
 		type_data_list<type_ctor> constructors = {};
 		type_data_list<type_func> functions = {};
 		type_data_list<type_prop> properties = {};

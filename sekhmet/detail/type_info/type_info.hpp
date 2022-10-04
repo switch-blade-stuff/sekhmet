@@ -6,6 +6,7 @@
 
 #include "any.hpp"
 #include "any_range.hpp"
+#include "any_string.hpp"
 #include "any_table.hpp"
 #include "any_tuple.hpp"
 #include "type_factory.hpp"
@@ -22,12 +23,14 @@ namespace sek
 			result.is_empty = std::is_empty_v<T>;
 			result.is_nullptr = std::same_as<T, std::nullptr_t>;
 
+			result.any_funcs = any_funcs_t::make_instance<T>();
 			if constexpr (tuple_like<T>) result.tuple_data = &tuple_type_data::instance<T>;
 			if constexpr (std::ranges::range<T>)
 			{
 				result.range_data = &range_type_data::instance<T>;
 				if constexpr (table_range_type<T>) result.table_data = &table_type_data::instance<T>;
 			}
+			if constexpr (string_like_type<T>) result.string_data = &string_type_data::instance<T>;
 
 			return result;
 		}
@@ -49,6 +52,7 @@ namespace sek
 		friend class any_range;
 		friend class any_table;
 		friend class any_tuple;
+		friend class any_string;
 		friend class type_database;
 
 		using data_t = detail::type_data;
@@ -148,13 +152,49 @@ namespace sek
 		/** Checks if the referenced type has a parent of type `other`.
 		 * @return `true` if `other` is parent of `this`. `false` if types are unrelated or the same. */
 		[[nodiscard]] bool has_parent(type_info other) const noexcept;
-
-		// clang-format off
 		/** Checks if the referenced type has a parent of type `T`.
 		 * @return `true` if `other` is parent of `this`. `false` if types are unrelated or the same. */
 		template<typename T>
-		[[nodiscard]] bool has_parent() const noexcept { return has_parent(get<T>()); }
-		// clang-format on
+		[[nodiscard]] bool has_parent() const noexcept
+		{
+			return has_parent(get<T>());
+		}
+
+		/** Checks if the referenced type has a constructor invocable with the specified arguments.
+		 * @return `true` if the type has such constructor, `false` otherwise. */
+		[[nodiscard]] bool has_constructor(std::span<const any> args) const noexcept;
+		/** @copydoc has_constructor */
+		[[nodiscard]] bool has_constructor(std::initializer_list<any> args) const noexcept
+		{
+			return has_constructor(std::span{args.begin(), args.end()});
+		}
+		/** @copydoc has_constructor */
+		template<detail::allowed_types<any, any_ref>... Ts>
+		[[nodiscard]] bool has_constructor(Ts &&...args) const noexcept
+		{
+			return has_constructor({args.ref()...});
+		}
+
+		/** Checks if the referenced type has a constructor that takes the specified argument types.
+		 * @return `true` if the type has such constructor, `false` otherwise. */
+		[[nodiscard]] bool has_constructor(std::span<const type_info> args) const noexcept;
+		/** @copydoc has_constructor */
+		[[nodiscard]] bool has_constructor(std::initializer_list<type_info> args) const noexcept
+		{
+			return has_constructor(std::span{args.begin(), args.end()});
+		}
+		/** @copydoc has_constructor */
+		template<detail::allowed_types<type_info>... Ts>
+		[[nodiscard]] bool has_constructor(Ts &&...args) const noexcept
+		{
+			return has_constructor({args...});
+		}
+		/** @copydoc has_constructor */
+		template<typename... Ts>
+		[[nodiscard]] bool has_constructor() const noexcept
+		{
+			return has_constructor(type_info::get<Ts>()...);
+		}
 
 		[[nodiscard]] constexpr bool operator==(const type_info &other) const noexcept
 		{
@@ -169,16 +209,130 @@ namespace sek
 		const data_t *m_data = nullptr;
 	};
 
+	any::any(type_info type, void *ptr) noexcept
+	{
+		m_storage = base_t::storage_t{ptr, false};
+		m_type = type.m_data;
+	}
+	any::any(type_info type, const void *ptr) noexcept
+	{
+		m_storage = base_t::storage_t{ptr, true};
+		m_type = type.m_data;
+	}
+
 	constexpr type_info any::type() const noexcept { return type_info{m_type}; }
 	constexpr type_info any_ref::type() const noexcept { return type_info{m_type}; }
+
 	constexpr type_info any_range::value_type() const noexcept { return type_info{m_data->value_type}; }
+
 	constexpr type_info any_table::value_type() const noexcept { return type_info{m_data->value_type}; }
 	constexpr type_info any_table::key_type() const noexcept { return type_info{m_data->key_type}; }
 	constexpr type_info any_table::mapped_type() const noexcept { return type_info{m_data->mapped_type}; }
+
 	constexpr type_info any_tuple::element(std::size_t i) const noexcept
 	{
 		return i < size() ? type_info{m_data->types[i]} : type_info{};
 	}
+
+	constexpr type_info any_string::char_type() const noexcept { return type_info{m_data->char_type}; }
+	constexpr type_info any_string::value_type() const noexcept { return type_info{m_data->char_type}; }
+	constexpr type_info any_string::traits_type() const noexcept { return type_info{m_data->traits_type}; }
+
+	template<typename C>
+	C *any_string::chars()
+	{
+		if (char_type() != type_info::get<C>()) [[unlikely]]
+			return nullptr;
+		return static_cast<C *>(data());
+	}
+	template<typename C>
+	const C *any_string::chars() const
+	{
+		if (char_type() != type_info::get<C>()) [[unlikely]]
+			return nullptr;
+		return static_cast<C *>(data());
+	}
+
+	template<typename Sc, typename C, typename T, typename A>
+	bool any_string::convert_with(std::basic_string<C, T, A> &dst, const std::locale &l, const A &a) const
+	{
+		/* Ignore this overload if the type is different. */
+		if (char_type() != type_info::get<Sc>()) [[likely]]
+			return false;
+
+		if constexpr (std::same_as<Sc, C>)
+			dst.assign(static_cast<const Sc *>(data()), size());
+		else
+		{
+			using tmp_alloc_t = typename std::allocator_traits<A>::template rebind_alloc<char>;
+			using tmp_traits_t = std::conditional_t<std::same_as<C, char>, T, std::char_traits<char>>;
+			using tmp_string_t = std::basic_string<char, tmp_traits_t, tmp_alloc_t>;
+			using conv_from_t = std::codecvt<Sc, char, std::mbstate_t>;
+			using conv_to_t = std::codecvt<C, char, std::mbstate_t>;
+
+			/* If `Sc` is not `char`, use codecvt to convert to `char`. Otherwise, directly copy the string. */
+			auto tmp_buffer = tmp_string_t{tmp_alloc_t{a}};
+
+			if constexpr (std::same_as<Sc, char>)
+				tmp_buffer.assign(static_cast<const Sc *>(data()), size());
+			else
+			{
+				auto &conv = std::use_facet<conv_from_t>(l);
+				const auto *src_start = static_cast<const Sc *>(data());
+				const auto *src_end = src_start + size();
+				do_convert(src_start, src_end, tmp_buffer, conv);
+			}
+			/* If `C` is not `char`, preform a second conversion. Otherwise, use the temporary buffer. */
+			if constexpr (std::same_as<C, char>)
+				dst = std::move(std::basic_string<C, T, A>{tmp_buffer});
+			else
+			{
+				auto &conv = std::use_facet<conv_to_t>(l);
+				const auto *src_end = tmp_buffer.data() + tmp_buffer.size();
+				const auto *src_start = tmp_buffer.data();
+				do_convert(src_start, src_end, dst, conv);
+			}
+		}
+		return true;
+	}
+	template<typename C, typename T, typename A>
+	expected<std::basic_string<C, T, A>, std::error_code> any_string::as_str(std::nothrow_t, const std::locale &l, const A &a) const
+	{
+		/* Check if the requested type it is one of the standard character types.
+		 * If so, convert using `std::codecvt`. Otherwise, return type error. */
+		expected<std::basic_string<C, T, A>, std::error_code> result;
+		if (convert_with<char>(*result, l, a) || convert_with<wchar_t>(*result, l, a) || convert_with<char8_t>(*result, l, a) ||
+			convert_with<char16_t>(*result, l, a) || convert_with<char32_t>(*result, l, a)) [[likely]]
+			return result;
+
+		/* Characters are incompatible and cannot be converted via codecvt. */
+		return unexpected{make_error_code(type_errc::INVALID_TYPE)};
+	}
+	template<typename C, typename T, typename A>
+	std::basic_string<C, T, A> any_string::as_str(const std::locale &l, const A &a) const
+	{
+		/* Check if the requested type it is one of the standard character types.
+		 * If so, convert using `std::codecvt`. Otherwise throw. */
+		std::basic_string<C, T, A> result;
+		if (convert_with<char>(result, l, a) || convert_with<wchar_t>(result, l, a) || convert_with<char8_t>(result, l, a) ||
+			convert_with<char16_t>(result, l, a) || convert_with<char32_t>(result, l, a)) [[likely]]
+			return result;
+
+		/* Characters are incompatible and cannot be converted via codecvt. */
+		throw type_error(make_error_code(type_errc::INVALID_TYPE), "Cannot convert to requested string type");
+	}
+
+	// clang-format off
+	extern template SEK_API_IMPORT expected<std::basic_string<char>, std::error_code> any_string::as_str(
+		std::nothrow_t, const std::locale &, const typename std::basic_string<char>::allocator_type &) const;
+	extern template SEK_API_IMPORT expected<std::basic_string<wchar_t>, std::error_code> any_string::as_str(
+		std::nothrow_t, const std::locale &, const typename std::basic_string<wchar_t>::allocator_type &) const;
+
+	extern template SEK_API_IMPORT std::basic_string<char> any_string::as_str(
+		const std::locale &, const typename std::basic_string<char>::allocator_type &) const;
+	extern template SEK_API_IMPORT std::basic_string<wchar_t> any_string::as_str(
+		const std::locale &, const typename std::basic_string<wchar_t>::allocator_type &) const;
+	// clang-format on
 
 	/* Type names for reflection types. */
 	template<>

@@ -133,47 +133,46 @@ namespace sek
 			result.key_type = type_handle{type_selector<key_t>};
 			result.mapped_type = type_handle{type_selector<mapped_t>};
 
-			result.empty = +[](const any_ref &target) -> bool
-			{
-				auto &obj = *static_cast<const T *>(target.data());
-				return std::ranges::empty(obj);
-			};
+			result.empty = +[](const void *p) -> bool { return std::ranges::empty(*static_cast<const T *>(p)); };
 			if constexpr (std::ranges::sized_range<T>)
-				result.size = +[](const any_ref &target) -> std::size_t
+				result.size = +[](const void *p) -> std::size_t
 				{
-					auto &obj = *static_cast<const T *>(target.data());
+					const auto &obj = *static_cast<const T *>(p);
 					return static_cast<std::size_t>(std::ranges::size(obj));
 				};
+			if constexpr (requires(const T &t, const key_t &key) { t.contains(key); })
+				result.contains = +[](const void *p, const any &key) -> bool
+				{
+					auto &key_obj = *static_cast<const key_t *>(key.data());
+					return static_cast<const T *>(p)->contains(key_obj);
+				};
 
-			result.find = +[](any_ref &target, const any &key) -> std::unique_ptr<table_type_iterator<void>>
+			// clang-format off
+			if constexpr (requires(const T &t, const key_t &key) { t.find(key); } &&
+						  requires(T &t, const key_t &key) { t.find(key); })
 			{
-				auto &key_obj = *static_cast<const key_t *>(key.data());
-				if (target.is_const()) [[unlikely]]
+				result.find = +[](any_ref &target, const any &key) -> std::unique_ptr<table_type_iterator<void>>
 				{
+					auto &key_obj = *static_cast<const key_t *>(key.data());
+					if (target.is_const()) [[unlikely]]
+					{
+						auto &obj = *static_cast<const T *>(target.data());
+						return std::make_unique<const_iter_t>(obj.find(key_obj));
+					}
+					else
+					{
+						auto &obj = *static_cast<T *>(target.data());
+						return std::make_unique<const_iter_t>(obj.find(key_obj));
+					}
+				};
+				result.cfind = +[](const any_ref &target, any key) -> std::unique_ptr<table_type_iterator<void>>
+				{
+					auto &key_obj = *static_cast<const key_t *>(key.data());
 					auto &obj = *static_cast<const T *>(target.data());
-					if constexpr (requires { obj.find(key_obj); })
-						return std::make_unique<const_iter_t>(obj.find(key_obj));
-					else
-						return std::make_unique<const_iter_t>(std::ranges::end(obj));
-				}
-				else
-				{
-					auto &obj = *static_cast<T *>(target.data());
-					if constexpr (requires { obj.find(key_obj); })
-						return std::make_unique<const_iter_t>(obj.find(key_obj));
-					else
-						return std::make_unique<const_iter_t>(std::ranges::end(obj));
-				}
-			};
-			result.cfind = +[](const any_ref &target, any key) -> std::unique_ptr<table_type_iterator<void>>
-			{
-				auto &key_obj = *static_cast<const key_t *>(key.data());
-				auto &obj = *static_cast<const T *>(target.data());
-				if constexpr (requires { obj.find(key_obj); })
 					return std::make_unique<const_iter_t>(obj.find(key_obj));
-				else
-					return std::make_unique<const_iter_t>(std::ranges::end(obj));
-			};
+				};
+			}
+			// clang-format on
 			result.at = +[](any_ref &target, const any &key) -> any
 			{
 				auto &key_obj = *static_cast<const key_t *>(key.data());
@@ -415,6 +414,9 @@ namespace sek
 		/** @copydoc any_table */
 		explicit any_table(any_ref &&ref) : m_data(assert_data(ref.m_type)), m_target(std::move(ref)) {}
 
+		/** Returns `any_ref` reference ot the target table. */
+		[[nodiscard]] any_ref target() const noexcept { return m_target; }
+
 		/** Checks if the referenced table is a sized range. */
 		[[nodiscard]] constexpr bool is_sized_range() const noexcept { return m_data->size != nullptr; }
 		/** Checks if the referenced table is a bidirectional range. */
@@ -456,6 +458,8 @@ namespace sek
 		/** @copydoc rend */
 		[[nodiscard]] const_reverse_iterator crend() const { return rend(); }
 
+		/** Checks if the referenced table contains the specified key. */
+		[[nodiscard]] bool contains(const any &key) const;
 		/** Returns iterator to the element of the referenced table located at the specified key, or the end iterator. */
 		[[nodiscard]] iterator find(const any &key);
 		/** @copydoc begin */

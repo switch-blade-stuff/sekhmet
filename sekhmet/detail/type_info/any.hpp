@@ -15,7 +15,7 @@ namespace sek
 {
 	namespace detail
 	{
-		class basic_any
+		struct basic_any
 		{
 			template<typename T, typename U = std::remove_cvref_t<T>>
 			constexpr static bool local_candidate = sizeof(U) <= sizeof(std::uintptr_t) && std::is_trivially_copyable_v<U>;
@@ -142,29 +142,7 @@ namespace sek
 				bool is_local = false;
 				bool is_const = false;
 			};
-			struct vtable_t
-			{
-				using cmp_func = bool (*)(const storage_t &, const storage_t &);
-				using copy_func = void (*)(const storage_t &, storage_t &);
-				using dtor_func = void (*)(storage_t &);
 
-				template<typename T>
-				constexpr static vtable_t make_instance() noexcept;
-				template<typename T>
-				static const vtable_t instance;
-
-				dtor_func destroy = nullptr;
-				copy_func construct = nullptr;
-				copy_func assign = nullptr;
-
-				cmp_func cmp_eq = nullptr;
-				cmp_func cmp_lt = nullptr;
-				cmp_func cmp_le = nullptr;
-				cmp_func cmp_gt = nullptr;
-				cmp_func cmp_ge = nullptr;
-			};
-
-		public:
 			constexpr basic_any() noexcept = default;
 
 			constexpr basic_any(const basic_any &) noexcept = default;
@@ -172,7 +150,6 @@ namespace sek
 			{
 				if (this != &other) [[likely]]
 				{
-					m_vtable = other.m_vtable;
 					m_type = other.m_type;
 					m_storage = other.m_storage;
 				}
@@ -188,7 +165,6 @@ namespace sek
 			[[nodiscard]] basic_any ref() noexcept
 			{
 				basic_any result;
-				result.m_vtable = m_vtable;
 				result.m_type = m_type;
 				result.m_storage = m_storage.ref();
 				return result;
@@ -196,126 +172,43 @@ namespace sek
 			[[nodiscard]] basic_any ref() const noexcept
 			{
 				basic_any result;
-				result.m_vtable = m_vtable;
 				result.m_type = m_type;
 				result.m_storage = m_storage.ref();
 				return result;
 			}
 
-			void reset()
-			{
-				destroy();
-				m_vtable = nullptr;
-				m_type = nullptr;
-				m_storage = {};
-			}
-
-			void destroy()
-			{
-				if (m_vtable != nullptr) [[likely]]
-					m_vtable->destroy(m_storage);
-			}
 			void move_init(basic_any &other)
 			{
-				m_vtable = std::exchange(other.m_vtable, nullptr);
 				m_type = std::exchange(other.m_type, nullptr);
 				m_storage = std::move(other.m_storage);
 			}
 			void move_assign(basic_any &other)
 			{
-				std::swap(m_vtable, other.m_vtable);
 				std::swap(m_type, other.m_type);
 				m_storage = std::move(other.m_storage);
 			}
-			void copy_init(const basic_any &other) {}
-			void copy_assign(const basic_any &other) {}
 
 			constexpr void swap(basic_any &other) noexcept
 			{
-				std::swap(m_vtable, other.m_vtable);
 				std::swap(m_type, other.m_type);
 				m_storage.swap(other.m_storage);
 			}
 
-			const vtable_t *m_vtable = nullptr;
 			const type_data *m_type = nullptr;
 			storage_t m_storage = {};
 		};
-
-		template<typename T>
-		constexpr basic_any::vtable_t basic_any::vtable_t::make_instance() noexcept
-		{
-			vtable_t result;
-
-			result.destroy = +[](storage_t &s) { s.destroy<T>(); };
-			if constexpr (std::copy_constructible<T>)
-				result.construct = +[](const storage_t &src, storage_t &dst)
-				{
-					dst.template init<T>(*src.template get<T>());
-					dst.template init_flags<T>();
-				};
-			if constexpr (std::is_copy_assignable_v<T> || std::copy_constructible<T>)
-				result.assign = +[](const storage_t &src, storage_t &dst)
-				{
-					if constexpr (std::is_copy_assignable_v<T>)
-						*dst.template get<T>() = *src.template get<T>();
-					else
-					{
-						dst.template destroy<T>();
-						dst.template init<T>(*src.template get<T>());
-					}
-					dst.template init_flags<T>();
-				};
-
-			if constexpr (requires(const T &a, const T &b) { a == b; })
-				result.cmp_eq = +[](const storage_t &a, const storage_t &b) -> bool
-				{
-					const auto &a_value = *a.template get<T>();
-					const auto &b_value = *b.template get<T>();
-					return a_value == b_value;
-				};
-			if constexpr (requires(const T &a, const T &b) { a < b; })
-				result.cmp_lt = +[](const storage_t &a, const storage_t &b) -> bool
-				{
-					const auto &a_value = *a.template get<T>();
-					const auto &b_value = *b.template get<T>();
-					return a_value < b_value;
-				};
-			if constexpr (requires(const T &a, const T &b) { a <= b; })
-				result.cmp_le = +[](const storage_t &a, const storage_t &b) -> bool
-				{
-					const auto &a_value = *a.template get<T>();
-					const auto &b_value = *b.template get<T>();
-					return a_value <= b_value;
-				};
-			if constexpr (requires(const T &a, const T &b) { a > b; })
-				result.cmp_gt = +[](const storage_t &a, const storage_t &b) -> bool
-				{
-					const auto &a_value = *a.template get<T>();
-					const auto &b_value = *b.template get<T>();
-					return a_value > b_value;
-				};
-			if constexpr (requires(const T &a, const T &b) { a >= b; })
-				result.cmp_ge = +[](const storage_t &a, const storage_t &b) -> bool
-				{
-					const auto &a_value = *a.template get<T>();
-					const auto &b_value = *b.template get<T>();
-					return a_value >= b_value;
-				};
-
-			return result;
-		}
-		template<typename T>
-		constinit const basic_any::vtable_t basic_any::vtable_t::instance = make_instance<T>();
 	}	 // namespace detail
 
 	/** @brief Type-erased container of objects. */
 	class any : detail::basic_any
 	{
+		friend class detail::any_funcs_t;
+
 		friend class any_ref;
 		friend class any_tuple;
 		friend class any_range;
 		friend class any_table;
+		friend class any_string;
 
 		friend bool SEK_API operator==(const any &a, const any &b) noexcept;
 		friend bool SEK_API operator<(const any &a, const any &b) noexcept;
@@ -342,7 +235,7 @@ namespace sek
 	public:
 		/** Initializes an empty `any`. */
 		constexpr any() noexcept = default;
-		~any() { base_t::destroy(); }
+		~any() { destroy(); }
 
 		constexpr any(any &&other) noexcept : base_t(std::move(other)) {}
 		constexpr any &operator=(any &&other) noexcept
@@ -353,18 +246,26 @@ namespace sek
 
 		/** Copy-constructs the managed object of `other`.
 		 * @throw type_error If the underlying type is not copy-constructable. */
-		any(const any &other) { base_t::copy_init(other); }
+		any(const any &other) { copy_init(other); }
 		/** Copy-assigns the managed object of `other`.
 		 * @throw type_error If the underlying type is not copy-assignable or copy-constructable. */
 		any &operator=(const any &other)
 		{
 			if (this != &other) [[likely]]
-				base_t::copy_assign(other);
+				copy_assign(other);
 			return *this;
 		}
 
+		/** Initializes an `any` reference to the specified object.
+		 * @param type Type of the pointed-to object.
+		 * @param ptr Pointer to the object.
+		 * @warning If the pointed-to object's type is not the same as `type`, results in undefined behavior. */
+		any(type_info type, void *ptr) noexcept;
+		/** @copydoc any */
+		any(type_info type, const void *ptr) noexcept;
+
 		/** Checks if the `any` instance is empty. */
-		[[nodiscard]] constexpr bool empty() const noexcept { return m_vtable == nullptr; }
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_type == nullptr; }
 
 		/** Returns type of the managed object, or an invalid `type_info` if empty. */
 		[[nodiscard]] constexpr type_info type() const noexcept;
@@ -375,7 +276,12 @@ namespace sek
 		[[nodiscard]] constexpr bool is_const() const noexcept { return m_storage.is_const; }
 
 		/** Releases the managed object. */
-		void reset() { base_t::reset(); }
+		void reset()
+		{
+			destroy();
+			m_type = nullptr;
+			m_storage = {};
+		}
 
 		/** Returns raw pointer to the managed object's data.
 		 * @note If the managed object is const-qualified, returns nullptr. */
@@ -435,13 +341,88 @@ namespace sek
 
 		constexpr void swap(any &other) noexcept { base_t::swap(other); }
 		friend constexpr void swap(any &a, any &b) noexcept { a.swap(b); }
+
+	private:
+		void destroy();
+		void copy_init(const any &other);
+		void copy_assign(const any &other);
 	};
+
+	namespace detail
+	{
+		template<typename T>
+		constexpr any_funcs_t any_funcs_t::make_instance() noexcept
+		{
+			any_funcs_t result;
+
+			result.destroy = +[](any &s) { s.m_storage.template destroy<T>(); };
+			if constexpr (std::copy_constructible<T>)
+			{
+				result.construct = +[](const any &src, any &dst)
+				{
+					dst.m_storage.template init<T>(*src.m_storage.template get<T>());
+					dst.m_storage.template init_flags<T>();
+				};
+				result.assign = +[](const any &src, any &dst)
+				{
+					if constexpr (std::is_copy_assignable_v<T>)
+						*dst.m_storage.template get<T>() = *src.m_storage.template get<T>();
+					else
+					{
+						dst.m_storage.template destroy<T>();
+						dst.m_storage.template init<T>(*src.m_storage.template get<T>());
+					}
+					dst.m_storage.template init_flags<T>();
+				};
+			}
+
+			if constexpr (requires(const T &a, const T &b) { a == b; })
+				result.cmp_eq = +[](const void *a, const void *b) -> bool
+				{
+					const auto &a_value = *static_cast<const T *>(a);
+					const auto &b_value = *static_cast<const T *>(b);
+					return a_value == b_value;
+				};
+			if constexpr (requires(const T &a, const T &b) { a < b; })
+				result.cmp_lt = +[](const void *a, const void *b) -> bool
+				{
+					const auto &a_value = *static_cast<const T *>(a);
+					const auto &b_value = *static_cast<const T *>(b);
+					return a_value < b_value;
+				};
+			if constexpr (requires(const T &a, const T &b) { a <= b; })
+				result.cmp_le = +[](const void *a, const void *b) -> bool
+				{
+					const auto &a_value = *static_cast<const T *>(a);
+					const auto &b_value = *static_cast<const T *>(b);
+					return a_value <= b_value;
+				};
+			if constexpr (requires(const T &a, const T &b) { a > b; })
+				result.cmp_gt = +[](const void *a, const void *b) -> bool
+				{
+					const auto &a_value = *static_cast<const T *>(a);
+					const auto &b_value = *static_cast<const T *>(b);
+					return a_value > b_value;
+				};
+			if constexpr (requires(const T &a, const T &b) { a >= b; })
+				result.cmp_ge = +[](const void *a, const void *b) -> bool
+				{
+					const auto &a_value = *static_cast<const T *>(a);
+					const auto &b_value = *static_cast<const T *>(b);
+					return a_value >= b_value;
+				};
+
+			return result;
+		}
+	}	 // namespace detail
+
 	/** @brief Type-erased reference to objects. */
 	class any_ref : detail::basic_any
 	{
-		friend class any_tuple;
 		friend class any_range;
 		friend class any_table;
+		friend class any_tuple;
+		friend class any_string;
 
 		friend bool SEK_API operator==(const any_ref &a, const any_ref &b) noexcept;
 		friend bool SEK_API operator<(const any_ref &a, const any_ref &b) noexcept;

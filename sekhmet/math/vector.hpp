@@ -35,12 +35,12 @@ namespace sek
 	typedef vec4<float> vec4f;
 	typedef vec3<float> vec3f;
 	typedef vec2<float> vec2f;
-	typedef vec4<std::uint64_t> vec4ul;
-	typedef vec3<std::uint64_t> vec3ul;
-	typedef vec2<std::uint64_t> vec2ul;
-	typedef vec4<std::int64_t> vec4l;
-	typedef vec3<std::int64_t> vec3l;
-	typedef vec2<std::int64_t> vec2l;
+	typedef vec4<std::uint64_t> vec4ui64;
+	typedef vec3<std::uint64_t> vec3ui64;
+	typedef vec2<std::uint64_t> vec2ui64;
+	typedef vec4<std::int64_t> vec4i64;
+	typedef vec3<std::int64_t> vec3i64;
+	typedef vec2<std::int64_t> vec2i64;
 	typedef vec4<std::uint32_t> vec4ui;
 	typedef vec3<std::uint32_t> vec3ui;
 	typedef vec2<std::uint32_t> vec2ui;
