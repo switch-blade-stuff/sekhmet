@@ -274,11 +274,6 @@ namespace sek
 	{
 		return hash(static_cast<std::underlying_type_t<E>>(value));
 	}
-	template<typename P>
-	[[nodiscard]] constexpr hash_t hash(const P &value) noexcept requires(requires { typename std::pointer_traits<P>::element_type; })
-	{
-		return hash(std::to_address(value));
-	}
 	// clang-format on
 
 	template<typename T>

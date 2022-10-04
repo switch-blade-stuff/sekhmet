@@ -33,6 +33,7 @@ namespace sek
 	class any_tuple;
 	class any_range;
 	class any_table;
+	class any_string;
 
 	template<typename T>
 	[[nodiscard]] any forward_any(T &&);

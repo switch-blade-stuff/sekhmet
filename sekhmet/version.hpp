@@ -7,7 +7,6 @@
 #include <compare>
 #include <string>
 
-#include "detail/alloc_util.hpp"
 #include "hash.hpp"
 
 namespace sek
@@ -99,8 +98,8 @@ namespace sek
 		constexpr basic_version() noexcept = default;
 		template<std::integral... Args>
 		constexpr basic_version(Args... args) noexcept
-			requires std::conjunction_v<std::is_constructible<Components, Args>...>
-		: detail::basic_version_base<0, Components...>(args...)
+			requires std::conjunction_v<std::is_constructible<Components, Args>
+										...> : detail::basic_version_base<0, Components...>(args...)
 		{
 		}
 

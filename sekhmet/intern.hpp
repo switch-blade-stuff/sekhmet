@@ -12,8 +12,7 @@
 #include <string>
 
 #include "dense_set.hpp"
-#include "detail/contiguous_iterator.hpp"
-#include "detail/string_util.hpp"
+#include "type_name.hpp"
 
 namespace sek
 {
@@ -723,8 +722,41 @@ namespace sek
 
 	using intern_pool = basic_intern_pool<char>;
 	using intern_wpool = basic_intern_pool<wchar_t>;
+	using intern_u8pool = basic_intern_pool<char8_t>;
+	using intern_u16pool = basic_intern_pool<char16_t>;
+	using intern_u32pool = basic_intern_pool<char32_t>;
+
 	using interned_string = basic_interned_string<char>;
 	using interned_wstring = basic_interned_string<wchar_t>;
+	using interned_u8string = basic_interned_string<char8_t>;
+	using interned_u16string = basic_interned_string<char16_t>;
+	using interned_u32string = basic_interned_string<char32_t>;
+
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<basic_interned_string<char>>() noexcept
+	{
+		return "sek::interned_string";
+	}
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<basic_interned_string<wchar_t>>() noexcept
+	{
+		return "sek::interned_wstring";
+	}
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<basic_interned_string<char8_t>>() noexcept
+	{
+		return "sek::interned_u8string";
+	}
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<basic_interned_string<char16_t>>() noexcept
+	{
+		return "sek::interned_u16string";
+	}
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<basic_interned_string<char32_t>>() noexcept
+	{
+		return "sek::interned_u32string";
+	}
 }	 // namespace sek
 
 template<typename C, typename T>

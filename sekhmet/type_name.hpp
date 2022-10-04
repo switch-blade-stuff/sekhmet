@@ -10,6 +10,7 @@ namespace sek
 {
 	namespace detail
 	{
+		/* TODO: Strip out cv-qualifiers, struct, class & union keywords and stray spaces */
 		template<basic_static_string Src, std::size_t J, std::size_t I, std::size_t Last, std::size_t N>
 		consteval auto format_type_name(basic_static_string<char, N> result) noexcept
 		{
@@ -64,5 +65,57 @@ namespace sek
 	[[nodiscard]] constexpr std::string_view type_name() noexcept
 	{
 		return detail::generate_type_name<T>();
+	}
+
+	/* Type name overloads for "default" string types. */
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<std::basic_string<char>>() noexcept
+	{
+		return "std::string";
+	}
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<std::basic_string<wchar_t>>() noexcept
+	{
+		return "std::wstring";
+	}
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<std::basic_string<char8_t>>() noexcept
+	{
+		return "std::u8string";
+	}
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<std::basic_string<char16_t>>() noexcept
+	{
+		return "std::u16string";
+	}
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<std::basic_string<char32_t>>() noexcept
+	{
+		return "std::u32string";
+	}
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<std::basic_string_view<char>>() noexcept
+	{
+		return "std::string_view";
+	}
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<std::basic_string_view<wchar_t>>() noexcept
+	{
+		return "std::wstring_view";
+	}
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<std::basic_string_view<char8_t>>() noexcept
+	{
+		return "std::u8string_view";
+	}
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<std::basic_string_view<char16_t>>() noexcept
+	{
+		return "std::u16string_view";
+	}
+	template<>
+	[[nodiscard]] constexpr std::string_view type_name<std::basic_string_view<char32_t>>() noexcept
+	{
+		return "std::u32string_view";
 	}
 }	 // namespace sek

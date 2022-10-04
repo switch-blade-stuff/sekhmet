@@ -94,6 +94,62 @@ namespace sek::detail
 
 		const T *front = nullptr;
 	};
+	/* Custom view, as CLang has issues with `std::ranges::subrange` at this time. */
+	template<typename Iter>
+	class type_data_view
+	{
+	public:
+		typedef typename Iter::value_type value_type;
+		typedef typename Iter::pointer pointer;
+		typedef typename Iter::const_pointer const_pointer;
+		typedef typename Iter::reference reference;
+		typedef typename Iter::const_reference const_reference;
+		typedef typename Iter::difference_type difference_type;
+		typedef typename Iter::size_type size_type;
+
+		typedef Iter iterator;
+		typedef Iter const_iterator;
+
+	public:
+		constexpr type_data_view() noexcept = default;
+		constexpr type_data_view(iterator first, iterator last) noexcept : m_first(first), m_last(last) {}
+
+		[[nodiscard]] constexpr iterator begin() const noexcept { return m_first; }
+		[[nodiscard]] constexpr iterator cbegin() const noexcept { return begin(); }
+		[[nodiscard]] constexpr iterator end() const noexcept { return m_last; }
+		[[nodiscard]] constexpr iterator cend() const noexcept { return end(); }
+
+		// clang-format off
+			[[nodiscard]] constexpr reference front() const noexcept { return *begin(); }
+			[[nodiscard]] constexpr reference back() const noexcept requires std::bidirectional_iterator<Iter>
+			{
+				return *std::prev(end());
+			}
+			[[nodiscard]] constexpr reference at(size_type i) const noexcept requires std::random_access_iterator<Iter>
+			{
+				return begin()[static_cast<difference_type>(i)];
+			}
+			[[nodiscard]] constexpr reference operator[](size_type i) const noexcept requires std::random_access_iterator<Iter>
+			{
+				return at(i);
+			}
+		// clang-format on
+
+		[[nodiscard]] constexpr bool empty() const noexcept { return begin() == end(); }
+		[[nodiscard]] constexpr size_type size() const noexcept
+		{
+			return static_cast<size_type>(std::distance(begin(), end()));
+		}
+
+		[[nodiscard]] constexpr bool operator==(const type_data_view &other) const noexcept
+		{
+			return std::equal(m_first, m_last, other.m_first, other.m_last);
+		}
+
+	private:
+		Iter m_first = {};
+		Iter m_last = {};
+	};
 
 	struct type_parent : type_data_node<type_parent>
 	{
@@ -141,21 +197,41 @@ namespace sek::detail
 
 	struct type_ctor : type_data_node<type_ctor>
 	{
-		any (*invoke)(std::span<any>);
+		~type_ctor()
+		{
+			if (destroy != nullptr) [[likely]]
+				destroy(this);
+		}
+
+		any (*invoke)(const type_ctor *, std::span<any>) = nullptr;
+		void (*destroy)(type_ctor *) = nullptr;
 		type_func_args args;
 	};
 	struct type_func : type_data_node<type_func>
 	{
-		any (*invoke)(any, std::span<any>);
+		~type_func()
+		{
+			if (destroy != nullptr) [[likely]]
+				destroy(this);
+		}
+
+		any (*invoke)(const type_func *, any, std::span<any>) = nullptr;
+		void (*destroy)(type_func *) = nullptr;
 		std::string_view name;
 		type_func_args args;
 		type_handle ret;
 	};
 	struct type_prop : type_data_node<type_prop>
 	{
-		void (*invoke_set)(const type_prop *, any);
-		any (*invoke_get)(const type_prop *);
+		~type_prop()
+		{
+			if (destroy != nullptr) [[likely]]
+				destroy(this);
+		}
 
+		void (*set)(const type_prop *, any, any) = nullptr;
+		any (*get)(const type_prop *, any) = nullptr;
+		void (*destroy)(type_prop *) = nullptr;
 		std::string_view name;
 	};
 
@@ -164,6 +240,8 @@ namespace sek::detail
 	template<typename>
 	struct table_type_iterator;
 
+	/* TODO: Make a better wrapper for `range_type_iterator<void>`. An alternative to `unique_ptr` is
+	 * needed that would use an in-place storage for iterators that are trivially copyable. */
 	template<>
 	struct SEK_API range_type_iterator<void>
 	{
@@ -316,22 +394,63 @@ namespace sek::detail
 		any (*get)(any_ref &, std::size_t) = nullptr;
 		any (*cget)(const any_ref &, std::size_t) = nullptr;
 	};
+	struct string_type_data
+	{
+		template<typename T>
+		constexpr static string_type_data make_instance() noexcept;
+		template<typename T>
+		static const string_type_data instance;
+
+		type_handle char_type;
+		type_handle traits_type;
+
+		bool (*empty)(const any_ref &) = nullptr;
+		std::size_t (*size)(const any_ref &) = nullptr;
+
+		void *(*data)(any_ref &) = nullptr;
+		const void *(*cdata)(const any_ref &) = nullptr;
+		any (*to_string)(const any_ref &) = nullptr;
+		any (*to_string_view)(const any_ref &) = nullptr;
+
+		std::unique_ptr<range_type_iterator<void>> (*begin)(any_ref &) = nullptr;
+		std::unique_ptr<range_type_iterator<void>> (*cbegin)(const any_ref &) = nullptr;
+		std::unique_ptr<range_type_iterator<void>> (*end)(any_ref &) = nullptr;
+		std::unique_ptr<range_type_iterator<void>> (*cend)(const any_ref &) = nullptr;
+
+		std::unique_ptr<range_type_iterator<void>> (*rbegin)(any_ref &) = nullptr;
+		std::unique_ptr<range_type_iterator<void>> (*crbegin)(const any_ref &) = nullptr;
+		std::unique_ptr<range_type_iterator<void>> (*rend)(any_ref &) = nullptr;
+		std::unique_ptr<range_type_iterator<void>> (*crend)(const any_ref &) = nullptr;
+
+		any (*front)(any_ref &) = nullptr;
+		any (*cfront)(const any_ref &) = nullptr;
+		any (*back)(any_ref &) = nullptr;
+		any (*cback)(const any_ref &) = nullptr;
+		any (*at)(any_ref &, std::size_t) = nullptr;
+		any (*cat)(const any_ref &, std::size_t) = nullptr;
+	};
 
 	struct type_data
 	{
 		template<typename T>
 		[[nodiscard]] constexpr static type_data make_instance() noexcept;
 		template<typename T>
-		static const type_data instance;
+		static type_data *instance() noexcept;
 
 		std::string_view name;
-
+		bool is_void = false;
 		bool is_empty = false;
-		bool is_enum = false;
+		bool is_nullptr = false;
+
+		type_handle enum_type;					  /* Underlying type of enum. */
+		const type_conv *signed_conv = nullptr;	  /* Conversion to `std::intmax_t`. */
+		const type_conv *unsigned_conv = nullptr; /* Conversion to `std::uintmax_t`. */
+		const type_conv *floating_conv = nullptr; /* Conversion to `long double`. */
 
 		const range_type_data *range_data = nullptr;
 		const table_type_data *table_data = nullptr;
 		const tuple_type_data *tuple_data = nullptr;
+		const string_type_data *string_data = nullptr;
 
 		type_data_list<type_attr> attributes = {};
 		type_data_list<type_enum> enumerations = {};
@@ -344,61 +463,8 @@ namespace sek::detail
 		type_data_list<type_prop> properties = {};
 	};
 
-	/* Custom view, as CLang has issues with `std::ranges::subrange` at this time. */
-	template<typename Iter>
-	class type_data_view
+	template<typename T>
+	constexpr type_handle::type_handle(type_selector_t<T>) noexcept : get(type_data::instance<T>)
 	{
-	public:
-		typedef typename Iter::value_type value_type;
-		typedef typename Iter::pointer pointer;
-		typedef typename Iter::const_pointer const_pointer;
-		typedef typename Iter::reference reference;
-		typedef typename Iter::const_reference const_reference;
-		typedef typename Iter::difference_type difference_type;
-		typedef typename Iter::size_type size_type;
-
-		typedef Iter iterator;
-		typedef Iter const_iterator;
-
-	public:
-		constexpr type_data_view() noexcept = default;
-		constexpr type_data_view(iterator first, iterator last) noexcept : m_first(first), m_last(last) {}
-
-		[[nodiscard]] constexpr iterator begin() const noexcept { return m_first; }
-		[[nodiscard]] constexpr iterator cbegin() const noexcept { return begin(); }
-		[[nodiscard]] constexpr iterator end() const noexcept { return m_last; }
-		[[nodiscard]] constexpr iterator cend() const noexcept { return end(); }
-
-		// clang-format off
-		[[nodiscard]] constexpr reference front() const noexcept { return *begin(); }
-		[[nodiscard]] constexpr reference back() const noexcept requires std::bidirectional_iterator<Iter>
-		{
-			return *std::prev(end());
-		}
-		[[nodiscard]] constexpr reference at(size_type i) const noexcept requires std::random_access_iterator<Iter>
-		{
-			return begin()[static_cast<difference_type>(i)];
-		}
-		[[nodiscard]] constexpr reference operator[](size_type i) const noexcept requires std::random_access_iterator<Iter>
-		{
-			return at(i);
-		}
-		// clang-format on
-
-		[[nodiscard]] constexpr bool empty() const noexcept { return begin() == end(); }
-		[[nodiscard]] constexpr size_type size() const noexcept
-		{
-			return static_cast<size_type>(std::distance(begin(), end()));
-		}
-
-		[[nodiscard]] constexpr bool operator==(const type_data_view &other) const noexcept
-		{
-			return std::equal(m_first, m_last, other.m_first, other.m_last);
-		}
-
-	private:
-		Iter m_first = {};
-		Iter m_last = {};
-	};
-
+	}
 }	 // namespace sek::detail

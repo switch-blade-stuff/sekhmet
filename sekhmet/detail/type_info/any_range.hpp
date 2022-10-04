@@ -5,6 +5,7 @@
 #pragma once
 
 #include "any.hpp"
+#include "type_info.hpp"
 
 namespace sek
 {

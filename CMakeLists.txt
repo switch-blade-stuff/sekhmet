@@ -104,6 +104,7 @@ if (SEK_TOP_LEVEL OR SEK_EXPORT_BUILD)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(${PROJECT_NAME} PRIVATE SEK_EXPORT_LIBRARY)
     add_compile_definitions(SEK_ENGINE_VERSION="${SEK_ENGINE_VERSION}")
+    add_compile_definitions(SEK_ENGINE_PLUGIN="sekhmet-builtin")
 
     # Find & link thread library
     set(THREADS_PREFER_PTHREAD_FLAG ON)
