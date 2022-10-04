@@ -19,7 +19,6 @@ namespace sek
 	/** @brief Base interface used to attach runtime type information to a polymorphic inheritance tree. */
 	class SEK_API object
 	{
-		template<typename T>
 		friend constexpr type_info type_of(const object &) noexcept;
 
 		// clang-format off
@@ -51,11 +50,7 @@ namespace sek
 	};
 
 	/** Returns the actual type of an `object`. */
-	template<typename T>
-	[[nodiscard]] constexpr type_info type_of(const object &obj) noexcept
-	{
-		return obj.get_type_info();
-	}
+	[[nodiscard]] constexpr type_info type_of(const object &obj) noexcept { return obj.get_type_info(); }
 
 	// clang-format off
 	/** Preforms a safe dynamic cast between references of `object` types.
