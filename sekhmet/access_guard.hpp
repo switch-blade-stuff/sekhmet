@@ -94,19 +94,11 @@ namespace sek
 	{
 		template<typename, detail::basic_lockable, bool>
 		friend class access_guard;
-		template<typename>
-		friend class std::optional;
 
 	public:
 		typedef T element_type;
 		typedef std::remove_reference_t<T> *pointer;
 		typedef std::remove_reference_t<T> &reference;
-
-	private:
-		constexpr access_handle(reference ref, L &&lock) noexcept(std::is_nothrow_move_constructible_v<L>)
-			: m_ptr(std::addressof(ref)), m_lock(std::move(lock))
-		{
-		}
 
 	public:
 		access_handle() = delete;
@@ -124,6 +116,12 @@ namespace sek
 			return *this;
 		}
 
+		/** Initializes an access handle for reference `ref` and lock `lock`. */
+		constexpr access_handle(reference ref, L &&lock) noexcept(std::is_nothrow_move_constructible_v<L>)
+			: m_ptr(std::addressof(ref)), m_lock(std::move(lock))
+		{
+		}
+
 		/** Returns pointer to the underlying object. */
 		[[nodiscard]] constexpr pointer get() const noexcept { return m_ptr; }
 		/** @copydoc get */
@@ -139,7 +137,7 @@ namespace sek
 	/** @brief Structure used to provide synchronized access to an instance of a type.
 	 * @tparam T Value type stored within the access guard.
 	 * @tparam Mutex Type of mutex used to synchronize instance of `T`. */
-	template<typename T, detail::basic_lockable Mutex = std::mutex, bool = false>
+	template<typename T, detail::basic_lockable Mutex = std::mutex, bool = detail::shared_lockable<Mutex>>
 	class access_guard
 	{
 	public:
@@ -249,10 +247,9 @@ namespace sek
 		value_type m_value = {};
 		mutable mutex_type m_mtx = {};
 	};
-
 	/** @brief Overload of `access_guard` for shared mutex types. */
 	template<typename T, detail::basic_lockable Mutex>
-	class access_guard<T, Mutex, detail::shared_lockable<Mutex>> : public access_guard<T, Mutex, false>
+	class access_guard<T, Mutex, true> : public access_guard<T, Mutex, false>
 	{
 		using base_t = access_guard<T, Mutex, false>;
 
