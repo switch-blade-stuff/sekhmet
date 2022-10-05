@@ -126,11 +126,12 @@ namespace sek
 		/** Converts the UUID to string.
 		 * @tparam C Character type of the output sequence.
 		 * @tparam Traits Character traits of `C`.
-		 * @param upper If set to `true`, hex digits would be written using uppercase letters. */
-		template<typename C = char, typename Traits = std::char_traits<C>>
-		[[nodiscard]] constexpr std::basic_string<C, Traits> to_string(bool upper = false) const
+		 * @param upper If set to `true`, hex digits would be written using uppercase letters.
+		 * @param alloc Allocator to use for the result string. */
+		template<typename C = char, typename Traits = std::char_traits<C>, typename A = std::allocator<C>>
+		[[nodiscard]] constexpr std::basic_string<C, Traits, A> to_string(bool upper = false, const A &alloc = A{}) const
 		{
-			std::basic_string<C, Traits> result(36, '\0');
+			std::basic_string<C, Traits, A> result(36, '\0', alloc);
 			to_string(result.begin(), upper);
 			return result;
 		}

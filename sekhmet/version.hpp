@@ -141,11 +141,12 @@ namespace sek
 
 		/** Converts the version to string.
 		 * @tparam C Character type of the output sequence.
-		 * @tparam Traits Character traits of `C`. */
-		template<typename C = char, typename Traits = std::char_traits<C>>
-		[[nodiscard]] constexpr std::basic_string<C, Traits> to_string() const
+		 * @tparam Traits Character traits of `C`.
+		 * @param alloc Allocator to use for the result string. */
+		template<typename C = char, typename Traits = std::char_traits<C>, typename A = std::allocator<C>>
+		[[nodiscard]] constexpr std::basic_string<C, Traits, A> to_string(const A &alloc = A{}) const
 		{
-			std::basic_string<C, Traits> result;
+			std::basic_string<C, Traits, A> result(alloc);
 			to_string<C>(std::back_inserter(result));
 			return result;
 		}
