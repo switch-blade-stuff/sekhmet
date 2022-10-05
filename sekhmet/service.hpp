@@ -111,9 +111,16 @@ namespace sek
 
 		/** If an implementation of service `T` exists, returns pointer to the service. Otherwise, returns `nullptr`. */
 		template<typename T>
-		[[nodiscard]] T *get() const
+		[[nodiscard]] T *get()
 		{
 			return static_cast<T *>(get_impl(type_info::get<T>()).load());
+		}
+		/** If an implementation of service `T` exists, returns the actual `type_info` of the implementation object.
+		 * Otherwise, returns an invalid `type_info`. */
+		template<typename T>
+		[[nodiscard]] type_info instance_type()
+		{
+			return instance_type_impl(type_info::get<T>());
 		}
 
 		/** Returns event proxy for service load event for service type `T`. This event
@@ -135,10 +142,13 @@ namespace sek
 		[[nodiscard]] service_entry &get_entry(type_info type);
 
 		void reset_impl(type_info type);
-		[[nodiscard]] std::atomic<void *> &get_impl(type_info type);
+
 		[[nodiscard]] void *load_impl(type_info service_type, void *impl, bool replace);
 		[[nodiscard]] void *load_impl(type_info service_type, type_info impl_type, bool replace);
 		[[nodiscard]] void *load_impl(type_info service_type, std::string_view impl_id, bool replace);
+
+		[[nodiscard]] std::atomic<void *> &get_impl(type_info type);
+		[[nodiscard]] type_info instance_type_impl(type_info type);
 
 		[[nodiscard]] event<void()> &on_load_impl(type_info type);
 		[[nodiscard]] event<void()> &on_reset_impl(type_info type);

@@ -161,7 +161,7 @@ configured by the user (if a different graphics API is selected, a full restart 
 
 Each iteration of the main game loop preforms the following operations:
 
-![](main_loop_diagram.png)
+![](../main_loop_diagram.png)
 
 ## Addendum
 

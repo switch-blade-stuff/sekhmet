@@ -25,11 +25,13 @@ namespace sek
 			if (deleter != nullptr) [[likely]]
 				deleter(instance.load());
 			instance = nullptr;
+			instance_type = {};
 			deleter = nullptr;
 		}
 
 		void (*deleter)(void *) = nullptr;
 		std::atomic<void *> instance;
+		type_info instance_type;
 
 		event<void()> load_event;
 		event<void()> reset_event;
@@ -39,18 +41,21 @@ namespace sek
 	{
 		auto iter = m_entries.find(type.name());
 		if (iter == m_entries.end()) [[unlikely]]
-			iter = m_entries.emplace(type.name(), new service_entry{});
-		return **iter;
+			iter = m_entries.emplace(type.name(), new service_entry{}).first;
+		return *iter->second;
 	}
+
+	std::atomic<void *> &service_locator::get_impl(type_info type) { return get_entry(type).instance; }
+	type_info service_locator::instance_type_impl(type_info type) { return get_entry(type).instance_type; }
+
+	event<void()> &service_locator::on_load_impl(type_info type) { return get_entry(type).load_event; }
+	event<void()> &service_locator::on_reset_impl(type_info type) { return get_entry(type).reset_event; }
 
 	void service_locator::reset_impl(type_info type)
 	{
 		const auto iter = m_entries.find(type.name());
 		if (iter != m_entries.end()) [[likely]]
-			(*iter)->reset();
+			iter->second->reset();
 	}
-	std::atomic<void *> &service_locator::get_impl(type_info type) { return get_entry(type).instance; }
-	event<void()> &service_locator::on_load_impl(type_info type) { return get_entry(type).load_event; }
-	event<void()> &service_locator::on_reset_impl(type_info type) { return get_entry(type).reset_event; }
 
 }	 // namespace sek
