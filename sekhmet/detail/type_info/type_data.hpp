@@ -469,6 +469,8 @@ namespace sek::detail
 		template<typename T>
 		static type_data *instance() noexcept;
 
+		void (*reset)(type_data *); /* Function used to reset the type data to initial (compile-time) state. */
+
 		std::string_view name;
 		bool is_void = false;
 		bool is_empty = false;

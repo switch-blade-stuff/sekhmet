@@ -33,8 +33,8 @@ constexpr std::string_view sek::type_name<test_child>() noexcept
 	return "test_child";
 }
 
-SEK_EXTERN_TYPE(test_child)
-SEK_EXPORT_TYPE(test_child)
+SEK_EXTERN_TYPE_INFO(test_child)
+SEK_EXPORT_TYPE_INFO(test_child)
 
 #include "sekhmet/engine/logger.hpp"
 #include "sekhmet/engine/plugin.hpp"

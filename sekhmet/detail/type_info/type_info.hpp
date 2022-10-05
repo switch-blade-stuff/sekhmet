@@ -19,6 +19,12 @@ namespace sek
 		constexpr type_data type_data::make_instance() noexcept
 		{
 			type_data result;
+
+			/* When a reflected type is reset, the type data will be in a "dirty" state, as it will still be
+			 * referencing the reflected data objects. This may cause issues especially if a plugin that has
+			 * originally reflected the type is unloaded. As such, type data needs to be reset to its original state. */
+			result.reset = +[](type_data *ptr) -> void { *ptr = make_instance<T>(); };
+
 			result.name = type_name<T>();
 			result.is_empty = std::is_empty_v<T>;
 			result.is_nullptr = std::same_as<T, std::nullptr_t>;
@@ -45,7 +51,7 @@ namespace sek
 	/** @brief Handle to information about a reflected type. */
 	class type_info
 	{
-		friend class detail::type_handle;
+		friend struct detail::type_handle;
 
 		friend class any;
 		friend class any_ref;
@@ -53,6 +59,8 @@ namespace sek
 		friend class any_table;
 		friend class any_tuple;
 		friend class any_string;
+		template<typename>
+		friend class type_factory;
 		friend class type_database;
 
 		using data_t = detail::type_data;
@@ -64,7 +72,7 @@ namespace sek
 			return handle_t{type_selector<std::remove_cvref_t<T>>};
 		}
 
-		constexpr explicit type_info(const data_t *data) noexcept : m_data(data) {}
+		constexpr explicit type_info(data_t *data) noexcept : m_data(data) {}
 		constexpr explicit type_info(handle_t handle) noexcept : m_data(handle.get ? handle.get() : nullptr) {}
 
 	public:
@@ -160,6 +168,17 @@ namespace sek
 			return has_parent(get<T>());
 		}
 
+		/** Checks if the referenced type has an attribute of type `type`.
+		 * @return `true` if `other` has the specified attribute, `false` otherwise. */
+		[[nodiscard]] bool has_attribute(type_info type) const noexcept;
+		/** Checks if the referenced type has an attribute of type `T`.
+		 * @return `true` if `other` has the specified attribute, `false` otherwise. */
+		template<typename T>
+		[[nodiscard]] bool has_attribute() const noexcept
+		{
+			return has_attribute(get<T>());
+		}
+
 		/** Checks if the referenced type has a constructor invocable with the specified arguments.
 		 * @return `true` if the type has such constructor, `false` otherwise. */
 		[[nodiscard]] bool has_constructor(std::span<const any> args) const noexcept;
@@ -206,8 +225,14 @@ namespace sek
 		friend constexpr void swap(type_info &a, type_info &b) noexcept { a.swap(b); }
 
 	private:
-		const data_t *m_data = nullptr;
+		data_t *m_data = nullptr;
 	};
+
+	[[nodiscard]] constexpr hash_t hash(const type_info &type) noexcept
+	{
+		const auto name = type.name();
+		return fnv1a(name.data(), name.size());
+	}
 
 	template<typename T>
 	constexpr type_info type_factory<T>::type() const noexcept
@@ -359,7 +384,7 @@ namespace sek
 
 	/** Returns the type info of an object's type. Equivalent to `type_info::get<T>()`. */
 	template<typename T>
-	[[nodiscard]] constexpr type_info type_of(T &&obj) noexcept
+	[[nodiscard]] constexpr type_info type_of(T &&) noexcept
 	{
 		return type_info::get<T>();
 	}
@@ -372,39 +397,61 @@ namespace sek
 			return type_info::get({str, n});
 		}
 	}	 // namespace literals
+
+	/** @brief Helper type used to check if a type has been exported via `SEK_EXTERN_TYPE_INFO`. */
+	template<typename T>
+	struct is_type_info_exported : std::false_type
+	{
+	};
+	/** @brief Alias for `is_type_info_exported<T>::value`. */
+	template<typename T>
+	constexpr static auto is_type_info_exported_v = is_type_info_exported<T>::value;
 }	 // namespace sek
 
+template<>
+struct std::hash<sek::type_info>
+{
+	[[nodiscard]] constexpr std::size_t operator()(const sek::type_info &info) const noexcept
+	{
+		return sek::hash(info);
+	}
+};
+
 /** Macro used to declare an instance of type info for type `T` as extern.
- * @note Type must be exported via `SEK_EXPORT_TYPE`.
+ * @note Type must be exported via `SEK_EXPORT_TYPE_INFO`.
  *
  * @example
  * @code{.cpp}
  * // my_type.hpp
  * struct my_type {};
- * SEK_EXTERN_TYPE(my_type)
+ * SEK_EXTERN_TYPE_INFO(my_type)
  *
  * // my_type.cpp
- * SEK_EXPORT_TYPE(my_type)
+ * SEK_EXPORT_TYPE_INFO(my_type)
  * @endcode*/
-#define SEK_EXTERN_TYPE(T)                                                                                             \
+#define SEK_EXTERN_TYPE_INFO(T)                                                                                        \
+	template<>                                                                                                         \
+	struct sek::is_type_info_exported<T> : std::true_type                                                              \
+	{                                                                                                                  \
+	};                                                                                                                 \
 	extern template SEK_API_IMPORT sek::detail::type_data *sek::detail::type_data::instance<T>() noexcept;
 
 /** Macro used to export instance of type info for type `T`.
- * @note Type must be declared as `extern` via `SEK_EXTERN_TYPE`.
+ * @note Type must be declared as `extern` via `SEK_EXTERN_TYPE_INFO`.
  *
  * @example
  * @code{.cpp}
  * // my_type.hpp
  * struct my_type {};
- * SEK_EXTERN_TYPE(my_type)
+ * SEK_EXTERN_TYPE_INFO(my_type)
  *
  * // my_type.cpp
- * SEK_EXPORT_TYPE(my_type)
+ * SEK_EXPORT_TYPE_INFO(my_type)
  * @endcode */
-#define SEK_EXPORT_TYPE(T)                                                                                             \
+#define SEK_EXPORT_TYPE_INFO(T)                                                                                        \
 	template SEK_API_EXPORT sek::detail::type_data *sek::detail::type_data::instance<T>() noexcept;
 
 /* Type exports for reflection types */
-SEK_EXTERN_TYPE(sek::any);
-SEK_EXTERN_TYPE(sek::any_ref);
-SEK_EXTERN_TYPE(sek::type_info);
+SEK_EXTERN_TYPE_INFO(sek::any);
+SEK_EXTERN_TYPE_INFO(sek::any_ref);
+SEK_EXTERN_TYPE_INFO(sek::type_info);

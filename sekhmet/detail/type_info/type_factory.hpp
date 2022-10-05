@@ -17,7 +17,7 @@ namespace sek
 
 		using data_t = detail::type_data;
 
-		constexpr explicit type_factory(data_t data) noexcept : m_data(data) {}
+		constexpr explicit type_factory(data_t *data) noexcept : m_data(data) {}
 
 	public:
 		constexpr ~type_factory() { submit(); }
@@ -34,6 +34,6 @@ namespace sek
 		inline void submit();
 
 	private:
-		data_t m_data;
+		data_t *m_data;
 	};
 }	 // namespace sek

@@ -6,6 +6,7 @@
 
 #include <bit>
 #include <memory>
+#include <utility>
 
 #include "../../expected.hpp"
 #include "type_data.hpp"
@@ -194,7 +195,7 @@ namespace sek
 				m_storage.swap(other.m_storage);
 			}
 
-			const type_data *m_type = nullptr;
+			type_data *m_type = nullptr;
 			storage_t m_storage = {};
 		};
 	}	 // namespace detail
@@ -202,7 +203,7 @@ namespace sek
 	/** @brief Type-erased container of objects. */
 	class any : detail::basic_any
 	{
-		friend class detail::any_funcs_t;
+		friend struct detail::any_funcs_t;
 
 		friend class any_ref;
 		friend class any_tuple;

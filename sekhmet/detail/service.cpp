@@ -4,37 +4,33 @@
 
 #include "../service.hpp"
 
+#include "type_info/type_db.hpp"
+
 namespace sek
 {
-	typename service_locator::handle_t service_locator::instance() noexcept
+	detail::service_storage<void>::~service_storage() = default;
+
+	typename service_locator::guard_t service_locator::instance() noexcept
 	{
-		static guard_t guard;
-		return guard.access();
+		static std::recursive_mutex mtx;
+		static service_locator locator;
+		return guard_t{locator, mtx};
 	}
 
 	struct service_locator::service_entry
 	{
-		~service_entry()
-		{
-			if (deleter != nullptr) [[unlikely]]
-				deleter(instance.exchange(nullptr));
-		}
+		~service_entry() { delete instance.exchange(nullptr); }
 
 		void reset()
 		{
 			reset_event();
-			const auto old_ptr = instance.exchange(nullptr);
-			if (deleter != nullptr) [[likely]]
-				deleter(old_ptr);
+			delete instance.exchange(nullptr);
 			instance_type = {};
-			deleter = nullptr;
 		}
-		template<typename F>
-		service<void> *load(F &&factory, void (*del)(service<void> *), type_info type, bool replace)
+		detail::service_storage<void> *load(detail::service_storage<void> *(*factory)(), type_info type, bool replace)
 		{
 			/* Reads are synchronized by locator's mutex. */
 			const auto old_ptr = instance.load(std::memory_order_relaxed);
-			const auto old_del = std::exchange(deleter, del);
 
 			/* Reset the old instance if needed. */
 			if (old_ptr != nullptr)
@@ -42,8 +38,7 @@ namespace sek
 				if (replace)
 				{
 					reset_event();
-					if (old_del != nullptr) [[likely]]
-						old_del(old_ptr);
+					delete old_ptr;
 				}
 				else
 					return old_ptr;
@@ -52,7 +47,6 @@ namespace sek
 			/* Load the new instance. */
 			const auto new_ptr = factory();
 			instance.store(new_ptr);
-			deleter = del;
 			instance_type = type;
 			load_event();
 
@@ -60,8 +54,7 @@ namespace sek
 		}
 
 		/* `instance` is atomic, to allow direct access without locking the locator mutex. */
-		std::atomic<service<void> *> instance = nullptr;
-		void (*deleter)(service<void> *) = nullptr;
+		std::atomic<detail::service_storage<void> *> instance = nullptr;
 		type_info instance_type;
 
 		event<void()> load_event;
@@ -76,7 +69,10 @@ namespace sek
 		return *iter->second;
 	}
 
-	std::atomic<service<void> *> &service_locator::get_impl(type_info type) { return get_entry(type).instance; }
+	std::atomic<detail::service_storage<void> *> &service_locator::get_impl(type_info type)
+	{
+		return get_entry(type).instance;
+	}
 	type_info service_locator::instance_type_impl(type_info type) { return get_entry(type).instance_type; }
 
 	event<void()> &service_locator::on_load_impl(type_info type) { return get_entry(type).load_event; }
@@ -89,11 +85,11 @@ namespace sek
 			iter->second->reset();
 	}
 
-	service<void> *service_locator::load_impl(type_info service_type, type_info impl_type, service<void> *impl, bool replace)
+	detail::service_storage<void> *service_locator::load_impl(type_info service, type_info impl_type, factory_t factory, bool r)
 	{
-		return get_entry(service_type).load([&]() { return impl; }, nullptr, impl_type, replace);
+		return get_entry(service).load(factory, impl_type, r);
 	}
-	service<void> *service_locator::load_impl(type_info service_type, type_info attr_type, type_info impl_type, bool replace)
+	detail::service_storage<void> *service_locator::load_impl(type_info service, type_info attr_type, type_info impl_type, bool r)
 	{
 		if (!impl_type.has_attribute(attr_type)) [[unlikely]]
 			return nullptr;
@@ -103,25 +99,25 @@ namespace sek
 		auto *attr = static_cast<const attr_data_t *>(attr_any.data());
 
 		/* Load using the attribute's factory. */
-		return get_entry(service_type).load(attr->m_factory, attr->m_deleter, attr->m_instance_type, replace);
+		return get_entry(service).load(attr->m_factory, attr->m_instance_type, r);
 	}
-	service<void> *service_locator::load_impl(type_info service_type, type_info attr_type, std::string_view id, bool replace)
+	detail::service_storage<void> *service_locator::load_impl(type_info service, type_info attr_type, std::string_view id, bool r)
 	{
 		/* `detail::service_impl_tag` is used to query all attribute types. */
-		auto type_db = type_database::instance()->acquire_shared();
-		auto query = type_db->query().with_attributes<detail::service_impl_tag>();
+		auto type_db = type_database::instance().access_shared();
+		auto query = type_db->query().template with_attributes<detail::service_impl_tag>();
 
 		for (auto &type : query)
 			if (type.has_attribute(attr_type)) /* Check for the actual service attribute. */
 			{
 				/* Can safely cast to the generic data. */
-				const auto attr_any = impl_type.attribute(attr_type);
+				const auto attr_any = type.attribute(attr_type);
 				auto *attr = static_cast<const attr_data_t *>(attr_any.data());
 
 				/* Only select if the ids match. */
 				if (attr->m_id != id) continue;
 				/* Load using the attribute's factory. */
-				return get_entry(service_type).load(attr->m_factory, attr->m_deleter, attr->m_instance_type, replace);
+				return get_entry(service).load(attr->m_factory, attr->m_instance_type, r);
 			}
 		return nullptr;
 	}

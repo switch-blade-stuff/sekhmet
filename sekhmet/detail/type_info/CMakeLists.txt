@@ -7,4 +7,5 @@ target_sources(${PROJECT_NAME} PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/any_table.cpp
         ${CMAKE_CURRENT_LIST_DIR}/any_tuple.cpp
         ${CMAKE_CURRENT_LIST_DIR}/any_string.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/type_info.cpp)
+        ${CMAKE_CURRENT_LIST_DIR}/type_info.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/type_db.cpp)
