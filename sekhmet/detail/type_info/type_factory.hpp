@@ -15,9 +15,9 @@ namespace sek
 		friend class type_info;
 		friend class type_database;
 
-		using handle_t = detail::type_handle;
+		using data_t = detail::type_data;
 
-		constexpr explicit type_factory(handle_t handle) noexcept : m_handle(handle) {}
+		constexpr explicit type_factory(data_t data) noexcept : m_data(data) {}
 
 	public:
 		constexpr ~type_factory() { submit(); }
@@ -26,11 +26,14 @@ namespace sek
 		constexpr type_factory(type_factory &&) noexcept = default;
 		constexpr type_factory &operator=(type_factory &&) noexcept = default;
 
+		/** Returns the parent `type_info` of this factory. */
+		[[nodiscard]] constexpr type_info type() const noexcept;
+
 		/** Finalizes the type and inserts it into the type database.
 		 * @note After call to `submit` type factory is in invalid state. */
 		inline void submit();
 
 	private:
-		handle_t m_handle;
+		data_t m_data;
 	};
 }	 // namespace sek

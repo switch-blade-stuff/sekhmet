@@ -209,6 +209,12 @@ namespace sek
 		const data_t *m_data = nullptr;
 	};
 
+	template<typename T>
+	constexpr type_info type_factory<T>::type() const noexcept
+	{
+		return type_info{m_data};
+	}
+
 	any::any(type_info type, void *ptr) noexcept
 	{
 		m_storage = base_t::storage_t{ptr, false};

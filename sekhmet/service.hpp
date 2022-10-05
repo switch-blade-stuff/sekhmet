@@ -14,9 +14,38 @@
 
 namespace sek
 {
-	class service_locator;
 	template<typename T>
-	class SEK_API service;
+	class service;
+	class service_locator;
+
+	namespace detail
+	{
+		/* Helper attribute used to filter generic types. */
+		struct service_impl_tag
+		{
+		};
+		/* Generic base type of the `implements_service<S>` attribute. */
+		struct service_attr_data
+		{
+			type_info m_instance_type;
+			std::string_view m_name;
+			std::string_view m_id;
+
+			void (*m_deleter)(service<void> *);
+			service<void> *(*m_factory)();
+		};
+	}	 // namespace detail
+	namespace attributes
+	{
+		template<typename S>
+		class implements_service;
+	}
+
+	/** @brief Common generic base type for all services. */
+	template<>
+	class service<void>
+	{
+	};
 
 	/** @brief Global dynamic database of singleton services. */
 	class SEK_API service_locator
@@ -26,6 +55,7 @@ namespace sek
 
 		using guard_t = access_guard<service_locator>;
 		using handle_t = access_handle<service_locator, typename guard_t::unique_lock>;
+		using attr_data_t = detail::service_attr_data;
 
 		struct service_entry;
 
@@ -56,7 +86,9 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] T *load(type_info type)
 		{
-			return static_cast<T *>(load_impl(type_info::get<T>(), type, true));
+			const auto service_type = type_info::get<T>();
+			const auto attrib_type = type_info::get<attributes::implements_service<T>>();
+			return static_cast<T *>(load_impl(service_type, attrib_type, type, true));
 		}
 		/** If the specified type has an `implements_service<T>` attribute, instantiates it as a service of type `T`
 		 * if it is not already loaded.
@@ -66,7 +98,9 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] T *try_load(type_info type)
 		{
-			return static_cast<T *>(load_impl(type_info::get<T>(), type, false));
+			const auto service_type = type_info::get<T>();
+			const auto attrib_type = type_info::get<attributes::implements_service<T>>();
+			return static_cast<T *>(load_impl(service_type, attrib_type, type, false));
 		}
 
 		/** Locates a service implementation type with the specified id and instantiates it as a service of type `T`.
@@ -76,7 +110,9 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] T *load(std::string_view id)
 		{
-			return static_cast<T *>(load_impl(type_info::get<T>(), id, true));
+			const auto service_type = type_info::get<T>();
+			const auto attrib_type = type_info::get<attributes::implements_service<T>>();
+			return static_cast<T *>(load_impl(service_type, attrib_type, id, true));
 		}
 		/** Locates a service implementation type with the specified id and instantiates it as a service of type `T`,
 		 * if it is not already loaded.
@@ -86,7 +122,9 @@ namespace sek
 		template<typename T>
 		[[nodiscard]] T *try_load(std::string_view id)
 		{
-			return static_cast<T *>(load_impl(type_info::get<T>(), id, false));
+			const auto service_type = type_info::get<T>();
+			const auto attrib_type = type_info::get<attributes::implements_service<T>>();
+			return static_cast<T *>(load_impl(service_type, attrib_type, id, false));
 		}
 
 		// clang-format off
@@ -97,7 +135,12 @@ namespace sek
 		template<typename T, typename U>
 		[[nodiscard]] T *load(U *impl) requires std::is_base_of_v<T, U>
 		{
-			return static_cast<T *>(load_impl(type_info::get<T>(), impl, true));
+			const auto impl_type = type_info::get<U>();
+			const auto service_type = type_info::get<T>();
+			const auto base_ptr = static_cast<service<T> *>(impl);
+
+			const auto result = load_impl(service_type, impl_type, static_cast<service<void> *>(base_ptr), true));
+			return static_cast<T *>(static_cast<service<T> *>(result));
 		}
 		/** Loads a service implementation object of type `U` as a service of type `T`, if it is not already loaded.
 		 * @param impl Pointer to the service implementation object instance.
@@ -105,7 +148,12 @@ namespace sek
 		template<typename T, typename U>
 		[[nodiscard]] T *try_load(U *impl) requires std::is_base_of_v<T, U>
 		{
-			return static_cast<T *>(load_impl(type_info::get<T>(), impl, false));
+			const auto impl_type = type_info::get<U>();
+			const auto service_type = type_info::get<T>();
+			const auto base_ptr = static_cast<service<T> *>(impl);
+
+			const auto result = load_impl(service_type, impl_type, static_cast<service<void> *>(base_ptr), false);
+			return static_cast<T *>(static_cast<service<T> *>(result));
 		}
 		// clang-format on
 
@@ -143,11 +191,11 @@ namespace sek
 
 		void reset_impl(type_info type);
 
-		[[nodiscard]] void *load_impl(type_info service_type, void *impl, bool replace);
-		[[nodiscard]] void *load_impl(type_info service_type, type_info impl_type, bool replace);
-		[[nodiscard]] void *load_impl(type_info service_type, std::string_view impl_id, bool replace);
+		[[nodiscard]] service<void> *load_impl(type_info service_type, type_info impl_type, service<void> *impl, bool replace);
+		[[nodiscard]] service<void> *load_impl(type_info service_type, type_info attr_type, type_info impl_type, bool replace);
+		[[nodiscard]] service<void> *load_impl(type_info service_type, type_info attr_type, std::string_view id, bool replace);
 
-		[[nodiscard]] std::atomic<void *> &get_impl(type_info type);
+		[[nodiscard]] std::atomic<service<void> *> &get_impl(type_info type);
 		[[nodiscard]] type_info instance_type_impl(type_info type);
 
 		[[nodiscard]] event<void()> &on_load_impl(type_info type);
@@ -159,9 +207,12 @@ namespace sek
 	/** @brief Base type used to implement global services. Provides interface to the service locator.
 	 * @tparam T Type of service instance. */
 	template<typename T>
-	class SEK_API service
+	class service : service<void>
 	{
-		[[nodiscard]] static std::atomic<void *> &global_ptr() noexcept
+		template<typename>
+		friend class attributes::implements_service;
+
+		[[nodiscard]] static std::atomic<service<void> *> &global_ptr() noexcept
 		{
 			static auto &ptr_ref = service_locator::instance()->get_impl(type_info::get<T>());
 			return ptr_ref;
@@ -169,6 +220,77 @@ namespace sek
 
 	public:
 		/** Returns pointer to the global instance of the service. */
-		[[nodiscard]] static T *instance() noexcept { return static_cast<T *>(global_ptr().load()); }
+		[[nodiscard]] static T *instance() noexcept
+		{
+			/* Need to upcast from the generic `service<void>` pointer first. */
+			const auto base_ptr = static_cast<service<T> *>(global_ptr().load());
+			return static_cast<T *>(base_ptr);
+		}
 	};
+
+	namespace attributes
+	{
+		/** @brief Service type used to declare a service implementation. */
+		template<typename S>
+		class implements_service : detail::service_attr_data
+		{
+		public:
+			implements_service() = delete;
+			implements_service(const implements_service &) = delete;
+			implements_service &operator=(const implements_service &) = delete;
+			implements_service(implements_service &&) = delete;
+			implements_service &operator=(implements_service &&) = delete;
+
+			// clang-format off
+			/** Initializes an `implements_service` attribute for type `T`.
+			 * @note Instance name and id are generated from the type name */
+			template<typename T>
+			constexpr implements_service(type_factory<T> &factory) noexcept
+				requires std::is_base_of_v<S, T> : implements_service(factory, type_name<T>(), type_name<T>())
+			{
+			}
+			/** Initializes an `implements_service` attribute for type `T`.
+			 * @param name Debug name of the service instance.
+			 * @note Instance id is generated from the type name */
+			template<typename T>
+			constexpr implements_service(type_factory<T> &factory, std::string_view name) noexcept
+				requires std::is_base_of_v<S, T> : implements_service(factory, name, type_name<T>())
+			{
+			}
+			// clang-format on
+
+			/** Initializes an `implements_service` attribute for type `T`.
+			 * @param name Debug name of the service instance.
+			 * @param id Unique lookup id of the service instance. */
+			template<typename T>
+			constexpr implements_service(type_factory<T> &factory, std::string_view name, std::string_view id) noexcept
+				requires std::is_base_of_v<S, T>
+			{
+				/* Add required metadata to the target type. */
+				factory.template attribute<detail::service_impl_tag>();
+				factory.template parent<S>();
+
+				m_instance_type = factory.type();
+				m_name = name;
+				m_id = id;
+
+				/* Ugly casts are needed since generic `service<void> *` is used. */
+				m_deleter = +[](service<void> *ptr)
+				{
+					const auto base_ptr = static_cast<service<S> *>(ptr);
+					delete static_cast<T *>(base_ptr);
+				};
+				m_factory = +[]() -> service<void> *
+				{
+					const auto base_ptr = static_cast<service<S> *>(new T{});
+					return static_cast<service<void> *>(base_ptr);
+				};
+			}
+
+			/** Returns the id of the service instance. */
+			[[nodiscard]] constexpr std::string_view id() const noexcept { return m_id; }
+			/** Returns the debug name of the service instance. */
+			[[nodiscard]] constexpr std::string_view name() const noexcept { return m_name; }
+		};
+	}	 // namespace attributes
 }	 // namespace sek
