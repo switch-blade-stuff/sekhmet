@@ -1,0 +1,3 @@
+[submodule "sekhmet-core"]
+	path = sekhmet-core
+	url = https://github.com/switch-blade-stuff/sekhmet-core
