@@ -3,6 +3,7 @@
   <component name="CMakeWorkspace" PROJECT_DIR="$PROJECT_DIR$" />
   <component name="CidrRootsConfiguration">
     <libraryRoots>
+      <file path="$PROJECT_DIR$/core" />
       <file path="$PROJECT_DIR$/third-party/asio" />
       <file path="$PROJECT_DIR$/third-party/fmt" />
       <file path="$PROJECT_DIR$/third-party/rapidjson" />
