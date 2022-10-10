@@ -11,6 +11,9 @@ The only platform-independant future-proof solution is to completely re-load edi
 re-compilation of a plugin library, the editor would request a "deep" restart, completely unloading itself and all
 dependant libraries and starting an entirely new process from scratch (with the same commandline arguments).
 While this is a subpar solution, native plugins rely on OS- and platform-specific functionality, and in order
-to guarantee compatibility and correct functionality sacrifices need to be made.
+to guarantee compatibility and correct functionality sacrifices need to be made. Additionally, non-native
+scripting (ex. via a JIT-compiled scripting language) is preferable for project-specific logic that requires
+quick iteration, with native scripting mainly being used to implement large-scope or performance-critical
+systems (ex. a physics server or an AI processing system).
 
 This is not an issue outside of the editor, as plugin hot-reload is only supported within the editor runtime.
