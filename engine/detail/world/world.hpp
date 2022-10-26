@@ -428,8 +428,14 @@ namespace sek
 		};
 
 	public:
-		typedef event<void(entity_world &, entity_t, type_info)> generic_event_type;
-		typedef event<void(entity_world &, entity_t)> event_type;
+		typedef event<void(entity_world &, entity_t)> create_event_type;
+		typedef event<void(entity_world &, entity_t)> modify_event_type;
+		typedef event<void(entity_world &, entity_t)> remove_event_type;
+		typedef event<void(entity_world &, entity_t, bool)> locked_event_type;
+		typedef event<void(entity_world &, entity_t, bool)> enabled_event_type;
+		typedef event<void(entity_world &, entity_t)> generic_create_event_type;
+		typedef event<void(entity_world &, entity_t)> generic_modify_event_type;
+		typedef event<void(entity_world &, entity_t)> generic_remove_event_type;
 
 		typedef entity_t value_type;
 		typedef const entity_t *pointer;
@@ -760,6 +766,25 @@ namespace sek
 			return is_locked<C, Cs...>(*which);
 		}
 
+		/** Checks if any components of the specified entity are enabled. */
+		template<typename C, typename... Cs>
+		[[nodiscard]] constexpr bool is_enabled(entity_t entity) const noexcept
+		{
+			if constexpr (sizeof...(Cs) == 0)
+			{
+				const auto set = get_storage<C>();
+				return set != nullptr && set->is_enabled(entity);
+			}
+			else
+				return is_enabled<C>(entity) || (is_enabled<Cs>(entity) || ...);
+		}
+		/** @copydoc is_enabled */
+		template<typename C, typename... Cs>
+		[[nodiscard]] constexpr bool is_enabled(const_iterator which) const noexcept
+		{
+			return is_enabled<C, Cs...>(*which);
+		}
+
 		/** Checks if components of the specified entity can be sorted. Components cannot be sorted if they are
 		 * owned by collections or "locked". */
 		template<typename C, typename... Cs>
@@ -804,6 +829,37 @@ namespace sek
 		constexpr void unlock(const_iterator which) noexcept
 		{
 			unlock<C, Cs...>(*which);
+		}
+
+		/** Enables components for the specified entity. */
+		template<typename C, typename... Cs>
+		constexpr void enable(entity_t entity) noexcept
+		{
+			if constexpr (sizeof...(Cs) != 0)
+				(enable<C>(entity), (enable<Cs>(entity), ...));
+			else if (const auto set = get_storage<C>(); set != nullptr) [[likely]]
+				set->enable(entity);
+		}
+		/** @copydoc enable */
+		template<typename C, typename... Cs>
+		constexpr void enable(const_iterator which) noexcept
+		{
+			enable<C, Cs...>(*which);
+		}
+		/** Disables components for the specified entity. */
+		template<typename C, typename... Cs>
+		constexpr void disable(entity_t entity) noexcept
+		{
+			if constexpr (sizeof...(Cs) != 0)
+				(disable<C>(entity), (disable<Cs>(entity), ...));
+			else if (const auto set = get_storage<C>(); set != nullptr) [[likely]]
+				set->disable(entity);
+		}
+		/** @copydoc disable */
+		template<typename C, typename... Cs>
+		constexpr void disable(const_iterator which) noexcept
+		{
+			disable<C, Cs...>(*which);
 		}
 
 		/** Sorts components according to the specified order. Components will be grouped together in order
@@ -936,6 +992,7 @@ namespace sek
 		/** @copydoc destroy */
 		constexpr void destroy(const_iterator which) { destroy(*which); }
 
+		// clang-format off
 		/** Reserves storage for the specified component.
 		 * @param n Amount of components to reserve. If set to `0`, only creates the storage pool.
 		 * @return Reference to component storagefor type `C`. */
@@ -948,12 +1005,13 @@ namespace sek
 		 * @param n Amount of components to reserve. If set to `0`, only creates the storage pools.
 		 * @return Tuple of references to component storage. */
 		template<typename... Cs>
-		constexpr std::tuple<component_set<std::remove_cv_t<Cs>> &...> reserve(size_type n = 0)
-			requires(sizeof...(Cs) > 1)
+		constexpr std::tuple<component_set<std::remove_cv_t<Cs>> &...> reserve(size_type n = 0) requires(sizeof...(Cs) > 1)
 		{
 			return std::forward_as_tuple(reserve<Cs>(n)...);
 		}
+		// clang-format on
 
+		// clang-format off
 		/** Applies a functor to component of an entity.
 		 *
 		 * @param entity Target entity.
@@ -962,12 +1020,13 @@ namespace sek
 		 *
 		 * @warning Using an entity that does not exist or already has the specified component will result in undefined behavior. */
 		template<typename C, typename F>
-		constexpr decltype(auto) apply(entity_t entity, F &&f)
-			requires std::invocable<F, entity_t, C &>
+		constexpr decltype(auto) apply(entity_t entity, F &&f) requires std::invocable<F, entity_t, C &>
 		{
 			return *reserve_impl<C>().apply(entity, std::forward<F>(f));
 		}
+		// clang-format on
 
+		// clang-format off
 		/** Replaces a component for an entity.
 		 *
 		 * @param entity Entity to emplace component for.
@@ -976,11 +1035,11 @@ namespace sek
 		 *
 		 * @warning Using an entity that does not exist or already has the specified component will result in undefined behavior. */
 		template<typename C, typename... Args>
-		constexpr decltype(auto) replace(entity_t entity, Args &&...args)
-			requires std::constructible_from<C, Args...>
+		constexpr decltype(auto) replace(entity_t entity, Args &&...args) requires std::constructible_from<C, Args...>
 		{
 			return *reserve_impl<C>().replace(entity, std::forward<Args>(args)...);
 		}
+		// clang-format on
 
 		/** @brief Generates a new entity and constructs a component in-place. Tombstones (if any) are re-used.
 		 * @param args Arguments passed to component's constructor.
@@ -1119,34 +1178,53 @@ namespace sek
 		/** Returns event proxy for the component creation event.
 		 * This event is invoked when new components of type `C` are created and added to entities. */
 		template<typename C>
-		[[nodiscard]] constexpr event_proxy<event_type> on_create() noexcept
+		[[nodiscard]] constexpr event_proxy<create_event_type> on_create() noexcept
 		{
 			return storage<C>()->on_create();
 		}
 		/** Returns event proxy for the component modification event.
 		 * This event is invoked when components of type `C` are modified via `replace` or `apply`. */
 		template<typename C>
-		[[nodiscard]] constexpr event_proxy<event_type> on_modify() noexcept
+		[[nodiscard]] constexpr event_proxy<modify_event_type> on_modify() noexcept
 		{
 			return storage<C>()->on_modify();
 		}
 		/** Returns event proxy for the component removal event.
 		 * This event is invoked when components of type `C` are removed from entities and destroyed. */
 		template<typename C>
-		[[nodiscard]] constexpr event_proxy<event_type> on_remove() noexcept
+		[[nodiscard]] constexpr event_proxy<remove_event_type> on_remove() noexcept
 		{
 			return storage<C>()->on_remove();
 		}
 
+		/** Returns event proxy for the component lock event. This event is invoked when components of type `C`
+		 * are locked or unlocked. Event listeners receive reference to the parent world of the set, entity of
+		 * the locked or unlocked component and a boolean indicating the state of the lock  (`true` if locked,
+		 * `false` if unlocked). */
+		template<typename C>
+		[[nodiscard]] constexpr event_proxy<locked_event_type> on_lock() noexcept
+		{
+			return storage<C>()->on_lock();
+		}
+		/** Returns event proxy for the component enable event. This event is invoked when components of type `C`
+		 * are enabled or disabled. Event listeners receive reference to the parent world of the set, entity of the
+		 * enabled or disabled component and a boolean indicating whether the component was enabled or disabled (`true`
+		 * if enabled, `false` if disabled). */
+		template<typename C>
+		[[nodiscard]] constexpr event_proxy<enabled_event_type> on_enable() noexcept
+		{
+			return storage<C>()->on_enable();
+		}
+
 		/** Returns event proxy for the generic component creation event.
 		 * This event is invoked when new components of any type are created and added to entities. */
-		[[nodiscard]] constexpr event_proxy<generic_event_type> on_create() noexcept { return {m_create}; }
+		[[nodiscard]] constexpr event_proxy<generic_create_event_type> on_create() noexcept { return {m_create}; }
 		/** Returns event proxy for the generic component modification event.
 		 * This event is invoked when components of any type are modified via type-specific functions. */
-		[[nodiscard]] constexpr event_proxy<generic_event_type> on_modify() noexcept { return {m_modify}; }
+		[[nodiscard]] constexpr event_proxy<generic_modify_event_type> on_modify() noexcept { return {m_modify}; }
 		/** Returns event proxy for the generic component removal event.
 		 * This event is invoked when components of any type are removed from entities and destroyed. */
-		[[nodiscard]] constexpr event_proxy<generic_event_type> on_remove() noexcept { return {m_remove}; }
+		[[nodiscard]] constexpr event_proxy<generic_remove_event_type> on_remove() noexcept { return {m_remove}; }
 
 		constexpr void swap(entity_world &other) noexcept
 		{
@@ -1337,7 +1415,7 @@ namespace sek
 					};
 					[[maybe_unused]] constexpr auto sub_locked = []<typename T>(component_set<T> &set, collection_handler *h)
 					{
-						set.on_locked().subscribe(delegate{delegate_func_t<&collection_handler::template handle_locked<T>>{}, h});
+						set.on_lock().subscribe(delegate{delegate_func_t<&collection_handler::template handle_locked<T>>{}, h});
 					};
 					// clang-format on
 

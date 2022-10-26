@@ -26,6 +26,7 @@ namespace sek
 		typedef event<void(entity_world &, entity_t)> modify_event_type;
 		typedef event<void(entity_world &, entity_t)> remove_event_type;
 		typedef event<void(entity_world &, entity_t, bool)> locked_event_type;
+		typedef event<void(entity_world &, entity_t, bool)> enabled_event_type;
 
 		typedef typename base_set::value_type value_type;
 		typedef typename base_set::pointer pointer;
@@ -118,6 +119,11 @@ namespace sek
 		/** @copydoc is_locked */
 		[[nodiscard]] virtual bool is_locked(const_iterator which) const noexcept = 0;
 
+		/** Checks if a component for the specified entity is enabled. */
+		[[nodiscard]] virtual bool is_enabled(entity_t entity) const noexcept = 0;
+		/** @copydoc is_enabled */
+		[[nodiscard]] virtual bool is_enabled(const_iterator which) const noexcept = 0;
+
 		/** Returns `any_ref` reference to the component at the specified offset. */
 		[[nodiscard]] virtual any_ref get_any(size_type i) noexcept = 0;
 		/** @copydoc get_any */
@@ -180,16 +186,28 @@ namespace sek
 
 		/** Locks component for the specified entity in place. Pointers to locked components are guaranteed to always
 		 * be stable, however locking a component prevents it from being sorted or owned by collections.
+		 * @return `true` if the component was previously unlocked, `false` otherwise.
 		 * @note Empty component types are never locked. */
-		virtual void lock(entity_t entity) noexcept = 0;
+		virtual bool lock(entity_t entity) noexcept = 0;
 		/** @copydoc lock */
-		virtual void lock(const_iterator which) noexcept = 0;
+		virtual bool lock(const_iterator which) noexcept = 0;
 		/** Unlocks a locked component. See `lock`.
 		 * @return `true` if the component was previously locked, `false` otherwise.
 		 * @note Empty component types are never locked. */
 		virtual bool unlock(entity_t entity) noexcept = 0;
 		/** @copydoc unlock */
 		virtual bool unlock(const_iterator which) noexcept = 0;
+
+		/** Enables component for the specified entity.
+		 * @return `true` if the component was previously disabled, `false` otherwise. */
+		virtual bool enable(entity_t entity) const noexcept = 0;
+		/** @copydoc enable */
+		virtual bool enable(const_iterator which) const noexcept = 0;
+		/** Disables component for the specified entity.
+		 * @return `true` if the component was previously enabled, `false` otherwise. */
+		virtual bool disable(entity_t entity) const noexcept = 0;
+		/** @copydoc disable */
+		virtual bool disable(const_iterator which) const noexcept = 0;
 
 		/** @brief Replaces component of the specified entity with a new value.
 		 * @param entity Entity whose component to replace.
@@ -252,10 +270,17 @@ namespace sek
 		/** Returns event proxy for the component removal event.
 		 * This event is invoked when components of the underlying type are removed from entities and destroyed. */
 		[[nodiscard]] constexpr event_proxy<remove_event_type> on_remove() noexcept { return {m_remove}; }
-		/** Returns event proxy for the component locking event. This event is invoked when components of the underlying
+
+		/** Returns event proxy for the component lock event. This event is invoked when components of the underlying
 		 * type are locked or unlocked. Event listeners receive reference to the parent world of the set, entity of
-		 * the locked or unlocked component and a boolean indicating the state of the lock. */
-		[[nodiscard]] constexpr event_proxy<locked_event_type> on_locked() noexcept { return {m_locked}; }
+		 * the locked or unlocked component and a boolean indicating the state of the lock  (`true` if locked,
+		 * `false` if unlocked). */
+		[[nodiscard]] constexpr event_proxy<locked_event_type> on_lock() noexcept { return {m_lock}; }
+		/** Returns event proxy for the component enable event. This event is invoked when components of the
+		 * underlying type are enabled or disabled. Event listeners receive reference to the parent world of the set,
+		 * entity of the enabled or disabled component and a boolean indicating whether the component was enabled
+		 * or disabled (`true` if enabled, `false` if disabled). */
+		[[nodiscard]] constexpr event_proxy<locked_event_type> on_enable() noexcept { return {m_enable}; }
 
 	protected:
 		constexpr void swap(generic_component_set &other) noexcept
@@ -267,7 +292,8 @@ namespace sek
 			swap(m_create, other.m_create);
 			swap(m_modify, other.m_modify);
 			swap(m_remove, other.m_remove);
-			swap(m_locked, other.m_locked);
+			swap(m_lock, other.m_lock);
+			swap(m_enable, other.m_enable);
 			swap(m_type, other.m_type);
 		}
 
@@ -281,18 +307,25 @@ namespace sek
 	protected:
 		constexpr void dispatch_create(entity_t e) { m_create(world(), e); }
 		constexpr void dispatch_modify(entity_t e) { m_modify(world(), e); }
-		constexpr void dispatch_locked(entity_t e, bool l) { m_locked(world(), e, l); }
 		constexpr void dispatch_create(size_type idx) { dispatch_create(at(idx)); }
 		constexpr void dispatch_modify(size_type idx) { dispatch_modify(at(idx)); }
 		constexpr void dispatch_remove(size_type idx) { m_remove(world(), at(idx)); }
-		constexpr void dispatch_locked(size_type idx, bool l) { dispatch_locked(at(idx), l); }
+
+		constexpr void dispatch_lock(entity_t e, bool value) { m_lock(world(), e, value); }
+		constexpr void dispatch_enable(entity_t e, bool value) { m_enable(world(), e, value); }
+		constexpr void dispatch_lock(size_type idx, bool value) { dispatch_lock(at(idx), value); }
+		constexpr void dispatch_enable(size_type idx, bool value) { dispatch_enable(at(idx), value); }
 
 	private:
 		entity_world *m_world;
+
 		create_event_type m_create;
 		modify_event_type m_modify;
 		remove_event_type m_remove;
-		locked_event_type m_locked;
+
+		locked_event_type m_lock;
+		locked_event_type m_enable;
+
 		type_info m_type;
 	};
 
@@ -318,17 +351,22 @@ namespace sek
 			using pages_alloc = typename alloc_traits::template rebind_alloc<std::byte *>;
 			using pages_data = std::vector<std::byte *, pages_alloc>;
 
+			constexpr static size_type flag_bits = 2;
+			constexpr static size_type locked_bit = 1;
+			constexpr static size_type enabled_bit = 2;
+
 			[[nodiscard]] constexpr static size_type bitfield_size(size_type n) noexcept
 			{
-				/* Align the bitfield to be a multiple of component size (or size_t, whichever is greater). */
-				constexpr auto mult = std::max(sizeof(T), sizeof(std::size_t));
+				/* Align the bitfield to be a multiple of component alignment or size, whichever is greater. */
+				constexpr auto align = std::max(alignof(T), sizeof(T));
+				n = n * flag_bits; /* There are `flag_bits` flags for each component. */
 				const auto bytes = (n / sizeof(std::byte) + !!(n % sizeof(std::byte)));
-				const auto rem = bytes % mult;
-				return bytes - rem + (rem ? mult : 0);
+				const auto rem = bytes % align;
+				return bytes - rem + (rem ? align : 0);
 			}
 			[[nodiscard]] constexpr static size_type page_bytes(size_type n) noexcept
 			{
-				/* A page is made up of a bitfield indicating locked components, followed by an array of components */
+				/* A page is made up of a bitfield indicating locked and enabled components, followed by an array of components */
 				return bitfield_size(n) + n * sizeof(T);
 			}
 			[[nodiscard]] constexpr static T *page_data(std::byte *ptr) noexcept
@@ -382,28 +420,15 @@ namespace sek
 				return page_data(m_pages[idx])[off];
 			}
 
-			[[nodiscard]] constexpr bool is_locked(size_type i) const noexcept
+			[[nodiscard]] constexpr bool is_locked(size_type i) const noexcept { return get_flags(i, locked_bit); }
+			[[nodiscard]] constexpr bool set_locked(size_type i, bool value) noexcept
 			{
-				/* `off` in this case is the bit offset. */
-				const auto idx = page_idx(i);
-				const auto off = page_off(i);
-
-				/* Bitset is always aligned to at least size_t. */
-				const auto bitset = static_cast<std::size_t *>(m_pages[idx]);
-				return bitset[off / sizeof(std::size_t)] & (1ul << (off % sizeof(std::size_t)));
+				return set_flags(i, locked_bit, static_cast<size_type>(value) & locked_bit);
 			}
-			[[nodiscard]] constexpr bool toggle_lock(size_type i, bool value) noexcept
+			[[nodiscard]] constexpr bool is_enabled(size_type i) const noexcept { return get_flags(i, enabled_bit); }
+			[[nodiscard]] constexpr bool set_enabled(size_type i, bool value) noexcept
 			{
-				/* `off` in this case is the bit offset. */
-				const auto idx = page_idx(i);
-				const auto off = page_off(i);
-
-				/* Bitset is always aligned to at least size_t. */
-				const auto bitset = static_cast<std::size_t *>(m_pages[idx]);
-				const auto mask = (1ul << (off % sizeof(std::size_t)));
-				const auto old = bitset[off / sizeof(std::size_t)] & mask;
-				bitset[off / sizeof(std::size_t)] &= ~(value ? mask : 0);
-				return old;
+				return set_flags(i, enabled_bit, (static_cast<size_type>(value) << 1) & enabled_bit);
 			}
 
 			constexpr void reserve(size_type n)
@@ -443,6 +468,26 @@ namespace sek
 			}
 
 		private:
+			[[nodiscard]] constexpr size_type get_flags(size_type i, size_type mask) const noexcept
+			{
+				const auto bitset = static_cast<const size_type *>(m_pages[page_idx(i)]);
+				const auto off = page_off(i) * flag_bits;
+				return bitset[off / sizeof(size_type)] & (mask << (off % sizeof(size_type)));
+			}
+			[[nodiscard]] constexpr size_type set_flags(size_type i, size_type mask, size_type value) noexcept
+			{
+				const auto bitset = static_cast<size_type *>(m_pages[page_idx(i)]);
+				const auto off = page_off(i) * flag_bits;
+				const auto word_off = off / sizeof(size_type);
+				const auto bit_off = off % sizeof(size_type);
+
+				mask = mask << bit_off;
+				auto &word = bitset[word_off];
+				const auto old_value = word & mask;
+				word = (word & ~mask) | (value << bit_off);
+				return old_value;
+			}
+
 			[[nodiscard]] constexpr auto &alloc() noexcept { return *alloc_base::get(); }
 			[[nodiscard]] constexpr auto &alloc() const noexcept { return *alloc_base::get(); }
 			constexpr void assert_alloc(const component_pool &other [[maybe_unused]])
@@ -451,12 +496,21 @@ namespace sek
 						   sek::detail::alloc_eq(alloc(), other.alloc()));
 			}
 
-			[[nodiscard]] constexpr std::byte *alloc_page() { return alloc_traits::allocate(alloc(), page_size); }
-			constexpr void dealloc_page(std::byte *page) { alloc_traits::deallocate(alloc(), page, page_size); }
+			[[nodiscard]] constexpr std::byte *alloc_page()
+			{
+				constexpr auto total_size = page_bytes(page_size) / sizeof(T);
+				return static_cast<std::byte *>(alloc_traits::allocate(alloc(), total_size));
+			}
+			constexpr void dealloc_page(std::byte *page)
+			{
+				constexpr auto total_size = page_bytes(page_size) / sizeof(T);
+				alloc_traits::deallocate(alloc(), page, total_size);
+			}
 
 			[[nodiscard]] constexpr T *alloc_entry(size_type i)
 			{
 				const auto idx = page_idx(i);
+				const auto off = page_off(i);
 
 				/* Make sure page list has enough space. */
 				if (const auto req = idx + 1; req > m_pages.size()) m_pages.resize(req, nullptr);
@@ -465,7 +519,15 @@ namespace sek
 				auto &page = m_pages[idx];
 				if (page == nullptr) [[unlikely]]
 					page = alloc_page();
-				return page_data(page) + page_off(i);
+
+				/* Initialize flags. */
+				const auto flag_off = off * flag_bits;
+				const auto word_off = flag_off / sizeof(size_type);
+				const auto bit_off = flag_off % sizeof(size_type);
+				const auto mask = (enabled_bit | locked_bit) << bit_off;
+				static_cast<size_type *>(page)[word_off] &= ~mask;
+
+				return page_data(page) + off;
 			}
 
 			pages_data m_pages;
@@ -476,33 +538,86 @@ namespace sek
 		template<empty_component T>
 		class component_pool<T> : ebo_base_helper<T>
 		{
-			using ebo_base = ebo_base_helper<T>;
+			constexpr static auto page_size = component_traits<T>::page_size;
+
+			[[nodiscard]] constexpr static auto page_idx(auto n) noexcept { return n / page_size; }
+			[[nodiscard]] constexpr static auto page_off(auto n) noexcept { return n % page_size; }
 
 		public:
 			using size_type = std::size_t;
 			using difference_type = std::ptrdiff_t;
 
+		private:
+			using pages_data = std::vector<size_type *>;
+			using value_base = ebo_base_helper<T>;
+
+			[[nodiscard]] constexpr static size_type bitfield_size(size_type n) noexcept
+			{
+				/* Align the bitfield to be a multiple of size_type. */
+				constexpr auto align = sizeof(size_type);
+				const auto bytes = (n / sizeof(std::byte) + !!(n % sizeof(std::byte)));
+				const auto rem = bytes % align;
+				return bytes - rem + (rem ? align : 0);
+			}
+
 		public:
+			component_pool(const component_pool &) = delete;
+			component_pool &operator=(const component_pool &) = delete;
+
+			constexpr component_pool() = default;
+
+			constexpr component_pool(component_pool &&other) noexcept(std::is_nothrow_move_constructible_v<pages_data>)
+				: value_base(std::move(other)), m_pages(std::move(other.m_pages))
+			{
+			}
+			constexpr component_pool &operator=(component_pool &&other) noexcept(std::is_nothrow_move_assignable_v<pages_data>)
+			{
+				value_base::operator=(std::move(other));
+				m_pages = std::move(other.m_pages);
+				return *this;
+			}
+
 			constexpr void release_pages() {}
 
 			[[nodiscard]] constexpr T *component_ptr(size_type) const noexcept
 			{
-				return const_cast<T *>(ebo_base::get());
+				return const_cast<T *>(value_base::get());
 			}
 			[[nodiscard]] constexpr T &component_ref(size_type) const noexcept
 			{
-				return *const_cast<T *>(ebo_base::get());
+				return *const_cast<T *>(value_base::get());
 			}
 
 			constexpr void reserve(size_type) {}
 
 			[[nodiscard]] constexpr bool is_locked(size_type) const noexcept { return false; }
-			[[nodiscard]] constexpr bool toggle_lock(size_type, bool) noexcept { return false; }
+			[[nodiscard]] constexpr bool set_locked(size_type, bool) noexcept { return false; }
+
+			[[nodiscard]] constexpr bool is_enabled(size_type i) const noexcept
+			{
+				const auto idx = page_idx(i);
+				const auto off = page_off(i);
+				const auto mask = 1 << (off % sizeof(size_type));
+				return m_pages[idx][off / sizeof(size_type)] & mask;
+			}
+			[[nodiscard]] constexpr bool set_enabled(size_type i, bool value) noexcept
+			{
+				const auto idx = page_idx(i);
+				const auto off = page_off(i);
+				const auto word_off = off / sizeof(size_type);
+				const auto bit_off = off % sizeof(size_type);
+				const auto mask = 1 << bit_off;
+				auto &word = bitset[word_off];
+
+				const auto old_value = word & mask;
+				word = (word & ~mask) | (static_cast<size_type>(value) << bit_off);
+				return old_value;
+			}
 
 			template<typename... Args>
 			constexpr T &emplace(size_type i, Args &&...args)
 			{
-				return *std::construct_at(component_ptr(i), std::forward<Args>(args)...);
+				return *std::construct_at(alloc_entry(i), std::forward<Args>(args)...);
 			}
 			constexpr void erase(size_type i) { std::destroy_at(component_ptr(i)); }
 
@@ -510,6 +625,33 @@ namespace sek
 			constexpr void swap_value(size_type, size_type) noexcept {}
 
 			constexpr void swap(component_pool &) noexcept {}
+
+		private:
+			[[nodiscard]] constexpr size_type *alloc_page() { return new size_type[bitfield_size(page_size)]; }
+			constexpr void dealloc_page(size_type *page) { delete[] page; }
+
+			[[nodiscard]] constexpr T *alloc_entry(size_type i)
+			{
+				const auto idx = page_idx(i);
+				const auto off = page_off(i);
+
+				/* Make sure page list has enough space. */
+				if (const auto req = idx + 1; req > m_pages.size()) m_pages.resize(req, nullptr);
+
+				/* Allocate the page if it is empty. */
+				auto &page = m_pages[idx];
+				if (page == nullptr) [[unlikely]]
+					page = alloc_page();
+
+				/* Initialize enabled flag. */
+				const auto word_off = off / sizeof(size_type);
+				const auto bit_off = off & sizeof(size_type);
+				page[word_off] &= ~(1 << bit_off);
+
+				return component_ptr(i);
+			}
+
+			pages_data m_pages;
 		};
 	}	 // namespace detail
 
@@ -779,13 +921,24 @@ namespace sek
 		/** @copydoc base_t::offset(base_iter) */
 		[[nodiscard]] constexpr size_type offset(const_iterator which) const noexcept { return which.offset(); }
 
-		/** @copydoc base_t::is_locked(base_iter) */
+		/** @copydoc base_t::is_locked(entity_t) */
 		[[nodiscard]] constexpr bool is_locked(entity_t entity) const noexcept final
 		{
 			return is_locked(offset(entity));
 		}
 		/** @copydoc is_locked */
 		[[nodiscard]] constexpr bool is_locked(const_iterator which) const noexcept { return is_locked(offset(which)); }
+
+		/** @copydoc base_t::is_enabled(entity_t) */
+		[[nodiscard]] constexpr bool is_enabled(entity_t entity) const noexcept final
+		{
+			return is_enabled(offset(entity));
+		}
+		/** @copydoc is_enabled */
+		[[nodiscard]] constexpr bool is_enabled(const_iterator which) const noexcept
+		{
+			return is_enabled(offset(which));
+		}
 
 		/** Returns reference to the component of an entity at the specified offset . */
 		[[nodiscard]] constexpr auto &get(size_type i) noexcept { return component_ref(i); }
@@ -826,16 +979,34 @@ namespace sek
 
 		/** Locks component for the specified entity in place. Pointers to locked components are guaranteed to always
 		 * be stable, however locking a component prevents it from being sorted or owned by collections.
+		 * @return `true` if the component was previously unlocked, `false` otherwise.
 		 * @note Empty component types are never locked. */
-		constexpr void lock(entity_t entity) noexcept final { toggle_lock(offset(entity), entity, true); }
+		constexpr bool lock(entity_t entity) noexcept final { return set_locked(offset(entity), entity, true); }
 		/** @copydoc lock */
-		constexpr void lock(const_iterator which) noexcept { toggle_lock(offset(which), *which, true); }
+		constexpr bool lock(const_iterator which) noexcept { return set_locked(offset(which), *which, true); }
 		/** Unlocks a locked component. See `lock`.
 		 * @return `true` if the component was previously locked, `false` otherwise.
 		 * @note Empty component types are never locked. */
-		constexpr bool unlock(entity_t entity) noexcept final { return toggle_lock(offset(entity), entity, false); }
+		constexpr bool unlock(entity_t entity) noexcept final { return set_locked(offset(entity), entity, false); }
 		/** @copydoc unlock */
-		constexpr bool unlock(const_iterator which) noexcept { return toggle_lock(offset(which), *which, false); }
+		constexpr bool unlock(const_iterator which) noexcept { return set_locked(offset(which), *which, false); }
+
+		/** Enables component for the specified entity.
+		 * @return `true` if the component was previously disabled, `false` otherwise. */
+		constexpr bool enable(entity_t entity) const noexcept final
+		{
+			return set_enabled(offset(entity), entity, true);
+		}
+		/** @copydoc enable */
+		constexpr bool enable(const_iterator which) const noexcept { return set_enabled(offset(entity), *which, true); }
+		/** Disables component for the specified entity.
+		 * @return `true` if the component was previously enabled, `false` otherwise. */
+		constexpr bool disable(entity_t entity) const noexcept { return set_enabled(offset(entity), entity, false); }
+		/** @copydoc disable */
+		constexpr bool disable(const_iterator which) const noexcept
+		{
+			return set_enabled(offset(entity), *which, false);
+		}
 
 		// clang-format off
 		/** @brief Replaces component of the specified entity with an in-place constructed instance.
@@ -1200,12 +1371,19 @@ namespace sek
 				m_pool.reserve(n);
 		}
 
-		constexpr bool toggle_lock(size_type idx, entity_t e, bool l) noexcept
+		constexpr bool set_locked(size_type idx, entity_t e, bool value) noexcept
 		{
-			dispatch_locked(e, l);
-			return m_pool.toggle_lock(idx, l);
+			dispatch_lock(e, value);
+			return m_pool.set_locked(idx, value);
 		}
 		[[nodiscard]] constexpr bool is_locked(size_type idx) const noexcept { return m_pool.is_locked(idx); }
+
+		constexpr bool set_enabled(size_type idx, entity_t e, bool value) noexcept
+		{
+			dispatch_enable(e, value);
+			return m_pool.set_enabled(idx, value);
+		}
+		[[nodiscard]] constexpr bool is_enabled(size_type idx) const noexcept { return m_pool.is_enabled(idx); }
 
 		template<typename F>
 		constexpr size_type apply_impl(size_type idx, entity_t e, F &&f)
@@ -1335,15 +1513,26 @@ namespace sek
 		constexpr void swap_(size_type lhs, size_type rhs) final { m_pool.swap_value(lhs, rhs); }
 
 		/* generic_component_set overrides */
-		void lock(base_iter which) noexcept final
+		bool lock(base_iter which) noexcept final
 		{
 			const auto idx = which.offset();
-			return toggle_lock(idx, at(idx), true);
+			return set_locked(idx, at(idx), true);
 		}
 		bool unlock(base_iter which) noexcept final
 		{
 			const auto idx = which.offset();
-			return toggle_lock(idx, at(idx), false);
+			return set_locked(idx, at(idx), false);
+		}
+
+		bool enable(base_iter which) noexcept final
+		{
+			const auto idx = which.offset();
+			return set_enabled(idx, at(idx), true);
+		}
+		bool disable(base_iter which) noexcept final
+		{
+			const auto idx = which.offset();
+			return set_enabled(idx, at(idx), false);
 		}
 
 		[[nodiscard]] constexpr base_iter replace(size_type idx, any &value)
@@ -1369,6 +1558,7 @@ namespace sek
 		}
 
 		[[nodiscard]] bool is_locked(base_iter which) const noexcept final { return is_locked(which.offset()); }
+		[[nodiscard]] bool is_enabled(base_iter which) const noexcept final { return is_enabled(which.offset()); }
 
 		[[nodiscard]] any_ref get_any(base_iter which) noexcept final { return get_any(which.offset()); }
 		[[nodiscard]] any_ref get_any(base_iter which) const noexcept final { return get_any(which.offset()); }
@@ -1400,6 +1590,7 @@ namespace sek
 		typedef component_set<T> set_type;
 
 		typedef T value_type;
+		typedef T element_type;
 		typedef value_type *pointer;
 		typedef value_type &reference;
 
@@ -1436,6 +1627,11 @@ namespace sek
 		[[nodiscard]] constexpr bool is_locked() const noexcept
 		{
 			return m_set != nullptr && m_set->is_locked(m_entity);
+		}
+		/** Checks if the pointed-to component is enabled. */
+		[[nodiscard]] constexpr bool is_enabled() const noexcept
+		{
+			return m_set != nullptr && m_set->is_enabled(m_entity);
 		}
 
 		/** Returns pointer to the associated component, or `nullptr` if the component pointer does not point to a valid component. */
@@ -1474,11 +1670,19 @@ namespace sek
 		 * @return Pair where first is the old entity and second is pointer to the old set. */
 		constexpr std::pair<entity_t, set_ptr> reset() noexcept { return reset(entity_t::tombstone(), nullptr); }
 
-		/** Locks the pointed-to component. */
-		constexpr void lock() noexcept { m_set->lock(m_entity); }
+		/** Locks the pointed-to component.
+		 * @return `true` if the component was previously unlocked, `false` otherwise. */
+		constexpr bool lock() noexcept { return m_set->lock(m_entity); }
 		/** Unlocks the pointed-to component.
 		 * @return `true` if the component was previously locked, `false` otherwise. */
 		constexpr bool unlock() noexcept { return m_set->unlock(m_entity); }
+
+		/** Enables the pointed-to component.
+		 * @return `true` if the component was previously disabled, `false` otherwise. */
+		constexpr bool enable() noexcept { m_set->enable(m_entity); }
+		/** Disables the pointed-to component.
+		 * @return `true` if the component was previously enabled, `false` otherwise. */
+		constexpr bool disable() noexcept { return m_set->disable(m_entity); }
 
 		[[nodiscard]] constexpr bool operator==(const component_ptr &) const noexcept = default;
 		[[nodiscard]] constexpr bool operator!=(const component_ptr &) const noexcept = default;
